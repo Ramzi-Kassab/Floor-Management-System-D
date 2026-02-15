@@ -7369,28 +7369,29 @@ class StockImportView(LoginRequiredMixin, TemplateView):
 
     Supports the ERP On-hand.xlsx format:
     - Auto-detects header row by searching for "Item number" column
-    - Maps ERP item prefixes to variant cases:
-      - CT-* → NEW-PUR (New Purchased)
-      - ENO-CT-* → NEW-EO (ENO As New)
-      - RCLM-ARDT-* → USED-RCL (ARDT Reclaimed)
-      - RCLM-* → NEW-CLI (LSTK/Client Reclaimed)
-      - RTRO-* → NEW-RET (Retrofit as New)
-    - Uses Color column as HDBS code to match inventory items
-    - Aggregates quantities across warehouses
+    - Matches ERP item numbers directly against ItemVariant.erp_item_no
+      (e.g. CT-0032, ENO-CT-0032, RCLM-ARDT-0011, RCLM-0032, RTRO-0032)
+    - Filters rows where Site='ARDT Site' AND Warehouse='Store'
+    - Uses 'Available physical' (or 'Physical inventory') as quantity
+    - No Color/HDBS column needed — matching is by ERP item number
     """
 
     template_name = "inventory/stock_import.html"
 
-    # Header names for auto-detection (exact ERP names, case-insensitive)
+    # Header names for auto-detection (case-insensitive, partial match)
     HEADER_PATTERNS = {
         'item_number': ['item number'],
-        'color': ['color'],
+        'site': ['site'],
         'warehouse': ['warehouse'],
-        'qty': ['available physical'],
+        'qty': ['available physical', 'physical inventory'],
+        # Optional columns (not required)
+        'item_group': ['item group'],
+        'color': ['color'],
     }
 
-    # Warehouses to include
-    INCLUDE_WAREHOUSES = ['Store', 'R Warehous', 'Shopfloor']
+    # Only import rows matching this Site + Warehouse
+    REQUIRED_SITE = 'ARDT Site'
+    REQUIRED_WAREHOUSE = 'Store'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -7511,13 +7512,15 @@ class StockImportView(LoginRequiredMixin, TemplateView):
                 'error': 'Could not find header row. Looking for "Item number" column in first 20 rows.'
             }, status=400)
 
-        # Validate required columns
-        required_columns = ['item_number', 'color', 'qty']
+        # Validate required columns — only item_number and qty are mandatory
+        required_columns = ['item_number', 'qty']
         missing = [c for c in required_columns if c not in column_map]
         if missing:
+            found_cols = list(column_map.keys())
             return JsonResponse({
                 'success': False,
-                'error': f'Missing required columns: {missing}. Expected: Item number, Color, Available physical'
+                'error': f'Missing required columns: {missing}. Found: {found_cols}. '
+                         f'Expected at minimum: "Item number" and "Available physical" (or "Physical inventory")'
             }, status=400)
 
         data_start_row = header_row + 1
@@ -7528,42 +7531,42 @@ class StockImportView(LoginRequiredMixin, TemplateView):
             default_location = InventoryLocation.objects.first()
 
         if not default_location:
-            return JsonResponse({'success': False, 'error': 'No inventory location found'}, status=400)
+            return JsonResponse({'success': False, 'error': 'No inventory location found. Please create a location first.'}, status=400)
 
-        # Build HDBS code to item mapping
+        # Build ERP item number → variant mapping from existing ItemVariant records
+        erp_to_variant = {}
+        for variant in ItemVariant.objects.filter(
+            erp_item_no__isnull=False
+        ).exclude(erp_item_no='').select_related('base_item', 'variant_case'):
+            erp_to_variant[variant.erp_item_no.strip()] = variant
+
+        # Get variant cases (for fallback matching)
+        variant_cases = {vc.code: vc for vc in VariantCase.objects.all()}
+
+        # Also build HDBS/MAT → item mapping (fallback if erp_item_no not found)
         hdbs_to_item = {}
         for item in InventoryItem.objects.filter(mat_number__isnull=False).exclude(mat_number=''):
             hdbs_to_item[str(item.mat_number).strip()] = item
 
-        for attr_val in ItemAttributeValue.objects.filter(
-            attribute__attribute__code__in=['hdbs_code', 'hdbs', 'hdbs_mat'],
-            text_value__isnull=False
-        ).exclude(text_value='').select_related('item'):
-            hdbs_code = str(attr_val.text_value).strip()
-            if hdbs_code not in hdbs_to_item:
-                hdbs_to_item[hdbs_code] = attr_val.item
-
-        # Get variant cases
-        variant_cases = {vc.code: vc for vc in VariantCase.objects.all()}
-
-        # First pass: Aggregate quantities by (HDBS_code, variant_case)
-        aggregated = defaultdict(lambda: {
-            'qty': Decimal('0'),
-            'erp_items': set(),
-            'warehouses': set(),
-        })
-
         stats = {
             'rows_processed': 0,
-            'items_matched': 0,
-            'items_not_found': 0,
+            'rows_matched': 0,
+            'rows_not_found': 0,
+            'rows_skipped_site': 0,
+            'rows_skipped_not_cutter': 0,
+            'rows_zero_qty': 0,
             'total_quantity': Decimal('0'),
-            'skipped_not_cutter': 0,
-            'skipped_no_hdbs': 0,
-            'skipped_warehouse': 0,
         }
         not_found = []
-        warehouses_to_include = set(self.INCLUDE_WAREHOUSES)
+
+        # Aggregate quantities by variant (same ERP item may appear in multiple rows)
+        aggregated = defaultdict(lambda: {
+            'qty': Decimal('0'),
+            'erp_item_no': '',
+            'variant': None,
+            'item': None,
+            'variant_code': '',
+        })
 
         # Process rows
         for row_idx in range(data_start_row, ws.max_row + 1):
@@ -7574,82 +7577,78 @@ class StockImportView(LoginRequiredMixin, TemplateView):
             item_number = str(item_number).strip()
             stats['rows_processed'] += 1
 
-            # Only process cutter-related items
+            # Only process cutter-related ERP item numbers
             item_upper = item_number.upper()
             is_cutter = any(p in item_upper for p in ['CT-', 'CT0', 'ENO-CT', 'RCLM', 'RTRO'])
             if not is_cutter:
-                stats['skipped_not_cutter'] += 1
+                stats['rows_skipped_not_cutter'] += 1
                 continue
 
-            # Get HDBS code from Color column
-            hdbs_code = ws.cell(row=row_idx, column=column_map['color']).value
-            if not hdbs_code:
-                stats['skipped_no_hdbs'] += 1
-                continue
-            hdbs_code = str(hdbs_code).strip()
+            # Filter by Site and Warehouse: only ARDT Site + Store
+            if 'site' in column_map:
+                site = str(ws.cell(row=row_idx, column=column_map['site']).value or '').strip()
+                if site != self.REQUIRED_SITE:
+                    stats['rows_skipped_site'] += 1
+                    continue
 
-            # Get warehouse (optional)
-            warehouse = ''
             if 'warehouse' in column_map:
-                warehouse = ws.cell(row=row_idx, column=column_map['warehouse']).value or ''
-                warehouse = str(warehouse).strip()
-
-            if warehouse and warehouse not in warehouses_to_include:
-                stats['skipped_warehouse'] += 1
-                continue
+                warehouse = str(ws.cell(row=row_idx, column=column_map['warehouse']).value or '').strip()
+                if warehouse != self.REQUIRED_WAREHOUSE:
+                    stats['rows_skipped_site'] += 1
+                    continue
 
             # Get quantity
             qty_raw = ws.cell(row=row_idx, column=column_map['qty']).value
             try:
                 qty = Decimal(str(qty_raw or 0))
-            except:
+            except Exception:
                 qty = Decimal('0')
 
             if qty <= 0:
+                stats['rows_zero_qty'] += 1
                 continue
 
-            # Determine variant case from item prefix
-            variant_code = self._get_variant_case_for_item(item_number)
-            if not variant_code:
-                continue
+            # Match by ERP item number directly against ItemVariant.erp_item_no
+            variant = erp_to_variant.get(item_number)
 
-            # Aggregate
-            key = (hdbs_code, variant_code)
-            aggregated[key]['qty'] += qty
-            aggregated[key]['erp_items'].add(item_number)
-            aggregated[key]['warehouses'].add(warehouse)
-
-        # Build preview data from aggregated
-        preview_data = []
-
-        for (hdbs_code, variant_code), data in aggregated.items():
-            qty = data['qty']
-
-            # Find matching inventory item
-            item = hdbs_to_item.get(hdbs_code)
-            if not item:
-                stats['items_not_found'] += 1
+            if variant:
+                key = variant.pk
+                aggregated[key]['qty'] += qty
+                aggregated[key]['erp_item_no'] = item_number
+                aggregated[key]['variant'] = variant
+                aggregated[key]['item'] = variant.base_item
+                aggregated[key]['variant_code'] = variant.variant_case.code if variant.variant_case else ''
+            else:
+                stats['rows_not_found'] += 1
+                variant_code = self._get_variant_case_for_item(item_number) or '?'
                 not_found.append({
-                    'row': '-',
-                    'hdbs_code': hdbs_code,
-                    'product_name': f'Variant: {variant_code}',
-                    'erp_items': list(data['erp_items'])[:3],
+                    'erp_item_no': item_number,
+                    'variant_code': variant_code,
                     'qty': float(qty),
                 })
-                continue
 
-            stats['items_matched'] += 1
+        # Build preview data
+        preview_data = []
+        for key, data in aggregated.items():
+            variant = data['variant']
+            item = data['item']
+            qty = data['qty']
+            stats['rows_matched'] += 1
             stats['total_quantity'] += qty
 
             preview_data.append({
-                'hdbs_code': hdbs_code,
+                'variant_pk': variant.pk,
+                'erp_item_no': data['erp_item_no'],
                 'item_code': item.code,
                 'item_name': item.name,
-                'variant_code': variant_code,
+                'mat_number': item.mat_number or '',
+                'variant_code': data['variant_code'],
                 'qty': float(qty),
-                'erp_items': list(data['erp_items'])[:3],
                 'matched': True,
             })
+
+        # Sort preview by item code
+        preview_data.sort(key=lambda x: x['item_code'])
 
         if action == 'preview':
             return JsonResponse({
@@ -7658,52 +7657,36 @@ class StockImportView(LoginRequiredMixin, TemplateView):
                 'sheet_name': sheet_name,
                 'header_row': header_row,
                 'column_map': column_map,
+                'filter': f"Site='{self.REQUIRED_SITE}' AND Warehouse='{self.REQUIRED_WAREHOUSE}'",
                 'stats': {
                     'rows_processed': stats['rows_processed'],
-                    'items_matched': stats['items_matched'],
-                    'items_not_found': stats['items_not_found'],
+                    'rows_matched': stats['rows_matched'],
+                    'rows_not_found': stats['rows_not_found'],
+                    'rows_skipped_site': stats['rows_skipped_site'],
+                    'rows_skipped_not_cutter': stats['rows_skipped_not_cutter'],
+                    'rows_zero_qty': stats['rows_zero_qty'],
                     'total_quantity': float(stats['total_quantity']),
+                    'variants_in_db': len(erp_to_variant),
                 },
-                'preview': preview_data[:100],
-                'not_found': not_found[:20],
+                'preview': preview_data[:200],
+                'not_found': not_found[:50],
             })
 
         elif action == 'import':
             import_stats = {
-                'variants_created': 0,
-                'variants_updated': 0,
                 'stock_records_created': 0,
                 'stock_records_updated': 0,
             }
 
             with transaction.atomic():
                 for row_data in preview_data:
-                    item = hdbs_to_item.get(row_data['hdbs_code'])
-                    if not item:
-                        continue
-
-                    variant_code = row_data['variant_code']
-                    variant_case = variant_cases.get(variant_code)
-                    if not variant_case:
+                    variant_pk = row_data['variant_pk']
+                    try:
+                        variant = ItemVariant.objects.get(pk=variant_pk)
+                    except ItemVariant.DoesNotExist:
                         continue
 
                     qty_decimal = Decimal(str(row_data['qty']))
-
-                    # Find or create variant
-                    variant, variant_created = ItemVariant.objects.get_or_create(
-                        base_item=item,
-                        variant_case=variant_case,
-                        defaults={'code': f'{item.code}-{variant_code}'}
-                    )
-                    if variant_created:
-                        import_stats['variants_created'] += 1
-                    else:
-                        import_stats['variants_updated'] += 1
-
-                    # For NEW-CLI, set LSTK account
-                    if variant_code == 'NEW-CLI' and not variant.account:
-                        variant.account = 'LSTK'
-                        variant.save(update_fields=['account'])
 
                     # Find or create stock record
                     stock, stock_created = VariantStock.objects.get_or_create(
@@ -7728,8 +7711,8 @@ class StockImportView(LoginRequiredMixin, TemplateView):
                 'message': 'Import completed successfully',
                 'stats': {
                     'rows_processed': stats['rows_processed'],
-                    'items_matched': stats['items_matched'],
-                    'items_not_found': stats['items_not_found'],
+                    'rows_matched': stats['rows_matched'],
+                    'rows_not_found': stats['rows_not_found'],
                     'total_quantity': float(stats['total_quantity']),
                     **import_stats,
                 },

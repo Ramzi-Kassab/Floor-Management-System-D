@@ -1,0 +1,878 @@
+{% extends "base.html" %}
+
+{% block title %}Debug Chain - {{ execution.chain.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm">
+        <li class="inline-flex items-center">
+            <a href="{% url 'erp_automation:dashboard' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                ERP Automation
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                    {{ execution.job_data.work_order_number }}
+                </a>
+            </div>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">Debug Chain #{{ execution.pk }}</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="bug" class="w-6 h-6 text-amber-500"></i>
+            Debug Chain Execution
+        </h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1 text-sm">
+            {{ execution.chain.name }} | {{ execution.job_data.work_order_number }}
+        </p>
+    </div>
+    <div class="mt-3 md:mt-0 flex gap-2">
+        <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back to Job
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+
+<div x-data="debugChainExecution()" x-init="init()" class="flex gap-4" style="min-height: calc(100vh - 220px);">
+
+    <!-- ====================== LEFT SIDEBAR ====================== -->
+    <div class="w-80 flex-shrink-0 flex flex-col gap-3" style="max-height: calc(100vh - 220px);">
+
+        <!-- ── Link Timeline ──────────────────────────────── -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden flex flex-col" style="max-height: 45%;">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="link-2" class="w-4 h-4 text-indigo-500"></i>
+                    Chain Links
+                    <span class="ml-auto text-xs text-gray-400" x-text="`${completedLinkCount}/${totalLinks}`"></span>
+                </h3>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+                <template x-for="(link, lidx) in allLinks" :key="lidx">
+                    <div style="display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px; border-radius: 8px; margin-bottom: 2px; cursor: pointer;"
+                         :style="'border-left: 3px solid ' + getLinkBorderColor(lidx) + '; background: ' + getLinkBgColor(lidx)"
+                         @click="expandedLinkIdx = expandedLinkIdx === lidx ? -1 : lidx">
+                        <!-- Status Icon -->
+                        <div style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-top: 1px;"
+                             :style="'background: ' + getLinkIconBg(lidx) + '; color: ' + (getLinkStatus(lidx) === 'pending' ? '#6b7280' : '#fff')">
+                            <template x-if="getLinkStatus(lidx) === 'success'">
+                                <svg style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                            </template>
+                            <template x-if="getLinkStatus(lidx) === 'running'">
+                                <svg style="width: 12px; height: 12px;" class="animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                            </template>
+                            <template x-if="getLinkStatus(lidx) === 'failed'">
+                                <svg style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </template>
+                            <template x-if="getLinkStatus(lidx) === 'skipped'">
+                                <svg style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                            </template>
+                            <template x-if="getLinkStatus(lidx) === 'pending'">
+                                <span style="font-size: 10px; font-weight: 700;" x-text="lidx + 1"></span>
+                            </template>
+                        </div>
+                        <!-- Link info -->
+                        <div style="flex: 1; min-width: 0; overflow: hidden;">
+                            <div style="font-size: 12px; font-weight: 600; line-height: 1.3; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" x-text="link.name"></div>
+                            <div style="font-size: 10px; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" x-text="link.workflow_name + ' (' + link.step_count + ' steps)'"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Current Link's Step Timeline ───────────────── -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden flex flex-col flex-1" style="min-height: 0;">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list-ordered" class="w-4 h-4 text-blue-500"></i>
+                    <span x-text="currentLink ? 'Steps: ' + currentLink.name : 'Steps'"></span>
+                    <span class="ml-auto text-xs text-gray-400" x-text="currentLink ? `${completedStepCount}/${totalSteps}` : ''"></span>
+                </h3>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-0.5" style="min-height: 0;">
+                <template x-if="!currentLink && status !== 'completed' && status !== 'failed' && status !== 'stopped'">
+                    <div class="flex items-center justify-center h-full text-gray-400 text-xs p-4">
+                        Waiting for chain to start...
+                    </div>
+                </template>
+                <template x-if="currentLink || status === 'completed' || status === 'failed' || status === 'stopped'">
+                    <div>
+                        <template x-for="(step, sidx) in currentSteps" :key="sidx">
+                            <div style="display: flex; align-items: flex-start; gap: 8px; padding: 5px 8px; border-radius: 6px; margin-bottom: 1px;"
+                                 :style="'border-left: 2px solid ' + getStepBorderColor(sidx) + '; background: ' + getStepBgColor(sidx)">
+                                <div style="flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-top: 1px;"
+                                     :style="'background: ' + getStepIconBg(sidx) + '; color: ' + (getStepStatus(sidx) === 'pending' ? '#6b7280' : '#fff')">
+                                    <template x-if="getStepStatus(sidx) === 'success' || getStepStatus(sidx) === 'auto_healed'">
+                                        <svg style="width: 10px; height: 10px;" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                                    </template>
+                                    <template x-if="getStepStatus(sidx) === 'running' || getStepStatus(sidx) === 'auto_healing'">
+                                        <svg style="width: 10px; height: 10px;" class="animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                                    </template>
+                                    <template x-if="getStepStatus(sidx) === 'paused' || getStepStatus(sidx) === 'failed'">
+                                        <svg style="width: 10px; height: 10px;" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </template>
+                                    <template x-if="getStepStatus(sidx) === 'skipped'">
+                                        <svg style="width: 10px; height: 10px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                    </template>
+                                    <template x-if="getStepStatus(sidx) === 'pending'">
+                                        <span style="font-size: 8px; font-weight: 700;" x-text="sidx + 1"></span>
+                                    </template>
+                                </div>
+                                <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 4px;">
+                                    <span style="font-size: 11px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; color: #111827;" x-text="step.name || '(unnamed)'"></span>
+                                    <span style="font-size: 9px; color: #9ca3af; white-space: nowrap; flex-shrink: 0;" x-text="step.action_type + (getStepDuration(sidx) ? ' · ' + getStepDuration(sidx) : '')"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <!-- Progress bar -->
+            <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+                <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="font-medium" :class="{
+                        'text-blue-600': status === 'running' || status === 'auto_healing',
+                        'text-amber-600': status === 'paused',
+                        'text-green-600': status === 'completed',
+                        'text-red-600': status === 'failed',
+                        'text-gray-500': status === 'idle' || status === 'stopped',
+                    }" x-text="statusLabel"></span>
+                    <span class="text-gray-400" x-text="overallProgressPct + '%'"></span>
+                </div>
+                <div class="h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-300"
+                         :class="{
+                             'bg-blue-500': status === 'running' || status === 'auto_healing',
+                             'bg-amber-500': status === 'paused',
+                             'bg-green-500': status === 'completed',
+                             'bg-red-500': status === 'failed',
+                             'bg-gray-400': status === 'idle' || status === 'stopped',
+                         }"
+                         :style="`width: ${overallProgressPct}%`"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================== RIGHT PANEL ====================== -->
+    <div class="flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
+
+        <!-- ── IDLE ──────────────────────────────────────── -->
+        <template x-if="status === 'idle'">
+            <div class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+                        <i data-lucide="loader" class="w-8 h-8 text-gray-400 animate-spin"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Starting Debug Chain Session...</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Waiting for browser to initialize</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- ── RUNNING ───────────────────────────────────── -->
+        <template x-if="status === 'running'">
+            <div class="flex-1 flex flex-col items-center justify-center p-8">
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
+                        <svg class="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Executing Chain...</h3>
+                    <template x-if="currentLink">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                                Link <span x-text="currentLinkIndex + 1"></span>/<span x-text="totalLinks"></span>:
+                                <span class="font-medium" x-text="currentLink.name"></span>
+                            </p>
+                            <p class="text-xs text-gray-400 mb-1" x-show="currentStep">
+                                Step <span x-text="currentStepIndex + 1"></span>/<span x-text="totalSteps"></span>:
+                                <span x-text="currentStep?.name"></span>
+                            </p>
+                            <p class="text-xs text-gray-400" x-text="currentStep?.action_type"></p>
+                        </div>
+                    </template>
+                    <button @click="stopExecution()" class="mt-6 inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors">
+                        <i data-lucide="square" class="w-4 h-4 mr-2"></i>
+                        Stop Execution
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- ── AUTO-HEALING ──────────────────────────────── -->
+        <template x-if="status === 'auto_healing'">
+            <div class="flex-1 flex flex-col p-6 overflow-y-auto">
+                <div class="mb-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900/30">
+                            <svg class="w-4 h-4 text-cyan-600 dark:text-cyan-400 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Auto-Healing...</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <span class="text-indigo-500 font-medium" x-text="currentLink?.name"></span> &mdash;
+                        Step <span x-text="errorInfo?.step_order"></span>: <span class="font-medium" x-text="errorInfo?.step_name"></span> failed.
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Trying alternative locator patterns...</p>
+                </div>
+                <div class="space-y-1.5">
+                    <template x-for="(attempt, aidx) in autoHealAttempts" :key="aidx">
+                        <div class="flex items-center gap-2 p-2.5 rounded-lg text-sm"
+                             :class="attempt.result.startsWith('found') ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-700/30'">
+                            <span :class="attempt.result.startsWith('found') ? 'text-green-500' : 'text-red-400'">
+                                <template x-if="attempt.result.startsWith('found')">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                                </template>
+                                <template x-if="!attempt.result.startsWith('found')">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                </template>
+                            </span>
+                            <code class="text-xs font-mono flex-1 min-w-0 truncate text-gray-700 dark:text-gray-300" x-text="attempt.xpath"></code>
+                            <span class="text-xs flex-shrink-0" :class="attempt.result.startsWith('found') ? 'text-green-600' : 'text-gray-400'" x-text="attempt.result"></span>
+                        </div>
+                    </template>
+                </div>
+                <button @click="stopExecution()" class="mt-6 self-start inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors">
+                    <i data-lucide="square" class="w-4 h-4 mr-2"></i>
+                    Stop Execution
+                </button>
+            </div>
+        </template>
+
+        <!-- ── PAUSED (Debug Panel) ──────────────────────── -->
+        <template x-if="status === 'paused'">
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- Error header with link context -->
+                <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
+                    <div class="flex items-start gap-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"></i>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs text-indigo-600 dark:text-indigo-400 font-medium mb-0.5" x-text="'Link: ' + (currentLink?.name || '')"></p>
+                            <h3 class="text-sm font-semibold text-red-800 dark:text-red-300">
+                                Step Failed: <span x-text="errorInfo?.step_name"></span>
+                            </h3>
+                            <p class="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                                Locator: <span class="font-mono" x-text="errorInfo?.locator_name || 'none'"></span>
+                                <template x-if="errorInfo?.locator_id">
+                                    <span>(ID: <span x-text="errorInfo?.locator_id"></span>)</span>
+                                </template>
+                            </p>
+                            <p class="text-xs text-red-600 dark:text-red-400" x-text="errorInfo?.message"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scrollable content area -->
+                <div class="flex-1 overflow-y-auto p-5 space-y-5">
+                    <!-- Strategies Tried -->
+                    <div x-show="errorInfo?.strategies_tried?.length > 0">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Strategies Tried</h4>
+                        <div class="space-y-1">
+                            <template x-for="(s, si) in (errorInfo?.strategies_tried || [])" :key="si">
+                                <div class="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700/30 rounded text-xs">
+                                    <svg class="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                    <span class="text-gray-500 flex-shrink-0 font-medium" x-text="s.type"></span>
+                                    <code class="font-mono text-gray-700 dark:text-gray-300 truncate flex-1" x-text="s.value"></code>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Auto-heal attempts -->
+                    <div x-show="autoHealAttempts.length > 0">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Auto-Heal Attempts</h4>
+                        <div class="space-y-1">
+                            <template x-for="(ah, ahi) in autoHealAttempts" :key="ahi">
+                                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs"
+                                     :class="ah.result.startsWith('found') ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-700/30'">
+                                    <span :class="ah.result.startsWith('found') ? 'text-green-500' : 'text-red-400'">
+                                        <template x-if="ah.result.startsWith('found')">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                                        </template>
+                                        <template x-if="!ah.result.startsWith('found')">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                        </template>
+                                    </span>
+                                    <code class="font-mono text-gray-700 dark:text-gray-300 truncate flex-1" x-text="ah.xpath"></code>
+                                    <span class="text-xs flex-shrink-0" :class="ah.result.startsWith('found') ? 'text-green-600' : 'text-gray-400'" x-text="ah.result"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Screenshot -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Page Screenshot</h4>
+                            <button @click="refreshScreenshot()" class="inline-flex items-center px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                                <i data-lucide="refresh-cw" class="w-3 h-3 mr-1" :class="refreshingScreenshot && 'animate-spin'"></i>
+                                Refresh
+                            </button>
+                        </div>
+                        <div class="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+                            <template x-if="screenshotBase64">
+                                <img :src="'data:image/png;base64,' + screenshotBase64"
+                                     class="w-full h-auto max-h-80 object-contain cursor-pointer"
+                                     @click="openScreenshotFullscreen()"
+                                     title="Click to view full size">
+                            </template>
+                            <template x-if="!screenshotBase64">
+                                <div class="flex items-center justify-center h-36 text-gray-400 text-sm">
+                                    <i data-lucide="image-off" class="w-5 h-5 mr-2"></i>
+                                    No screenshot available
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Locator Tester -->
+                    <div class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                            <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                            Test Locator
+                        </h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Type</label>
+                                <select x-model="testStrategyType"
+                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-2">
+                                    <option value="xpath">XPath</option>
+                                    <option value="css">CSS Selector</option>
+                                    <option value="id">ID</option>
+                                    <option value="name">Name</option>
+                                    <option value="text">Text</option>
+                                    <option value="aria-label">Aria Label</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Value</label>
+                                <textarea x-model="testLocatorValue" rows="2"
+                                          placeholder="Enter locator expression..."
+                                          class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-mono resize-y py-2"></textarea>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <button @click="testLocator()"
+                                        :disabled="testingLocator || !testLocatorValue"
+                                        class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                                    <template x-if="!testingLocator">
+                                        <span class="flex items-center"><i data-lucide="search" class="w-4 h-4 mr-1.5"></i>Test</span>
+                                    </template>
+                                    <template x-if="testingLocator">
+                                        <span class="flex items-center">
+                                            <svg class="w-4 h-4 mr-1.5 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                                            Testing...
+                                        </span>
+                                    </template>
+                                </button>
+                                <div x-show="testResult !== null" class="flex-1">
+                                    <template x-if="testResult?.result?.found">
+                                        <div class="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                            <div class="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300 font-medium">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                                                Found <span x-text="testResult.result.count"></span> element(s)
+                                            </div>
+                                            <div class="text-xs text-green-600 dark:text-green-400 mt-1 space-y-0.5">
+                                                <div>
+                                                    <span x-text="testResult.result.visible ? 'Visible' : 'Hidden'" :class="testResult.result.visible ? 'text-green-600' : 'text-amber-600'"></span>
+                                                    | Tag: <span class="font-mono" x-text="testResult.result.tag"></span>
+                                                    <template x-if="testResult.result.in_iframe">
+                                                        <span class="text-cyan-600"> | In iframe</span>
+                                                    </template>
+                                                </div>
+                                                <div x-show="testResult.result.text" class="text-gray-500 truncate">
+                                                    Text: "<span x-text="testResult.result.text"></span>"
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="testResult && !testResult?.result?.found">
+                                        <div class="p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                            <div class="flex items-center gap-1.5 text-sm text-red-700 dark:text-red-300 font-medium">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                                Not found
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2 flex-wrap">
+                    <button @click="saveAndResume()"
+                            :disabled="!testLocatorValue || savingLocator"
+                            class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <template x-if="!savingLocator">
+                            <span class="flex items-center"><i data-lucide="save" class="w-4 h-4 mr-1.5"></i>Save & Resume</span>
+                        </template>
+                        <template x-if="savingLocator">
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1.5 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                                Saving...
+                            </span>
+                        </template>
+                    </button>
+                    <button @click="resumeExecution()"
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
+                        <i data-lucide="play" class="w-4 h-4 mr-1.5"></i>
+                        Resume (Retry Step)
+                    </button>
+                    <button @click="skipStep()"
+                            class="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium transition-colors">
+                        <i data-lucide="skip-forward" class="w-4 h-4 mr-1.5"></i>
+                        Skip Step
+                    </button>
+                    <button @click="stopExecution()"
+                            class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors">
+                        <i data-lucide="square" class="w-4 h-4 mr-1.5"></i>
+                        Stop
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- ── COMPLETED ─────────────────────────────────── -->
+        <template x-if="status === 'completed'">
+            <div class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
+                        <svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Chain Complete!</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <span x-text="completedLinkCount"></span> of <span x-text="totalLinks"></span> links completed
+                    </p>
+                    <p class="text-xs text-gray-400 mb-1" x-show="skippedLinks.length > 0">
+                        <span x-text="skippedLinks.length"></span> link(s) skipped
+                    </p>
+                    <p class="text-xs text-gray-400 mb-6" x-show="autoHealedCount > 0">
+                        <span x-text="autoHealedCount"></span> step(s) auto-healed
+                    </p>
+                    <div class="flex gap-3 justify-center">
+                        <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}"
+                           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back to Job Data
+                        </a>
+                        <a href="{% url 'erp_automation:chain_execution_detail' execution.pk %}"
+                           class="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                            View Execution Log
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- ── FAILED ────────────────────────────────────── -->
+        <template x-if="status === 'failed'">
+            <div class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center max-w-md">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                        <svg class="w-10 h-10 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Chain Failed</h3>
+                    <p class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono break-words mb-2" x-text="errorInfo?.message || 'Unknown error'"></p>
+                    <p class="text-xs text-gray-400 mb-6">
+                        <span x-text="completedLinkCount"></span> of <span x-text="totalLinks"></span> links completed
+                    </p>
+                    <div class="flex gap-3 justify-center">
+                        <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}"
+                           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back to Job Data
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- ── STOPPED ───────────────────────────────────── -->
+        <template x-if="status === 'stopped'">
+            <div class="flex-1 flex items-center justify-center p-8">
+                <div class="text-center">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+                        <svg class="w-10 h-10 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Chain Stopped</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        Stopped after <span x-text="completedLinkCount"></span> of <span x-text="totalLinks"></span> links
+                    </p>
+                    <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}"
+                       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                        Back to Job Data
+                    </a>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+<!-- Fullscreen Screenshot Modal -->
+<div id="screenshotModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 cursor-pointer"
+     onclick="this.classList.add('hidden'); this.classList.remove('flex');">
+    <img id="screenshotFullImg" class="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl" src="">
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function debugChainExecution() {
+    return {
+        // Chain state
+        executionId: {{ execution.pk }},
+        allLinks: {{ all_links_json|safe }},
+        totalLinks: 0,
+        currentLinkIndex: 0,
+        currentLink: null,
+        completedLinks: [],
+        skippedLinks: [],
+
+        // Step state (current link's workflow)
+        totalSteps: 0,
+        currentStepIndex: 0,
+        currentStep: null,
+        completedSteps: [],
+
+        // Debug state
+        status: 'idle',
+        errorInfo: null,
+        screenshotBase64: null,
+        autoHealAttempts: [],
+
+        // UI state
+        expandedLinkIdx: -1,
+        testStrategyType: 'xpath',
+        testLocatorValue: '',
+        testResult: null,
+        testingLocator: false,
+        savingLocator: false,
+        refreshingScreenshot: false,
+        pollInterval: null,
+
+        // Computed
+        get currentSteps() {
+            // Show steps for the currently running link
+            if (this.currentLink) {
+                const link = this.allLinks.find(l => l.order === this.currentLink.order);
+                if (link) return link.steps || [];
+            }
+            // If completed/failed, show last link's steps
+            if (this.completedLinks.length > 0) {
+                const lastLink = this.completedLinks[this.completedLinks.length - 1];
+                const link = this.allLinks.find(l => l.order === lastLink.order);
+                if (link) return link.steps || [];
+            }
+            return [];
+        },
+        get completedLinkCount() {
+            return this.completedLinks.filter(l => l.status === 'success').length;
+        },
+        get completedStepCount() {
+            return this.completedSteps.filter(s => s.status === 'success' || s.status === 'auto_healed').length;
+        },
+        get autoHealedCount() {
+            return this.completedSteps.filter(s => s.status === 'auto_healed').length;
+        },
+        get overallProgressPct() {
+            if (this.totalLinks === 0) return 0;
+            const doneFraction = this.completedLinks.length / this.totalLinks;
+            // Add partial progress from current link
+            if (this.currentLink && this.totalSteps > 0) {
+                const currentLinkProgress = this.completedSteps.length / this.totalSteps / this.totalLinks;
+                return Math.round((doneFraction + currentLinkProgress) * 100);
+            }
+            return Math.round(doneFraction * 100);
+        },
+        get statusLabel() {
+            const labels = {
+                'idle': 'Initializing...',
+                'running': 'Running',
+                'auto_healing': 'Auto-Healing...',
+                'paused': 'Paused - Fix Locator',
+                'completed': 'Completed',
+                'failed': 'Failed',
+                'stopped': 'Stopped',
+            };
+            return labels[this.status] || this.status;
+        },
+
+        init() {
+            this.startPolling();
+        },
+
+        startPolling() {
+            this.pollInterval = setInterval(() => this.poll(), 1500);
+        },
+
+        stopPolling() {
+            if (this.pollInterval) {
+                clearInterval(this.pollInterval);
+                this.pollInterval = null;
+            }
+        },
+
+        async poll() {
+            try {
+                // Use the same debug poll endpoint — the execution_id in the URL
+                // is just for routing, the actual state comes from _debug_executor
+                const resp = await fetch(`/erp-automation/api/debug/${this.executionId}/poll/`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+
+                const prevStatus = this.status;
+
+                this.status = data.status || 'idle';
+
+                // Chain-level state
+                this.totalLinks = data.total_links || this.allLinks.length;
+                this.currentLinkIndex = data.current_link_index || 0;
+                this.currentLink = data.current_link || null;
+                this.completedLinks = data.completed_links || [];
+                this.skippedLinks = data.skipped_links || [];
+
+                // Step-level state (for current link's workflow)
+                this.totalSteps = data.total_steps || 0;
+                this.currentStepIndex = data.current_step_index || 0;
+                this.currentStep = data.current_step || null;
+                this.completedSteps = data.completed_steps || [];
+                this.errorInfo = data.error || null;
+                this.autoHealAttempts = data.auto_heal_attempts || [];
+
+                // Update screenshot only when paused
+                if (data.screenshot_base64 && this.status === 'paused') {
+                    this.screenshotBase64 = data.screenshot_base64;
+                }
+
+                // Pre-fill locator tester when newly paused
+                if (this.status === 'paused' && prevStatus !== 'paused') {
+                    this.testStrategyType = data.error?.failing_strategy_type || 'xpath';
+                    this.testLocatorValue = data.error?.failing_value || '';
+                    this.testResult = null;
+                }
+
+                // Stop polling when terminal
+                if (['completed', 'failed', 'stopped'].includes(this.status)) {
+                    this.stopPolling();
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        },
+
+        // ── Link status helpers ──────────────────────────────
+        getLinkStatus(lidx) {
+            const link = this.allLinks[lidx];
+            if (!link) return 'pending';
+            // Check completed
+            const completed = this.completedLinks.find(c => c.order === link.order);
+            if (completed) return completed.status;
+            // Check skipped
+            const skipped = this.skippedLinks.find(s => s.order === link.order);
+            if (skipped) return 'skipped';
+            // Check if current
+            if (this.currentLink && this.currentLink.order === link.order) {
+                if (this.status === 'paused') return 'running'; // Link is still "running" even if step paused
+                if (this.status === 'auto_healing') return 'running';
+                if (this.status === 'running') return 'running';
+                if (this.status === 'failed') return 'failed';
+            }
+            return 'pending';
+        },
+
+        getLinkBorderColor(lidx) {
+            const colors = { 'success': '#22c55e', 'running': '#3b82f6', 'failed': '#ef4444', 'skipped': '#f59e0b', 'pending': 'transparent' };
+            return colors[this.getLinkStatus(lidx)] || 'transparent';
+        },
+        getLinkBgColor(lidx) {
+            const colors = { 'success': '#f0fdf4', 'running': '#eff6ff', 'failed': '#fef2f2', 'skipped': '#fffbeb', 'pending': '#f9fafb' };
+            return colors[this.getLinkStatus(lidx)] || '#f9fafb';
+        },
+        getLinkIconBg(lidx) {
+            const colors = { 'success': '#22c55e', 'running': '#3b82f6', 'failed': '#ef4444', 'skipped': '#f59e0b', 'pending': '#d1d5db' };
+            return colors[this.getLinkStatus(lidx)] || '#d1d5db';
+        },
+
+        // ── Step status helpers ──────────────────────────────
+        getStepStatus(sidx) {
+            const step = this.currentSteps[sidx];
+            if (!step) return 'pending';
+            const completed = this.completedSteps.find(c => c.order === step.order);
+            if (completed) return completed.status;
+            if (sidx === this.currentStepIndex && this.currentStep) {
+                if (this.status === 'paused') return 'paused';
+                if (this.status === 'auto_healing') return 'auto_healing';
+                if (this.status === 'running') return 'running';
+                if (this.status === 'failed') return 'failed';
+            }
+            return 'pending';
+        },
+
+        getStepBorderColor(sidx) {
+            const colors = { 'success': '#22c55e', 'auto_healed': '#06b6d4', 'paused': '#ef4444', 'failed': '#ef4444', 'running': '#3b82f6', 'auto_healing': '#3b82f6', 'skipped': '#f59e0b', 'pending': 'transparent' };
+            return colors[this.getStepStatus(sidx)] || 'transparent';
+        },
+        getStepBgColor(sidx) {
+            const colors = { 'success': '#f0fdf4', 'auto_healed': '#ecfeff', 'paused': '#fef2f2', 'failed': '#fef2f2', 'running': '#eff6ff', 'auto_healing': '#eff6ff', 'skipped': '#fffbeb', 'pending': '#f9fafb' };
+            return colors[this.getStepStatus(sidx)] || '#f9fafb';
+        },
+        getStepIconBg(sidx) {
+            const colors = { 'success': '#22c55e', 'auto_healed': '#06b6d4', 'paused': '#ef4444', 'failed': '#ef4444', 'running': '#3b82f6', 'auto_healing': '#3b82f6', 'skipped': '#f59e0b', 'pending': '#d1d5db' };
+            return colors[this.getStepStatus(sidx)] || '#d1d5db';
+        },
+
+        getStepDuration(sidx) {
+            const step = this.currentSteps[sidx];
+            if (!step) return null;
+            const completed = this.completedSteps.find(c => c.order === step.order);
+            if (!completed || !completed.duration_ms) return null;
+            if (completed.duration_ms < 1000) return completed.duration_ms + 'ms';
+            return (completed.duration_ms / 1000).toFixed(1) + 's';
+        },
+
+        // ── Actions ──────────────────────────────────────────
+        async testLocator() {
+            if (!this.testLocatorValue || this.testingLocator) return;
+            this.testingLocator = true;
+            this.testResult = null;
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.executionId}/test-locator/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRF() },
+                    body: JSON.stringify({ strategy_type: this.testStrategyType, value: this.testLocatorValue }),
+                });
+                this.testResult = await resp.json();
+            } catch (e) {
+                this.testResult = { success: false, result: { found: false, error: e.message } };
+            } finally {
+                this.testingLocator = false;
+            }
+        },
+
+        async saveAndResume() {
+            if (!this.testLocatorValue || this.savingLocator) return;
+            if (!this.errorInfo?.locator_id) {
+                alert('No locator ID found. Cannot save.');
+                return;
+            }
+            this.savingLocator = true;
+            try {
+                const saveResp = await fetch(`/erp-automation/api/debug/${this.executionId}/update-locator/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRF() },
+                    body: JSON.stringify({
+                        locator_id: this.errorInfo.locator_id,
+                        strategy_type: this.testStrategyType,
+                        value: this.testLocatorValue,
+                        priority: 0,
+                    }),
+                });
+                const saveData = await saveResp.json();
+                if (!saveData.success) {
+                    alert('Failed to save: ' + saveData.message);
+                    return;
+                }
+                await this.resumeExecution();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                this.savingLocator = false;
+            }
+        },
+
+        async resumeExecution() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.executionId}/resume/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': this.getCSRF() },
+                });
+                this.testResult = null;
+                if (!this.pollInterval) this.startPolling();
+            } catch (e) {
+                console.error('Resume error:', e);
+            }
+        },
+
+        async skipStep() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.executionId}/skip/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': this.getCSRF() },
+                });
+                this.testResult = null;
+                if (!this.pollInterval) this.startPolling();
+            } catch (e) {
+                console.error('Skip error:', e);
+            }
+        },
+
+        async stopExecution() {
+            try {
+                await fetch(`/erp-automation/api/debug/${this.executionId}/stop/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': this.getCSRF() },
+                });
+            } catch (e) {
+                console.error('Stop error:', e);
+            }
+        },
+
+        async refreshScreenshot() {
+            this.refreshingScreenshot = true;
+            try { await this.poll(); } catch (e) {}
+            finally { this.refreshingScreenshot = false; }
+        },
+
+        openScreenshotFullscreen() {
+            if (!this.screenshotBase64) return;
+            const modal = document.getElementById('screenshotModal');
+            const img = document.getElementById('screenshotFullImg');
+            img.src = 'data:image/png;base64,' + this.screenshotBase64;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        },
+
+        getCSRF() {
+            const input = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (input) return input.value;
+            const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+            if (cookie) return cookie.split('=')[1].trim();
+            return '';
+        },
+
+        destroy() {
+            this.stopPolling();
+        },
+    };
+}
+</script>
+{% endblock %}

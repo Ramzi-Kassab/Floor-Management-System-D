@@ -1,0 +1,906 @@
+{% extends "base.html" %}
+
+{% block title %}Recording: {{ session.name }} - ERP Automation{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm">
+        <li class="inline-flex items-center">
+            <a href="{% url 'erp_automation:record' %}" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Recordings
+            </a>
+        </li>
+        <li>
+            <div class="flex items-center">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 mx-1"></i>
+                <span class="text-gray-700 dark:text-gray-300 font-medium">{{ session.name }}</span>
+            </div>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ session.name }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if session.status == 'completed' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif session.status == 'recording' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 animate-pulse
+                {% elif session.status == 'failed' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                {{ session.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            {{ actions|length }} actions recorded
+            {% if session.job_data %} | WO: {{ session.job_data.work_order_number }}{% endif %}
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        {% if session.status == 'completed' and actions %}
+        <button @click="quickConvert()"
+                :disabled="quickConverting"
+                class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium transition-colors">
+            <template x-if="!quickConverting">
+                <span class="flex items-center">
+                    <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                    Quick Convert
+                </span>
+            </template>
+            <template x-if="quickConverting">
+                <span class="flex items-center">
+                    <svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Converting...
+                </span>
+            </template>
+        </button>
+        <button onclick="document.getElementById('convertSection').scrollIntoView({behavior: 'smooth'})"
+                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
+            <i data-lucide="wand-2" class="w-4 h-4 mr-2"></i>
+            Manual Convert
+        </button>
+        {% endif %}
+        {% if session.generated_workflow %}
+        <a href="{% url 'erp_automation:workflow_detail' session.generated_workflow.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 text-sm">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>
+            View Workflow
+        </a>
+        {% endif %}
+        <a href="{% url 'erp_automation:record' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="recordingDetail()" class="space-y-6">
+
+    <!-- Quick Convert Result Message -->
+    <div x-show="resultMessage" x-cloak
+         class="p-4 rounded-lg" :class="resultSuccess ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'">
+        <div class="flex items-center gap-2">
+            <template x-if="resultSuccess">
+                <i data-lucide="check-circle" class="w-5 h-5"></i>
+            </template>
+            <template x-if="!resultSuccess">
+                <i data-lucide="alert-circle" class="w-5 h-5"></i>
+            </template>
+            <span x-text="resultMessage" class="text-sm"></span>
+            <a x-show="resultWorkflowId" :href="'/erp-automation/workflows/' + resultWorkflowId + '/'"
+               class="ml-2 text-sm font-medium underline">View Workflow</a>
+        </div>
+    </div>
+
+    <!-- Session Info -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="info" class="w-5 h-5 inline mr-2 text-blue-500"></i>
+            Session Details
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Name</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ session.name }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Target URL</label>
+                <p class="text-sm text-gray-900 dark:text-white truncate" title="{{ session.target_url }}">
+                    <code class="text-xs">{{ session.target_url|truncatechars:50 }}</code>
+                </p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Started</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ session.started_at|date:"M d, Y H:i:s" }}</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Ended</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ session.ended_at|date:"M d, Y H:i:s"|default:"--" }}</p>
+            </div>
+            {% if session.job_data %}
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Linked Job Data</label>
+                <p class="text-sm">
+                    <a href="{% url 'erp_automation:job_data_detail' session.job_data.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        {{ session.job_data.work_order_number }} — {{ session.job_data.serial_number }}
+                    </a>
+                </p>
+            </div>
+            {% endif %}
+            <div>
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Actions</label>
+                <p class="text-sm text-gray-900 dark:text-white">{{ actions|length }} actions captured</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- JOB DATA CLIPBOARD HELPER — Always visible, with job data picker -->
+    <!-- ============================================================= -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-teal-800 dark:text-teal-200 flex items-center">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 mr-2"></i>
+                    Job Data Clipboard
+                </h3>
+                <span class="text-xs text-teal-600 dark:text-teal-400">Click any value to copy</span>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <!-- Job Data Picker -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Job Data Record</label>
+                <div class="flex gap-3">
+                    <select x-model="selectedJobDataId" @change="loadClipboardData()"
+                            class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-teal-500 focus:ring-teal-500 text-sm">
+                        <option value="">-- Select a Job Data record --</option>
+                        {% for jd in job_data_records %}
+                        <option value="{{ jd.pk }}" {% if linked_job_data and linked_job_data.pk == jd.pk %}selected{% endif %}>
+                            {{ jd.work_order_number }} - {{ jd.serial_number }} ({{ jd.account }}) — {{ jd.smi_type }} {{ jd.size_inches }}"
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button @click="loadClipboardData()" :disabled="!selectedJobDataId || clipboardLoading"
+                            class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium transition-colors">
+                        <template x-if="!clipboardLoading">
+                            <span>Load</span>
+                        </template>
+                        <template x-if="clipboardLoading">
+                            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </template>
+                    </button>
+                </div>
+            </div>
+
+            <!-- No data selected state -->
+            <div x-show="!clipboardData" class="text-center py-8 text-gray-400 dark:text-gray-500">
+                <i data-lucide="clipboard" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+                <p class="text-sm">Select a Job Data record above to see copy-paste values</p>
+                <p class="text-xs mt-1">The clipboard shows all the field values you need for the ERP form</p>
+            </div>
+
+            <!-- Clipboard data loaded -->
+            <div x-show="clipboardData" x-cloak>
+                <!-- Product Name (prominent, combined) -->
+                <div class="mb-4 p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg border-2 border-teal-300 dark:border-teal-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider">Product Name (Combined)</span>
+                        <button @click="copyValue(productName, '_PRODUCT_NAME')"
+                                class="px-3 py-1 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors font-medium">
+                            <span x-text="copiedField === '_PRODUCT_NAME' ? 'Copied!' : 'Copy'"></span>
+                        </button>
+                    </div>
+                    <div class="font-mono text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 px-4 py-3 rounded-lg border border-teal-200 dark:border-teal-700 cursor-pointer select-all"
+                         @click="copyValue(productName, '_PRODUCT_NAME')" x-text="productName">
+                    </div>
+                    <p class="text-[10px] text-teal-600 dark:text-teal-400 mt-2">= ORDER NO. + SERIAL NO + SIZE + TYPE + MAT NO.</p>
+                </div>
+
+                <!-- Search Name -->
+                <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-300 dark:border-amber-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Search Name (Serial No)</span>
+                        <button @click="copyValue(searchName, '_SEARCH_NAME')"
+                                class="px-3 py-1 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors font-medium">
+                            <span x-text="copiedField === '_SEARCH_NAME' ? 'Copied!' : 'Copy'"></span>
+                        </button>
+                    </div>
+                    <div class="font-mono text-base text-gray-900 dark:text-white bg-white dark:bg-gray-800 px-4 py-3 rounded-lg border border-amber-200 dark:border-amber-700 cursor-pointer select-all"
+                         @click="copyValue(searchName, '_SEARCH_NAME')" x-text="searchName">
+                    </div>
+                </div>
+
+                <!-- All Field Values Table -->
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 dark:bg-gray-700/50 text-left text-xs text-gray-500 dark:text-gray-400 uppercase">
+                                <th class="px-4 py-2.5 font-medium w-1/3">Field</th>
+                                <th class="px-4 py-2.5 font-medium">Value</th>
+                                <th class="px-4 py-2.5 font-medium w-16 text-center">Copy</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="item in clipboardFields" :key="item.key">
+                                <tr x-show="item.value" class="hover:bg-teal-50/50 dark:hover:bg-teal-900/10 cursor-pointer"
+                                    @click="copyValue(item.value, item.key)">
+                                    <td class="px-4 py-2.5">
+                                        <span class="font-mono text-xs font-semibold text-teal-600 dark:text-teal-400" x-text="item.key"></span>
+                                    </td>
+                                    <td class="px-4 py-2.5">
+                                        <span class="font-mono text-sm text-gray-900 dark:text-white" x-text="item.value"></span>
+                                    </td>
+                                    <td class="px-4 py-2.5 text-center">
+                                        <template x-if="copiedField === item.key">
+                                            <span class="text-green-600 dark:text-green-400 text-xs font-medium">
+                                                <i data-lucide="check" class="w-4 h-4 inline"></i>
+                                            </span>
+                                        </template>
+                                        <template x-if="copiedField !== item.key">
+                                            <span class="text-gray-400 hover:text-teal-600 dark:hover:text-teal-400">
+                                                <i data-lucide="copy" class="w-4 h-4 inline"></i>
+                                            </span>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cutter BOM Data -->
+                <div x-show="cutterBom && cutterBom.length > 0" class="mt-4">
+                    <h4 class="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2 uppercase tracking-wider flex items-center">
+                        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>
+                        Cutter BOM
+                    </h4>
+                    <div class="border border-purple-200 dark:border-purple-800 rounded-lg overflow-hidden">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-purple-50 dark:bg-purple-900/20 text-left text-purple-600 dark:text-purple-400 uppercase">
+                                    <th class="px-3 py-2 font-medium">Qty</th>
+                                    <th class="px-3 py-2 font-medium">Size</th>
+                                    <th class="px-3 py-2 font-medium">Part No</th>
+                                    <th class="px-3 py-2 font-medium">Description</th>
+                                    <th class="px-3 py-2 font-medium">Variant</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-purple-100 dark:divide-purple-800">
+                                <template x-for="(cutter, ci) in cutterBom" :key="ci">
+                                    <tr class="hover:bg-purple-50/50 dark:hover:bg-purple-900/10">
+                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-white" x-text="cutter.qty"></td>
+                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-white" x-text="cutter.size"></td>
+                                        <td class="px-3 py-2 font-mono text-gray-900 dark:text-white cursor-pointer hover:text-purple-600"
+                                            @click="copyValue(cutter.part_no, 'cutter_' + ci)" x-text="cutter.part_no"></td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="cutter.description"></td>
+                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400" x-text="cutter.variant"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recorded Actions -->
+    {% if actions %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="list-ordered" class="w-5 h-5 inline mr-2 text-orange-500"></i>
+                Recorded Actions ({{ actions|length }})
+            </h3>
+            <div class="flex items-center gap-2">
+                <button @click="expandAll = !expandAll" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    <span x-text="expandAll ? 'Collapse All' : 'Expand All'"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            {% for action in actions %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                 x-data="{open: false}" :class="{'ring-2 ring-blue-300 dark:ring-blue-700': open}">
+                <!-- Summary Row -->
+                <button @click="open = !open" class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 text-left transition-colors">
+                    <!-- Order Badge -->
+                    <span class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+                        {% if action.action_type == 'click' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                        {% elif action.action_type == 'fill' %}bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400
+                        {% elif action.action_type == 'select' %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400
+                        {% elif action.action_type == 'press_key' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                        {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                        {{ action.order }}
+                    </span>
+
+                    <!-- Action Type -->
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium
+                        {% if action.action_type == 'click' %}bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400
+                        {% elif action.action_type == 'fill' %}bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400
+                        {% elif action.action_type == 'select' %}bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400
+                        {% elif action.action_type == 'press_key' %}bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400
+                        {% else %}bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                        {{ action.get_action_type_display }}
+                    </span>
+
+                    <!-- Element Identifier -->
+                    <span class="flex-1 text-sm text-gray-900 dark:text-white truncate font-medium">
+                        {{ action.get_best_identifier }}
+                    </span>
+
+                    <!-- Value/Key -->
+                    {% if action.input_value %}
+                    <span class="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title="{{ action.input_value }}">
+                        = "{{ action.input_value|truncatechars:30 }}"
+                    </span>
+                    {% endif %}
+                    {% if action.key_pressed %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 font-mono">
+                        {{ action.key_pressed }}
+                    </span>
+                    {% endif %}
+
+                    <!-- Tag -->
+                    <span class="text-xs text-gray-400 font-mono">&lt;{{ action.element_tag }}&gt;</span>
+
+                    <!-- Expand icon -->
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="{'rotate-180': open}"></i>
+                </button>
+
+                <!-- Expanded Details -->
+                <div x-show="open || expandAll" x-collapse x-cloak
+                     class="border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 px-4 py-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <!-- Element Attributes -->
+                        <div class="space-y-2">
+                            <h4 class="font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Element Attributes</h4>
+                            {% if action.element_id %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">id</span>
+                                <code class="text-indigo-600 dark:text-indigo-400 break-all">{{ action.element_id }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.element_name %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">name</span>
+                                <code class="text-indigo-600 dark:text-indigo-400 break-all">{{ action.element_name }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.element_aria_label %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">aria-label</span>
+                                <code class="text-indigo-600 dark:text-indigo-400 break-all">{{ action.element_aria_label }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.element_placeholder %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">placeholder</span>
+                                <code class="text-indigo-600 dark:text-indigo-400 break-all">{{ action.element_placeholder }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.element_class %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">class</span>
+                                <code class="text-gray-500 dark:text-gray-500 break-all text-[10px]">{{ action.element_class|truncatechars:120 }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.element_text %}
+                            <div class="flex">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">text</span>
+                                <code class="text-indigo-600 dark:text-indigo-400 break-all">{{ action.element_text|truncatechars:80 }}</code>
+                            </div>
+                            {% endif %}
+                            {% if action.page_url %}
+                            <div class="flex mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <span class="w-20 text-gray-500 dark:text-gray-400 flex-shrink-0">page</span>
+                                <code class="text-gray-500 dark:text-gray-400 break-all text-[10px]">{{ action.page_url|truncatechars:80 }}</code>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Locator Strategies -->
+                        <div class="space-y-2">
+                            <h4 class="font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Locator Strategies</h4>
+                            {% for strat in action.locator_strategies %}
+                            <div class="flex items-start gap-2 p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 flex-shrink-0">
+                                    P{{ strat.priority }}
+                                </span>
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 flex-shrink-0 w-16 justify-center">
+                                    {{ strat.strategy_type }}
+                                </span>
+                                <code class="text-[11px] text-gray-700 dark:text-gray-300 break-all flex-1">{{ strat.value|truncatechars:120 }}</code>
+                            </div>
+                            {% empty %}
+                            <p class="text-gray-400 italic">No strategies captured</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- XPath / CSS -->
+                    {% if action.element_xpath or action.element_css %}
+                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-1 text-xs">
+                        {% if action.element_xpath %}
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400 font-medium">XPath:</span>
+                            <code class="ml-2 text-gray-600 dark:text-gray-400 break-all text-[10px]">{{ action.element_xpath|truncatechars:200 }}</code>
+                        </div>
+                        {% endif %}
+                        {% if action.element_css %}
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400 font-medium">CSS:</span>
+                            <code class="ml-2 text-gray-600 dark:text-gray-400 break-all text-[10px]">{{ action.element_css|truncatechars:200 }}</code>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Convert to Workflow Section -->
+    {% if session.status == 'completed' and actions and not session.generated_workflow %}
+    <div id="convertSection" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <i data-lucide="wand-2" class="w-5 h-5 inline mr-2 text-blue-500"></i>
+            Convert to Workflow
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Configure each recorded action as a workflow step. You can rename steps, set value modes (static, data field, or template), and exclude actions you don't need.
+        </p>
+
+        <!-- Workflow Config -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Workflow Name *</label>
+                <input type="text" x-model="workflowName"
+                       placeholder="e.g., Create Released Product"
+                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <input type="text" x-model="workflowDescription"
+                       placeholder="Auto-generated from recording"
+                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition Field</label>
+                <input type="text" x-model="conditionField"
+                       placeholder="e.g., FROM or ACCOUNT"
+                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm">
+                <p class="text-xs text-gray-500 mt-1">For branching workflows (e.g., different steps per account)</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
+                <input type="text" x-model="targetUrl"
+                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm">
+            </div>
+        </div>
+
+        <!-- Steps Table -->
+        <div class="overflow-x-auto mb-6">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 text-xs">
+                        <th class="px-2 py-2 w-10">
+                            <input type="checkbox" x-model="selectAll" @change="toggleAll()" class="rounded border-gray-300 dark:border-gray-600">
+                        </th>
+                        <th class="px-2 py-2 w-10">#</th>
+                        <th class="px-2 py-2">Step Name</th>
+                        <th class="px-2 py-2 w-24">Action</th>
+                        <th class="px-2 py-2 w-32">Value Mode</th>
+                        <th class="px-2 py-2">Value</th>
+                        <th class="px-2 py-2 w-20">Wait (ms)</th>
+                        <th class="px-2 py-2 w-24">Condition</th>
+                        <th class="px-2 py-2 w-14">Opts</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <template x-for="(step, idx) in steps" :key="step.order">
+                        <tr :class="step.is_active ? '' : 'opacity-40'" class="hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                            <td class="px-2 py-2">
+                                <input type="checkbox" x-model="step.is_active" class="rounded border-gray-300 dark:border-gray-600">
+                            </td>
+                            <td class="px-2 py-2 text-center">
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold"
+                                      :class="step.action_type === 'click' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                              step.action_type === 'fill' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                              step.action_type === 'select' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                              'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
+                                      x-text="step.order"></span>
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="text" x-model="step.step_name"
+                                       class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1">
+                            </td>
+                            <td class="px-2 py-2">
+                                <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                                      x-text="step.action_type"></span>
+                            </td>
+                            <td class="px-2 py-2">
+                                <template x-if="step.action_type === 'fill' || step.action_type === 'select'">
+                                    <select x-model="step.value_mode"
+                                            class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-1 py-1">
+                                        <option value="static">Static</option>
+                                        <option value="field">Data Field</option>
+                                        <option value="template">Template</option>
+                                    </select>
+                                </template>
+                                <template x-if="step.action_type !== 'fill' && step.action_type !== 'select'">
+                                    <span class="text-xs text-gray-400">--</span>
+                                </template>
+                            </td>
+                            <td class="px-2 py-2">
+                                <template x-if="step.action_type === 'fill' || step.action_type === 'select'">
+                                    <div>
+                                        <template x-if="step.value_mode === 'static'">
+                                            <input type="text" x-model="step.value_static"
+                                                   class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1"
+                                                   placeholder="Static value">
+                                        </template>
+                                        <template x-if="step.value_mode === 'field'">
+                                            <select x-model="step.value_field"
+                                                    class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-1 py-1">
+                                                <option value="">-- Select Field --</option>
+                                                <option value="ITEM NO">ITEM NO</option>
+                                                <option value="ORDER NO.">ORDER NO.</option>
+                                                <option value="SERIAL NO">SERIAL NO</option>
+                                                <option value="SIZE">SIZE</option>
+                                                <option value="TYPE">TYPE</option>
+                                                <option value="MAT NO.">MAT NO.</option>
+                                                <option value="FROM">FROM</option>
+                                                <option value="ACCOUNT">ACCOUNT</option>
+                                                <option value="ITEM_GROUP">ITEM_GROUP</option>
+                                                <option value="BODY_MATERIAL">BODY_MATERIAL</option>
+                                                <option value="SIZE_CLASS">SIZE_CLASS</option>
+                                                <option value="CONTRACT_NO">CONTRACT_NO</option>
+                                                <option value="VENDOR_NO">VENDOR_NO</option>
+                                                <option value="ROUTE">ROUTE</option>
+                                            </select>
+                                        </template>
+                                        <template x-if="step.value_mode === 'template'">
+                                            <input type="text" x-model="step.value_template"
+                                                   class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1"
+                                                   placeholder="e.g. {% templatetag openvariable %}ORDER NO.{% templatetag closevariable %} {% templatetag openvariable %}SERIAL NO{% templatetag closevariable %}">
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="step.action_type === 'press_key'">
+                                    <span class="text-xs font-mono text-gray-500" x-text="step.key_pressed || '--'"></span>
+                                </template>
+                                <template x-if="step.action_type !== 'fill' && step.action_type !== 'select' && step.action_type !== 'press_key'">
+                                    <span class="text-xs text-gray-400">--</span>
+                                </template>
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="number" x-model.number="step.wait_after" min="0" step="100"
+                                       class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1">
+                            </td>
+                            <td class="px-2 py-2">
+                                <input type="text" x-model="step.condition_value"
+                                       class="w-full text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1"
+                                       placeholder="e.g. LSTK">
+                            </td>
+                            <td class="px-2 py-2 text-center">
+                                <label class="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer" title="Continue on error">
+                                    <input type="checkbox" x-model="step.continue_on_error" class="rounded border-gray-300 dark:border-gray-600 w-3 h-3">
+                                    <span>Skip</span>
+                                </label>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                <span x-text="steps.filter(s => s.is_active).length"></span> / <span x-text="steps.length"></span> steps selected
+            </p>
+            <div class="flex gap-3">
+                <button @click="convertToWorkflow()" :disabled="converting || !workflowName.trim()"
+                        class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors">
+                    <template x-if="!converting">
+                        <span class="flex items-center">
+                            <i data-lucide="wand-2" class="w-4 h-4 mr-2"></i>
+                            Create Workflow
+                        </span>
+                    </template>
+                    <template x-if="converting">
+                        <span class="flex items-center">
+                            <svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Creating...
+                        </span>
+                    </template>
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Message -->
+        <div x-show="resultMessage" x-cloak
+             class="mt-4 p-4 rounded-lg" :class="resultSuccess ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'">
+            <div class="flex items-center gap-2">
+                <template x-if="resultSuccess">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                </template>
+                <template x-if="!resultSuccess">
+                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                </template>
+                <span x-text="resultMessage" class="text-sm"></span>
+                <a x-show="resultWorkflowId" :href="'/erp-automation/workflows/' + resultWorkflowId + '/'"
+                   class="ml-2 text-sm font-medium underline">View Workflow</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if session.generated_workflow %}
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
+        <div class="flex items-center gap-3">
+            <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            <div>
+                <h3 class="text-lg font-semibold text-green-800 dark:text-green-300">Workflow Created</h3>
+                <p class="text-sm text-green-700 dark:text-green-400">
+                    This recording has been converted to workflow:
+                    <a href="{% url 'erp_automation:workflow_detail' session.generated_workflow.pk %}" class="font-medium underline">
+                        {{ session.generated_workflow.name }}
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+function recordingDetail() {
+    const actionsData = {{ actions_json|safe }};
+    const initialJobDataId = '{{ linked_job_data.pk|default:"" }}';
+
+    return {
+        expandAll: false,
+        selectAll: true,
+        converting: false,
+        quickConverting: false,
+        resultMessage: '',
+        resultSuccess: false,
+        resultWorkflowId: null,
+
+        workflowName: '{{ session.name|escapejs }}',
+        workflowDescription: 'Created from recording: {{ session.name|escapejs }}',
+        conditionField: '',
+        targetUrl: '{{ session.target_url|escapejs }}',
+
+        // Clipboard state
+        selectedJobDataId: initialJobDataId,
+        clipboardData: null,
+        clipboardFields: [],
+        productName: '',
+        searchName: '',
+        copiedField: null,
+        clipboardLoading: false,
+
+        steps: [],
+
+        generateStepName(action) {
+            var identifier = action.element_name || action.element_aria_label ||
+                            action.element_placeholder || '';
+            if (!identifier && action.element_text) {
+                identifier = action.element_text.substring(0, 40);
+            }
+            if (!identifier && action.element_id) {
+                identifier = action.element_id.replace(/[0-9a-f]{8}-[0-9a-f]{4}/g, '').replace(/_+/g, '_').substring(0, 40);
+            }
+            if (!identifier) identifier = 'Element';
+
+            var prefix = '';
+            switch (action.action_type) {
+                case 'click': prefix = 'Click'; break;
+                case 'fill': prefix = 'Fill'; break;
+                case 'select': prefix = 'Select'; break;
+                case 'press_key': prefix = 'Press ' + (action.key_pressed || 'Key'); break;
+                default: prefix = action.action_type;
+            }
+            return prefix + ' ' + identifier;
+        },
+
+        toggleAll() {
+            this.steps.forEach(s => s.is_active = this.selectAll);
+        },
+
+        async loadClipboardData() {
+            if (!this.selectedJobDataId) {
+                this.clipboardData = null;
+                this.clipboardFields = [];
+                this.productName = '';
+                this.searchName = '';
+                return;
+            }
+
+            this.clipboardLoading = true;
+            try {
+                const resp = await fetch('/erp-automation/api/job-data/' + this.selectedJobDataId + '/clipboard/');
+                const data = await resp.json();
+                if (data.success) {
+                    this.clipboardData = data.clipboard_data;
+                    this.productName = data.product_name;
+                    this.searchName = data.search_name;
+
+                    // Build fields list for table (filter out empty)
+                    this.clipboardFields = Object.entries(data.clipboard_data)
+                        .filter(([k, v]) => v)
+                        .map(([k, v]) => ({key: k, value: v}));
+
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            } catch (err) {
+                console.error('Failed to load clipboard data:', err);
+            } finally {
+                this.clipboardLoading = false;
+            }
+        },
+
+        async copyValue(text, fieldKey) {
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (err) {
+                var textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            this.copiedField = fieldKey;
+            setTimeout(() => { this.copiedField = null; }, 2000);
+        },
+
+        async quickConvert() {
+            this.quickConverting = true;
+            this.resultMessage = '';
+
+            try {
+                var resp = await fetch('{% url "erp_automation:quick_convert_recording" session.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({
+                        workflow_name: 'Create Released Product (Recorded v2)',
+                        overwrite: true,
+                    }),
+                });
+                var data = await resp.json();
+                this.resultMessage = data.message;
+                this.resultSuccess = data.success;
+                if (data.success) {
+                    this.resultWorkflowId = data.workflow_id;
+                    // Reload the page after a short delay to show the "View Workflow" button
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            } catch (err) {
+                this.resultMessage = 'Network error: ' + err.message;
+                this.resultSuccess = false;
+            } finally {
+                this.quickConverting = false;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        async convertToWorkflow() {
+            if (!this.workflowName.trim()) {
+                this.resultMessage = 'Please enter a workflow name';
+                this.resultSuccess = false;
+                return;
+            }
+
+            this.converting = true;
+            this.resultMessage = '';
+
+            var payload = {
+                workflow_name: this.workflowName.trim(),
+                workflow_description: this.workflowDescription,
+                target_url: this.targetUrl,
+                condition_field: this.conditionField,
+                steps: this.steps.map(s => ({
+                    action_order: s.action_order,
+                    step_name: s.step_name,
+                    action_type: s.action_type,
+                    is_active: s.is_active,
+                    value_static: s.value_mode === 'static' ? s.value_static : '',
+                    value_field: s.value_mode === 'field' ? s.value_field : '',
+                    value_template: s.value_mode === 'template' ? s.value_template : '',
+                    wait_after: s.wait_after,
+                    timeout: s.timeout,
+                    condition_value: s.condition_value,
+                    continue_on_error: s.continue_on_error,
+                    clear_before_fill: s.clear_before_fill,
+                    press_key_after: s.press_key_after,
+                })),
+            };
+
+            try {
+                var resp = await fetch('{% url "erp_automation:convert_recording" session.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                var data = await resp.json();
+                this.resultMessage = data.message;
+                this.resultSuccess = data.success;
+                if (data.success) {
+                    this.resultWorkflowId = data.workflow_id;
+                }
+            } catch (err) {
+                this.resultMessage = 'Network error: ' + err.message;
+                this.resultSuccess = false;
+            } finally {
+                this.converting = false;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        init() {
+            // Build steps from actions data
+            var self = this;
+            this.steps = actionsData.map(function(a) {
+                return {
+                    order: a.order,
+                    action_order: a.order,
+                    action_type: a.action_type,
+                    step_name: self.generateStepName(a),
+                    is_active: true,
+                    value_mode: (a.action_type === 'fill' || a.action_type === 'select') ? 'static' : '',
+                    value_static: a.input_value || '',
+                    value_field: '',
+                    value_template: '',
+                    key_pressed: a.key_pressed || '',
+                    wait_after: 500,
+                    timeout: 30000,
+                    condition_value: '',
+                    continue_on_error: false,
+                    clear_before_fill: a.action_type === 'fill',
+                    press_key_after: a.key_pressed || '',
+                };
+            });
+
+            // Auto-load clipboard if a job data is already linked
+            if (this.selectedJobDataId) {
+                this.loadClipboardData();
+            }
+        }
+    };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+});
+</script>
+{% endblock %}

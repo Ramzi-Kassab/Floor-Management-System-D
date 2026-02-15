@@ -2,7 +2,7 @@
 {% block title %}Record Browser Actions - ERP Automation{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div x-data="recordingPage()" class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -16,9 +16,10 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Recording Setup -->
+        <!-- Left Column: Setup + How It Works -->
         <div class="space-y-6">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <!-- Recording Setup -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm" x-show="!isRecording">
                 <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
                         <i data-lucide="settings" class="w-5 h-5 mr-2 text-gray-400"></i>
@@ -26,22 +27,49 @@
                     </h2>
                 </div>
                 <div class="p-5">
-                    <form method="post" id="recordingForm" class="space-y-4">
-                        {% csrf_token %}
+                    <form @submit.prevent="startRecording()" class="space-y-4">
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Session Name</label>
-                            <input type="text" name="session_name" required
+                            <input type="text" x-model="sessionName" required
                                    placeholder="e.g., Create Item Flow"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
                         </div>
 
+                        <!-- ERP Environment Selector -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ERP Environment</label>
+                            <select x-model="selectedEnvId" @change="onEnvChange()"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
+                                <template x-for="env in environments" :key="env.id">
+                                    <option :value="String(env.id)" x-text="env.name + ' \u2014 ' + env.url"></option>
+                                </template>
+                                <option value="custom">Custom URL...</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
-                            <input type="url" name="target_url" required
+                            <input type="url" x-model="targetUrl" required
                                    placeholder="https://dynamics.microsoft.com/..."
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The ERP page URL to record</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The ERP page URL to record (editable)</p>
+                        </div>
+
+                        <!-- Job Data Selector (for clipboard helper) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Job Data Record
+                                <span class="text-gray-400 font-normal">(optional, for clipboard)</span>
+                            </label>
+                            <select x-model="jobDataId"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 text-sm">
+                                <option value="">-- No job data --</option>
+                                {% for jd in job_data_records %}
+                                <option value="{{ jd.pk }}">{{ jd.work_order_number }} - {{ jd.serial_number }} ({{ jd.account }})</option>
+                                {% endfor %}
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select to show copy-paste values during recording</p>
                         </div>
 
                         {% if not has_credentials %}
@@ -51,7 +79,7 @@
                                 <div class="ml-3">
                                     <h4 class="text-sm font-medium text-yellow-800 dark:text-yellow-300">Credentials Required</h4>
                                     <p class="mt-1 text-xs text-yellow-700 dark:text-yellow-400">You need to set ERP credentials before recording.</p>
-                                    <a href="{% url 'erp_automation:credentials' %}" class="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded bg-yellow-600 text-white hover:bg-yellow-700">
+                                    <a href="{% url 'erp_automation:credentials' %}?next={% url 'erp_automation:record' %}" class="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded bg-yellow-600 text-white hover:bg-yellow-700">
                                         Set Credentials
                                     </a>
                                 </div>
@@ -66,25 +94,147 @@
                         </div>
                         {% endif %}
 
-                        <div class="flex items-center">
-                            <input type="checkbox" name="headless" id="headlessCheck"
-                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
-                            <label for="headlessCheck" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                Headless mode (no visible browser)
-                            </label>
-                        </div>
-
-                        <button type="submit" {% if not has_credentials %}disabled{% endif %}
+                        <button type="submit" :disabled="starting || !sessionName.trim() || !targetUrl.trim()" {% if not has_credentials %}disabled{% endif %}
                                 class="w-full inline-flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                            <i data-lucide="circle" class="w-5 h-5 mr-2"></i>
-                            Start Recording
+                            <template x-if="!starting">
+                                <span class="flex items-center">
+                                    <i data-lucide="circle" class="w-5 h-5 mr-2"></i>
+                                    Start Recording
+                                </span>
+                            </template>
+                            <template x-if="starting">
+                                <span class="flex items-center">
+                                    <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    Starting Browser...
+                                </span>
+                            </template>
                         </button>
                     </form>
                 </div>
             </div>
 
+            <!-- Recording Controls (visible while recording) -->
+            <div x-show="isRecording" x-cloak class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div class="px-5 py-4 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                    <h2 class="text-lg font-semibold text-red-700 dark:text-red-300 flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-red-600 animate-pulse mr-3"></span>
+                        Recording in Progress
+                    </h2>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="text-center">
+                        <p class="text-3xl font-mono font-bold text-gray-900 dark:text-white" x-text="elapsedTime"></p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            <span x-text="capturedActions.length"></span> actions captured
+                        </p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            <span class="font-medium">Session:</span>
+                            <span x-text="sessionName"></span>
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <span class="font-medium">URL:</span>
+                            <span x-text="targetUrl"></span>
+                        </p>
+                    </div>
+
+                    <button @click="stopRecording()" :disabled="stopping"
+                            class="w-full inline-flex items-center justify-center px-4 py-3 bg-gray-800 dark:bg-gray-600 text-white rounded-lg hover:bg-gray-900 dark:hover:bg-gray-500 disabled:opacity-50 transition-colors">
+                        <template x-if="!stopping">
+                            <span class="flex items-center">
+                                <i data-lucide="square" class="w-5 h-5 mr-2"></i>
+                                Stop Recording
+                            </span>
+                        </template>
+                        <template x-if="stopping">
+                            <span class="flex items-center">
+                                <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                Stopping...
+                            </span>
+                        </template>
+                    </button>
+
+                    <p class="text-xs text-center text-gray-400 dark:text-gray-500">
+                        You can also close the browser to stop recording
+                    </p>
+                </div>
+            </div>
+
+            <!-- Clipboard Helper (visible while recording, if job data selected) -->
+            <div x-show="isRecording && clipboardData && Object.keys(clipboardData).length > 0" x-cloak
+                 class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div class="px-5 py-4 border-b border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20">
+                    <h2 class="text-lg font-semibold text-teal-700 dark:text-teal-300 flex items-center">
+                        <i data-lucide="clipboard-list" class="w-5 h-5 mr-2"></i>
+                        Job Data Clipboard
+                    </h2>
+                    <p class="text-xs text-teal-600 dark:text-teal-400 mt-1">Click to copy, then paste into ERP</p>
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <template x-for="(value, key) in clipboardData" :key="key">
+                        <div x-show="value" class="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 group cursor-pointer"
+                             @click="copyToClipboard(value, key)">
+                            <div class="min-w-0 flex-1">
+                                <span class="text-[10px] font-medium text-teal-600 dark:text-teal-400 uppercase block" x-text="key"></span>
+                                <span class="text-sm text-gray-900 dark:text-white font-mono truncate block" x-text="value"></span>
+                            </div>
+                            <span class="flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <template x-if="copiedField !== key">
+                                    <i data-lucide="copy" class="w-4 h-4 text-gray-400"></i>
+                                </template>
+                                <template x-if="copiedField === key">
+                                    <i data-lucide="check" class="w-4 h-4 text-green-500"></i>
+                                </template>
+                            </span>
+                        </div>
+                    </template>
+                </div>
+                <!-- Product Name (combined) -->
+                <div class="px-4 py-3 bg-teal-50/50 dark:bg-teal-900/10 border-t border-teal-200 dark:border-teal-800">
+                    <span class="text-[10px] font-medium text-teal-600 dark:text-teal-400 uppercase block mb-1">PRODUCT NAME (Combined)</span>
+                    <div class="flex items-center gap-2">
+                        <code class="flex-1 text-xs text-gray-900 dark:text-white bg-white dark:bg-gray-700 px-2 py-1.5 rounded border border-gray-200 dark:border-gray-600 truncate"
+                              x-text="productName"></code>
+                        <button @click="copyToClipboard(productName, '_PRODUCT_NAME')"
+                                class="flex-shrink-0 px-2 py-1.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors">
+                            <template x-if="copiedField !== '_PRODUCT_NAME'">
+                                <span>Copy</span>
+                            </template>
+                            <template x-if="copiedField === '_PRODUCT_NAME'">
+                                <span class="text-green-200">Copied!</span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+                <!-- Search Name (serial) -->
+                <div class="px-4 py-3 bg-teal-50/50 dark:bg-teal-900/10 border-t border-teal-200 dark:border-teal-800">
+                    <span class="text-[10px] font-medium text-teal-600 dark:text-teal-400 uppercase block mb-1">SEARCH NAME (Serial)</span>
+                    <div class="flex items-center gap-2">
+                        <code class="flex-1 text-xs text-gray-900 dark:text-white bg-white dark:bg-gray-700 px-2 py-1.5 rounded border border-gray-200 dark:border-gray-600 truncate"
+                              x-text="clipboardData['SERIAL NO'] || ''"></code>
+                        <button @click="copyToClipboard(clipboardData['SERIAL NO'] || '', '_SEARCH_NAME')"
+                                class="flex-shrink-0 px-2 py-1.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors">
+                            <template x-if="copiedField !== '_SEARCH_NAME'">
+                                <span>Copy</span>
+                            </template>
+                            <template x-if="copiedField === '_SEARCH_NAME'">
+                                <span class="text-green-200">Copied!</span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- How it Works -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div x-show="!isRecording" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                 <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
                         <i data-lucide="info" class="w-5 h-5 mr-2 text-gray-400"></i>
@@ -99,32 +249,101 @@
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium">2</span>
-                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Click "Start Recording"</span>
+                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Optionally select a Job Data record for clipboard values</span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium">3</span>
-                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">A browser window will open</span>
+                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Click "Start Recording" — browser opens</span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium">4</span>
-                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Perform your actions (click, type, select)</span>
+                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Copy values from the clipboard panel, paste into ERP fields</span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium">5</span>
-                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Each action captures element locators</span>
+                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">All clicks, fills, and key presses are recorded with locators</span>
                         </li>
                         <li class="flex items-start">
                             <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium">6</span>
-                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Close browser to save session</span>
+                            <span class="ml-3 text-sm text-gray-600 dark:text-gray-400">Click "Stop" or close browser — review and convert to workflow</span>
                         </li>
                     </ol>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Sessions -->
+        <!-- Right Column: Live Actions + Recent Sessions -->
         <div class="lg:col-span-2 space-y-6">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+
+            <!-- Live Actions Panel (visible while recording) -->
+            <div x-show="isRecording" x-cloak class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse mr-3"></span>
+                        Live Actions
+                        <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400" x-text="'(' + capturedActions.length + ')'"></span>
+                    </h2>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Updates every 2 seconds</span>
+                </div>
+                <div class="max-h-[600px] overflow-y-auto" id="liveActionsContainer">
+                    <template x-if="capturedActions.length === 0">
+                        <div class="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <i data-lucide="mouse-pointer-click" class="w-10 h-10 mx-auto mb-3 opacity-40"></i>
+                            <p class="text-sm">Waiting for actions...</p>
+                            <p class="text-xs mt-1">Perform clicks, type text, or press keys in the browser</p>
+                        </div>
+                    </template>
+                    <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <template x-for="action in capturedActions" :key="action.order">
+                            <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                                 :class="action._new ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''">
+                                <!-- Order -->
+                                <span class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                                      :class="action.action_type === 'click' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                              action.action_type === 'fill' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                              action.action_type === 'select' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                              action.action_type === 'press_key' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                              'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
+                                      x-text="action.order"></span>
+
+                                <!-- Type -->
+                                <span class="flex-shrink-0 text-[10px] font-mono font-medium px-1.5 py-0.5 rounded"
+                                      :class="action.action_type === 'click' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' :
+                                              action.action_type === 'fill' ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
+                                              action.action_type === 'select' ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400' :
+                                              'bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400'"
+                                      x-text="action.action_type"></span>
+
+                                <!-- Element -->
+                                <span class="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate"
+                                      x-text="action.element_name || action.element_aria_label || action.element_placeholder || action.element_text?.substring(0,30) || action.element_id?.substring(0,30) || action.element_tag || 'element'">
+                                </span>
+
+                                <!-- Value -->
+                                <span x-show="action.input_value" class="text-xs text-gray-400 dark:text-gray-500 max-w-[150px] truncate font-mono"
+                                      x-text="action.input_value ? `= &quot;${action.input_value.substring(0, 20)}&quot;` : ''"></span>
+                                <span x-show="action.key_pressed" class="text-[10px] font-mono px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
+                                      x-text="action.key_pressed"></span>
+
+                                <!-- Tag -->
+                                <span class="text-[10px] text-gray-400 font-mono" x-text="'<' + (action.element_tag || '?') + '>'"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div x-show="errorMessage" x-cloak
+                 class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div class="flex items-center gap-2 text-red-700 dark:text-red-300">
+                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                    <span class="text-sm" x-text="errorMessage"></span>
+                </div>
+            </div>
+
+            <!-- Recent Sessions Table -->
+            <div x-show="!isRecording" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
                         <i data-lucide="history" class="w-5 h-5 mr-2 text-gray-400"></i>
@@ -161,8 +380,10 @@
                                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Completed</span>
                                 {% elif session.status == 'recording' %}
                                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 animate-pulse">Recording</span>
+                                {% elif session.status == 'failed' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Failed</span>
                                 {% else %}
-                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">{{ session.status }}</span>
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">{{ session.status|default:"--" }}</span>
                                 {% endif %}
                             </td>
                             <td class="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
@@ -185,38 +406,279 @@
                     </tbody>
                 </table>
             </div>
-
-            <!-- Recently Captured Locators -->
-            {% if recent_locators %}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                        <i data-lucide="crosshair" class="w-5 h-5 mr-2 text-gray-400"></i>
-                        Recently Captured Locators
-                    </h2>
-                </div>
-                <div class="p-5">
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {% for locator in recent_locators|slice:":6" %}
-                        <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                            <i data-lucide="crosshair" class="w-4 h-4 text-purple-500 mr-2"></i>
-                            <div class="min-w-0">
-                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ locator.name }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ locator.strategies.count }} strategies</p>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        lucide.createIcons();
-    });
+function recordingPage() {
+    // Environment data from server
+    const envData = {{ environments_json|safe }};
+    const savedEnvUrl = "{{ selected_env_url|default:''|escapejs }}";
+
+    // Determine initial selection
+    let initialEnvId = "custom";
+    let initialUrl = savedEnvUrl || '';
+    if (envData.length > 0) {
+        // Try to match saved URL to an environment
+        const match = envData.find(e => savedEnvUrl && savedEnvUrl.startsWith(e.url));
+        if (match) {
+            initialEnvId = String(match.id);
+            initialUrl = match.url + '?cmp=ardt&mi=DefaultDashboard';
+        } else {
+            // Use default environment
+            const def = envData.find(e => e.is_default) || envData[0];
+            initialEnvId = String(def.id);
+            initialUrl = def.url + '?cmp=ardt&mi=DefaultDashboard';
+        }
+    }
+
+    return {
+        // State
+        isRecording: {{ is_recording|yesno:"true,false" }},
+        starting: false,
+        stopping: false,
+        sessionName: '',
+        environments: envData,
+        selectedEnvId: initialEnvId,
+        targetUrl: initialUrl,
+        jobDataId: '',
+        sessionId: null,
+        capturedActions: [],
+        clipboardData: {},
+        productName: '',
+        copiedField: null,
+        errorMessage: '',
+        pollInterval: null,
+        timerInterval: null,
+        startTime: null,
+        elapsedTime: '00:00',
+
+        init() {
+            if (this.isRecording) {
+                this.startPolling();
+                this.startTimer();
+            }
+        },
+
+        onEnvChange() {
+            if (this.selectedEnvId === 'custom') {
+                this.targetUrl = '';
+            } else {
+                const env = this.environments.find(e => String(e.id) === this.selectedEnvId);
+                if (env) {
+                    this.targetUrl = env.url + '?cmp=ardt&mi=DefaultDashboard';
+                }
+            }
+        },
+
+        async startRecording() {
+            if (!this.sessionName.trim() || !this.targetUrl.trim()) return;
+
+            this.starting = true;
+            this.errorMessage = '';
+            this.capturedActions = [];
+
+            const formData = new FormData();
+            formData.append('session_name', this.sessionName.trim());
+            formData.append('target_url', this.targetUrl.trim());
+            if (this.jobDataId) formData.append('job_data_id', this.jobDataId);
+
+            try {
+                const resp = await fetch('{% url "erp_automation:start_recording" %}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: formData,
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    this.isRecording = true;
+                    this.sessionId = data.session_id;
+
+                    // Load clipboard data if job_data was selected
+                    if (data.clipboard_data) {
+                        this.clipboardData = data.clipboard_data;
+                        this.buildProductName();
+                    }
+
+                    this.startPolling();
+                    this.startTimer();
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    this.errorMessage = data.message || 'Failed to start recording';
+                }
+            } catch (err) {
+                this.errorMessage = 'Network error: ' + err.message;
+            } finally {
+                this.starting = false;
+            }
+        },
+
+        async stopRecording() {
+            this.stopping = true;
+            this.errorMessage = '';
+
+            // Always stop polling/timer first
+            this.stopPolling();
+            this.stopTimer();
+
+            try {
+                const resp = await fetch('{% url "erp_automation:stop_recording" %}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                });
+
+                const contentType = resp.headers.get('content-type') || '';
+                if (!resp.ok || !contentType.includes('application/json')) {
+                    // Server returned HTML (login redirect or error)
+                    this.isRecording = false;
+                    this.errorMessage = 'Stop request failed (server returned non-JSON). Actions were saved during polling.';
+                    return;
+                }
+
+                const data = await resp.json();
+                this.isRecording = false;
+
+                if (data.success && data.session_id) {
+                    // Redirect to recording detail page
+                    window.location.href = '/erp-automation/record/' + data.session_id + '/';
+                } else {
+                    this.errorMessage = data.message || 'Failed to stop recording';
+                }
+            } catch (err) {
+                this.isRecording = false;
+                this.errorMessage = 'Network error: ' + err.message + '. Actions were saved during polling.';
+            } finally {
+                this.stopping = false;
+            }
+        },
+
+        startPolling() {
+            this.pollInterval = setInterval(() => this.pollActions(), 2000);
+        },
+
+        stopPolling() {
+            if (this.pollInterval) {
+                clearInterval(this.pollInterval);
+                this.pollInterval = null;
+            }
+        },
+
+        pollErrorCount: 0,
+
+        async pollActions() {
+            try {
+                const resp = await fetch('{% url "erp_automation:poll_recording" %}');
+
+                // Guard: if response is not JSON (e.g. login redirect, server error)
+                const contentType = resp.headers.get('content-type') || '';
+                if (!resp.ok || !contentType.includes('application/json')) {
+                    this.pollErrorCount++;
+                    console.warn(`[Poll] Non-JSON response (${resp.status}), attempt ${this.pollErrorCount}`);
+                    if (this.pollErrorCount > 15) {
+                        console.error('[Poll] Too many errors, stopping polling');
+                        this.stopPolling();
+                        this.errorMessage = 'Polling lost connection. Recording may still be running — click Stop to save.';
+                    }
+                    return;
+                }
+
+                const data = await resp.json();
+                this.pollErrorCount = 0;  // Reset on success
+
+                if (!data.recording) {
+                    // Browser was closed — stop recording
+                    this.stopPolling();
+                    this.stopTimer();
+                    // Auto-stop
+                    await this.stopRecording();
+                    return;
+                }
+
+                if (data.actions && data.actions.length > 0) {
+                    for (const action of data.actions) {
+                        // Only add if not already present
+                        if (!this.capturedActions.find(a => a.order === action.order)) {
+                            action._new = true;
+                            this.capturedActions.push(action);
+                            // Remove _new flag after animation
+                            setTimeout(() => { action._new = false; }, 1500);
+                        }
+                    }
+                    // Auto-scroll
+                    this.$nextTick(() => {
+                        const container = document.getElementById('liveActionsContainer');
+                        if (container) container.scrollTop = container.scrollHeight;
+                    });
+                }
+            } catch (err) {
+                this.pollErrorCount++;
+                console.warn(`[Poll] Network error (attempt ${this.pollErrorCount}): ${err.message}`);
+                if (this.pollErrorCount > 15) {
+                    console.error('[Poll] Too many errors, stopping polling');
+                    this.stopPolling();
+                    this.errorMessage = 'Polling lost connection. Recording may still be running — click Stop to save.';
+                }
+            }
+        },
+
+        startTimer() {
+            this.startTime = Date.now();
+            this.timerInterval = setInterval(() => {
+                const elapsed = Date.now() - this.startTime;
+                const mins = Math.floor(elapsed / 60000);
+                const secs = Math.floor((elapsed % 60000) / 1000);
+                this.elapsedTime = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }, 1000);
+        },
+
+        stopTimer() {
+            if (this.timerInterval) {
+                clearInterval(this.timerInterval);
+                this.timerInterval = null;
+            }
+        },
+
+        buildProductName() {
+            // Product Name = ORDER NO. SERIAL NO SIZE TYPE MAT NO.
+            const parts = [
+                this.clipboardData['ORDER NO.'],
+                this.clipboardData['SERIAL NO'],
+                this.clipboardData['SIZE'],
+                this.clipboardData['TYPE'],
+                this.clipboardData['MAT NO.'],
+            ].filter(Boolean);
+            this.productName = parts.join(' ');
+        },
+
+        async copyToClipboard(text, fieldKey) {
+            try {
+                await navigator.clipboard.writeText(text);
+                this.copiedField = fieldKey;
+                setTimeout(() => { this.copiedField = null; }, 2000);
+            } catch (err) {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                this.copiedField = fieldKey;
+                setTimeout(() => { this.copiedField = null; }, 2000);
+            }
+        },
+
+        destroy() {
+            this.stopPolling();
+            this.stopTimer();
+        }
+    };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+});
 </script>
 {% endblock %}

@@ -17,6 +17,12 @@ from .models import (
     StepExecution,
     FieldMapping,
     ItemCounter,
+    ERPRoute,
+    ERPJobData,
+    WorkflowChain,
+    WorkflowChainLink,
+    ChainExecution,
+    ERPEnvironment,
 )
 
 
@@ -213,13 +219,13 @@ class RecordingSessionAdmin(admin.ModelAdmin):
 @admin.register(WorkflowExecution)
 class WorkflowExecutionAdmin(admin.ModelAdmin):
     list_display = [
-        "workflow", "status", "sheet_name",
+        "workflow", "status", "job_data", "sheet_name",
         "started_at", "completed_at", "executed_by"
     ]
     list_filter = ["status", "workflow"]
-    search_fields = ["workflow__name"]
+    search_fields = ["workflow__name", "job_data__work_order_number"]
     readonly_fields = [
-        "workflow", "status", "excel_file_path", "sheet_name",
+        "workflow", "status", "job_data", "excel_file_path", "sheet_name",
         "row_data", "context", "started_at", "completed_at",
         "error_message", "executed_by"
     ]
@@ -313,3 +319,195 @@ class RecordedActionAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+# =============================================================================
+# ERP ROUTE & JOB DATA ADMINS
+# =============================================================================
+
+@admin.register(ERPRoute)
+class ERPRouteAdmin(admin.ModelAdmin):
+    list_display = [
+        "route_number", "name", "bit_type", "level", "size_class",
+        "has_port", "has_usr", "has_hardfacing", "has_crush_shear",
+        "approved", "is_active"
+    ]
+    list_filter = [
+        "bit_type", "level", "size_class", "approved", "is_active",
+        "has_port", "has_usr", "has_hardfacing", "has_crush_shear"
+    ]
+    search_fields = ["route_number", "name", "item_group"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("route_number", "name", "item_group")
+        }),
+        ("Classification", {
+            "fields": ("bit_type", "level", "size_class", "has_port")
+        }),
+        ("FC Repair Modifiers", {
+            "fields": ("has_usr", "has_hardfacing", "has_crush_shear",
+                       "has_retro", "has_grinding")
+        }),
+        ("RC-Specific", {
+            "fields": ("is_sealed", "has_cc"),
+            "classes": ("collapse",)
+        }),
+        ("Approval", {
+            "fields": ("approved", "approved_by", "is_active")
+        }),
+        ("Metadata", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+@admin.register(ERPJobData)
+class ERPJobDataAdmin(admin.ModelAdmin):
+    list_display = [
+        "work_order_number", "serial_number", "size_raw", "account",
+        "item_group", "body_material", "route", "status", "created_at"
+    ]
+    list_filter = ["status", "account", "item_group", "body_material", "size_class"]
+    search_fields = ["work_order_number", "serial_number", "l5_mat_full", "l5_mat_original"]
+    readonly_fields = ["created_at", "updated_at"]
+    autocomplete_fields = ["route"]
+    raw_id_fields = ["created_by"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("work_order_number", "serial_number", "status", "source_file")
+        }),
+        ("Raw Data", {
+            "fields": ("size_raw", "size_inches", "smi_type", "l5_mat_full",
+                       "date_received", "account", "contract_number", "vendor_number",
+                       "l3_l4_mat", "evaluated_by", "reviewed_by")
+        }),
+        ("Derived Fields", {
+            "fields": ("l5_mat_original", "body_material", "item_group",
+                       "size_class", "has_port")
+        }),
+        ("Repair Modifiers", {
+            "fields": ("has_usr", "has_hardfacing", "has_crush_shear",
+                       "is_rerun", "is_inspection_only", "is_scrap")
+        }),
+        ("Route", {
+            "fields": ("route", "route_override")
+        }),
+        ("ERP Output", {
+            "fields": ("item_number", "production_order_number", "transfer_order_number")
+        }),
+        ("Cutter Data (JSON)", {
+            "fields": ("cutter_bom_data", "modified_cutters_data"),
+            "classes": ("collapse",)
+        }),
+        ("Notes & Metadata", {
+            "fields": ("notes", "created_by", "created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+# =============================================================================
+# WORKFLOW CHAIN ADMINS
+# =============================================================================
+
+class WorkflowChainLinkInline(admin.TabularInline):
+    model = WorkflowChainLink
+    extra = 1
+    fields = [
+        "order", "workflow", "name", "wait_before_ms",
+        "navigate_url", "condition_value", "is_active"
+    ]
+    autocomplete_fields = ["workflow"]
+    ordering = ["order"]
+
+
+@admin.register(WorkflowChain)
+class WorkflowChainAdmin(admin.ModelAdmin):
+    list_display = [
+        "name", "status", "link_count_display",
+        "execution_count_display", "keep_browser_open",
+        "stop_on_failure", "updated_at"
+    ]
+    list_filter = ["status"]
+    search_fields = ["name", "description"]
+    readonly_fields = ["created_at", "updated_at"]
+    inlines = [WorkflowChainLinkInline]
+
+    fieldsets = (
+        (None, {
+            "fields": ("name", "description", "status")
+        }),
+        ("Execution Options", {
+            "fields": ("condition_field", "stop_on_failure", "keep_browser_open")
+        }),
+        ("Metadata", {
+            "fields": ("created_by", "created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+    def link_count_display(self, obj):
+        count = obj.links.filter(is_active=True).count()
+        return format_html('<strong>{}</strong>', count)
+    link_count_display.short_description = "Links"
+
+    def execution_count_display(self, obj):
+        total = obj.executions.count()
+        success = obj.executions.filter(status="success").count()
+        return format_html('{} <span style="color:green;">({})</span>', total, success)
+    execution_count_display.short_description = "Executions"
+
+
+@admin.register(WorkflowChainLink)
+class WorkflowChainLinkAdmin(admin.ModelAdmin):
+    list_display = [
+        "chain", "order", "workflow", "name",
+        "wait_before_ms", "condition_value", "is_active"
+    ]
+    list_filter = ["chain", "is_active"]
+    search_fields = ["chain__name", "workflow__name", "name"]
+    autocomplete_fields = ["chain", "workflow"]
+    ordering = ["chain", "order"]
+
+
+@admin.register(ChainExecution)
+class ChainExecutionAdmin(admin.ModelAdmin):
+    list_display = [
+        "chain", "job_data", "status",
+        "progress_display", "started_at", "completed_at", "executed_by"
+    ]
+    list_filter = ["status", "chain"]
+    search_fields = ["chain__name", "job_data__work_order_number"]
+    readonly_fields = [
+        "chain", "job_data", "status", "row_data", "context",
+        "total_links", "completed_links", "current_link_order",
+        "started_at", "completed_at", "error_message", "executed_by"
+    ]
+
+    def progress_display(self, obj):
+        pct = obj.progress_percent
+        color = "green" if pct == 100 else "orange" if pct > 0 else "gray"
+        return format_html(
+            '<span style="color: {};">{}/{} ({}%)</span>',
+            color, obj.completed_links, obj.total_links, pct
+        )
+    progress_display.short_description = "Progress"
+
+    def has_add_permission(self, request):
+        return False
+
+
+# =============================================================================
+# ERP ENVIRONMENT ADMIN
+# =============================================================================
+
+@admin.register(ERPEnvironment)
+class ERPEnvironmentAdmin(admin.ModelAdmin):
+    list_display = ["name", "url", "is_default", "sort_order", "updated_at"]
+    list_editable = ["is_default", "sort_order"]
+    search_fields = ["name", "url"]
+    readonly_fields = ["created_at", "updated_at"]

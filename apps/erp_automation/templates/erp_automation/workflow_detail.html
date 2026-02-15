@@ -2,7 +2,7 @@
 {% block title %}{{ workflow.name }} - ERP Automation{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div x-data="workflowEditor()" x-init="init()" class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -14,27 +14,27 @@
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
                 Back
             </a>
-            <a href="{% url 'erp_automation:excel_handler' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <i data-lucide="play" class="w-4 h-4 mr-2"></i>
-                Run with Excel Data
-            </a>
+            <button @click="addStep()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Add Step
+            </button>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Workflow Info -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Workflow Info (narrow) -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                    <i data-lucide="info" class="w-5 h-5 mr-2 text-gray-400"></i>
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="info" class="w-4 h-4 mr-2 text-gray-400"></i>
                     Details
                 </h2>
             </div>
-            <div class="p-5 space-y-4">
+            <div class="p-4 space-y-3 text-sm">
                 <div>
                     <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</label>
                     <div class="mt-1">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                             {% if workflow.status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
                             {% elif workflow.status == 'draft' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
                             {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400{% endif %}">
@@ -43,175 +43,873 @@
                     </div>
                 </div>
                 <div>
-                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Application</label>
-                    <p class="text-sm text-gray-900 dark:text-white">{{ workflow.application }}</p>
-                </div>
-                <div>
-                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Target URL</label>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 break-all">{{ workflow.target_url|default:"Not set" }}</p>
-                </div>
-                <div>
                     <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Steps</label>
-                    <p class="text-sm text-gray-900 dark:text-white">{{ steps.count }} active steps</p>
+                    <p class="text-gray-900 dark:text-white" x-text="steps.length + ' active steps'"></p>
                 </div>
-                {% if workflow.valid_sheets %}
                 <div>
-                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valid Sheets</label>
-                    <div class="flex flex-wrap gap-1 mt-1">
-                        {% for sheet in workflow.valid_sheets %}
-                        <span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded">{{ sheet }}</span>
-                        {% endfor %}
-                    </div>
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Application</label>
+                    <p class="text-gray-900 dark:text-white">{{ workflow.application }}</p>
                 </div>
-                {% endif %}
                 {% if workflow.condition_field %}
                 <div>
                     <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Condition Field</label>
-                    <code class="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-0.5 rounded">{{ workflow.condition_field }}</code>
+                    <code class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-1.5 py-0.5 rounded">{{ workflow.condition_field }}</code>
                 </div>
                 {% endif %}
-                <div>
-                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</label>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">{{ workflow.created_at|date:"M d, Y H:i" }}</p>
+                <!-- Interaction Modes Summary -->
+                <div x-show="steps.length > 0">
+                    <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Modes</label>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        <template x-for="mode in getModeSummary()" :key="mode.name">
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+                                  :class="getModeStyle(mode.name)">
+                                <span x-text="getModeLabel(mode.name)"></span>
+                                <span class="opacity-70" x-text="mode.count"></span>
+                            </span>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Workflow Steps -->
-        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                    <i data-lucide="list-ordered" class="w-5 h-5 mr-2 text-gray-400"></i>
+        <!-- Workflow Steps (wide) -->
+        <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+            <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="list-ordered" class="w-4 h-4 mr-2 text-gray-400"></i>
                     Workflow Steps
                 </h2>
-                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                    {{ steps.count }} steps
-                </span>
+                <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                      x-text="steps.length + ' steps'"></span>
             </div>
-            <div class="divide-y divide-gray-200 dark:divide-gray-700 max-h-96 overflow-y-auto">
-                {% for step in steps %}
-                <div class="px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <div class="flex items-start justify-between">
-                        <div class="flex items-start">
-                            <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium mr-3">
-                                {{ step.order }}
-                            </span>
-                            <div>
-                                <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ step.name }}</h4>
-                                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                                    <span class="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400">
-                                        {{ step.get_action_type_display }}
-                                    </span>
-                                    {% if step.locator %}
-                                    <span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                                        <i data-lucide="crosshair" class="w-3 h-3 inline mr-1"></i>
-                                        {{ step.locator.name|truncatechars:20 }}
-                                    </span>
-                                    {% endif %}
-                                    {% if step.value_field %}
-                                    <span class="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400">
-                                        Excel: {{ step.value_field }}
-                                    </span>
-                                    {% elif step.value_static %}
-                                    <span class="px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
-                                        Static: {{ step.value_static|truncatechars:15 }}
-                                    </span>
-                                    {% endif %}
-                                    {% if step.condition_value %}
-                                    <span class="px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400">
-                                        if: {{ step.condition_value }}
-                                    </span>
-                                    {% endif %}
+
+            <!-- Steps Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
+                        <tr>
+                            <th class="px-3 py-2 text-left w-12">#</th>
+                            <th class="px-3 py-2 text-left">Name</th>
+                            <th class="px-3 py-2 text-left w-20">Action</th>
+                            <th class="px-3 py-2 text-left w-28">Mode</th>
+                            <th class="px-3 py-2 text-left">Locator</th>
+                            <th class="px-3 py-2 text-left">Value</th>
+                            <th class="px-3 py-2 text-left w-16">Wait</th>
+                            <th class="px-3 py-2 text-center w-24">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <template x-for="(step, idx) in steps" :key="step.id">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 group"
+                                :class="editingStep === step.id ? 'bg-blue-50 dark:bg-blue-900/10' : ''">
+                                <!-- Order -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <span class="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium"
+                                              x-text="step.order"></span>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <input type="number" x-model.number="editForm.order"
+                                               class="w-12 px-1 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                    </template>
+                                </td>
+                                <!-- Name -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <div>
+                                            <span class="text-gray-900 dark:text-white text-xs" x-text="step.name"></span>
+                                            <template x-if="step.condition_value">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400" x-text="'if: ' + step.condition_value"></span>
+                                            </template>
+                                            <template x-if="step.continue_on_error">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400" title="Continues on error">⚡</span>
+                                            </template>
+                                            <template x-if="step.check_for_errors">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Checks for D365 errors after this step">ERR</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <div class="space-y-1">
+                                            <input type="text" x-model="editForm.name" placeholder="Step name"
+                                                   class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <input type="text" x-model="editForm.condition_value" placeholder="Condition value (blank=always)"
+                                                   class="w-full px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-indigo-600">
+                                        </div>
+                                    </template>
+                                </td>
+                                <!-- Action Type -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <span class="px-1.5 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400"
+                                              x-text="step.action_type"></span>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <select x-model="editForm.action_type"
+                                                class="px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <option value="click">click</option>
+                                            <option value="fill">fill</option>
+                                            <option value="select">select</option>
+                                            <option value="check">check</option>
+                                            <option value="navigate">navigate</option>
+                                            <option value="wait_time">wait_time</option>
+                                            <option value="press_key">press_key</option>
+                                            <option value="hover">hover</option>
+                                        </select>
+                                    </template>
+                                </td>
+                                <!-- Interaction Mode -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap"
+                                              :class="getModeStyle(step.interaction_mode || 'auto')"
+                                              x-text="getModeLabel(step.interaction_mode || 'auto')"></span>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <select x-model="editForm.interaction_mode"
+                                                class="px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <option value="auto">Auto-detect</option>
+                                            <option value="standard_input">Standard Input</option>
+                                            <option value="combobox">Combobox</option>
+                                            <option value="lookup_button">Lookup Button</option>
+                                            <option value="custom_dropdown">Custom Dropdown</option>
+                                            <option value="segmented_entry">Segmented Entry</option>
+                                            <option value="checkbox_toggle">Checkbox Toggle</option>
+                                            <option value="dialog_button">Dialog Button</option>
+                                            <option value="nav_button">Nav Button</option>
+                                            <option value="tab_header">Tab Header</option>
+                                        </select>
+                                    </template>
+                                </td>
+                                <!-- Locator -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <div>
+                                            <template x-if="step.locator">
+                                                <button @click="openLocatorModal(step.locator)"
+                                                        class="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1">
+                                                    <i data-lucide="crosshair" class="w-3 h-3"></i>
+                                                    <span x-text="'#' + step.locator.id + ' ' + step.locator.name.substring(0, 25)"></span>
+                                                    <span class="text-gray-400" x-text="'(' + step.locator.strategies.length + ')'"></span>
+                                                </button>
+                                            </template>
+                                            <template x-if="!step.locator">
+                                                <span class="text-xs text-gray-400">-</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <div class="relative">
+                                            <div x-show="editForm.locator_id" class="flex items-center gap-1 mb-1 px-1.5 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+                                                <span class="text-blue-700 dark:text-blue-300 truncate" x-text="'#' + editForm.locator_id + ' ' + (editForm._locator_name || '')"></span>
+                                                <button @click="editForm.locator_id = null; editForm._locator_name = ''" class="text-blue-400 hover:text-blue-600 flex-shrink-0">
+                                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                                </button>
+                                            </div>
+                                            <input type="text" x-model="locatorSearch.query"
+                                                   @input.debounce.200ms="searchLocators()"
+                                                   @focus="searchLocators()"
+                                                   placeholder="Search..."
+                                                   class="w-full px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <div x-show="locatorSearch.results.length > 0 && locatorSearch.open" x-cloak
+                                                 @click.away="locatorSearch.open = false"
+                                                 class="absolute z-[60] left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto w-64">
+                                                <template x-for="loc in locatorSearch.results" :key="loc.id">
+                                                    <button @click="selectLocator(loc, 'edit')"
+                                                            class="w-full text-left px-2 py-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                                        <span class="text-xs font-mono text-gray-400" x-text="'#' + loc.id"></span>
+                                                        <span class="ml-1 text-xs text-gray-900 dark:text-white" x-text="loc.name"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </td>
+                                <!-- Value -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <div class="text-xs">
+                                            <template x-if="step.value_template">
+                                                <span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400" x-text="step.value_template"></span>
+                                            </template>
+                                            <template x-if="!step.value_template && step.value_static">
+                                                <span class="px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400" x-text="step.value_static.substring(0, 25)"></span>
+                                            </template>
+                                            <template x-if="!step.value_template && !step.value_static && step.value_field">
+                                                <span class="px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-400" x-text="'Field: ' + step.value_field"></span>
+                                            </template>
+                                            <template x-if="!step.value_template && !step.value_static && !step.value_field">
+                                                <span class="text-gray-400">-</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <div class="space-y-1">
+                                            <input type="text" x-model="editForm.value_static" placeholder="Static value"
+                                                   class="w-full px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <input type="text" x-model="editForm.value_template" placeholder="Template {{FIELD}}"
+                                                   class="w-full px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                                            <input type="text" x-model="editForm.value_field" placeholder="Field name"
+                                                   class="w-full px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            <div class="flex items-center gap-3 pt-0.5">
+                                                <label class="flex items-center gap-1 text-xs text-gray-500">
+                                                    <input type="checkbox" x-model="editForm.clear_before_fill" class="rounded w-3 h-3">
+                                                    Clear first
+                                                </label>
+                                                <input type="text" x-model="editForm.press_key_after" placeholder="Key after (Tab, Enter...)"
+                                                       class="flex-1 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                            </div>
+                                        </div>
+                                    </template>
+                                </td>
+                                <!-- Wait / Extra -->
+                                <td class="px-3 py-2">
+                                    <template x-if="editingStep !== step.id">
+                                        <div>
+                                            <span class="text-xs text-gray-500" x-text="step.wait_after + 'ms'"></span>
+                                            <template x-if="step.press_key_after">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400" x-text="'⌨ ' + step.press_key_after"></span>
+                                            </template>
+                                            <template x-if="step.clear_before_fill">
+                                                <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Clears field before filling">🧹</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <input type="number" x-model.number="editForm.wait_after" step="100"
+                                               class="w-16 px-1 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                    </template>
+                                </td>
+                                <!-- Actions -->
+                                <td class="px-3 py-2 text-center">
+                                    <template x-if="editingStep !== step.id">
+                                        <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button @click="startEdit(step)" class="p-1 text-blue-500 hover:text-blue-700" title="Edit">
+                                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                            <button @click="duplicateStep(step)" class="p-1 text-gray-400 hover:text-gray-600" title="Duplicate">
+                                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                            <button @click="deleteStep(step)" class="p-1 text-red-400 hover:text-red-600" title="Delete">
+                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <template x-if="editingStep === step.id">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <button @click="saveEdit(step)" class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                                            <button @click="cancelEdit()" class="px-2 py-1 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                                        </div>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <template x-if="steps.length === 0">
+                <div class="px-5 py-12 text-center">
+                    <p class="text-gray-500 dark:text-gray-400">No steps configured. Click "Add Step" to begin.</p>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ============ LOCATOR MODAL ============ -->
+    <div x-show="locatorModal.open" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @keydown.escape.window="locatorModal.open = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4"
+             @click.away="locatorModal.open = false">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <span x-show="!locatorModal.creating">Edit Locator</span>
+                    <span x-show="locatorModal.creating">Create Locator</span>
+                    <span class="text-sm text-gray-400 ml-2" x-show="locatorModal.data.id" x-text="'#' + locatorModal.data.id"></span>
+                </h3>
+                <button @click="locatorModal.open = false" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <!-- Locator Name -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Name</label>
+                        <input type="text" x-model="locatorModal.data.name"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Page Context</label>
+                        <input type="text" x-model="locatorModal.data.page_context"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Strategies -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Strategies</label>
+                        <button @click="locatorModal.data.strategies.push({strategy_type: 'xpath', value: '', priority: locatorModal.data.strategies.length})"
+                                class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Add Strategy
+                        </button>
+                    </div>
+                    <div class="space-y-2">
+                        <template x-for="(strat, si) in locatorModal.data.strategies" :key="si">
+                            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+                                <span class="text-xs text-gray-400 font-mono w-6" x-text="'p' + strat.priority"></span>
+                                <select x-model="strat.strategy_type"
+                                        class="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-24">
+                                    <option value="xpath">xpath</option>
+                                    <option value="css">css</option>
+                                    <option value="name">name</option>
+                                    <option value="id">id</option>
+                                    <option value="text">text</option>
+                                    <option value="aria-label">aria-label</option>
+                                    <option value="role">role</option>
+                                    <option value="data-testid">data-testid</option>
+                                </select>
+                                <input type="text" x-model="strat.value" placeholder="Locator value..."
+                                       class="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                                <template x-if="strat.success_count !== undefined || strat.success !== undefined">
+                                    <span class="text-xs whitespace-nowrap"
+                                          :class="(strat.success_count || strat.success || 0) > 0 ? 'text-green-600' : (strat.failure_count || strat.fail || 0) > 0 ? 'text-red-500' : 'text-gray-400'"
+                                          x-text="'S:' + (strat.success_count ?? strat.success ?? 0) + ' F:' + (strat.failure_count ?? strat.fail ?? 0)"></span>
+                                </template>
+                                <button @click="locatorModal.data.strategies.splice(si, 1)"
+                                        class="text-red-400 hover:text-red-600 p-1">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-700/30">
+                <span class="text-xs text-gray-400" x-show="locatorModal.saving">Saving...</span>
+                <div class="flex gap-2 ml-auto">
+                    <button @click="locatorModal.open = false"
+                            class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition-colors">
+                        Cancel
+                    </button>
+                    <button @click="saveLocator()"
+                            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            :disabled="locatorModal.saving">
+                        <span x-text="locatorModal.creating ? 'Create Locator' : 'Save Changes'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ ADD STEP MODAL ============ -->
+    <div x-show="addModal.open" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @keydown.escape.window="addModal.open = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg m-4"
+             @click.away="addModal.open = false">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add Workflow Step</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Order</label>
+                        <input type="number" x-model.number="addModal.data.order"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Action Type</label>
+                        <select x-model="addModal.data.action_type"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="click">click</option>
+                            <option value="fill">fill</option>
+                            <option value="select">select</option>
+                            <option value="check">check</option>
+                            <option value="navigate">navigate</option>
+                            <option value="wait_time">wait_time</option>
+                            <option value="press_key">press_key</option>
+                            <option value="hover">hover</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Interaction Mode</label>
+                    <select x-model="addModal.data.interaction_mode"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="auto">Auto-detect (recommended)</option>
+                        <option value="standard_input">Standard Input</option>
+                        <option value="combobox">Combobox (Alt+Down)</option>
+                        <option value="lookup_button">Lookup Button (double-click)</option>
+                        <option value="custom_dropdown">Custom Dropdown</option>
+                        <option value="segmented_entry">Segmented Entry</option>
+                        <option value="checkbox_toggle">Checkbox Toggle</option>
+                        <option value="dialog_button">Dialog Button</option>
+                        <option value="nav_button">Navigation Button</option>
+                        <option value="tab_header">Tab Header</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Step Name</label>
+                    <input type="text" x-model="addModal.data.name" placeholder="e.g. Click Save button"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Condition Value <span class="normal-case text-gray-400">(only run when condition matches)</span></label>
+                    <input type="text" x-model="addModal.data.condition_value" placeholder="Leave empty for always"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Locator</label>
+                    <div class="relative">
+                        <!-- Selected locator display -->
+                        <div x-show="addModal.data.locator_id" class="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5 text-blue-500 flex-shrink-0"></i>
+                            <span class="text-sm text-blue-800 dark:text-blue-300 flex-1" x-text="'#' + addModal.data.locator_id + ' — ' + (addModal.data._locator_name || '')"></span>
+                            <button @click="addModal.data.locator_id = null; addModal.data._locator_name = ''" class="text-blue-400 hover:text-blue-600 flex-shrink-0" title="Clear">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <!-- Search input -->
+                        <div class="flex gap-1">
+                            <div class="relative flex-1">
+                                <input type="text" x-model="locatorSearch.query"
+                                       @input.debounce.200ms="searchLocators()"
+                                       @focus="searchLocators()"
+                                       placeholder="Search locators by name..."
+                                       class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-8">
+                                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <i data-lucide="search" class="w-4 h-4"></i>
+                                </span>
+                                <!-- Dropdown results -->
+                                <div x-show="locatorSearch.results.length > 0 && locatorSearch.open" x-cloak
+                                     @click.away="locatorSearch.open = false"
+                                     class="absolute z-[60] left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                                    <template x-for="loc in locatorSearch.results" :key="loc.id">
+                                        <button @click="selectLocator(loc, 'add')"
+                                                class="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700 last:border-0 flex items-center justify-between">
+                                            <div>
+                                                <span class="text-xs font-mono text-gray-400" x-text="'#' + loc.id"></span>
+                                                <span class="ml-1 text-sm text-gray-900 dark:text-white" x-text="loc.name"></span>
+                                            </div>
+                                            <span class="text-xs text-gray-400" x-text="loc.strategies + ' strategies'"></span>
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
-                        </div>
-                        <div class="flex items-center gap-2 text-xs text-gray-400">
-                            {% if step.press_key_after %}
-                            <span title="Press key after">
-                                <i data-lucide="keyboard" class="w-4 h-4"></i>
-                            </span>
-                            {% endif %}
-                            {% if step.continue_on_error %}
-                            <span title="Continue on error">
-                                <i data-lucide="skip-forward" class="w-4 h-4"></i>
-                            </span>
-                            {% endif %}
+                            <button @click="openNewLocatorModal()" class="px-2.5 py-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 whitespace-nowrap font-medium" title="Create new locator">
+                                + New
+                            </button>
                         </div>
                     </div>
                 </div>
-                {% empty %}
-                <div class="px-5 py-12 text-center">
-                    <i data-lucide="list" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
-                    <p class="text-gray-500 dark:text-gray-400">No steps configured for this workflow</p>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Wait After (ms)</label>
+                    <input type="number" x-model.number="addModal.data.wait_after" step="100"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 </div>
-                {% endfor %}
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Value (static)</label>
+                    <input type="text" x-model="addModal.data.value_static" placeholder="Fixed value or leave empty"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Value (template)</label>
+                    <input type="text" x-model="addModal.data.value_template" placeholder="e.g. {{BODY_MATERIAL}}"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Press Key After</label>
+                        <input type="text" x-model="addModal.data.press_key_after" placeholder="e.g. Tab, Enter"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Value Field</label>
+                        <input type="text" x-model="addModal.data.value_field" placeholder="e.g. order_number"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" x-model="addModal.data.continue_on_error" class="rounded">
+                        Continue on error
+                    </label>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" x-model="addModal.data.check_for_errors" class="rounded text-red-600">
+                        Check for D365 errors
+                    </label>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" x-model="addModal.data.clear_before_fill" class="rounded">
+                        Clear before fill
+                    </label>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                <button @click="addModal.open = false"
+                        class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                <button @click="saveNewStep()"
+                        class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Create Step
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Recent Executions -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                <i data-lucide="history" class="w-5 h-5 mr-2 text-gray-400"></i>
-                Recent Executions
-            </h2>
-            <a href="{% url 'erp_automation:execution_list' %}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">
-                View All
-            </a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Started</th>
-                        <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
-                        <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">User</th>
-                        <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Duration</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for execution in executions %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {{ execution.started_at|date:"M d, Y H:i" }}
-                        </td>
-                        <td class="px-5 py-3">
-                            <span class="px-2 py-0.5 text-xs font-medium rounded-full
-                                {% if execution.status == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
-                                {% elif execution.status == 'failed' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
-                                {% elif execution.status == 'running' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
-                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400{% endif %}">
-                                {{ execution.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {{ execution.executed_by.username|default:"-" }}
-                        </td>
-                        <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {% if execution.completed_at and execution.started_at %}
-                            {{ execution.completed_at|timeuntil:execution.started_at }}
-                            {% else %}
-                            -
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="px-5 py-8 text-center text-gray-500 dark:text-gray-400">
-                            No executions yet
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <!-- Status message -->
+    <div x-show="statusMsg" x-transition x-cloak
+         class="fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-sm text-white z-50"
+         :class="statusType === 'error' ? 'bg-red-600' : 'bg-green-600'"
+         x-text="statusMsg"></div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        lucide.createIcons();
-    });
+function workflowEditor() {
+    const WF_PK = {{ workflow.pk }};
+    const CSRF = '{{ csrf_token }}';
+
+    return {
+        steps: [],
+        editingStep: null,
+        editForm: {},
+        statusMsg: '',
+        statusType: 'success',
+
+        // Locator search
+        locatorSearch: {
+            query: '',
+            results: [],
+            open: false,
+        },
+
+        // Add Step Modal
+        addModal: {
+            open: false,
+            data: {}
+        },
+
+        // Locator Modal
+        locatorModal: {
+            open: false,
+            creating: false,
+            saving: false,
+            data: { name: '', page_context: '', strategies: [] }
+        },
+
+        init() {
+            this.loadSteps();
+        },
+
+        async loadSteps() {
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/`);
+                const d = await r.json();
+                this.steps = d.steps || [];
+                this.$nextTick(() => lucide.createIcons());
+            } catch (e) {
+                this.flash('Failed to load steps: ' + e.message, 'error');
+            }
+        },
+
+        // --- EDIT ---
+        startEdit(step) {
+            this.editingStep = step.id;
+            this.editForm = {
+                name: step.name,
+                action_type: step.action_type,
+                interaction_mode: step.interaction_mode || 'auto',
+                locator_id: step.locator ? step.locator.id : null,
+                _locator_name: step.locator ? step.locator.name : '',
+                value_static: step.value_static || '',
+                value_template: step.value_template || '',
+                value_field: step.value_field || '',
+                condition_value: step.condition_value || '',
+                press_key_after: step.press_key_after || '',
+                wait_after: step.wait_after,
+                order: step.order,
+                continue_on_error: step.continue_on_error,
+                check_for_errors: step.check_for_errors || false,
+                clear_before_fill: step.clear_before_fill || false,
+            };
+            this.locatorSearch.query = '';
+            this.locatorSearch.results = [];
+            this.locatorSearch.open = false;
+        },
+
+        cancelEdit() {
+            this.editingStep = null;
+            this.editForm = {};
+        },
+
+        async saveEdit(step) {
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/update/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(this.editForm)
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.editingStep = null;
+                    this.loadSteps();
+                    this.flash('Step updated');
+                } else {
+                    this.flash(d.message, 'error');
+                }
+            } catch (e) {
+                this.flash('Save failed: ' + e.message, 'error');
+            }
+        },
+
+        // --- ADD ---
+        addStep() {
+            const lastOrder = this.steps.length > 0 ? Math.max(...this.steps.map(s => s.order)) : 9;
+            this.addModal.data = {
+                order: lastOrder + 1,
+                name: '',
+                action_type: 'click',
+                interaction_mode: 'auto',
+                locator_id: null,
+                _locator_name: '',
+                value_static: '',
+                value_template: '',
+                value_field: '',
+                condition_value: '',
+                press_key_after: '',
+                wait_after: 500,
+                continue_on_error: false,
+                check_for_errors: false,
+                clear_before_fill: false,
+            };
+            this.locatorSearch.query = '';
+            this.locatorSearch.results = [];
+            this.locatorSearch.open = false;
+            this.addModal.open = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        async saveNewStep() {
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(this.addModal.data)
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.addModal.open = false;
+                    this.loadSteps();
+                    this.flash('Step created');
+                } else {
+                    this.flash(d.message, 'error');
+                }
+            } catch (e) {
+                this.flash('Create failed: ' + e.message, 'error');
+            }
+        },
+
+        // --- DELETE ---
+        async deleteStep(step) {
+            if (!confirm(`Delete step ${step.order}: "${step.name}"?`)) return;
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/delete/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': CSRF }
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.loadSteps();
+                    this.flash('Step deleted');
+                } else {
+                    this.flash(d.message, 'error');
+                }
+            } catch (e) {
+                this.flash('Delete failed: ' + e.message, 'error');
+            }
+        },
+
+        // --- DUPLICATE ---
+        async duplicateStep(step) {
+            const newData = {
+                order: step.order + 1,
+                name: step.name + ' (copy)',
+                action_type: step.action_type,
+                interaction_mode: step.interaction_mode || 'auto',
+                locator_id: step.locator ? step.locator.id : null,
+                value_static: step.value_static,
+                value_template: step.value_template,
+                value_field: step.value_field,
+                wait_after: step.wait_after,
+                continue_on_error: step.continue_on_error,
+                check_for_errors: step.check_for_errors || false,
+            };
+            try {
+                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(newData)
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.loadSteps();
+                    this.flash('Step duplicated');
+                }
+            } catch (e) {
+                this.flash('Duplicate failed: ' + e.message, 'error');
+            }
+        },
+
+        // --- LOCATOR MODAL ---
+        async openLocatorModal(locator) {
+            // Fetch full details
+            try {
+                const r = await fetch(`/erp-automation/api/locators/${locator.id}/detail/`);
+                const d = await r.json();
+                this.locatorModal.data = d;
+                this.locatorModal.creating = false;
+                this.locatorModal.open = true;
+                this.$nextTick(() => lucide.createIcons());
+            } catch (e) {
+                this.flash('Failed to load locator: ' + e.message, 'error');
+            }
+        },
+
+        openNewLocatorModal() {
+            this.locatorModal.data = {
+                name: '',
+                application: 'dynamics365',
+                page_context: '',
+                is_dynamic: true,
+                strategies: [
+                    { strategy_type: 'xpath', value: '', priority: 0 }
+                ]
+            };
+            this.locatorModal.creating = true;
+            this.locatorModal.open = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        async saveLocator() {
+            this.locatorModal.saving = true;
+            try {
+                const isNew = this.locatorModal.creating;
+                const url = isNew
+                    ? '/erp-automation/api/locators/create/'
+                    : `/erp-automation/api/locators/${this.locatorModal.data.id}/update/`;
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify(this.locatorModal.data)
+                });
+                const d = await r.json();
+                if (d.success) {
+                    const locName = this.locatorModal.data.name;
+                    this.locatorModal.open = false;
+                    if (isNew && d.locator_id) {
+                        // If add modal is open, set the locator_id
+                        if (this.addModal.open) {
+                            this.addModal.data.locator_id = d.locator_id;
+                            this.addModal.data._locator_name = locName;
+                        }
+                        if (this.editingStep) {
+                            this.editForm.locator_id = d.locator_id;
+                            this.editForm._locator_name = locName;
+                        }
+                    }
+                    this.loadSteps();
+                    this.flash(d.message);
+                } else {
+                    this.flash(d.message, 'error');
+                }
+            } catch (e) {
+                this.flash('Save failed: ' + e.message, 'error');
+            } finally {
+                this.locatorModal.saving = false;
+            }
+        },
+
+        // --- LOCATOR SEARCH ---
+        async searchLocators() {
+            const q = this.locatorSearch.query.trim();
+            try {
+                const r = await fetch(`/erp-automation/api/locators/search/?q=${encodeURIComponent(q)}`);
+                const d = await r.json();
+                this.locatorSearch.results = d.results || [];
+                this.locatorSearch.open = true;
+            } catch (e) {
+                this.locatorSearch.results = [];
+            }
+        },
+
+        selectLocator(loc, mode) {
+            if (mode === 'add') {
+                this.addModal.data.locator_id = loc.id;
+                this.addModal.data._locator_name = loc.name;
+            } else if (mode === 'edit') {
+                this.editForm.locator_id = loc.id;
+                this.editForm._locator_name = loc.name;
+            }
+            this.locatorSearch.query = '';
+            this.locatorSearch.results = [];
+            this.locatorSearch.open = false;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        // --- MODE HELPERS ---
+        getModeSummary() {
+            const counts = {};
+            this.steps.forEach(s => {
+                const m = s.interaction_mode || 'auto';
+                counts[m] = (counts[m] || 0) + 1;
+            });
+            return Object.entries(counts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count);
+        },
+
+        getModeLabel(mode) {
+            const labels = {
+                'auto': 'Auto',
+                'standard_input': 'Standard',
+                'combobox': 'Combobox',
+                'lookup_button': 'Lookup',
+                'custom_dropdown': 'Dropdown',
+                'segmented_entry': 'Segmented',
+                'checkbox_toggle': 'Checkbox',
+                'dialog_button': 'Dialog',
+                'nav_button': 'Nav',
+                'tab_header': 'Tab',
+            };
+            return labels[mode] || mode;
+        },
+
+        getModeStyle(mode) {
+            const styles = {
+                'auto': 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300',
+                'standard_input': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                'combobox': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+                'lookup_button': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+                'custom_dropdown': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+                'segmented_entry': 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+                'checkbox_toggle': 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400',
+                'dialog_button': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+                'nav_button': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+                'tab_header': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+            };
+            return styles[mode] || styles['auto'];
+        },
+
+        // --- UTILS ---
+        flash(msg, type = 'success') {
+            this.statusMsg = msg;
+            this.statusType = type;
+            setTimeout(() => { this.statusMsg = ''; }, 3000);
+        }
+    };
+}
 </script>
 {% endblock %}

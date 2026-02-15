@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Chain Execution #{{ execution.pk }} - ERP Automation{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="chainExecutionPage()" x-init="init()">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                Chain Execution #{{ execution.pk }}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                {{ execution.chain.name }}
+                {% if execution.job_data %}
+                 &mdash; {{ execution.job_data.get_display_name }}
+                {% endif %}
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'erp_automation:chain_detail' execution.chain.pk %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back to Chain
+            </a>
+            {% if execution.job_data %}
+            <a href="{% url 'erp_automation:job_data_detail' execution.job_data.pk %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <i data-lucide="file-text" class="w-4 h-4 mr-2"></i>
+                Job Data
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Status & Progress -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <span x-text="statusLabel()" class="text-lg font-semibold"
+                      :class="{
+                          'text-green-600 dark:text-green-400': state.status === 'success',
+                          'text-red-600 dark:text-red-400': state.status === 'failed',
+                          'text-blue-600 dark:text-blue-400': state.status === 'running',
+                          'text-gray-600 dark:text-gray-400': state.status === 'pending' || state.status === 'cancelled',
+                      }">
+                </span>
+                <template x-if="state.status === 'running'">
+                    <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                </template>
+            </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                <span x-text="state.completed_links"></span> / <span x-text="state.total_links"></span> links completed
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3">
+            <div class="h-3 rounded-full transition-all duration-500"
+                 :class="{
+                     'bg-green-500': state.status === 'success',
+                     'bg-red-500': state.status === 'failed',
+                     'bg-blue-500': state.status === 'running' || state.status === 'pending',
+                 }"
+                 :style="'width: ' + state.progress_percent + '%'">
+            </div>
+        </div>
+
+        <!-- Error message -->
+        <template x-if="state.error_message">
+            <div class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p class="text-sm text-red-700 dark:text-red-400" x-text="state.error_message"></p>
+            </div>
+        </template>
+
+        <!-- Timing -->
+        <div class="flex items-center gap-6 mt-3 text-sm text-gray-500 dark:text-gray-400">
+            <template x-if="state.started_at">
+                <span>Started: <span x-text="formatTime(state.started_at)" class="text-gray-700 dark:text-gray-300"></span></span>
+            </template>
+            <template x-if="state.completed_at">
+                <span>Completed: <span x-text="formatTime(state.completed_at)" class="text-gray-700 dark:text-gray-300"></span></span>
+            </template>
+        </div>
+    </div>
+
+    <!-- Per-Link Workflow Executions -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Workflow Executions</h2>
+        </div>
+
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            <template x-for="(wfe, idx) in state.workflow_executions" :key="idx">
+                <div class="px-6 py-4 flex items-center gap-4">
+                    <!-- Status icon -->
+                    <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full"
+                         :class="{
+                             'bg-green-100 dark:bg-green-900/30': wfe.status === 'success',
+                             'bg-red-100 dark:bg-red-900/30': wfe.status === 'failed',
+                             'bg-blue-100 dark:bg-blue-900/30': wfe.status === 'running',
+                             'bg-gray-100 dark:bg-gray-700': wfe.status === 'pending',
+                         }">
+                        <template x-if="wfe.status === 'success'">
+                            <i data-lucide="check" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
+                        </template>
+                        <template x-if="wfe.status === 'failed'">
+                            <i data-lucide="x" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                        </template>
+                        <template x-if="wfe.status === 'running'">
+                            <svg class="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="wfe.status === 'pending'">
+                            <i data-lucide="clock" class="w-4 h-4 text-gray-400"></i>
+                        </template>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-900 dark:text-white" x-text="wfe.workflow_name"></p>
+                        <template x-if="wfe.error_message">
+                            <p class="text-xs text-red-600 dark:text-red-400 mt-0.5 truncate" x-text="wfe.error_message"></p>
+                        </template>
+                    </div>
+
+                    <!-- Status badge -->
+                    <div class="flex-shrink-0">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                              :class="{
+                                  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': wfe.status === 'success',
+                                  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': wfe.status === 'failed',
+                                  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': wfe.status === 'running',
+                                  'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400': wfe.status === 'pending',
+                              }"
+                              x-text="wfe.status">
+                        </span>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Fallback: static server-rendered list (before JS loads) -->
+            <template x-if="state.workflow_executions.length === 0">
+                <div>
+                    {% for wfe in workflow_executions %}
+                    <div class="px-6 py-4 flex items-center gap-4">
+                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full
+                            {% if wfe.status == 'success' %}bg-green-100 dark:bg-green-900/30
+                            {% elif wfe.status == 'failed' %}bg-red-100 dark:bg-red-900/30
+                            {% elif wfe.status == 'running' %}bg-blue-100 dark:bg-blue-900/30
+                            {% else %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                            {% if wfe.status == 'success' %}
+                            <i data-lucide="check" class="w-4 h-4 text-green-600 dark:text-green-400"></i>
+                            {% elif wfe.status == 'failed' %}
+                            <i data-lucide="x" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                            {% else %}
+                            <i data-lucide="clock" class="w-4 h-4 text-gray-400"></i>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-900 dark:text-white">{{ wfe.workflow.name }}</p>
+                            {% if wfe.error_message %}
+                            <p class="text-xs text-red-600 dark:text-red-400 mt-0.5">{{ wfe.error_message|truncatechars:100 }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full
+                            {% if wfe.status == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                            {% elif wfe.status == 'failed' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                            {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                            {{ wfe.status }}
+                        </span>
+                    </div>
+                    {% empty %}
+                    <div class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No workflow executions recorded yet.
+                    </div>
+                    {% endfor %}
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+<script>
+function chainExecutionPage() {
+    return {
+        pollInterval: null,
+        state: {
+            status: '{{ execution.status }}',
+            total_links: {{ execution.total_links }},
+            completed_links: {{ execution.completed_links }},
+            current_link_order: {{ execution.current_link_order|default:"null" }},
+            progress_percent: {{ execution.progress_percent }},
+            error_message: '{{ execution.error_message|escapejs }}',
+            started_at: '{{ execution.started_at|date:"c"|default:"" }}',
+            completed_at: '{{ execution.completed_at|date:"c"|default:"" }}',
+            workflow_executions: [],
+        },
+
+        init() {
+            // Start polling if execution is still running/pending
+            if (['running', 'pending'].includes(this.state.status)) {
+                this.startPolling();
+            }
+            lucide.createIcons();
+        },
+
+        startPolling() {
+            this.pollInterval = setInterval(() => this.poll(), 2000);
+        },
+
+        async poll() {
+            try {
+                const resp = await fetch('{% url "erp_automation:api_poll_chain_execution" execution.pk %}');
+                if (!resp.ok) return;
+                const data = await resp.json();
+
+                this.state.status = data.status;
+                this.state.total_links = data.total_links;
+                this.state.completed_links = data.completed_links;
+                this.state.current_link_order = data.current_link_order;
+                this.state.progress_percent = data.progress_percent;
+                this.state.error_message = data.error_message || '';
+                this.state.started_at = data.started_at || '';
+                this.state.completed_at = data.completed_at || '';
+                this.state.workflow_executions = data.workflow_executions || [];
+
+                // Stop polling when done
+                if (!['running', 'pending'].includes(data.status)) {
+                    clearInterval(this.pollInterval);
+                    this.pollInterval = null;
+                }
+
+                this.$nextTick(() => lucide.createIcons());
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        },
+
+        statusLabel() {
+            const labels = {
+                pending: 'Pending',
+                running: 'Running...',
+                success: 'Completed Successfully',
+                failed: 'Failed',
+                cancelled: 'Cancelled',
+            };
+            return labels[this.state.status] || this.state.status;
+        },
+
+        formatTime(isoStr) {
+            if (!isoStr) return '-';
+            const d = new Date(isoStr);
+            return d.toLocaleString();
+        },
+    };
+}
+</script>
+{% endblock %}
