@@ -835,6 +835,11 @@ python manage.py check
 - **New API Endpoints**: `api_debug_rerun_from_link(request, pk)` — jump to specific chain link; `api_debug_set_step_mode(request, pk)` — toggle step-by-step mode.
 - **New URL Patterns**: `api/debug/<int:pk>/rerun-from-link/` and `api/debug/<int:pk>/step-mode/`.
 
+### Recent Enhancements (Feb 16, 2026) — Job Card Parser Fixes
+- **False Positive Hardfacing Fix**: Removed Method 4 (eval grid scan for P/V/I action codes) from hardfacing detection. Header text like `"Internal Evaluation Sheet"` in the grid area had its first char `I` matched as Impact Arrestor Build Up, falsely setting `has_hardfacing=True`. Hardfacing now detected by 3 reliable methods only: (1) I7/I8 checkboxes, (2) Evaluation D36 remarks containing `"build"`, (3) Eval-LSTK R34/U34/X34 non-zero counts.
+- **Eval Grid Header Filtering**: `_extract_eval_grid()` now skips cells with `len > 3` to prevent header/label text (e.g. `"SERIAL NO:"`, `"SAUDI ARAMCO"`, `"S- SPIN"`, `"O- OK"`) from being counted as action codes. Valid codes are 1-3 chars (e.g. `"R"`, `"X3"`, `"R1"`).
+- **EVAL_SHEET_MAP Expanded**: Added `'Eval & Quot-AR'` (ARAMCO evaluation) and `'Rework'` sheets to the evaluation sheet map so their grids are included in evaluation summaries.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
