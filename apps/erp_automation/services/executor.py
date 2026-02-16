@@ -844,6 +844,114 @@ class WorkflowExecutor:
             except Exception as e:
                 return {"success": False, "message": f"goto_url failed: {e}"}
 
+        if step.action_type == "select_grid_row":
+            # Search a D365 grid for a row where a column matches the value,
+            # then click the row selector (radio button) on that row.
+            # value = the search text (e.g. MAT# from {{MAT NO.}})
+            # value_field = column header text to search in (e.g. "Name")
+            # Falls back to clicking any cell in the matching row.
+            search_value = (value or "").strip()
+            column_header = (step.value_field or "Name").strip()
+            if not search_value:
+                return {"success": False, "message": "No search value for select_grid_row"}
+
+            logger.info(f"select_grid_row: searching '{column_header}' column for '{search_value}'")
+
+            # JavaScript to find the row in a D365 grid and click its selector
+            js_result = self.page.evaluate("""(args) => {
+                const { searchValue, columnHeader } = args;
+
+                // Helper: search in all frames (D365 uses iframes)
+                function searchInDocument(doc) {
+                    // Strategy 1: Find column index from header, then match cell text
+                    const headers = doc.querySelectorAll('th, [role="columnheader"]');
+                    let colIdx = -1;
+                    for (let i = 0; i < headers.length; i++) {
+                        const txt = (headers[i].textContent || '').trim();
+                        if (txt === columnHeader || txt.includes(columnHeader)) {
+                            colIdx = i;
+                            break;
+                        }
+                    }
+
+                    // Get all grid rows
+                    const rows = doc.querySelectorAll('tr[role="row"], [role="row"]');
+                    for (const row of rows) {
+                        const cells = row.querySelectorAll('td, [role="gridcell"]');
+                        if (cells.length === 0) continue;
+
+                        // Check if any cell matches (prefer column index if found)
+                        let matched = false;
+                        if (colIdx >= 0 && colIdx < cells.length) {
+                            const cellText = (cells[colIdx].textContent || '').trim();
+                            if (cellText === searchValue) matched = true;
+                        }
+                        // Fallback: check all cells for exact match
+                        if (!matched) {
+                            for (const cell of cells) {
+                                const cellText = (cell.textContent || '').trim();
+                                if (cellText === searchValue) { matched = true; break; }
+                            }
+                        }
+
+                        if (matched) {
+                            // Try to click the row selector (radio button / first cell)
+                            const radio = row.querySelector('input[type="radio"], [role="radio"]');
+                            if (radio) { radio.click(); return { success: true, method: 'radio' }; }
+
+                            // Try first cell (BOM number cell)
+                            const firstCell = cells[0];
+                            if (firstCell) {
+                                const link = firstCell.querySelector('a, button, span[tabindex]');
+                                if (link) { link.click(); return { success: true, method: 'first_cell_link' }; }
+                                firstCell.click();
+                                return { success: true, method: 'first_cell' };
+                            }
+
+                            // Click the row itself
+                            row.click();
+                            return { success: true, method: 'row' };
+                        }
+                    }
+                    return null;
+                }
+
+                // Search main document
+                let result = searchInDocument(document);
+                if (result) return result;
+
+                // Search all iframes
+                const frames = document.querySelectorAll('iframe');
+                for (const frame of frames) {
+                    try {
+                        const fDoc = frame.contentDocument || frame.contentWindow.document;
+                        result = searchInDocument(fDoc);
+                        if (result) return result;
+                    } catch (e) { /* cross-origin */ }
+                }
+
+                return { success: false, error: 'Row not found matching: ' + searchValue };
+            }""", {"searchValue": search_value, "columnHeader": column_header})
+
+            if js_result and js_result.get("success"):
+                method = js_result.get("method", "unknown")
+                logger.info(f"select_grid_row: found and clicked via {method}")
+                return {"success": True, "message": f"Selected row matching '{search_value}' via {method}"}
+            else:
+                err = js_result.get("error", "Unknown") if js_result else "JS returned null"
+                logger.warning(f"select_grid_row failed: {err}")
+
+                # Fallback: try Playwright locator for text match
+                try:
+                    row_locator = self.page.locator(f"text='{search_value}'").first
+                    if row_locator.is_visible(timeout=3000):
+                        row_locator.click()
+                        return {"success": True, "message": f"Selected row via text locator for '{search_value}'"}
+                except Exception:
+                    pass
+
+                return {"success": False, "message": f"Row not found for '{search_value}' in '{column_header}' column"}
+
         if step.action_type == "read_value":
             if not step.locator:
                 return {"success": False, "message": "No locator defined for read_value step"}

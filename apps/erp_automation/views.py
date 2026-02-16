@@ -3234,58 +3234,63 @@ def api_step_create(request, wf_pk):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
-    workflow = get_object_or_404(Workflow, pk=wf_pk)
-    order = data.get("order")
-    if not order:
-        # Append after last step
-        last = workflow.steps.order_by("-order").first()
-        order = (last.order + 1) if last else 1
+    try:
+        workflow = get_object_or_404(Workflow, pk=wf_pk)
+        order = data.get("order")
+        if not order:
+            # Append after last step
+            last = workflow.steps.order_by("-order").first()
+            order = (last.order + 1) if last else 1
 
-    # Resolve or create locator
-    locator = None
-    locator_id = data.get("locator_id")
-    if locator_id:
-        locator = Locator.objects.filter(pk=locator_id).first()
-    elif data.get("locator_name"):
-        locator, _ = Locator.objects.get_or_create(
-            name=data["locator_name"],
-            defaults={"application": "dynamics365", "is_dynamic": True},
+        # Resolve or create locator
+        locator = None
+        locator_id = data.get("locator_id")
+        if locator_id:
+            locator = Locator.objects.filter(pk=locator_id).first()
+        elif data.get("locator_name"):
+            locator, _ = Locator.objects.get_or_create(
+                name=data["locator_name"],
+                defaults={"application": "dynamics365", "is_dynamic": True},
+            )
+
+        step = WorkflowStep.objects.create(
+            workflow=workflow,
+            order=int(order),
+            name=data.get("name") or "New Step",
+            action_type=data.get("action_type") or "click",
+            locator=locator,
+            value_static=data.get("value_static") or "",
+            value_field=data.get("value_field") or "",
+            value_template=data.get("value_template") or "",
+            condition_value=data.get("condition_value") or "",
+            wait_after=int(data.get("wait_after") or 500),
+            timeout=int(data.get("timeout") or 30000),
+            continue_on_error=bool(data.get("continue_on_error")),
+            check_for_errors=bool(data.get("check_for_errors")),
+            press_key_after=data.get("press_key_after") or "",
+            clear_before_fill=bool(data.get("clear_before_fill")),
+            interaction_mode=data.get("interaction_mode") or "auto",
         )
 
-    step = WorkflowStep.objects.create(
-        workflow=workflow,
-        order=int(order),
-        name=data.get("name") or "New Step",
-        action_type=data.get("action_type") or "click",
-        locator=locator,
-        value_static=data.get("value_static") or "",
-        value_field=data.get("value_field") or "",
-        value_template=data.get("value_template") or "",
-        condition_value=data.get("condition_value") or "",
-        wait_after=int(data.get("wait_after") or 500),
-        timeout=int(data.get("timeout") or 30000),
-        continue_on_error=bool(data.get("continue_on_error")),
-        check_for_errors=bool(data.get("check_for_errors")),
-        press_key_after=data.get("press_key_after") or "",
-        clear_before_fill=bool(data.get("clear_before_fill")),
-        interaction_mode=data.get("interaction_mode") or "auto",
-    )
+        # Renumber all steps sequentially (1, 2, 3, ...)
+        all_steps = WorkflowStep.objects.filter(workflow_id=wf_pk).order_by('order', 'pk')
+        for idx, s in enumerate(all_steps, start=1):
+            if s.order != idx:
+                s.order = idx
+                s.save(update_fields=['order'])
 
-    # Renumber all steps sequentially (1, 2, 3, ...)
-    all_steps = WorkflowStep.objects.filter(workflow_id=wf_pk).order_by('order', 'pk')
-    for idx, s in enumerate(all_steps, start=1):
-        if s.order != idx:
-            s.order = idx
-            s.save(update_fields=['order'])
+        # Refresh step to get final order
+        step.refresh_from_db()
 
-    # Refresh step to get final order
-    step.refresh_from_db()
-
-    return JsonResponse({
-        "success": True,
-        "step_id": step.pk,
-        "message": f"Step {step.order} created",
-    })
+        return JsonResponse({
+            "success": True,
+            "step_id": step.pk,
+            "message": f"Step {step.order} created",
+        })
+    except Exception as e:
+        import traceback
+        logger.error(f"api_step_create error: {e}\n{traceback.format_exc()}")
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
 
 
 @login_required
