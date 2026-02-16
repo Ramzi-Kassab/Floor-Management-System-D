@@ -40,6 +40,7 @@ class ActionType(models.TextChoices):
     CONDITIONAL = "conditional", "Conditional Branch"
     READ_VALUE = "read_value", "Read Value"
     GOTO_URL = "goto_url", "Navigate to URL"
+    SELECT_GRID_ROW = "select_grid_row", "Select Grid Row"
 
 
 class InteractionMode(models.TextChoices):
