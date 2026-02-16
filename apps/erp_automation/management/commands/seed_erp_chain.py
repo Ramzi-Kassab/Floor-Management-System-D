@@ -575,7 +575,8 @@ LOCATORS = {
         "ctx": "BOM Lookup",
         "mode": "nav_button",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMTableAll_Name") and contains(@id, "ApplyFilters")]', 0),
+            ("xpath", '//*[@id="__BOMTableAll_Name_ApplyFilters"]', 0),
+            ("xpath", '//*[contains(@id, "BOMTableAll_Name") and contains(@id, "ApplyFilters")]', 5),
         ],
     },
     "bom_name_line_select": {
@@ -833,7 +834,8 @@ LOCATORS = {
         "ctx": "Route Table",
         "mode": "nav_button",
         "strategies": [
-            ("xpath", '//*[contains(@id, "RouteTable_RouteId") and contains(@id, "ApplyFilters")]', 0),
+            ("xpath", '//*[@id="__RouteTable_GridRouteId_ApplyFilters"]', 0),
+            ("xpath", '//*[contains(@id, "RouteTable") and contains(@id, "ApplyFilters")]', 5),
         ],
     },
     "route_row_select": {
@@ -1371,8 +1373,7 @@ WORKFLOWS = {
             (17, "Click BOM Name Header (filter)", "click", "bom_table_name_header", None,
              {"wait_after": 1000, "interaction_mode": "nav_button"}),
             (18, "Fill BOM Name Filter", "fill", "bom_table_name_filter", "template:{{MAT NO.}}",
-             {"wait_after": 2000, "interaction_mode": "standard_input",
-              "press_key_after": "Enter"}),
+             {"wait_after": 2000, "interaction_mode": "standard_input"}),
             (19, "Click Apply Filters", "click", "bom_apply_filters", None,
              {"wait_after": 3000, "interaction_mode": "nav_button"}),
             (20, "Select BOM Name Line", "click", "bom_name_line_select", None,
@@ -1622,8 +1623,7 @@ WORKFLOWS = {
              {"wait_after": 1000, "interaction_mode": "nav_button"}),
             (14, "Fill Route Number Filter", "fill", "route_number_filter",
              "template:{{ROUTE}}",
-             {"wait_after": 2000, "interaction_mode": "standard_input",
-              "press_key_after": "Enter"}),
+             {"wait_after": 2000, "interaction_mode": "standard_input"}),
             (15, "Click Apply Filters", "click", "route_apply_filters", None,
              {"wait_after": 3000, "interaction_mode": "nav_button"}),
             (16, "Select Route Row", "click", "route_row_select", None,

@@ -861,9 +861,19 @@ class WorkflowExecutor:
             js_result = self.page.evaluate("""(args) => {
                 const { searchValue, columnHeader } = args;
 
-                // Helper: search in all frames (D365 uses iframes)
+                // D365 grid cells contain <input> elements — text is in .value not .textContent
+                function getCellText(cell) {
+                    // Check input/textarea value first (D365 pattern)
+                    const input = cell.querySelector('input, textarea');
+                    if (input && input.value) return input.value.trim();
+                    // Check title attribute (D365 sometimes uses this)
+                    if (cell.title) return cell.title.trim();
+                    // Fallback to textContent
+                    return (cell.textContent || '').trim();
+                }
+
                 function searchInDocument(doc) {
-                    // Strategy 1: Find column index from header, then match cell text
+                    // Strategy 1: Find column index from header, then match cell value
                     const headers = doc.querySelectorAll('th, [role="columnheader"]');
                     let colIdx = -1;
                     for (let i = 0; i < headers.length; i++) {
@@ -882,33 +892,48 @@ class WorkflowExecutor:
 
                         // Check if any cell matches (prefer column index if found)
                         let matched = false;
+                        let matchedCell = null;
                         if (colIdx >= 0 && colIdx < cells.length) {
-                            const cellText = (cells[colIdx].textContent || '').trim();
-                            if (cellText === searchValue) matched = true;
+                            const cellText = getCellText(cells[colIdx]);
+                            if (cellText === searchValue || cellText.startsWith(searchValue)) {
+                                matched = true;
+                                matchedCell = cells[colIdx];
+                            }
                         }
-                        // Fallback: check all cells for exact match
+                        // Fallback: check all cells
                         if (!matched) {
                             for (const cell of cells) {
-                                const cellText = (cell.textContent || '').trim();
-                                if (cellText === searchValue) { matched = true; break; }
+                                const cellText = getCellText(cell);
+                                if (cellText === searchValue) {
+                                    matched = true;
+                                    matchedCell = cell;
+                                    break;
+                                }
                             }
                         }
 
                         if (matched) {
-                            // Try to click the row selector (radio button / first cell)
+                            // Try to click the row selector (radio button)
                             const radio = row.querySelector('input[type="radio"], [role="radio"]');
                             if (radio) { radio.click(); return { success: true, method: 'radio' }; }
+
+                            // Try clicking the matched cell's input (focuses the row in D365)
+                            if (matchedCell) {
+                                const input = matchedCell.querySelector('input');
+                                if (input) { input.click(); return { success: true, method: 'cell_input' }; }
+                            }
 
                             // Try first cell (BOM number cell)
                             const firstCell = cells[0];
                             if (firstCell) {
+                                const input = firstCell.querySelector('input');
+                                if (input) { input.click(); return { success: true, method: 'first_input' }; }
                                 const link = firstCell.querySelector('a, button, span[tabindex]');
                                 if (link) { link.click(); return { success: true, method: 'first_cell_link' }; }
                                 firstCell.click();
                                 return { success: true, method: 'first_cell' };
                             }
 
-                            // Click the row itself
                             row.click();
                             return { success: true, method: 'row' };
                         }
