@@ -3,7 +3,7 @@
 
 {% block content %}
 {% csrf_token %}
-<div x-data="chainEditor()" x-init="init()" class="space-y-4" :class="{'pb-64': debugState.active}">
+<div x-data="chainEditor()" x-init="init()" @keydown.window="handleKeydown($event)" class="space-y-4" :class="{'pb-64': debugState.active}">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -49,6 +49,19 @@
             <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="settings" class="w-4 h-4 mr-1"></i> Chain Settings
             </a>
+            <!-- Undo/Redo -->
+            <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <button @click="undo()" :disabled="undoStack.length === 0"
+                        :title="undoStack.length ? 'Undo ' + _lastUndoLabel() + ' (Ctrl+Z)' : 'Nothing to undo'"
+                        class="inline-flex items-center px-2.5 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-r border-gray-300 dark:border-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+                </button>
+                <button @click="redo()" :disabled="redoStack.length === 0"
+                        :title="redoStack.length ? 'Redo ' + _lastRedoLabel() + ' (Ctrl+Y)' : 'Nothing to redo'"
+                        class="inline-flex items-center px-2.5 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    <i data-lucide="redo-2" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
             <button @click="collapseAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="minimize-2" class="w-4 h-4 mr-1"></i> Collapse All
             </button>
@@ -1104,6 +1117,11 @@ function chainEditor() {
             _runningLinkOrder: null,
         },
 
+        // Undo/Redo stacks (max 30 entries)
+        undoStack: [],
+        redoStack: [],
+        _UNDO_LIMIT: 30,
+
         // Locator search
         locatorSearch: { query: '', results: [], open: false },
 
@@ -1671,6 +1689,88 @@ function chainEditor() {
             this.$nextTick(() => lucide.createIcons());
         },
 
+        // --- UNDO/REDO ---
+        _pushUndo(entry) {
+            this.undoStack.push(entry);
+            if (this.undoStack.length > this._UNDO_LIMIT) this.undoStack.shift();
+            this.redoStack = [];
+        },
+        _deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); },
+        _lastUndoLabel() {
+            if (!this.undoStack.length) return '';
+            const e = this.undoStack[this.undoStack.length - 1];
+            return { update:'edit', delete:'delete', create:'add', duplicate:'duplicate' }[e.action] + ' "' + e.label + '"';
+        },
+        _lastRedoLabel() {
+            if (!this.redoStack.length) return '';
+            const e = this.redoStack[this.redoStack.length - 1];
+            return { update:'edit', delete:'delete', create:'add', duplicate:'duplicate' }[e.action] + ' "' + e.label + '"';
+        },
+        async undo() {
+            if (!this.undoStack.length) return;
+            const entry = this.undoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/update/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.before)
+                    });
+                    const d = await r.json();
+                    if (d.success) this.redoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    const createData = { ...entry.before }; delete createData.id;
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/create/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    const d = await r.json();
+                    if (d.success) { entry.stepId = d.step_id; this.redoStack.push(entry); }
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF }
+                    });
+                    const d = await r.json();
+                    if (d.success) this.redoStack.push(entry);
+                }
+                await this.reloadSegments();
+                this.flash(`Undo: ${entry.action}`, 'success');
+            } catch (e) { this.flash('Undo failed: ' + e.message, 'error'); this.undoStack.push(entry); }
+        },
+        async redo() {
+            if (!this.redoStack.length) return;
+            const entry = this.redoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/update/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.after)
+                    });
+                    const d = await r.json();
+                    if (d.success) this.undoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF }
+                    });
+                    const d = await r.json();
+                    if (d.success) this.undoStack.push(entry);
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    const createData = { ...entry.after }; delete createData.id;
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/create/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    const d = await r.json();
+                    if (d.success) { entry.stepId = d.step_id; this.undoStack.push(entry); }
+                }
+                await this.reloadSegments();
+                this.flash(`Redo: ${entry.action}`, 'success');
+            } catch (e) { this.flash('Redo failed: ' + e.message, 'error'); this.redoStack.push(entry); }
+        },
+        handleKeydown(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); }
+        },
+
         // --- RELOAD ---
         async reloadSegments() {
             try {
@@ -1709,8 +1809,10 @@ function chainEditor() {
                     body: JSON.stringify(this.editForm)
                 });
                 const d = await r.json();
-                if (d.success) { this.editingStep = null; this.reloadSegments(); this.flash('Step updated'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'update', stepId: step.id, workflowId: seg.workflow_id, label: d.old_data?.name || step.name, before: d.old_data, after: this._deepCopy(this.editForm) });
+                    this.editingStep = null; this.reloadSegments(); this.flash('Step updated');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Save failed: ' + e.message, 'error'); }
         },
 
@@ -1735,13 +1837,16 @@ function chainEditor() {
         },
         async saveNewStep() {
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${this.addModal.workflowId}/steps/create/`, {
+                const wfId = this.addModal.workflowId;
+                const r = await fetch(`/erp-automation/api/workflows/${wfId}/steps/create/`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(this.addModal.data)
                 });
                 const d = await r.json();
-                if (d.success) { this.addModal.open = false; this.reloadSegments(); this.flash('Step created'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'create', stepId: d.step_id, workflowId: wfId, label: d.step_data?.name || 'New Step', before: null, after: d.step_data });
+                    this.addModal.open = false; this.reloadSegments(); this.flash('Step created');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Create failed: ' + e.message, 'error'); }
         },
 
@@ -1753,8 +1858,10 @@ function chainEditor() {
                     method: 'POST', headers: { 'X-CSRFToken': CSRF }
                 });
                 const d = await r.json();
-                if (d.success) { this.reloadSegments(); this.flash('Step deleted'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'delete', stepId: step.id, workflowId: seg.workflow_id, label: d.deleted_data?.name || step.name, before: d.deleted_data, after: null });
+                    this.reloadSegments(); this.flash('Step deleted');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Delete failed: ' + e.message, 'error'); }
         },
 
@@ -1764,8 +1871,10 @@ function chainEditor() {
                 order: step.order + 1, name: step.name + ' (copy)', action_type: step.action_type,
                 interaction_mode: step.interaction_mode || 'auto',
                 locator_id: step.locator ? step.locator.id : null,
-                value_static: step.value_static, value_template: step.value_template,
-                value_field: step.value_field, wait_after: step.wait_after,
+                value_static: step.value_static || '', value_template: step.value_template || '',
+                value_field: step.value_field || '', wait_after: step.wait_after,
+                press_key_after: step.press_key_after || '', clear_before_fill: step.clear_before_fill || false,
+                condition_value: step.condition_value || '',
                 continue_on_error: step.continue_on_error, check_for_errors: step.check_for_errors || false,
             };
             try {
@@ -1774,7 +1883,10 @@ function chainEditor() {
                     body: JSON.stringify(newData)
                 });
                 const d = await r.json();
-                if (d.success) { this.reloadSegments(); this.flash('Step duplicated'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'duplicate', stepId: d.step_id, workflowId: seg.workflow_id, label: d.step_data?.name || newData.name, before: null, after: d.step_data });
+                    this.reloadSegments(); this.flash('Step duplicated');
+                } else { this.flash(d.message || 'Duplicate failed', 'error'); }
             } catch(e) { this.flash('Duplicate failed: ' + e.message, 'error'); }
         },
 
