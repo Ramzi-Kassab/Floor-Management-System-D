@@ -901,18 +901,19 @@ class WorkflowExecutor:
                         self.page.wait_for_timeout(200)
 
                     # Post-step D365 error check (opt-in per step)
-                    if getattr(step, 'check_for_errors', False):
-                        # Wait a moment for D365 to show any errors
-                        # (transient processing messages appear first)
-                        self.page.wait_for_timeout(800)
+                    # Skip for dialog_button steps — D365 always shows processing
+                    # messages after OK clicks, which are NOT errors.
+                    step_mode = getattr(step, 'interaction_mode', 'auto')
+                    if getattr(step, 'check_for_errors', False) and step_mode != 'dialog_button':
+                        # Wait for D365 to settle after the action
+                        self.page.wait_for_timeout(1500)
                         error_text = self.detect_error_message()
                         if error_text:
                             logger.warning(
                                 f"D365 error detected after step {step.order} "
                                 f"({step.name}): {error_text}"
                             )
-                            self.close_error_dialog()
-                            # Take screenshot of the error state
+                            # Take screenshot of the error state (don't auto-dismiss)
                             try:
                                 path = os.path.join(
                                     self.screenshots_dir,
@@ -1163,12 +1164,12 @@ class WorkflowExecutor:
         """
         # Phase 1: D365-specific error message bars (high confidence)
         # D365 error bars have parent .messageBar with .messageBar-error or .messageBar-critical class
+        # NOTE: Only exact D365 error bar classes — NOT broad [class*='error'] which catches too much
         d365_error_selectors = [
             ".messageBar-error span.messageBar-message",
             ".messageBar-critical span.messageBar-message",
             ".messageBar--error span.messageBar-message",
             ".messageBar--critical span.messageBar-message",
-            "[class*='error'] span.messageBar-message",
         ]
         for sel in d365_error_selectors:
             try:
@@ -1364,6 +1365,10 @@ class DebugExecutor(WorkflowExecutor):
 
     def skip(self):
         self.send_command("skip")
+
+    def dismiss_and_continue(self):
+        """Dismiss D365 dialog and continue (marks step as completed)."""
+        self.send_command("dismiss_and_continue")
 
     def stop(self):
         self.should_stop = True
@@ -2034,6 +2039,18 @@ class DebugExecutor(WorkflowExecutor):
                     })
                 idx += 1
                 continue
+            elif action == "dismiss_continue":
+                # D365 dialog dismissed — mark step as completed (action itself succeeded)
+                steps_completed += 1
+                self._create_step_record(execution_record, step, "success", result, step_started)
+                with self._lock:
+                    self._debug_state["completed_steps"].append({
+                        "id": step.pk, "order": step.order, "name": step.name, "status": "success",
+                        "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
+                    })
+                self._update_state(status="running", error=None, screenshot_base64=None)
+                idx += 1
+                continue
             elif action == "resume":
                 # Re-fetch locator strategies from DB (user may have updated them)
                 if step.locator:
@@ -2144,6 +2161,14 @@ class DebugExecutor(WorkflowExecutor):
                 return "resume"
             elif cmd == "skip":
                 return "skip"
+            elif cmd == "dismiss_and_continue":
+                # D365 dialog dismissal: close any dialog then mark step as completed
+                try:
+                    self.close_error_dialog()
+                    self.page.wait_for_timeout(500)
+                except Exception:
+                    pass
+                return "dismiss_continue"
             elif cmd == "stop":
                 self.should_stop = True
                 return "stop"

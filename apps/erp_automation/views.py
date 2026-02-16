@@ -2365,6 +2365,17 @@ def api_debug_skip(request, pk):
 
 @login_required
 @require_POST
+def api_debug_dismiss_continue(request, pk):
+    """Dismiss D365 dialog and continue (marks step as completed since action succeeded)."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No debug session"}, status=400)
+    _debug_executor.dismiss_and_continue()
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
 def api_debug_stop(request, pk):
     """Stop debug execution."""
     global _debug_executor

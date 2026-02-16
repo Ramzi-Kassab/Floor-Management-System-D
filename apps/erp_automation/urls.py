@@ -99,6 +99,7 @@ urlpatterns = [
     path("api/debug/<int:pk>/poll/", views.api_poll_debug_status, name="api_poll_debug"),
     path("api/debug/<int:pk>/resume/", views.api_debug_resume, name="api_debug_resume"),
     path("api/debug/<int:pk>/skip/", views.api_debug_skip, name="api_debug_skip"),
+    path("api/debug/<int:pk>/dismiss-continue/", views.api_debug_dismiss_continue, name="api_debug_dismiss_continue"),
     path("api/debug/<int:pk>/stop/", views.api_debug_stop, name="api_debug_stop"),
     path("api/debug/<int:pk>/test-locator/", views.api_debug_test_locator, name="api_debug_test_locator"),
     path("api/debug/<int:pk>/update-locator/", views.api_debug_update_locator, name="api_debug_update_locator"),
