@@ -134,7 +134,12 @@
       "Bash(do taskkill /F /PID $pid)",
       "Bash(done)",
       "Bash(git rebase:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(\"D:\\\\PycharmProjects\\\\floor_management_system-D3\\\\venv\\\\Scripts\\\\python.exe\" -c \"import sys; print\\(sys.executable\\); print\\(sys.prefix\\)\")",
+      "Bash(copy /Y \"C:\\\\Users\\\\HP-i7\\\\.claude-worktrees\\\\floor_management_system-D2\\\\hardcore-hamilton\\\\apps\\\\erp_automation\\\\templates\\\\erp_automation\\\\workflow_detail.html\" \"D:\\\\PycharmProjects\\\\floor_management_system-D3\\\\apps\\\\erp_automation\\\\templates\\\\erp_automation\\\\workflow_detail.html\")",
+      "Bash(token '<'\" error. Added _apiFetch\\(\\) helper that checks r.redirected and\ncontent-type header before attempting JSON parse. Applied to all 7 API\nmethods: loadSteps, saveEdit, saveNewStep, deleteStep, duplicateStep,\nopenLocatorModal, saveLocator.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(robocopy:*)",
+      "Bash(D:/PycharmProjects/floor_management_system-D3/venv/Scripts/python.exe -c:*)"
     ],
     "deny": [],
     "ask": []
