@@ -3225,6 +3225,32 @@ def api_chain_delete(request, pk):
 # WORKFLOW STEP & LOCATOR CRUD APIs
 # =============================================================================
 
+
+def _step_to_dict(step):
+    """Serialize a WorkflowStep to dict (for undo/redo snapshots)."""
+    return {
+        "id": step.pk,
+        "order": step.order,
+        "name": step.name,
+        "action_type": step.action_type,
+        "locator_id": step.locator_id,
+        "value_static": step.value_static or "",
+        "value_field": step.value_field or "",
+        "value_template": step.value_template or "",
+        "condition_value": step.condition_value or "",
+        "wait_after": step.wait_after,
+        "timeout": step.timeout,
+        "continue_on_error": step.continue_on_error,
+        "check_for_errors": step.check_for_errors,
+        "press_key_after": step.press_key_after or "",
+        "clear_before_fill": step.clear_before_fill,
+        "interaction_mode": step.interaction_mode or "auto",
+    }
+
+
+#
+# =============================================================================
+
 @login_required
 @require_POST
 def api_step_create(request, wf_pk):
@@ -3296,6 +3322,7 @@ def api_step_create(request, wf_pk):
         return JsonResponse({
             "success": True,
             "step_id": step.pk,
+            "step_data": _step_to_dict(step),
             "message": f"Step {step.order} created",
         })
     except Exception as e:
@@ -3314,6 +3341,9 @@ def api_step_update(request, wf_pk, step_pk):
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
     step = get_object_or_404(WorkflowStep, pk=step_pk, workflow_id=wf_pk)
+
+    # Snapshot old data before update (for undo)
+    old_data = _step_to_dict(step)
 
     # Update fields if provided
     for field in ["name", "action_type", "value_static", "value_field",
@@ -3336,7 +3366,7 @@ def api_step_update(request, wf_pk, step_pk):
         step.locator = Locator.objects.filter(pk=lid).first() if lid else None
 
     step.save()
-    return JsonResponse({"success": True, "message": f"Step {step.order} updated"})
+    return JsonResponse({"success": True, "old_data": old_data, "message": f"Step {step.order} updated"})
 
 
 @login_required
@@ -3344,6 +3374,9 @@ def api_step_update(request, wf_pk, step_pk):
 def api_step_delete(request, wf_pk, step_pk):
     """Delete a workflow step and renumber remaining steps sequentially."""
     step = get_object_or_404(WorkflowStep, pk=step_pk, workflow_id=wf_pk)
+
+    # Snapshot deleted step data (for undo recreation)
+    deleted_data = _step_to_dict(step)
     old_order = step.order
     step.delete()
 
@@ -3354,7 +3387,7 @@ def api_step_delete(request, wf_pk, step_pk):
             s.order = idx
             s.save(update_fields=['order'])
 
-    return JsonResponse({"success": True, "message": f"Step {old_order} deleted, steps renumbered"})
+    return JsonResponse({"success": True, "deleted_data": deleted_data, "message": f"Step {old_order} deleted, steps renumbered"})
 
 
 @login_required
@@ -3482,6 +3515,20 @@ def api_locator_detail(request, pk):
 def api_workflow_steps(request, wf_pk):
     """Get all steps for a workflow as JSON."""
     workflow = get_object_or_404(Workflow, pk=wf_pk)
+
+    # Auto-fix order gaps: renumber 1,2,3... if any gap exists
+    qs = workflow.steps.filter(is_active=True).order_by("order", "pk")
+    needs_renumber = False
+    for idx, s in enumerate(qs, start=1):
+        if s.order != idx:
+            needs_renumber = True
+            break
+    if needs_renumber:
+        for idx, s in enumerate(qs, start=1):
+            if s.order != idx:
+                s.order = idx
+                s.save(update_fields=["order"])
+
     steps = []
     for s in workflow.steps.filter(is_active=True).order_by("order"):
         loc_data = None

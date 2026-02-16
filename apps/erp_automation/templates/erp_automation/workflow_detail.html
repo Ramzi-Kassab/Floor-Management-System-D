@@ -2,18 +2,31 @@
 {% block title %}{{ workflow.name }} - ERP Automation{% endblock %}
 
 {% block content %}
-<div x-data="workflowEditor()" x-init="init()" class="space-y-6">
+<div x-data="workflowEditor()" x-init="init()" @keydown.window="handleKeydown($event)" class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ workflow.name }}</h1>
             <p class="text-gray-600 dark:text-gray-400">{{ workflow.description|default:"No description" }}</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex gap-3 items-center">
             <a href="{% url 'erp_automation:workflow_list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
                 Back
             </a>
+            <!-- Undo/Redo buttons -->
+            <div class="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                <button @click="undo()" :disabled="undoStack.length === 0"
+                        :title="undoStack.length ? 'Undo ' + _lastUndoLabel() + ' (Ctrl+Z)' : 'Nothing to undo'"
+                        class="inline-flex items-center px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-r border-gray-300 dark:border-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
+                </button>
+                <button @click="redo()" :disabled="redoStack.length === 0"
+                        :title="redoStack.length ? 'Redo ' + _lastRedoLabel() + ' (Ctrl+Y)' : 'Nothing to redo'"
+                        class="inline-flex items-center px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
+                </button>
+            </div>
             <button @click="addStep()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                 <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
                 Add Step
@@ -582,6 +595,11 @@ function workflowEditor() {
         statusMsg: '',
         statusType: 'success',
 
+        // Undo/Redo stacks (max 30 entries)
+        undoStack: [],
+        redoStack: [],
+        _UNDO_LIMIT: 30,
+
         // Locator search
         locatorSearch: {
             query: '',
@@ -619,6 +637,140 @@ function workflowEditor() {
                 return { _error: true, status: r.status, message: errText.substring(0, 300) };
             }
             return await r.json();
+        },
+
+        // --- UNDO/REDO HELPERS ---
+        _pushUndo(entry) {
+            this.undoStack.push(entry);
+            if (this.undoStack.length > this._UNDO_LIMIT) this.undoStack.shift();
+            this.redoStack = []; // any new action clears redo
+        },
+
+        _findStep(stepId) {
+            return this.steps.find(s => s.id === stepId);
+        },
+
+        _deepCopy(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        },
+
+        _lastUndoLabel() {
+            if (!this.undoStack.length) return '';
+            const e = this.undoStack[this.undoStack.length - 1];
+            return e.action === 'update' ? `edit "${e.label}"` :
+                   e.action === 'delete' ? `delete "${e.label}"` :
+                   e.action === 'create' ? `add "${e.label}"` :
+                   e.action === 'duplicate' ? `duplicate "${e.label}"` : e.action;
+        },
+
+        _lastRedoLabel() {
+            if (!this.redoStack.length) return '';
+            const e = this.redoStack[this.redoStack.length - 1];
+            return e.action === 'update' ? `edit "${e.label}"` :
+                   e.action === 'delete' ? `delete "${e.label}"` :
+                   e.action === 'create' ? `add "${e.label}"` :
+                   e.action === 'duplicate' ? `duplicate "${e.label}"` : e.action;
+        },
+
+        async undo() {
+            if (!this.undoStack.length) return;
+            const entry = this.undoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    // Restore old values
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${entry.stepId}/update/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.before)
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.undoStack.push(entry); return; }
+                    this.redoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    // Re-create deleted step
+                    const createData = { ...entry.before };
+                    delete createData.id; // don't send old PK
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.undoStack.push(entry); return; }
+                    if (d.success) {
+                        entry.stepId = d.step_id; // update with new PK for redo
+                        this.redoStack.push(entry);
+                    }
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    // Delete the created/duplicated step
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF }
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.undoStack.push(entry); return; }
+                    this.redoStack.push(entry);
+                }
+                await this.loadSteps();
+                this.flash(`Undo: ${entry.action}`, 'success');
+            } catch (e) {
+                this.flash('Undo failed: ' + e.message, 'error');
+                this.undoStack.push(entry); // put it back
+            }
+        },
+
+        async redo() {
+            if (!this.redoStack.length) return;
+            const entry = this.redoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    // Re-apply the edit (use after data)
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${entry.stepId}/update/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.after)
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.redoStack.push(entry); return; }
+                    this.undoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    // Re-delete the step
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF }
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.redoStack.push(entry); return; }
+                    this.undoStack.push(entry);
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    // Re-create the step
+                    const createData = { ...entry.after };
+                    delete createData.id;
+                    const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    if (d._sessionExpired) { this.flash('Session expired', 'error'); this.redoStack.push(entry); return; }
+                    if (d.success) {
+                        entry.stepId = d.step_id; // update with new PK
+                        this.undoStack.push(entry);
+                    }
+                }
+                await this.loadSteps();
+                this.flash(`Redo: ${entry.action}`, 'success');
+            } catch (e) {
+                this.flash('Redo failed: ' + e.message, 'error');
+                this.redoStack.push(entry); // put it back
+            }
+        },
+
+        handleKeydown(e) {
+            // Ctrl+Z / Cmd+Z = undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                this.undo();
+            }
+            // Ctrl+Y / Cmd+Shift+Z = redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                this.redo();
+            }
         },
 
         async loadSteps() {
@@ -672,6 +824,14 @@ function workflowEditor() {
                 if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 if (d._error) { this.flash(`Save failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
+                    // Push undo entry: old_data from server, after = editForm snapshot
+                    this._pushUndo({
+                        action: 'update',
+                        stepId: step.id,
+                        label: d.old_data?.name || step.name,
+                        before: d.old_data,
+                        after: this._deepCopy(this.editForm),
+                    });
                     this.editingStep = null;
                     this.loadSteps();
                     this.flash('Step updated');
@@ -720,6 +880,13 @@ function workflowEditor() {
                 if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 if (d._error) { this.flash(`Create failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
+                    this._pushUndo({
+                        action: 'create',
+                        stepId: d.step_id,
+                        label: d.step_data?.name || 'New Step',
+                        before: null,
+                        after: d.step_data,
+                    });
                     this.addModal.open = false;
                     this.loadSteps();
                     this.flash('Step created');
@@ -742,6 +909,13 @@ function workflowEditor() {
                 if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 if (d._error) { this.flash(`Delete failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
+                    this._pushUndo({
+                        action: 'delete',
+                        stepId: step.id,
+                        label: d.deleted_data?.name || step.name,
+                        before: d.deleted_data,
+                        after: null,
+                    });
                     this.loadSteps();
                     this.flash('Step deleted');
                 } else {
@@ -779,6 +953,13 @@ function workflowEditor() {
                 if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 if (d._error) { this.flash(`Duplicate failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
+                    this._pushUndo({
+                        action: 'duplicate',
+                        stepId: d.step_id,
+                        label: d.step_data?.name || newData.name,
+                        before: null,
+                        after: d.step_data,
+                    });
                     this.loadSteps();
                     this.flash('Step duplicated');
                 } else {
