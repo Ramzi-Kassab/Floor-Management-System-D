@@ -1006,7 +1006,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  Interaction modes: {modes_str}")
 
         for w in warnings:
-            self.stdout.write(self.style.WARNING(f"  ⚠ {w}"))
+            self.stdout.write(self.style.WARNING(f"  [!] {w}"))
 
         return warnings
 
