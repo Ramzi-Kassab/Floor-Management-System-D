@@ -3241,6 +3241,17 @@ def api_step_create(request, wf_pk):
             # Append after last step
             last = workflow.steps.order_by("-order").first()
             order = (last.order + 1) if last else 1
+        order = int(order)
+
+        # Shift existing steps at or after the target order to make room
+        # (unique constraint on workflow_id + order requires this BEFORE create)
+        # Shift in reverse order to avoid constraint violations during update
+        conflicting = WorkflowStep.objects.filter(
+            workflow=workflow, order__gte=order
+        ).order_by('-order')
+        for s in conflicting:
+            s.order = s.order + 1
+            s.save(update_fields=['order'])
 
         # Resolve or create locator
         locator = None
@@ -3255,7 +3266,7 @@ def api_step_create(request, wf_pk):
 
         step = WorkflowStep.objects.create(
             workflow=workflow,
-            order=int(order),
+            order=order,
             name=data.get("name") or "New Step",
             action_type=data.get("action_type") or "click",
             locator=locator,
