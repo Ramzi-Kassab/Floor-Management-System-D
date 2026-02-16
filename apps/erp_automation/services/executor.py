@@ -902,6 +902,9 @@ class WorkflowExecutor:
 
                     # Post-step D365 error check (opt-in per step)
                     if getattr(step, 'check_for_errors', False):
+                        # Wait a moment for D365 to show any errors
+                        # (transient processing messages appear first)
+                        self.page.wait_for_timeout(800)
                         error_text = self.detect_error_message()
                         if error_text:
                             logger.warning(
@@ -1124,36 +1127,118 @@ class WorkflowExecutor:
     # ERROR DETECTION
     # ==========================================================================
 
+    # Non-error D365 messages that should be ignored by error detection.
+    # These are informational/processing messages, not actual errors.
+    _D365_IGNORE_PATTERNS = [
+        "please wait",
+        "processing your request",
+        "we're processing",
+        "we are processing",
+        "saved successfully",
+        "has been created",
+        "has been saved",
+        "operation completed",
+        "record was created",
+        "record has been",
+        "loading",
+        "validating",
+        "submitting",
+        "initializing",
+        "refreshing",
+        "updating",
+    ]
+
     def detect_error_message(self, patterns: List[str] = None) -> Optional[str]:
         """
-        Detect error messages on the page.
+        Detect ACTUAL error messages on the page, ignoring informational/processing messages.
 
-        Args:
-            patterns: List of CSS selectors or text patterns to check
+        Strategy (in order):
+        1. Check D365-specific error selectors (error/critical message bars) — high confidence
+        2. Check generic error selectors (.error-message, .alert-danger) — medium confidence
+        3. Check broad message bars (span.messageBar-message) — filter out non-errors
+        4. Check [role='alert'] — filter out non-errors
 
         Returns:
             Error message text if found, None otherwise
         """
-        default_patterns = [
-            "span.messageBar-message",
-            ".error-message",
-            ".alert-danger",
-            "[role='alert']",
-            ".notification-error",
+        # Phase 1: D365-specific error message bars (high confidence)
+        # D365 error bars have parent .messageBar with .messageBar-error or .messageBar-critical class
+        d365_error_selectors = [
+            ".messageBar-error span.messageBar-message",
+            ".messageBar-critical span.messageBar-message",
+            ".messageBar--error span.messageBar-message",
+            ".messageBar--critical span.messageBar-message",
+            "[class*='error'] span.messageBar-message",
         ]
-
-        patterns = patterns or default_patterns
-
-        for pattern in patterns:
+        for sel in d365_error_selectors:
             try:
-                elements = self.page.locator(pattern)
+                elements = self.page.locator(sel)
                 count = elements.count()
-
                 for i in range(count):
                     text = elements.nth(i).inner_text()
                     if text and len(text) > 5:
+                        logger.info(f"D365 error bar found: {text[:100]}")
                         return text
+            except:
+                continue
 
+        # Phase 2: Generic error selectors (medium confidence)
+        generic_error_selectors = [
+            ".error-message",
+            ".alert-danger",
+            ".notification-error",
+        ]
+        for sel in generic_error_selectors:
+            try:
+                elements = self.page.locator(sel)
+                count = elements.count()
+                for i in range(count):
+                    text = elements.nth(i).inner_text()
+                    if text and len(text) > 5:
+                        text_lower = text.lower()
+                        if any(ignore in text_lower for ignore in self._D365_IGNORE_PATTERNS):
+                            logger.debug(f"Ignoring non-error message: {text[:80]}")
+                            continue
+                        return text
+            except:
+                continue
+
+        # Phase 3: Broad message bars — only return if NOT a known non-error
+        broad_selectors = [
+            "span.messageBar-message",
+            "[role='alert']",
+        ]
+        for sel in broad_selectors:
+            try:
+                elements = self.page.locator(sel)
+                count = elements.count()
+                for i in range(count):
+                    el = elements.nth(i)
+                    text = el.inner_text()
+                    if text and len(text) > 5:
+                        text_lower = text.lower()
+                        # Skip known informational/processing messages
+                        if any(ignore in text_lower for ignore in self._D365_IGNORE_PATTERNS):
+                            logger.debug(f"Ignoring non-error D365 message: {text[:80]}")
+                            continue
+                        # Try to check parent for error class (D365 pattern)
+                        try:
+                            parent_class = el.evaluate(
+                                "el => { "
+                                "  let p = el.closest('.messageBar') || el.parentElement; "
+                                "  return p ? p.className : ''; "
+                                "}"
+                            )
+                            parent_lower = (parent_class or "").lower()
+                            # If parent is explicitly info/warning, skip it
+                            if "info" in parent_lower or "warning" in parent_lower or "success" in parent_lower:
+                                logger.debug(f"Skipping info/warning message bar: {text[:80]}")
+                                continue
+                        except:
+                            pass  # Can't check parent — proceed with text-based filtering
+                        # If we got here, it's potentially an error
+                        logger.info(f"Potential D365 error detected: {text[:100]}")
+                        return text
             except:
                 continue
 
@@ -1893,6 +1978,7 @@ class DebugExecutor(WorkflowExecutor):
                 "step_order": step.order,
                 "step_name": step.name,
                 "message": result.get("message", "Unknown error"),
+                "error_type": result.get("error_type", ""),
                 "locator_id": step.locator.pk if step.locator else None,
                 "locator_name": step.locator.name if step.locator else None,
                 "strategies_tried": strategies_tried,
@@ -1900,8 +1986,11 @@ class DebugExecutor(WorkflowExecutor):
                 "failing_value": strategies_tried[0]["value"] if strategies_tried else "",
             }
 
-            # ── PHASE 1: Auto-heal ───────────────────────────────
-            if step.locator:
+            # ── D365 dialog errors: skip auto-heal since the step action itself succeeded ──
+            is_d365_dialog = result.get("error_type") == "d365_dialog"
+
+            # ── PHASE 1: Auto-heal (only for locator/interaction failures, NOT d365 dialogs) ──
+            if step.locator and not is_d365_dialog:
                 self._update_state(status="auto_healing", error=error_info)
                 healed_result = self._try_auto_heal(step, row_data)
                 if healed_result and healed_result.get("success"):

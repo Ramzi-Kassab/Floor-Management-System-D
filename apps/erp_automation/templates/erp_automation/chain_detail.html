@@ -22,7 +22,8 @@
                           :class="{
                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': debugState.status === 'running',
                               'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
-                              'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400': (debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause) || debugState.status === 'auto_healing',
+                              'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400': debugState.status === 'paused' && debugState.errorInfo?.error_type === 'd365_dialog',
+                              'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400': (debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause && debugState.errorInfo?.error_type !== 'd365_dialog') || debugState.status === 'auto_healing',
                               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': debugState.status === 'failed',
                               'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300': debugState.status === 'idle' || debugState.status === 'stopped' || debugState.status === 'starting',
                           }">
@@ -104,7 +105,8 @@
                 <span class="font-medium" :class="{
                     'text-blue-600': debugState.status === 'running' || debugState.status === 'auto_healing',
                     'text-green-600': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
-                    'text-amber-600': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
+                    'text-cyan-600': debugState.status === 'paused' && debugState.errorInfo?.error_type === 'd365_dialog',
+                    'text-amber-600': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause && debugState.errorInfo?.error_type !== 'd365_dialog',
                     'text-red-600': debugState.status === 'failed',
                     'text-gray-500': debugState.status === 'idle' || debugState.status === 'stopped',
                 }">
@@ -127,7 +129,8 @@
                      :class="{
                          'bg-blue-500': debugState.status === 'running' || debugState.status === 'auto_healing',
                          'bg-green-500': (debugState.status === 'paused' && debugState.errorInfo?.is_step_pause) || debugState.status === 'completed',
-                         'bg-amber-500': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause,
+                         'bg-cyan-500': debugState.status === 'paused' && debugState.errorInfo?.error_type === 'd365_dialog',
+                         'bg-amber-500': debugState.status === 'paused' && !debugState.errorInfo?.is_step_pause && debugState.errorInfo?.error_type !== 'd365_dialog',
                          'bg-red-500': debugState.status === 'failed',
                          'bg-gray-400': debugState.status === 'idle' || debugState.status === 'stopped',
                      }"
@@ -825,8 +828,16 @@
                                     <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i> Go
                                 </button>
                             </template>
+                            <!-- D365 dialog error: show "Dismiss & Continue" since the action itself succeeded -->
+                            <template x-if="debugState.errorInfo?.error_type === 'd365_dialog'">
+                                <button @click="debugSkipStep()"
+                                        class="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 font-bold shadow-md ring-2 ring-blue-300"
+                                        title="The action succeeded — dismiss the D365 message and continue">
+                                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Dismiss & Continue
+                                </button>
+                            </template>
                             <!-- Normal pause: Retry / Resume -->
-                            <template x-if="!debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint">
+                            <template x-if="!debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint && debugState.errorInfo?.error_type !== 'd365_dialog'">
                                 <button @click="debugRetryStep()"
                                         class="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1 font-semibold shadow-sm"
                                         title="Retry the current failing step again">
@@ -890,10 +901,11 @@
                             :class="{
                                 'text-green-600 dark:text-green-400': debugState.errorInfo?.is_step_pause || (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
                                 'text-amber-600 dark:text-amber-400': debugState.errorInfo?.is_breakpoint,
-                                'text-red-600 dark:text-red-400': !debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint && !(debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success),
+                                'text-blue-600 dark:text-blue-400': debugState.errorInfo?.error_type === 'd365_dialog',
+                                'text-red-600 dark:text-red-400': !debugState.errorInfo?.is_step_pause && !debugState.errorInfo?.is_breakpoint && !(debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success) && debugState.errorInfo?.error_type !== 'd365_dialog',
                             }">
-                            <i :data-lucide="debugState.errorInfo?.is_step_pause ? 'check-circle' : (debugState.errorInfo?.is_breakpoint ? 'circle-pause' : (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success ? 'check-circle' : 'alert-triangle'))" class="w-3 h-3"></i>
-                            <span x-text="debugState.errorInfo?.is_step_pause ? 'Step Completed' : (debugState.errorInfo?.is_breakpoint ? 'Breakpoint Hit' : (debugState.errorInfo?.is_test_result ? (debugState.errorInfo?.test_success ? 'Step Test: Success' : 'Step Test: Failed') : 'Step Failed'))"></span>
+                            <i :data-lucide="debugState.errorInfo?.is_step_pause ? 'check-circle' : (debugState.errorInfo?.is_breakpoint ? 'circle-pause' : (debugState.errorInfo?.is_test_result && debugState.errorInfo?.test_success ? 'check-circle' : (debugState.errorInfo?.error_type === 'd365_dialog' ? 'info' : 'alert-triangle')))" class="w-3 h-3"></i>
+                            <span x-text="debugState.errorInfo?.is_step_pause ? 'Step Completed' : (debugState.errorInfo?.is_breakpoint ? 'Breakpoint Hit' : (debugState.errorInfo?.is_test_result ? (debugState.errorInfo?.test_success ? 'Step Test: Success' : 'Step Test: Failed') : (debugState.errorInfo?.error_type === 'd365_dialog' ? 'D365 Message Detected' : 'Step Failed')))"></span>
                         </h4>
                         <template x-if="debugState.errorInfo">
                             <div class="space-y-1.5 text-xs">
@@ -908,9 +920,22 @@
                                     <div class="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded font-medium"
                                          x-text="debugState.errorInfo.message"></div>
                                 </template>
-                                <!-- Error message -->
+                                <!-- D365 dialog error (blue info, not red) -->
+                                <template x-if="debugState.errorInfo.error_type === 'd365_dialog'">
+                                    <div>
+                                        <div class="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
+                                            <div class="font-medium mb-0.5">The click action succeeded, but D365 showed a message:</div>
+                                            <div class="text-blue-800 dark:text-blue-300 font-mono text-[11px]" x-text="debugState.errorInfo.message"></div>
+                                        </div>
+                                        <div class="text-gray-500 dark:text-gray-400 mt-1 italic">
+                                            If this is a processing/info message, click "Dismiss & Continue".
+                                            If it's a real error, click "Stop" and fix the issue.
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- Normal error message (red) -->
                                 <div class="text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
-                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint && !debugState.errorInfo.is_step_pause"></div>
+                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint && !debugState.errorInfo.is_step_pause && debugState.errorInfo.error_type !== 'd365_dialog'"></div>
                                 <!-- Locator info -->
                                 <template x-if="debugState.errorInfo.locator_name">
                                     <div class="flex items-center gap-1">
@@ -1098,6 +1123,9 @@ function chainEditor() {
             }
             if (this.debugState.status === 'paused' && this.debugState.errorInfo?.is_breakpoint) {
                 return 'Breakpoint Hit';
+            }
+            if (this.debugState.status === 'paused' && this.debugState.errorInfo?.error_type === 'd365_dialog') {
+                return 'Paused — D365 Message';
             }
             const labels = {
                 'starting': 'Starting browser...', 'idle': 'Initializing...',

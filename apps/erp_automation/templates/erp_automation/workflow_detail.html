@@ -740,12 +740,15 @@ function workflowEditor() {
                 action_type: step.action_type,
                 interaction_mode: step.interaction_mode || 'auto',
                 locator_id: step.locator ? step.locator.id : null,
-                value_static: step.value_static,
-                value_template: step.value_template,
-                value_field: step.value_field,
-                wait_after: step.wait_after,
-                continue_on_error: step.continue_on_error,
+                value_static: step.value_static || '',
+                value_template: step.value_template || '',
+                value_field: step.value_field || '',
+                condition_value: step.condition_value || '',
+                wait_after: step.wait_after || 500,
+                continue_on_error: step.continue_on_error || false,
                 check_for_errors: step.check_for_errors || false,
+                press_key_after: step.press_key_after || '',
+                clear_before_fill: step.clear_before_fill || false,
             };
             try {
                 const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
@@ -753,10 +756,18 @@ function workflowEditor() {
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(newData)
                 });
+                if (!r.ok) {
+                    const text = await r.text();
+                    this.flash('Duplicate failed: server error ' + r.status, 'error');
+                    console.error('Duplicate error response:', text.substring(0, 500));
+                    return;
+                }
                 const d = await r.json();
                 if (d.success) {
                     this.loadSteps();
                     this.flash('Step duplicated');
+                } else {
+                    this.flash(d.message || 'Duplicate failed', 'error');
                 }
             } catch (e) {
                 this.flash('Duplicate failed: ' + e.message, 'error');
