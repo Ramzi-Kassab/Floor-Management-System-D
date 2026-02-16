@@ -607,10 +607,24 @@ function workflowEditor() {
             this.loadSteps();
         },
 
+        // Helper: safe JSON API call — detects session expiry (login redirect)
+        async _apiFetch(url, opts = {}) {
+            const r = await fetch(url, opts);
+            const ct = r.headers.get('content-type') || '';
+            if (r.redirected || !ct.includes('application/json')) {
+                return { _sessionExpired: true };
+            }
+            if (!r.ok) {
+                const errText = await r.text();
+                return { _error: true, status: r.status, message: errText.substring(0, 300) };
+            }
+            return await r.json();
+        },
+
         async loadSteps() {
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/`);
-                const d = await r.json();
+                const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/`);
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 this.steps = d.steps || [];
                 this.$nextTick(() => lucide.createIcons());
             } catch (e) {
@@ -650,12 +664,13 @@ function workflowEditor() {
 
         async saveEdit(step) {
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/update/`, {
+                const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/update/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(this.editForm)
                 });
-                const d = await r.json();
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
+                if (d._error) { this.flash(`Save failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
                     this.editingStep = null;
                     this.loadSteps();
@@ -697,12 +712,13 @@ function workflowEditor() {
 
         async saveNewStep() {
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(this.addModal.data)
                 });
-                const d = await r.json();
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
+                if (d._error) { this.flash(`Create failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
                     this.addModal.open = false;
                     this.loadSteps();
@@ -719,11 +735,12 @@ function workflowEditor() {
         async deleteStep(step) {
             if (!confirm(`Delete step ${step.order}: "${step.name}"?`)) return;
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/delete/`, {
+                const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/${step.id}/delete/`, {
                     method: 'POST',
                     headers: { 'X-CSRFToken': CSRF }
                 });
-                const d = await r.json();
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
+                if (d._error) { this.flash(`Delete failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
                     this.loadSteps();
                     this.flash('Step deleted');
@@ -754,18 +771,13 @@ function workflowEditor() {
                 check_for_errors: step.check_for_errors || false,
             };
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
+                const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(newData)
                 });
-                if (!r.ok) {
-                    const errText = await r.text();
-                    console.error('Duplicate error:', r.status, errText.substring(0, 300));
-                    this.flash(`Duplicate failed: server error ${r.status}`, 'error');
-                    return;
-                }
-                const d = await r.json();
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
+                if (d._error) { this.flash(`Duplicate failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
                     this.loadSteps();
                     this.flash('Step duplicated');
@@ -781,8 +793,8 @@ function workflowEditor() {
         async openLocatorModal(locator) {
             // Fetch full details
             try {
-                const r = await fetch(`/erp-automation/api/locators/${locator.id}/detail/`);
-                const d = await r.json();
+                const d = await this._apiFetch(`/erp-automation/api/locators/${locator.id}/detail/`);
+                if (d._sessionExpired) { this.flash('Session expired — please refresh the page and log in', 'error'); return; }
                 this.locatorModal.data = d;
                 this.locatorModal.creating = false;
                 this.locatorModal.open = true;
@@ -814,12 +826,13 @@ function workflowEditor() {
                 const url = isNew
                     ? '/erp-automation/api/locators/create/'
                     : `/erp-automation/api/locators/${this.locatorModal.data.id}/update/`;
-                const r = await fetch(url, {
+                const d = await this._apiFetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(this.locatorModal.data)
                 });
-                const d = await r.json();
+                if (d._sessionExpired) { this.locatorModal.saving = false; this.flash('Session expired — please refresh the page and log in', 'error'); return; }
+                if (d._error) { this.locatorModal.saving = false; this.flash(`Save failed: server error ${d.status}`, 'error'); return; }
                 if (d.success) {
                     const locName = this.locatorModal.data.name;
                     this.locatorModal.open = false;
