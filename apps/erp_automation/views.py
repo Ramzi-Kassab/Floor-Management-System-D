@@ -2772,6 +2772,14 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
             except (ValueError, TypeError):
                 pass
 
+        # Recording context: credentials + environments
+        ctx["has_credentials"] = "erp_credentials" in self.request.session
+        environments = ERPEnvironment.objects.all().order_by("-is_default", "name")
+        ctx["environments_json"] = json.dumps([
+            {"id": e.pk, "name": e.name, "url": e.url, "is_default": e.is_default}
+            for e in environments
+        ])
+
         return ctx
 
 
@@ -3940,6 +3948,121 @@ def api_chain_merge_segments(request):
 
 @login_required
 @require_POST
+def api_chain_record_insert(request, pk):
+    """Convert a completed recording and insert the resulting workflow as a new chain link.
+
+    POST JSON: {
+        "session_id": int,                        # RecordingSession PK
+        "insert_after_link_order": int or null,   # null = at end, 0 = at beginning
+        "segment_name": str (optional)
+    }
+    """
+    chain = get_object_or_404(WorkflowChain, pk=pk)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    session_id = body.get("session_id")
+    insert_after = body.get("insert_after_link_order")
+    segment_name = (body.get("segment_name") or "").strip()
+
+    if not session_id:
+        return JsonResponse({"success": False, "message": "session_id required"}, status=400)
+
+    session = get_object_or_404(RecordingSession, pk=session_id)
+
+    if session.status != "completed":
+        return JsonResponse({"success": False, "message": "Recording must be completed first"}, status=400)
+
+    if session.actions.count() < 3:
+        return JsonResponse({
+            "success": False,
+            "message": f"Too few actions ({session.actions.count()}) to convert. Need at least 3.",
+        }, status=400)
+
+    # Generate unique workflow name
+    base_name = segment_name or f"{chain.name} - Recorded Segment"
+    wf_name = base_name
+    counter = 1
+    while Workflow.objects.filter(name=wf_name).exists():
+        counter += 1
+        wf_name = f"{base_name} ({counter})"
+
+    # Convert recording to workflow via management command
+    from django.core.management import call_command
+    from io import StringIO
+
+    stdout = StringIO()
+    stderr = StringIO()
+
+    try:
+        call_command(
+            "create_workflow_from_recording",
+            session=session.pk,
+            name=wf_name,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Conversion error: {str(e)}"}, status=500)
+
+    error_output = stderr.getvalue().strip()
+    if error_output:
+        return JsonResponse({"success": False, "message": f"Conversion error: {error_output}"}, status=500)
+
+    session.refresh_from_db()
+    if not session.generated_workflow:
+        return JsonResponse({
+            "success": False,
+            "message": "Conversion completed but no workflow was linked.",
+        }, status=500)
+
+    wf = session.generated_workflow
+
+    # Determine insertion order
+    existing_links = list(chain.links.filter(is_active=True).order_by("order"))
+
+    if insert_after is None:
+        # Insert at end
+        max_order = existing_links[-1].order if existing_links else 0
+        new_order = max_order + 10
+    elif insert_after == 0:
+        # Insert at beginning — shift all existing links
+        for lnk in reversed(existing_links):
+            WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=lnk.order + 10)
+        new_order = 5
+    else:
+        # Insert after specific link_order
+        insert_after = int(insert_after)
+        links_after = chain.links.filter(is_active=True, order__gt=insert_after).order_by("-order")
+        for lnk in links_after:
+            WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=lnk.order + 10)
+        new_order = insert_after + 5
+
+    new_link = WorkflowChainLink.objects.create(
+        chain=chain,
+        workflow=wf,
+        order=new_order,
+        name=segment_name,
+        wait_before_ms=2000,
+        is_active=True,
+    )
+
+    return JsonResponse({
+        "success": True,
+        "workflow_id": wf.pk,
+        "workflow_name": wf.name,
+        "link_id": new_link.pk,
+        "link_order": new_link.order,
+        "steps_created": wf.steps.count(),
+        "message": f"Segment '{wf.name}' inserted with {wf.steps.count()} steps",
+    })
+
+
+@login_required
+@require_POST
 def api_debug_rerun_from_step(request, pk):
     """Set the debug executor to rerun from a specific step.
 
@@ -4056,6 +4179,171 @@ def api_debug_set_step_mode(request, pk):
     return JsonResponse({
         "success": True,
         "message": f"Step-by-step mode {'enabled' if enabled else 'disabled'}",
+    })
+
+
+# ── Debug in-browser recording (reuses debug session's browser) ──────
+
+def _save_recorded_actions(session, actions_list):
+    """Save action dicts to RecordedAction model, skipping duplicates. Returns count saved."""
+    existing_orders = set(session.actions.values_list("order", flat=True))
+    saved = 0
+    for ad in actions_list:
+        order = ad.get("order")
+        if order is None or order in existing_orders:
+            continue
+        RecordedAction.objects.create(
+            session=session,
+            order=order,
+            action_type=ad.get("action_type", ""),
+            element_tag=ad.get("element_tag", ""),
+            element_id=ad.get("element_id", ""),
+            element_name=ad.get("element_name", ""),
+            element_class=ad.get("element_class", ""),
+            element_xpath=ad.get("element_xpath", ""),
+            element_css=ad.get("element_css", ""),
+            element_text=ad.get("element_text", ""),
+            element_aria_label=ad.get("element_aria_label", ""),
+            element_placeholder=ad.get("element_placeholder", ""),
+            element_role=ad.get("element_role", ""),
+            element_type=ad.get("element_type", ""),
+            element_dyn_control_name=ad.get("element_dyn_control_name", ""),
+            element_data_testid=ad.get("element_data_testid", ""),
+            element_rect=ad.get("element_rect", {}),
+            page_url=ad.get("page_url", ""),
+            page_title=ad.get("page_title", ""),
+            input_value=ad.get("input_value", ""),
+            key_pressed=ad.get("key_pressed", ""),
+            locator_strategies=ad.get("locator_strategies", []),
+        )
+        existing_orders.add(order)
+        saved += 1
+    return saved
+
+
+@login_required
+@require_POST
+def api_debug_start_recording(request, pk):
+    """Start recording in the debug browser (inject JS, no new browser).
+
+    POST JSON: { "session_name": str, "job_data_id": int (optional) }
+    """
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=400)
+
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        body = {}
+
+    session_name = body.get("session_name", f"Debug Recording {timezone.now():%Y-%m-%d %H:%M}")
+    job_data_id = body.get("job_data_id")
+
+    job_data = None
+    if job_data_id:
+        try:
+            job_data = ERPJobData.objects.get(pk=int(job_data_id))
+        except (ERPJobData.DoesNotExist, ValueError, TypeError):
+            pass
+
+    # Create recording session record
+    session = RecordingSession.objects.create(
+        name=session_name,
+        target_url="debug://in-browser",
+        status="recording",
+        created_by=request.user,
+        job_data=job_data,
+    )
+
+    # Send command to debug thread (Playwright thread will inject JS)
+    _debug_executor.send_command("start_recording")
+    result = _debug_executor.get_recording_result(timeout=10)
+
+    if result.get("success"):
+        request.session["debug_recording_session_id"] = session.pk
+        return JsonResponse({
+            "success": True,
+            "session_id": session.pk,
+            "message": "Recording started in debug browser",
+        })
+    else:
+        session.delete()
+        return JsonResponse({"success": False, "message": result.get("message", "Failed to start")})
+
+
+@login_required
+def api_debug_poll_recording(request, pk):
+    """Poll recording actions from the debug browser. GET."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"recording": False, "actions": []})
+
+    state = _debug_executor.get_debug_state()
+    if not state.get("recording_active"):
+        return JsonResponse({"recording": False, "actions": []})
+
+    # Send poll command to debug thread
+    _debug_executor.send_command("poll_recording")
+    result = _debug_executor.get_recording_result(timeout=5)
+
+    new_actions = result.get("actions", [])
+
+    # Save to DB
+    session_id = request.session.get("debug_recording_session_id")
+    if session_id and new_actions:
+        try:
+            session = RecordingSession.objects.get(pk=session_id)
+            _save_recorded_actions(session, new_actions)
+        except Exception as e:
+            logger.warning(f"[debug-record-poll] Failed to save actions: {e}")
+
+    return JsonResponse({
+        "recording": True,
+        "actions": [
+            {"order": a.get("order"), "action_type": a.get("action_type", ""),
+             "element_name": a.get("element_name", ""), "element_id": a.get("element_id", ""),
+             "input_value": a.get("input_value", "")}
+            for a in new_actions
+        ],
+        "total": result.get("total", 0),
+    })
+
+
+@login_required
+@require_POST
+def api_debug_stop_recording(request, pk):
+    """Stop recording in the debug browser. POST."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"})
+
+    # Send stop command
+    _debug_executor.send_command("stop_recording")
+    result = _debug_executor.get_recording_result(timeout=15)
+
+    session_id = request.session.get("debug_recording_session_id")
+    all_actions = result.get("actions", [])
+    total = 0
+
+    if session_id:
+        try:
+            session = RecordingSession.objects.get(pk=session_id)
+            # Save any remaining actions not yet persisted
+            _save_recorded_actions(session, all_actions)
+            session.status = "completed"
+            session.save(update_fields=["status"])
+            total = session.actions.count()
+        except Exception as e:
+            logger.warning(f"[debug-record-stop] Error: {e}")
+
+    request.session.pop("debug_recording_session_id", None)
+
+    return JsonResponse({
+        "success": result.get("success", False),
+        "session_id": session_id,
+        "action_count": total,
+        "message": f"Recording stopped: {total} actions captured",
     })
 
 

@@ -125,11 +125,17 @@ urlpatterns = [
     path("api/chains/move-step/", views.api_chain_move_step, name="api_chain_move_step"),
     path("api/chains/split-segment/", views.api_chain_split_segment, name="api_chain_split_segment"),
     path("api/chains/merge-segments/", views.api_chain_merge_segments, name="api_chain_merge_segments"),
+    path("api/chains/<int:pk>/record-insert/", views.api_chain_record_insert, name="api_chain_record_insert"),
     path("api/debug/<int:pk>/rerun-from-step/", views.api_debug_rerun_from_step, name="api_debug_rerun_from_step"),
     path("api/debug/<int:pk>/run-single-step/", views.api_debug_run_single_step, name="api_debug_run_single_step"),
     path("api/debug/<int:pk>/breakpoints/", views.api_debug_set_breakpoints, name="api_debug_breakpoints"),
     path("api/debug/<int:pk>/rerun-from-link/", views.api_debug_rerun_from_link, name="api_debug_rerun_from_link"),
     path("api/debug/<int:pk>/step-mode/", views.api_debug_set_step_mode, name="api_debug_step_mode"),
+
+    # Debug in-browser recording (reuses debug session's browser)
+    path("api/debug/<int:pk>/recording/start/", views.api_debug_start_recording, name="api_debug_start_recording"),
+    path("api/debug/<int:pk>/recording/poll/", views.api_debug_poll_recording, name="api_debug_poll_recording"),
+    path("api/debug/<int:pk>/recording/stop/", views.api_debug_stop_recording, name="api_debug_stop_recording"),
 
     # ERP Environments CRUD
     path("api/environments/", views.api_environment_list, name="api_environment_list"),

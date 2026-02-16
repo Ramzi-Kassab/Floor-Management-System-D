@@ -194,7 +194,7 @@ class RecorderService:
             page = context.new_page()
 
             # Inject recording scripts via context-level init script (all frames)
-            recorder_js = self._get_recorder_script()
+            recorder_js = RecorderService.get_recorder_js()
             context.add_init_script(recorder_js)
 
             # Also inject into current page
@@ -446,8 +446,9 @@ class RecorderService:
     # RECORDER JAVASCRIPT
     # =========================================================================
 
-    def _get_recorder_script(self):
-        """Return the JavaScript recording script.
+    @staticmethod
+    def get_recorder_js():
+        """Return the JavaScript recording script (static for reuse by DebugExecutor).
 
         Key features:
         - Per-element input debounce (not global) so multi-field typing works

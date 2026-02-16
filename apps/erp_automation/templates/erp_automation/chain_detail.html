@@ -3,7 +3,7 @@
 
 {% block content %}
 {% csrf_token %}
-<div x-data="chainEditor()" x-init="init()" class="space-y-4" :class="{'pb-64': debugState.active}">
+<div x-data="chainEditor()" x-init="init()" @keydown.window="handleKeydown($event)" class="space-y-4" :class="{'pb-64': debugState.active, 'pb-20': recordState.phase === 'recording' || recordState.phase === 'converting' || recordState.phase === 'error'}">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -16,6 +16,17 @@
                 {% else %}
                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300">Archived</span>
                 {% endif %}
+                <!-- Recording badge -->
+                <template x-if="recordState.phase === 'recording'">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-1">
+                        <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Recording
+                    </span>
+                </template>
+                <template x-if="recordState.phase === 'converting'">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 flex items-center gap-1">
+                        <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Converting...
+                    </span>
+                </template>
                 <!-- Debug badge -->
                 <template x-if="debugState.active">
                     <span class="px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1"
@@ -49,11 +60,32 @@
             <a href="{% url 'erp_automation:chain_edit' chain.pk %}" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="settings" class="w-4 h-4 mr-1"></i> Chain Settings
             </a>
+            <!-- Undo/Redo -->
+            <div class="flex items-center gap-1">
+                <button @click="undo()" :disabled="undoStack.length === 0"
+                        :title="undoStack.length ? 'Undo ' + _lastUndoLabel() + ' (Ctrl+Z)' : 'Nothing to undo'"
+                        :class="undoStack.length ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30' : 'text-gray-300 dark:text-gray-600'"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors disabled:cursor-not-allowed">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
+                </button>
+                <button @click="redo()" :disabled="redoStack.length === 0"
+                        :title="redoStack.length ? 'Redo ' + _lastRedoLabel() + ' (Ctrl+Y)' : 'Nothing to redo'"
+                        :class="redoStack.length ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30' : 'text-gray-300 dark:text-gray-600'"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors disabled:cursor-not-allowed">
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
+                </button>
+            </div>
             <button @click="collapseAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="minimize-2" class="w-4 h-4 mr-1"></i> Collapse All
             </button>
             <button @click="expandAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="maximize-2" class="w-4 h-4 mr-1"></i> Expand All
+            </button>
+            <!-- Record Segment button (available during debug too, hidden only during active recording) -->
+            <button x-show="recordState.phase === 'idle'"
+                    @click="openRecordSetup()"
+                    class="inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">
+                <i data-lucide="circle" class="w-4 h-4 mr-1"></i> Record Segment
             </button>
         </div>
     </div>
@@ -671,6 +703,145 @@
         </div>
     </div>
 
+    <!-- ============ RECORD SETUP MODAL ============ -->
+    <div x-show="recordState.phase === 'setup'" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @keydown.escape.window="cancelRecordSetup()">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md m-4"
+             @click.away="cancelRecordSetup()">
+            <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Record New Segment</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <!-- Insert position -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Insert Position</label>
+                    <select x-model="recordState.insertAfterOrder"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option :value="null">At the end</option>
+                        <option :value="0">At the beginning</option>
+                        <template x-for="seg in segments" :key="seg.link_id">
+                            <option :value="seg.link_order" x-text="'After: ' + (seg.link_name || seg.workflow_name)"></option>
+                        </template>
+                    </select>
+                </div>
+                <!-- Segment name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Segment Name <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" x-model="recordState.segmentName"
+                           :placeholder="CHAIN_NAME + ' - Recorded Segment'"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <!-- In-browser notice (debug mode) -->
+                <template x-if="recordState.useDebugBrowser">
+                    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div class="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                            <i data-lucide="monitor" class="w-4 h-4 flex-shrink-0"></i>
+                            <span>Recording will capture actions in the <strong>current debug browser</strong>. No new browser will be opened.</span>
+                        </div>
+                    </div>
+                </template>
+                <!-- Environment (standalone only) -->
+                <template x-if="!recordState.useDebugBrowser">
+                    <div x-show="_environments.length > 0">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Environment</label>
+                        <select x-model="recordState.selectedEnvId" @change="onRecordEnvChange()"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <template x-for="env in _environments" :key="env.id">
+                                <option :value="env.id" x-text="env.name + (env.is_default ? ' (default)' : '')"></option>
+                            </template>
+                        </select>
+                    </div>
+                </template>
+                <!-- Target URL (standalone only) -->
+                <template x-if="!recordState.useDebugBrowser">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
+                        <input type="url" x-model="recordState.targetUrl"
+                               placeholder="https://ardt.operations.dynamics.com/..."
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-xs">
+                    </div>
+                </template>
+                <!-- Error message -->
+                <div x-show="recordState.errorMessage" class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-400" x-text="recordState.errorMessage"></div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2 bg-gray-50 dark:bg-gray-700/30">
+                <button @click="cancelRecordSetup()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400">Cancel</button>
+                <button @click="startSegmentRecording()"
+                        :disabled="recordState.starting || (!recordState.useDebugBrowser && !recordState.targetUrl.trim())"
+                        class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1">
+                    <i data-lucide="circle" class="w-3.5 h-3.5" x-show="!recordState.starting"></i>
+                    <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin" x-show="recordState.starting"></i>
+                    <span x-text="recordState.starting ? 'Starting...' : 'Start Recording'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ RECORDING BOTTOM PANEL (fixed) — standalone only ============ -->
+    <template x-if="(recordState.phase === 'recording' || recordState.phase === 'converting') && !recordState.useDebugBrowser">
+        <div class="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t-2 shadow-2xl"
+             :class="recordState.phase === 'recording' ? 'border-red-500' : 'border-blue-500'">
+            <div class="px-4 py-3 flex items-center gap-4">
+                <!-- Pulsing dot + timer -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <template x-if="recordState.phase === 'recording'">
+                        <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                    </template>
+                    <template x-if="recordState.phase === 'converting'">
+                        <i data-lucide="loader-2" class="w-4 h-4 text-blue-500 animate-spin"></i>
+                    </template>
+                    <span class="text-sm font-mono font-semibold text-gray-900 dark:text-white" x-text="recordState.elapsedTime"></span>
+                </div>
+                <!-- Action count -->
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                        <span class="font-semibold text-gray-900 dark:text-white" x-text="recordState.actionCount"></span> actions captured
+                    </span>
+                    <span class="text-xs text-gray-400 truncate" x-text="getLastRecordAction()"></span>
+                </div>
+                <!-- Phase label -->
+                <template x-if="recordState.phase === 'converting'">
+                    <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Converting & inserting...</span>
+                </template>
+                <!-- Stop & Insert button -->
+                <template x-if="recordState.phase === 'recording'">
+                    <button @click="stopSegmentRecording()"
+                            :disabled="recordState.stopping"
+                            class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1 flex-shrink-0">
+                        <i data-lucide="square" class="w-3.5 h-3.5" x-show="!recordState.stopping"></i>
+                        <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin" x-show="recordState.stopping"></i>
+                        <span x-text="recordState.stopping ? 'Stopping...' : 'Stop & Insert'"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- ============ RECORDING ERROR PANEL ============ -->
+    <template x-if="recordState.phase === 'error'">
+        <div class="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t-2 border-red-500 shadow-2xl">
+            <div class="px-4 py-3 flex items-center gap-4">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-red-700 dark:text-red-400">Recording failed</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5" x-text="recordState.errorMessage"></div>
+                </div>
+                <template x-if="recordState.sessionId">
+                    <a :href="'/erp-automation/record/' + recordState.sessionId + '/'"
+                       class="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex-shrink-0">
+                        View Recording
+                    </a>
+                </template>
+                <button @click="dismissRecordError()"
+                        class="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 flex-shrink-0">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    </template>
+
     <!-- ============ ADD STEP MODAL ============ -->
     <div x-show="addModal.open" x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -789,6 +960,41 @@
                         <a href="/accounts/login/?next={{ request.get_full_path|urlencode }}" target="_blank" class="underline font-medium">re-login</a>
                         and then <button @click="debugState.sessionExpired=false; startDebugPolling()" class="underline font-medium">resume polling</button>.
                     </span>
+                </div>
+            </template>
+            <!-- In-browser recording strip (shown inside debug panel when recording) -->
+            <template x-if="recordState.phase === 'recording' && recordState.useDebugBrowser">
+                <div class="px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-300 dark:border-red-800 flex items-center gap-3">
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                        <span class="text-sm font-bold text-red-700 dark:text-red-400">REC</span>
+                    </div>
+                    <span class="text-sm font-mono font-semibold text-red-800 dark:text-red-300" x-text="recordState.elapsedTime"></span>
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="text-sm text-red-600 dark:text-red-400">
+                            <span class="font-semibold" x-text="recordState.actionCount"></span> actions
+                        </span>
+                        <span class="text-xs text-red-400 dark:text-red-500 truncate" x-text="getLastRecordAction()"></span>
+                    </div>
+                    <template x-if="recordState.phase === 'converting'">
+                        <span class="text-sm text-blue-600 font-medium flex items-center gap-1">
+                            <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Converting...
+                        </span>
+                    </template>
+                    <button @click="stopSegmentRecording()"
+                            :disabled="recordState.stopping"
+                            class="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1 flex-shrink-0 font-medium">
+                        <i data-lucide="square" class="w-3 h-3" x-show="!recordState.stopping"></i>
+                        <i data-lucide="loader-2" class="w-3 h-3 animate-spin" x-show="recordState.stopping"></i>
+                        <span x-text="recordState.stopping ? 'Stopping...' : 'Stop & Insert'"></span>
+                    </button>
+                </div>
+            </template>
+            <!-- Converting strip (shown after stop, during workflow creation) -->
+            <template x-if="recordState.phase === 'converting' && recordState.useDebugBrowser">
+                <div class="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-300 dark:border-blue-800 flex items-center gap-3">
+                    <i data-lucide="loader-2" class="w-4 h-4 text-blue-500 animate-spin flex-shrink-0"></i>
+                    <span class="text-sm font-medium text-blue-700 dark:text-blue-400">Converting recording & inserting into chain...</span>
                 </div>
             </template>
             <!-- Compact status bar -->
@@ -1048,7 +1254,10 @@
 <script>
 function chainEditor() {
     const CHAIN_PK = {{ chain.pk }};
+    const CHAIN_NAME = '{{ chain.name|escapejs }}';
     const CSRF = '{{ csrf_token }}';
+    const HAS_CREDENTIALS = {{ has_credentials|yesno:"true,false" }};
+    const ENVIRONMENTS = JSON.parse('{{ environments_json|escapejs }}');
 
     return {
         segments: [],
@@ -1104,8 +1313,36 @@ function chainEditor() {
             _runningLinkOrder: null,
         },
 
+        // Undo/Redo stacks (max 30 entries)
+        undoStack: [],
+        redoStack: [],
+        _UNDO_LIMIT: 30,
+
         // Locator search
         locatorSearch: { query: '', results: [], open: false },
+
+        // Recording state
+        recordState: {
+            active: false,
+            phase: 'idle',   // idle|setup|recording|converting|done|error
+            useDebugBrowser: false,  // true = inject into debug browser, false = standalone
+            sessionId: null,
+            insertAfterOrder: null,
+            segmentName: '',
+            targetUrl: '',
+            selectedEnvId: null,
+            capturedActions: [],
+            actionCount: 0,
+            pollInterval: null,
+            pollErrorCount: 0,
+            timerInterval: null,
+            startTime: null,
+            elapsedTime: '00:00',
+            errorMessage: '',
+            starting: false,
+            stopping: false,
+        },
+        _environments: [],
 
         // Add Step Modal
         addModal: { open: false, data: {}, workflowId: null, segmentName: '' },
@@ -1166,6 +1403,22 @@ function chainEditor() {
             this.debugState.status = 'starting';
             this.startDebugSession({{ start_debug_job_pk }});
             {% endif %}
+
+            // Load environments for recording
+            this._environments = ENVIRONMENTS;
+            const defEnv = this._environments.find(e => e.is_default);
+            if (defEnv) {
+                this.recordState.selectedEnvId = defEnv.id;
+                this.recordState.targetUrl = defEnv.url + '?cmp=ardt&mi=DefaultDashboard';
+            }
+
+            // beforeunload guard for active recording
+            window.addEventListener('beforeunload', (e) => {
+                if (this.recordState.phase === 'recording') {
+                    e.preventDefault();
+                    e.returnValue = 'Recording in progress — are you sure you want to leave?';
+                }
+            });
 
             this.$nextTick(() => lucide.createIcons());
         },
@@ -1521,6 +1774,19 @@ function chainEditor() {
         },
 
         async debugStopExecution() {
+            // Auto-stop recording if active in debug browser
+            if (this.recordState.phase === 'recording' && this.recordState.useDebugBrowser) {
+                this._stopRecordPolling();
+                this._stopRecordTimer();
+                try {
+                    await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/stop/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                    });
+                } catch(e) { /* ignore — browser is being closed anyway */ }
+                this.recordState.phase = 'idle';
+                this.recordState.active = false;
+                this.recordState.useDebugBrowser = false;
+            }
             try {
                 await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/stop/`, {
                     method: 'POST', headers: { 'X-CSRFToken': CSRF },
@@ -1671,6 +1937,88 @@ function chainEditor() {
             this.$nextTick(() => lucide.createIcons());
         },
 
+        // --- UNDO/REDO ---
+        _pushUndo(entry) {
+            this.undoStack.push(entry);
+            if (this.undoStack.length > this._UNDO_LIMIT) this.undoStack.shift();
+            this.redoStack = [];
+        },
+        _deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); },
+        _lastUndoLabel() {
+            if (!this.undoStack.length) return '';
+            const e = this.undoStack[this.undoStack.length - 1];
+            return { update:'edit', delete:'delete', create:'add', duplicate:'duplicate' }[e.action] + ' "' + e.label + '"';
+        },
+        _lastRedoLabel() {
+            if (!this.redoStack.length) return '';
+            const e = this.redoStack[this.redoStack.length - 1];
+            return { update:'edit', delete:'delete', create:'add', duplicate:'duplicate' }[e.action] + ' "' + e.label + '"';
+        },
+        async undo() {
+            if (!this.undoStack.length) return;
+            const entry = this.undoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/update/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.before)
+                    });
+                    const d = await r.json();
+                    if (d.success) this.redoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    const createData = { ...entry.before }; delete createData.id;
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/create/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    const d = await r.json();
+                    if (d.success) { entry.stepId = d.step_id; this.redoStack.push(entry); }
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF }
+                    });
+                    const d = await r.json();
+                    if (d.success) this.redoStack.push(entry);
+                }
+                await this.reloadSegments();
+                this.flash(`Undo: ${entry.action}`, 'success');
+            } catch (e) { this.flash('Undo failed: ' + e.message, 'error'); this.undoStack.push(entry); }
+        },
+        async redo() {
+            if (!this.redoStack.length) return;
+            const entry = this.redoStack.pop();
+            try {
+                if (entry.action === 'update') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/update/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(entry.after)
+                    });
+                    const d = await r.json();
+                    if (d.success) this.undoStack.push(entry);
+                } else if (entry.action === 'delete') {
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/${entry.stepId}/delete/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF }
+                    });
+                    const d = await r.json();
+                    if (d.success) this.undoStack.push(entry);
+                } else if (entry.action === 'create' || entry.action === 'duplicate') {
+                    const createData = { ...entry.after }; delete createData.id;
+                    const r = await fetch(`/erp-automation/api/workflows/${entry.workflowId}/steps/create/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(createData)
+                    });
+                    const d = await r.json();
+                    if (d.success) { entry.stepId = d.step_id; this.undoStack.push(entry); }
+                }
+                await this.reloadSegments();
+                this.flash(`Redo: ${entry.action}`, 'success');
+            } catch (e) { this.flash('Redo failed: ' + e.message, 'error'); this.redoStack.push(entry); }
+        },
+        handleKeydown(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); this.redo(); }
+        },
+
         // --- RELOAD ---
         async reloadSegments() {
             try {
@@ -1709,8 +2057,10 @@ function chainEditor() {
                     body: JSON.stringify(this.editForm)
                 });
                 const d = await r.json();
-                if (d.success) { this.editingStep = null; this.reloadSegments(); this.flash('Step updated'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'update', stepId: step.id, workflowId: seg.workflow_id, label: d.old_data?.name || step.name, before: d.old_data, after: this._deepCopy(this.editForm) });
+                    this.editingStep = null; this.reloadSegments(); this.flash('Step updated');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Save failed: ' + e.message, 'error'); }
         },
 
@@ -1735,13 +2085,16 @@ function chainEditor() {
         },
         async saveNewStep() {
             try {
-                const r = await fetch(`/erp-automation/api/workflows/${this.addModal.workflowId}/steps/create/`, {
+                const wfId = this.addModal.workflowId;
+                const r = await fetch(`/erp-automation/api/workflows/${wfId}/steps/create/`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     body: JSON.stringify(this.addModal.data)
                 });
                 const d = await r.json();
-                if (d.success) { this.addModal.open = false; this.reloadSegments(); this.flash('Step created'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'create', stepId: d.step_id, workflowId: wfId, label: d.step_data?.name || 'New Step', before: null, after: d.step_data });
+                    this.addModal.open = false; this.reloadSegments(); this.flash('Step created');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Create failed: ' + e.message, 'error'); }
         },
 
@@ -1753,8 +2106,10 @@ function chainEditor() {
                     method: 'POST', headers: { 'X-CSRFToken': CSRF }
                 });
                 const d = await r.json();
-                if (d.success) { this.reloadSegments(); this.flash('Step deleted'); }
-                else { this.flash(d.message, 'error'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'delete', stepId: step.id, workflowId: seg.workflow_id, label: d.deleted_data?.name || step.name, before: d.deleted_data, after: null });
+                    this.reloadSegments(); this.flash('Step deleted');
+                } else { this.flash(d.message, 'error'); }
             } catch(e) { this.flash('Delete failed: ' + e.message, 'error'); }
         },
 
@@ -1764,8 +2119,10 @@ function chainEditor() {
                 order: step.order + 1, name: step.name + ' (copy)', action_type: step.action_type,
                 interaction_mode: step.interaction_mode || 'auto',
                 locator_id: step.locator ? step.locator.id : null,
-                value_static: step.value_static, value_template: step.value_template,
-                value_field: step.value_field, wait_after: step.wait_after,
+                value_static: step.value_static || '', value_template: step.value_template || '',
+                value_field: step.value_field || '', wait_after: step.wait_after,
+                press_key_after: step.press_key_after || '', clear_before_fill: step.clear_before_fill || false,
+                condition_value: step.condition_value || '',
                 continue_on_error: step.continue_on_error, check_for_errors: step.check_for_errors || false,
             };
             try {
@@ -1774,7 +2131,10 @@ function chainEditor() {
                     body: JSON.stringify(newData)
                 });
                 const d = await r.json();
-                if (d.success) { this.reloadSegments(); this.flash('Step duplicated'); }
+                if (d.success) {
+                    this._pushUndo({ action: 'duplicate', stepId: d.step_id, workflowId: seg.workflow_id, label: d.step_data?.name || newData.name, before: null, after: d.step_data });
+                    this.reloadSegments(); this.flash('Step duplicated');
+                } else { this.flash(d.message || 'Duplicate failed', 'error'); }
             } catch(e) { this.flash('Duplicate failed: ' + e.message, 'error'); }
         },
 
@@ -1907,13 +2267,321 @@ function chainEditor() {
             return styles[mode] || styles['auto'];
         },
 
+        // ================ RECORDING METHODS ================
+
+        openRecordSetup() {
+            // If debug is active, use in-browser recording (no credentials check needed)
+            this.recordState.useDebugBrowser = this.debugState.active &&
+                ['paused', 'running', 'auto_healing'].includes(this.debugState.status);
+
+            if (!this.recordState.useDebugBrowser && !HAS_CREDENTIALS) {
+                if (confirm('No ERP credentials set. Go to credentials page?')) {
+                    window.open('/erp-automation/credentials/', '_blank');
+                }
+                return;
+            }
+            this.recordState.phase = 'setup';
+            this.recordState.errorMessage = '';
+            this.recordState.segmentName = '';
+            this.recordState.insertAfterOrder = null; // null = end
+            if (!this.recordState.useDebugBrowser) {
+                // Standalone: reset env URL
+                const defEnv = this._environments.find(e => e.id === this.recordState.selectedEnvId);
+                if (defEnv) this.recordState.targetUrl = defEnv.url + '?cmp=ardt&mi=DefaultDashboard';
+            }
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        cancelRecordSetup() {
+            this.recordState.phase = 'idle';
+            this.recordState.errorMessage = '';
+        },
+
+        onRecordEnvChange() {
+            const env = this._environments.find(e => e.id == this.recordState.selectedEnvId);
+            if (env) this.recordState.targetUrl = env.url + '?cmp=ardt&mi=DefaultDashboard';
+        },
+
+        async startSegmentRecording() {
+            if (!this.recordState.useDebugBrowser && !this.recordState.targetUrl.trim()) {
+                this.recordState.errorMessage = 'Target URL is required';
+                return;
+            }
+
+            this.recordState.starting = true;
+            this.recordState.errorMessage = '';
+            this.recordState.capturedActions = [];
+            this.recordState.actionCount = 0;
+
+            const sessionName = this.recordState.segmentName.trim() || `${CHAIN_NAME} - Recorded Segment`;
+
+            if (this.recordState.useDebugBrowser) {
+                // ── In-browser recording via debug executor ──
+                try {
+                    const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/start/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify({ session_name: sessionName }),
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.recordState.sessionId = data.session_id;
+                        this.recordState.phase = 'recording';
+                        this.recordState.active = true;
+                        this._startDebugRecordPolling();
+                        this._startRecordTimer();
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.recordState.errorMessage = data.message || 'Failed to start recording';
+                    }
+                } catch (err) {
+                    this.recordState.errorMessage = 'Network error: ' + err.message;
+                } finally {
+                    this.recordState.starting = false;
+                }
+            } else {
+                // ── Standalone recording (new browser) ──
+                const formData = new FormData();
+                formData.append('session_name', sessionName);
+                formData.append('target_url', this.recordState.targetUrl.trim());
+
+                try {
+                    const resp = await fetch('/erp-automation/record/start/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                        body: formData,
+                    });
+                    const data = await resp.json();
+
+                    if (data.success) {
+                        this.recordState.sessionId = data.session_id;
+                        this.recordState.phase = 'recording';
+                        this.recordState.active = true;
+                        this._startRecordPolling();
+                        this._startRecordTimer();
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.recordState.errorMessage = data.message || 'Failed to start recording';
+                    }
+                } catch (err) {
+                    this.recordState.errorMessage = 'Network error: ' + err.message;
+                } finally {
+                    this.recordState.starting = false;
+                }
+            }
+        },
+
+        async stopSegmentRecording() {
+            this.recordState.stopping = true;
+            this._stopRecordPolling();
+            this._stopRecordTimer();
+
+            try {
+                // Stop recording via appropriate endpoint
+                let stopResp;
+                if (this.recordState.useDebugBrowser) {
+                    stopResp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/stop/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                    });
+                } else {
+                    stopResp = await fetch('/erp-automation/record/stop/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                    });
+                }
+                const ct = stopResp.headers.get('content-type') || '';
+                if (!stopResp.ok || !ct.includes('application/json')) {
+                    this.recordState.errorMessage = 'Stop failed (non-JSON response). Actions may have been saved.';
+                    this.recordState.phase = 'error';
+                    return;
+                }
+
+                const data = await stopResp.json();
+                if (!data.success) {
+                    this.recordState.errorMessage = data.message || 'Failed to stop recording';
+                    this.recordState.phase = 'error';
+                    return;
+                }
+
+                // Now convert + insert
+                this.recordState.phase = 'converting';
+                this.$nextTick(() => lucide.createIcons());
+
+                const insertResp = await fetch(`/erp-automation/api/chains/${CHAIN_PK}/record-insert/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({
+                        session_id: this.recordState.sessionId,
+                        insert_after_link_order: this.recordState.insertAfterOrder,
+                        segment_name: this.recordState.segmentName.trim() || '',
+                    }),
+                });
+                const insertData = await insertResp.json();
+
+                if (insertData.success) {
+                    this.recordState.phase = 'done';
+                    this.flash(`Segment "${insertData.workflow_name}" inserted with ${insertData.steps_created} steps`);
+                    // Reload segments to show the new one
+                    await this.reloadSegments();
+                    // Expand all segments and reset recording state after short delay
+                    this.segments.forEach((_, i) => this.expandedSegments.add(i));
+                    setTimeout(() => {
+                        this.recordState.phase = 'idle';
+                        this.recordState.active = false;
+                        this.recordState.sessionId = null;
+                    }, 2000);
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    this.recordState.errorMessage = insertData.message || 'Conversion/insert failed';
+                    this.recordState.phase = 'error';
+                }
+            } catch (err) {
+                this.recordState.errorMessage = 'Error: ' + err.message;
+                this.recordState.phase = 'error';
+            } finally {
+                this.recordState.stopping = false;
+            }
+        },
+
+        _startRecordPolling() {
+            this.recordState.pollErrorCount = 0;
+            this.recordState.pollInterval = setInterval(() => this._pollRecordActions(), 2000);
+        },
+        _stopRecordPolling() {
+            if (this.recordState.pollInterval) {
+                clearInterval(this.recordState.pollInterval);
+                this.recordState.pollInterval = null;
+            }
+        },
+
+        // Debug browser recording polling (separate from standalone)
+        _startDebugRecordPolling() {
+            this.recordState.pollErrorCount = 0;
+            this.recordState.pollInterval = setInterval(() => this._pollDebugRecordActions(), 2000);
+        },
+
+        async _pollDebugRecordActions() {
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/poll/`);
+                const ct = resp.headers.get('content-type') || '';
+                if (!resp.ok || !ct.includes('application/json')) {
+                    this.recordState.pollErrorCount++;
+                    if (this.recordState.pollErrorCount > 15) {
+                        this._stopRecordPolling();
+                        this.recordState.errorMessage = 'Polling lost connection.';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                this.recordState.pollErrorCount = 0;
+
+                if (!data.recording) {
+                    // Recording was stopped externally
+                    this._stopRecordPolling();
+                    this._stopRecordTimer();
+                    this.recordState.phase = 'idle';
+                    this.recordState.active = false;
+                    return;
+                }
+                if (data.actions) {
+                    for (const action of data.actions) {
+                        if (!this.recordState.capturedActions.find(a => a.order === action.order)) {
+                            this.recordState.capturedActions.push(action);
+                        }
+                    }
+                    this.recordState.actionCount = data.total || this.recordState.capturedActions.length;
+                }
+            } catch (err) {
+                this.recordState.pollErrorCount++;
+                if (this.recordState.pollErrorCount > 15) {
+                    this._stopRecordPolling();
+                    this.recordState.errorMessage = 'Polling lost connection.';
+                }
+            }
+        },
+
+        async _pollRecordActions() {
+            try {
+                const resp = await fetch('/erp-automation/record/poll/');
+                const ct = resp.headers.get('content-type') || '';
+                if (!resp.ok || !ct.includes('application/json')) {
+                    this.recordState.pollErrorCount++;
+                    if (this.recordState.pollErrorCount > 15) {
+                        this._stopRecordPolling();
+                        this.recordState.errorMessage = 'Polling lost connection. Click Stop to save.';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                this.recordState.pollErrorCount = 0;
+
+                if (!data.recording) {
+                    // Browser was closed
+                    this._stopRecordPolling();
+                    this._stopRecordTimer();
+                    await this.stopSegmentRecording();
+                    return;
+                }
+                if (data.actions) {
+                    for (const action of data.actions) {
+                        if (!this.recordState.capturedActions.find(a => a.order === action.order)) {
+                            this.recordState.capturedActions.push(action);
+                        }
+                    }
+                    this.recordState.actionCount = this.recordState.capturedActions.length;
+                }
+            } catch (err) {
+                this.recordState.pollErrorCount++;
+                if (this.recordState.pollErrorCount > 15) {
+                    this._stopRecordPolling();
+                    this.recordState.errorMessage = 'Polling lost connection.';
+                }
+            }
+        },
+
+        _startRecordTimer() {
+            this.recordState.startTime = Date.now();
+            this.recordState.timerInterval = setInterval(() => {
+                const elapsed = Date.now() - this.recordState.startTime;
+                const mins = Math.floor(elapsed / 60000);
+                const secs = Math.floor((elapsed % 60000) / 1000);
+                this.recordState.elapsedTime = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }, 1000);
+        },
+        _stopRecordTimer() {
+            if (this.recordState.timerInterval) {
+                clearInterval(this.recordState.timerInterval);
+                this.recordState.timerInterval = null;
+            }
+        },
+
+        dismissRecordError() {
+            this.recordState.phase = 'idle';
+            this.recordState.active = false;
+            this.recordState.errorMessage = '';
+            this.recordState.sessionId = null;
+        },
+
+        getLastRecordAction() {
+            const acts = this.recordState.capturedActions;
+            if (acts.length === 0) return '';
+            const last = acts[acts.length - 1];
+            const desc = last.action_type + (last.element_name ? ` "${last.element_name}"` : (last.element_id ? ` #${last.element_id}` : ''));
+            return desc.substring(0, 50);
+        },
+
         // --- UTILS ---
         flash(msg, type = 'success') {
             this.statusMsg = msg; this.statusType = type;
             setTimeout(() => { this.statusMsg = ''; }, 3000);
         },
 
-        destroy() { this.stopDebugPolling(); }
+        destroy() {
+            this.stopDebugPolling();
+            this._stopRecordPolling();
+            this._stopRecordTimer();
+        }
     };
 }
 </script>
