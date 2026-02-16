@@ -853,6 +853,8 @@ python manage.py check
 - **Dismiss & Continue API**: New `/api/debug/<pk>/dismiss-continue/` endpoint calls `close_error_dialog()` on the browser to actually close the D365 message bar, then marks the step as **completed** (not skipped). Method: `DebugExecutor.dismiss_and_continue()` → `_pause_and_process_commands()` handles `dismiss_and_continue` command.
 - **1500ms Error Check Wait**: Increased wait from 800ms to 1500ms before checking for errors, giving D365 more time to clear transient processing messages.
 - **No Auto-Dismiss on Error**: Removed `close_error_dialog()` call from `_execute_step()` error path — let the user decide via the UI whether to dismiss or stop.
+- **Duplicate Step Null Fix**: `api_step_create()` changed all `data.get("field", "")` to `data.get("field") or ""` pattern. JSON null → Python None was crashing Django CharFields. Frontend `duplicateStep()` also fixed: added `|| ''` null guards, all missing fields (press_key_after, clear_before_fill, condition_value), and `r.ok` check before `.json()`.
+- **BOM Version Dropdown → lookup_button**: Step "Click BOM Version Name Dropdown" (WF 83, PK 1422, locator #416) changed from `custom_dropdown` to `lookup_button` mode. D365 lookup buttons need two clicks (focus then open flyout).
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
