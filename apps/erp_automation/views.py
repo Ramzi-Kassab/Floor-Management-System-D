@@ -2772,6 +2772,14 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
             except (ValueError, TypeError):
                 pass
 
+        # Recording context: credentials + environments
+        ctx["has_credentials"] = "erp_credentials" in self.request.session
+        environments = ERPEnvironment.objects.all().order_by("-is_default", "name")
+        ctx["environments_json"] = json.dumps([
+            {"id": e.pk, "name": e.name, "url": e.base_url, "is_default": e.is_default}
+            for e in environments
+        ])
+
         return ctx
 
 
@@ -3935,6 +3943,121 @@ def api_chain_merge_segments(request):
         "success": True,
         "message": f"Merged {len(steps_to_move)} steps into '{wf1.name}'",
         "merged_step_count": len(steps_to_move),
+    })
+
+
+@login_required
+@require_POST
+def api_chain_record_insert(request, pk):
+    """Convert a completed recording and insert the resulting workflow as a new chain link.
+
+    POST JSON: {
+        "session_id": int,                        # RecordingSession PK
+        "insert_after_link_order": int or null,   # null = at end, 0 = at beginning
+        "segment_name": str (optional)
+    }
+    """
+    chain = get_object_or_404(WorkflowChain, pk=pk)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    session_id = body.get("session_id")
+    insert_after = body.get("insert_after_link_order")
+    segment_name = (body.get("segment_name") or "").strip()
+
+    if not session_id:
+        return JsonResponse({"success": False, "message": "session_id required"}, status=400)
+
+    session = get_object_or_404(RecordingSession, pk=session_id)
+
+    if session.status != "completed":
+        return JsonResponse({"success": False, "message": "Recording must be completed first"}, status=400)
+
+    if session.actions.count() < 3:
+        return JsonResponse({
+            "success": False,
+            "message": f"Too few actions ({session.actions.count()}) to convert. Need at least 3.",
+        }, status=400)
+
+    # Generate unique workflow name
+    base_name = segment_name or f"{chain.name} - Recorded Segment"
+    wf_name = base_name
+    counter = 1
+    while Workflow.objects.filter(name=wf_name).exists():
+        counter += 1
+        wf_name = f"{base_name} ({counter})"
+
+    # Convert recording to workflow via management command
+    from django.core.management import call_command
+    from io import StringIO
+
+    stdout = StringIO()
+    stderr = StringIO()
+
+    try:
+        call_command(
+            "create_workflow_from_recording",
+            session=session.pk,
+            name=wf_name,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Conversion error: {str(e)}"}, status=500)
+
+    error_output = stderr.getvalue().strip()
+    if error_output:
+        return JsonResponse({"success": False, "message": f"Conversion error: {error_output}"}, status=500)
+
+    session.refresh_from_db()
+    if not session.generated_workflow:
+        return JsonResponse({
+            "success": False,
+            "message": "Conversion completed but no workflow was linked.",
+        }, status=500)
+
+    wf = session.generated_workflow
+
+    # Determine insertion order
+    existing_links = list(chain.links.filter(is_active=True).order_by("order"))
+
+    if insert_after is None:
+        # Insert at end
+        max_order = existing_links[-1].order if existing_links else 0
+        new_order = max_order + 10
+    elif insert_after == 0:
+        # Insert at beginning — shift all existing links
+        for lnk in reversed(existing_links):
+            WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=lnk.order + 10)
+        new_order = 5
+    else:
+        # Insert after specific link_order
+        insert_after = int(insert_after)
+        links_after = chain.links.filter(is_active=True, order__gt=insert_after).order_by("-order")
+        for lnk in links_after:
+            WorkflowChainLink.objects.filter(pk=lnk.pk).update(order=lnk.order + 10)
+        new_order = insert_after + 5
+
+    new_link = WorkflowChainLink.objects.create(
+        chain=chain,
+        workflow=wf,
+        order=new_order,
+        name=segment_name,
+        wait_before_ms=2000,
+        is_active=True,
+    )
+
+    return JsonResponse({
+        "success": True,
+        "workflow_id": wf.pk,
+        "workflow_name": wf.name,
+        "link_id": new_link.pk,
+        "link_order": new_link.order,
+        "steps_created": wf.steps.count(),
+        "message": f"Segment '{wf.name}' inserted with {wf.steps.count()} steps",
     })
 
 

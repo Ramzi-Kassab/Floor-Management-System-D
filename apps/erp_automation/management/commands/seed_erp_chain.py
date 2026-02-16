@@ -628,8 +628,9 @@ LOCATORS = {
         "ctx": "Create BOM Dialog",
         "mode": "standard_input",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "Name_input")]', 0),
-            ("name", "Name", 5),
+            ("xpath", '//*[contains(@id, "Dialog_") and contains(@id, "_Fld2_1_input")]', 0),
+            ("xpath", '//*[contains(@id, "Dialog")]//label[contains(text(), "Name")]/following::input[1]', 1),
+            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "Name_input")]', 5),
         ],
     },
     "create_bom_copy_toggle": {
@@ -638,8 +639,9 @@ LOCATORS = {
         "ctx": "Create BOM Dialog",
         "mode": "checkbox_toggle",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "CopyBOM")]//span', 0),
-            ("xpath", '//*[contains(@id, "CopyBOM")]', 5),
+            ("xpath", '//*[contains(@id, "Dialog_") and contains(@id, "_Fld3_1_toggle")]', 0),
+            ("xpath", '//*[contains(@id, "Dialog")]//label[contains(text(), "Copy")]/following::span[@role="switch"][1]', 1),
+            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "CopyBOM")]//span', 5),
         ],
     },
     "create_bom_site_dd": {
@@ -648,7 +650,10 @@ LOCATORS = {
         "ctx": "Create BOM Dialog",
         "mode": "combobox",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "InventSiteId_input")]', 0),
+            ("name", "InventSiteId", 0),
+            ("xpath", '//*[contains(@id, "Dialog_") and contains(@id, "InventSiteId_input")]', 1),
+            ("xpath", '//*[contains(@id, "Dialog")]//label[contains(text(), "Site")]/following::input[1]', 2),
+            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "InventSiteId_input")]', 5),
         ],
     },
     "create_bom_site_option": {
@@ -657,8 +662,9 @@ LOCATORS = {
         "ctx": "Create BOM Dialog",
         "mode": "custom_dropdown",
         "strategies": [
-            ("xpath", '//tr[contains(@id, "InventSiteId") and contains(@id, "grid_0_0")]', 0),
-            ("xpath", '//td[text()="ARDT Site"]', 5),
+            ("xpath", '//input[@value="ARDT Site" and @aria-label="Site"]', 0),
+            ("xpath", '//input[contains(@id, "Sel_") and @value="ARDT Site"]', 1),
+            ("xpath", '//input[@title="ARDT Site" and @value="ARDT Site"]', 5),
         ],
     },
     "create_bom_ok": {
@@ -667,7 +673,9 @@ LOCATORS = {
         "ctx": "Create BOM Dialog",
         "mode": "dialog_button",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "OkButton")]', 0),
+            ("xpath", '//*[contains(@id, "Dialog_") and contains(@id, "_OkButton")]', 0),
+            ("name", "OkButton", 1),
+            ("xpath", '//*[contains(@id, "BOMCreate") and contains(@id, "OkButton")]', 5),
         ],
     },
 
@@ -688,8 +696,9 @@ LOCATORS = {
         "ctx": "BOM Route Copy",
         "mode": "dialog_button",
         "strategies": [
-            ("xpath", '//*[contains(@id, "BOMRouteCopyDialog") and contains(@id, "Ok")]', 0),
-            ("name", "OkButton", 5),
+            ("xpath", '//button[contains(@id, "BOMRouteCopyDialog") and contains(@id, "OKButton")]', 0),
+            ("xpath", '//button[@name="OKButton"]', 1),
+            ("xpath", '//*[contains(@id, "BOMRouteCopyDialog") and contains(@id, "OKButton")]', 5),
         ],
     },
 

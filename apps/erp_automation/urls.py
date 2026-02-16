@@ -125,6 +125,7 @@ urlpatterns = [
     path("api/chains/move-step/", views.api_chain_move_step, name="api_chain_move_step"),
     path("api/chains/split-segment/", views.api_chain_split_segment, name="api_chain_split_segment"),
     path("api/chains/merge-segments/", views.api_chain_merge_segments, name="api_chain_merge_segments"),
+    path("api/chains/<int:pk>/record-insert/", views.api_chain_record_insert, name="api_chain_record_insert"),
     path("api/debug/<int:pk>/rerun-from-step/", views.api_debug_rerun_from_step, name="api_debug_rerun_from_step"),
     path("api/debug/<int:pk>/run-single-step/", views.api_debug_run_single_step, name="api_debug_run_single_step"),
     path("api/debug/<int:pk>/breakpoints/", views.api_debug_set_breakpoints, name="api_debug_breakpoints"),
