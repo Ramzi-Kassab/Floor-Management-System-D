@@ -736,8 +736,8 @@ function workflowEditor() {
         async duplicateStep(step) {
             const newData = {
                 order: step.order + 1,
-                name: step.name + ' (copy)',
-                action_type: step.action_type,
+                name: (step.name || 'Step') + ' (copy)',
+                action_type: step.action_type || 'click',
                 interaction_mode: step.interaction_mode || 'auto',
                 locator_id: step.locator ? step.locator.id : null,
                 value_static: step.value_static || '',
@@ -745,10 +745,10 @@ function workflowEditor() {
                 value_field: step.value_field || '',
                 condition_value: step.condition_value || '',
                 wait_after: step.wait_after || 500,
-                continue_on_error: step.continue_on_error || false,
-                check_for_errors: step.check_for_errors || false,
                 press_key_after: step.press_key_after || '',
                 clear_before_fill: step.clear_before_fill || false,
+                continue_on_error: step.continue_on_error || false,
+                check_for_errors: step.check_for_errors || false,
             };
             try {
                 const r = await fetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {
@@ -757,9 +757,9 @@ function workflowEditor() {
                     body: JSON.stringify(newData)
                 });
                 if (!r.ok) {
-                    const text = await r.text();
-                    this.flash('Duplicate failed: server error ' + r.status, 'error');
-                    console.error('Duplicate error response:', text.substring(0, 500));
+                    const errText = await r.text();
+                    console.error('Duplicate error:', r.status, errText.substring(0, 300));
+                    this.flash(`Duplicate failed: server error ${r.status}`, 'error');
                     return;
                 }
                 const d = await r.json();
@@ -767,7 +767,7 @@ function workflowEditor() {
                     this.loadSteps();
                     this.flash('Step duplicated');
                 } else {
-                    this.flash(d.message || 'Duplicate failed', 'error');
+                    this.flash('Duplicate failed: ' + (d.message || 'Unknown error'), 'error');
                 }
             } catch (e) {
                 this.flash('Duplicate failed: ' + e.message, 'error');
