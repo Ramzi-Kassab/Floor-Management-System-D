@@ -2365,6 +2365,17 @@ def api_debug_skip(request, pk):
 
 @login_required
 @require_POST
+def api_debug_dismiss_continue(request, pk):
+    """Dismiss D365 dialog and continue (marks step as completed since action succeeded)."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No debug session"}, status=400)
+    _debug_executor.dismiss_and_continue()
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
 def api_debug_stop(request, pk):
     """Stop debug execution."""
     global _debug_executor
@@ -3244,20 +3255,20 @@ def api_step_create(request, wf_pk):
     step = WorkflowStep.objects.create(
         workflow=workflow,
         order=int(order),
-        name=data.get("name") or "New Step",
-        action_type=data.get("action_type") or "click",
+        name=data.get("name", "New Step"),
+        action_type=data.get("action_type", "click"),
         locator=locator,
-        value_static=data.get("value_static") or "",
-        value_field=data.get("value_field") or "",
-        value_template=data.get("value_template") or "",
-        condition_value=data.get("condition_value") or "",
-        wait_after=int(data.get("wait_after") or 500),
-        timeout=int(data.get("timeout") or 30000),
-        continue_on_error=bool(data.get("continue_on_error")),
-        check_for_errors=bool(data.get("check_for_errors")),
-        press_key_after=data.get("press_key_after") or "",
-        clear_before_fill=bool(data.get("clear_before_fill")),
-        interaction_mode=data.get("interaction_mode") or "auto",
+        value_static=data.get("value_static", ""),
+        value_field=data.get("value_field", ""),
+        value_template=data.get("value_template", ""),
+        condition_value=data.get("condition_value", ""),
+        wait_after=int(data.get("wait_after", 500)),
+        timeout=int(data.get("timeout", 30000)),
+        continue_on_error=data.get("continue_on_error", False),
+        check_for_errors=data.get("check_for_errors", False),
+        press_key_after=data.get("press_key_after", ""),
+        clear_before_fill=data.get("clear_before_fill", False),
+        interaction_mode=data.get("interaction_mode", "auto"),
     )
 
     # Renumber all steps sequentially (1, 2, 3, ...)

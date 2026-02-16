@@ -841,7 +841,7 @@ python manage.py check
 - **EVAL_SHEET_MAP Expanded**: Added `'Eval & Quot-AR'` (ARAMCO evaluation) and `'Rework'` sheets to the evaluation sheet map so their grids are included in evaluation summaries.
 
 ### Recent Enhancements (Feb 16, 2026 — Session 2) — D365 Error Detection & Debug UX
-- **Smart D365 Error Detection**: `detect_error_message()` in `executor.py` completely rewritten with 3-phase detection strategy: (1) D365-specific error bar selectors (`.messageBar-error`, `.messageBar-critical`, `[class*='error']`) — high confidence, (2) Generic error selectors (`.error-message`, `.alert-danger`) — with ignore pattern filtering, (3) Broad message bar selectors (`span.messageBar-message`, `[role='alert']`) — checks parent element class for info/warning/success and skips non-error bars.
+- **Smart D365 Error Detection**: `detect_error_message()` in `executor.py` completely rewritten with 3-phase detection strategy: (1) D365-specific error bar selectors (`.messageBar-error`, `.messageBar-critical`) — high confidence, (2) Generic error selectors (`.error-message`, `.alert-danger`) — with ignore pattern filtering, (3) Broad message bar selectors (`span.messageBar-message`, `[role='alert']`) — checks parent element class for info/warning/success and skips non-error bars.
 - **D365 Ignore Patterns**: `_D365_IGNORE_PATTERNS` list on `WorkflowExecutor` class with 16 patterns including "please wait", "processing your request", "saved successfully", "has been created", "loading", "validating", etc.
 - **800ms Wait Before Error Check**: `_execute_step()` now waits 800ms after step completion before running `detect_error_message()`, allowing transient D365 processing messages to clear.
 - **D365 Dialog Error Type**: When `check_for_errors` detects a message, the error result includes `error_type: "d365_dialog"`. This propagates through the debug executor to the frontend via `error_info.error_type`.
@@ -849,6 +849,10 @@ python manage.py check
 - **Blue Info Display for D365 Messages**: D365 dialog errors show with blue info styling (not red), with header "D365 Message Detected" and descriptive text explaining the click succeeded but D365 showed a message. Includes guidance: "If this is a processing/info message, click Dismiss & Continue."
 - **Status Bar**: D365 dialog pauses show "Paused — D365 Message" label with cyan badge/progress bar colors, distinguishing from real errors (amber) and step completions (green).
 - **Skip Auto-Heal for D365 Dialogs**: `_debug_step_loop()` skips Phase 1 (auto-heal locator) for `d365_dialog` error types since the action succeeded — goes straight to Phase 2 (pause for user).
+- **`dialog_button` Skip Error Check**: Steps with `interaction_mode='dialog_button'` (OK buttons) now skip `check_for_errors` entirely — D365 always shows processing messages after form submissions, which are NOT errors. Removed overly-broad `[class*='error']` selector from Phase 1.
+- **Dismiss & Continue API**: New `/api/debug/<pk>/dismiss-continue/` endpoint calls `close_error_dialog()` on the browser to actually close the D365 message bar, then marks the step as **completed** (not skipped). Method: `DebugExecutor.dismiss_and_continue()` → `_pause_and_process_commands()` handles `dismiss_and_continue` command.
+- **1500ms Error Check Wait**: Increased wait from 800ms to 1500ms before checking for errors, giving D365 more time to clear transient processing messages.
+- **No Auto-Dismiss on Error**: Removed `close_error_dialog()` call from `_execute_step()` error path — let the user decide via the UI whether to dismiss or stop.
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).

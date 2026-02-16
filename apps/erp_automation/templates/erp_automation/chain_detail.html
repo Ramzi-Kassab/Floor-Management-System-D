@@ -830,7 +830,7 @@
                             </template>
                             <!-- D365 dialog error: show "Dismiss & Continue" since the action itself succeeded -->
                             <template x-if="debugState.errorInfo?.error_type === 'd365_dialog'">
-                                <button @click="debugSkipStep()"
+                                <button @click="debugDismissAndContinue()"
                                         class="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 font-bold shadow-md ring-2 ring-blue-300"
                                         title="The action succeeded — dismiss the D365 message and continue">
                                     <i data-lucide="check" class="w-3.5 h-3.5"></i> Dismiss & Continue
@@ -1469,6 +1469,17 @@ function chainEditor() {
                 this.debugState.testResult = null;
                 if (!this.debugState.pollInterval) this.startDebugPolling();
             } catch (e) { console.error('Skip error:', e); }
+        },
+
+        async debugDismissAndContinue() {
+            // Dismiss D365 dialog and mark step as completed (since the action itself succeeded)
+            try {
+                await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/dismiss-continue/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                });
+                this.debugState.testResult = null;
+                if (!this.debugState.pollInterval) this.startDebugPolling();
+            } catch (e) { console.error('Dismiss & Continue error:', e); }
         },
 
         async debugRunStepOnly(step) {
