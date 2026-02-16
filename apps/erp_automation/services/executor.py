@@ -1462,7 +1462,17 @@ class DebugExecutor(WorkflowExecutor):
             "breakpoint_step_ids": set(),
             # Step-by-step mode — pause after every successful step
             "step_by_step_mode": False,
+            # Recording state (inline recording into debug browser)
+            "recording_active": False,
+            "recording_action_count": 0,
         }
+
+        # Recording helpers (used by _inject_recorder / _collect_recording_actions)
+        self._recorder_helper = None          # RecorderService instance for _store_action()
+        self._recorder_js = None              # Cached JS script
+        self._recording_nav_handler = None    # For cleanup on stop
+        self._recording_attach_handler = None
+        self._recording_result_queue = queue.Queue()  # Separate from debug results
 
     # ── Thread-safe state access ──────────────────────────────────────
 
@@ -1493,6 +1503,13 @@ class DebugExecutor(WorkflowExecutor):
         except queue.Empty:
             return {"error": "Timeout waiting for result"}
 
+    def get_recording_result(self, timeout: float = 10.0):
+        """Wait for a recording result from the debug thread (separate queue)."""
+        try:
+            return self._recording_result_queue.get(timeout=timeout)
+        except queue.Empty:
+            return {"error": "Timeout waiting for recording result"}
+
     def resume(self):
         self.send_command("resume")
 
@@ -1506,6 +1523,148 @@ class DebugExecutor(WorkflowExecutor):
     def stop(self):
         self.should_stop = True
         self.send_command("stop")
+
+    # ── Recording injection (all run in Playwright thread) ─────────────
+
+    def _inject_recorder(self):
+        """Inject recording JS into page and all frames. Runs in Playwright thread."""
+        from .recorder import RecorderService
+        self._recorder_js = RecorderService.get_recorder_js()
+
+        # Inject into main page
+        try:
+            self.page.evaluate(self._recorder_js)
+        except Exception as e:
+            logger.warning(f"[DebugExec] Failed to inject recorder into main page: {e}")
+
+        # Inject into all child frames
+        for frame in self.page.frames:
+            try:
+                frame.evaluate(self._recorder_js)
+            except Exception:
+                pass
+
+        # Set up re-injection handlers for SPA navigation
+        def on_frame_navigated(frame):
+            try:
+                frame.evaluate(self._recorder_js)
+            except Exception:
+                pass
+
+        def on_frame_attached(frame):
+            try:
+                frame.wait_for_load_state("domcontentloaded", timeout=5000)
+            except Exception:
+                pass
+            try:
+                frame.evaluate(self._recorder_js)
+            except Exception:
+                pass
+
+        self._recording_nav_handler = on_frame_navigated
+        self._recording_attach_handler = on_frame_attached
+        self.page.on("framenavigated", on_frame_navigated)
+        self.page.on("frameattached", on_frame_attached)
+        logger.info("[DebugExec] Recorder JS injected into page + %d frames", len(self.page.frames))
+
+    def _collect_recording_actions(self) -> list:
+        """Collect pending actions from all frames. Runs in Playwright thread."""
+        all_actions = []
+        try:
+            actions = self.page.evaluate("window.__recorder?.getActions() || []")
+            all_actions.extend(actions)
+        except Exception:
+            pass
+
+        for frame in self.page.frames:
+            if frame == self.page.main_frame:
+                continue
+            try:
+                has_rec = frame.evaluate("!!window.__recorder")
+                if has_rec:
+                    actions = frame.evaluate("window.__recorder.getActions()")
+                    all_actions.extend(actions)
+                else:
+                    # Re-inject into frames that lost the script
+                    if self._recorder_js:
+                        frame.evaluate(self._recorder_js)
+            except Exception:
+                pass
+
+        all_actions.sort(key=lambda a: a.get("timestamp", 0))
+        return all_actions
+
+    def _remove_recorder(self):
+        """Remove recorder from page. Runs in Playwright thread."""
+        try:
+            self.page.evaluate("if(window.__recorder) { window.__recorder.isRecording = false; }")
+        except Exception:
+            pass
+        for frame in self.page.frames:
+            try:
+                frame.evaluate("if(window.__recorder) { window.__recorder.isRecording = false; }")
+            except Exception:
+                pass
+        # Remove frame event handlers
+        try:
+            if self._recording_nav_handler:
+                self.page.remove_listener("framenavigated", self._recording_nav_handler)
+            if self._recording_attach_handler:
+                self.page.remove_listener("frameattached", self._recording_attach_handler)
+        except Exception:
+            pass
+        self._recording_nav_handler = None
+        self._recording_attach_handler = None
+        logger.info("[DebugExec] Recorder removed from page")
+
+    def _handle_recording_command(self, cmd: str, data: dict):
+        """Handle a recording command. Returns result dict. Runs in Playwright thread."""
+        if cmd == "start_recording":
+            try:
+                self._inject_recorder()
+                from .recorder import RecorderService
+                self._recorder_helper = RecorderService()
+                self._recorder_helper.recorded_actions = []
+                self._recorder_helper.action_counter = 0
+                self._update_state(recording_active=True, recording_action_count=0)
+                return {"success": True, "message": "Recording started in debug browser"}
+            except Exception as e:
+                return {"success": False, "message": str(e)}
+
+        elif cmd == "poll_recording":
+            try:
+                raw_actions = self._collect_recording_actions()
+                processed = []
+                if self._recorder_helper:
+                    for raw in raw_actions:
+                        p = self._recorder_helper._store_action(raw)
+                        if p:
+                            processed.append(p)
+                with self._lock:
+                    count = self._debug_state.get("recording_action_count", 0) + len(processed)
+                    self._debug_state["recording_action_count"] = count
+                return {"success": True, "actions": processed, "total": count}
+            except Exception as e:
+                return {"success": True, "actions": [], "error": str(e)}
+
+        elif cmd == "stop_recording":
+            try:
+                raw_actions = self._collect_recording_actions()
+                if self._recorder_helper:
+                    for raw in raw_actions:
+                        self._recorder_helper._store_action(raw)
+                    all_actions = list(self._recorder_helper.recorded_actions)
+                else:
+                    all_actions = []
+                self._remove_recorder()
+                self._update_state(recording_active=False, recording_action_count=0)
+                self._recorder_helper = None
+                return {"success": True, "actions": all_actions, "total": len(all_actions)}
+            except Exception as e:
+                self._recorder_helper = None
+                return {"success": False, "message": str(e), "actions": []}
+
+        return {"success": False, "message": f"Unknown recording command: {cmd}"}
 
     # ── Main debug execution (runs in background thread) ──────────────
 
@@ -2336,6 +2495,10 @@ class DebugExecutor(WorkflowExecutor):
                 with self._lock:
                     self._debug_state["step_by_step_mode"] = data.get("enabled", False)
                 # Don't return — stay paused (or continue running)
+            elif cmd in ("start_recording", "poll_recording", "stop_recording"):
+                result = self._handle_recording_command(cmd, data)
+                self._recording_result_queue.put(result)
+                # Don't return — stay paused
 
     def _drain_commands(self):
         """Process any pending commands from the queue (non-blocking)."""
@@ -2351,6 +2514,9 @@ class DebugExecutor(WorkflowExecutor):
                         self._debug_state["step_by_step_mode"] = data.get("enabled", False)
                 elif cmd == "stop":
                     self.should_stop = True
+                elif cmd in ("start_recording", "poll_recording", "stop_recording"):
+                    result = self._handle_recording_command(cmd, data)
+                    self._recording_result_queue.put(result)
             except queue.Empty:
                 break
 

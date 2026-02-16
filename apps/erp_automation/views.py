@@ -2776,7 +2776,7 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
         ctx["has_credentials"] = "erp_credentials" in self.request.session
         environments = ERPEnvironment.objects.all().order_by("-is_default", "name")
         ctx["environments_json"] = json.dumps([
-            {"id": e.pk, "name": e.name, "url": e.base_url, "is_default": e.is_default}
+            {"id": e.pk, "name": e.name, "url": e.url, "is_default": e.is_default}
             for e in environments
         ])
 
@@ -4179,6 +4179,171 @@ def api_debug_set_step_mode(request, pk):
     return JsonResponse({
         "success": True,
         "message": f"Step-by-step mode {'enabled' if enabled else 'disabled'}",
+    })
+
+
+# ── Debug in-browser recording (reuses debug session's browser) ──────
+
+def _save_recorded_actions(session, actions_list):
+    """Save action dicts to RecordedAction model, skipping duplicates. Returns count saved."""
+    existing_orders = set(session.actions.values_list("order", flat=True))
+    saved = 0
+    for ad in actions_list:
+        order = ad.get("order")
+        if order is None or order in existing_orders:
+            continue
+        RecordedAction.objects.create(
+            session=session,
+            order=order,
+            action_type=ad.get("action_type", ""),
+            element_tag=ad.get("element_tag", ""),
+            element_id=ad.get("element_id", ""),
+            element_name=ad.get("element_name", ""),
+            element_class=ad.get("element_class", ""),
+            element_xpath=ad.get("element_xpath", ""),
+            element_css=ad.get("element_css", ""),
+            element_text=ad.get("element_text", ""),
+            element_aria_label=ad.get("element_aria_label", ""),
+            element_placeholder=ad.get("element_placeholder", ""),
+            element_role=ad.get("element_role", ""),
+            element_type=ad.get("element_type", ""),
+            element_dyn_control_name=ad.get("element_dyn_control_name", ""),
+            element_data_testid=ad.get("element_data_testid", ""),
+            element_rect=ad.get("element_rect", {}),
+            page_url=ad.get("page_url", ""),
+            page_title=ad.get("page_title", ""),
+            input_value=ad.get("input_value", ""),
+            key_pressed=ad.get("key_pressed", ""),
+            locator_strategies=ad.get("locator_strategies", []),
+        )
+        existing_orders.add(order)
+        saved += 1
+    return saved
+
+
+@login_required
+@require_POST
+def api_debug_start_recording(request, pk):
+    """Start recording in the debug browser (inject JS, no new browser).
+
+    POST JSON: { "session_name": str, "job_data_id": int (optional) }
+    """
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"}, status=400)
+
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        body = {}
+
+    session_name = body.get("session_name", f"Debug Recording {timezone.now():%Y-%m-%d %H:%M}")
+    job_data_id = body.get("job_data_id")
+
+    job_data = None
+    if job_data_id:
+        try:
+            job_data = ERPJobData.objects.get(pk=int(job_data_id))
+        except (ERPJobData.DoesNotExist, ValueError, TypeError):
+            pass
+
+    # Create recording session record
+    session = RecordingSession.objects.create(
+        name=session_name,
+        target_url="debug://in-browser",
+        status="recording",
+        created_by=request.user,
+        job_data=job_data,
+    )
+
+    # Send command to debug thread (Playwright thread will inject JS)
+    _debug_executor.send_command("start_recording")
+    result = _debug_executor.get_recording_result(timeout=10)
+
+    if result.get("success"):
+        request.session["debug_recording_session_id"] = session.pk
+        return JsonResponse({
+            "success": True,
+            "session_id": session.pk,
+            "message": "Recording started in debug browser",
+        })
+    else:
+        session.delete()
+        return JsonResponse({"success": False, "message": result.get("message", "Failed to start")})
+
+
+@login_required
+def api_debug_poll_recording(request, pk):
+    """Poll recording actions from the debug browser. GET."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"recording": False, "actions": []})
+
+    state = _debug_executor.get_debug_state()
+    if not state.get("recording_active"):
+        return JsonResponse({"recording": False, "actions": []})
+
+    # Send poll command to debug thread
+    _debug_executor.send_command("poll_recording")
+    result = _debug_executor.get_recording_result(timeout=5)
+
+    new_actions = result.get("actions", [])
+
+    # Save to DB
+    session_id = request.session.get("debug_recording_session_id")
+    if session_id and new_actions:
+        try:
+            session = RecordingSession.objects.get(pk=session_id)
+            _save_recorded_actions(session, new_actions)
+        except Exception as e:
+            logger.warning(f"[debug-record-poll] Failed to save actions: {e}")
+
+    return JsonResponse({
+        "recording": True,
+        "actions": [
+            {"order": a.get("order"), "action_type": a.get("action_type", ""),
+             "element_name": a.get("element_name", ""), "element_id": a.get("element_id", ""),
+             "input_value": a.get("input_value", "")}
+            for a in new_actions
+        ],
+        "total": result.get("total", 0),
+    })
+
+
+@login_required
+@require_POST
+def api_debug_stop_recording(request, pk):
+    """Stop recording in the debug browser. POST."""
+    global _debug_executor
+    if _debug_executor is None:
+        return JsonResponse({"success": False, "message": "No active debug session"})
+
+    # Send stop command
+    _debug_executor.send_command("stop_recording")
+    result = _debug_executor.get_recording_result(timeout=15)
+
+    session_id = request.session.get("debug_recording_session_id")
+    all_actions = result.get("actions", [])
+    total = 0
+
+    if session_id:
+        try:
+            session = RecordingSession.objects.get(pk=session_id)
+            # Save any remaining actions not yet persisted
+            _save_recorded_actions(session, all_actions)
+            session.status = "completed"
+            session.save(update_fields=["status"])
+            total = session.actions.count()
+        except Exception as e:
+            logger.warning(f"[debug-record-stop] Error: {e}")
+
+    request.session.pop("debug_recording_session_id", None)
+
+    return JsonResponse({
+        "success": result.get("success", False),
+        "session_id": session_id,
+        "action_count": total,
+        "message": f"Recording stopped: {total} actions captured",
     })
 
 

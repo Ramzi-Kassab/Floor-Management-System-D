@@ -132,6 +132,11 @@ urlpatterns = [
     path("api/debug/<int:pk>/rerun-from-link/", views.api_debug_rerun_from_link, name="api_debug_rerun_from_link"),
     path("api/debug/<int:pk>/step-mode/", views.api_debug_set_step_mode, name="api_debug_step_mode"),
 
+    # Debug in-browser recording (reuses debug session's browser)
+    path("api/debug/<int:pk>/recording/start/", views.api_debug_start_recording, name="api_debug_start_recording"),
+    path("api/debug/<int:pk>/recording/poll/", views.api_debug_poll_recording, name="api_debug_poll_recording"),
+    path("api/debug/<int:pk>/recording/stop/", views.api_debug_stop_recording, name="api_debug_stop_recording"),
+
     # ERP Environments CRUD
     path("api/environments/", views.api_environment_list, name="api_environment_list"),
     path("api/environments/create/", views.api_environment_create, name="api_environment_create"),

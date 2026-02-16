@@ -81,8 +81,8 @@
             <button @click="expandAll()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <i data-lucide="maximize-2" class="w-4 h-4 mr-1"></i> Expand All
             </button>
-            <!-- Record Segment button (hidden during debug or active recording) -->
-            <button x-show="!debugState.active && recordState.phase === 'idle'"
+            <!-- Record Segment button (available during debug too, hidden only during active recording) -->
+            <button x-show="recordState.phase === 'idle'"
                     @click="openRecordSetup()"
                     class="inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">
                 <i data-lucide="circle" class="w-4 h-4 mr-1"></i> Record Segment
@@ -733,30 +733,43 @@
                            :placeholder="CHAIN_NAME + ' - Recorded Segment'"
                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 </div>
-                <!-- Environment -->
-                <div x-show="_environments.length > 0">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Environment</label>
-                    <select x-model="recordState.selectedEnvId" @change="onRecordEnvChange()"
-                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <template x-for="env in _environments" :key="env.id">
-                            <option :value="env.id" x-text="env.name + (env.is_default ? ' (default)' : '')"></option>
-                        </template>
-                    </select>
-                </div>
-                <!-- Target URL -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
-                    <input type="url" x-model="recordState.targetUrl"
-                           placeholder="https://ardt.operations.dynamics.com/..."
-                           class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-xs">
-                </div>
+                <!-- In-browser notice (debug mode) -->
+                <template x-if="recordState.useDebugBrowser">
+                    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div class="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                            <i data-lucide="monitor" class="w-4 h-4 flex-shrink-0"></i>
+                            <span>Recording will capture actions in the <strong>current debug browser</strong>. No new browser will be opened.</span>
+                        </div>
+                    </div>
+                </template>
+                <!-- Environment (standalone only) -->
+                <template x-if="!recordState.useDebugBrowser">
+                    <div x-show="_environments.length > 0">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Environment</label>
+                        <select x-model="recordState.selectedEnvId" @change="onRecordEnvChange()"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <template x-for="env in _environments" :key="env.id">
+                                <option :value="env.id" x-text="env.name + (env.is_default ? ' (default)' : '')"></option>
+                            </template>
+                        </select>
+                    </div>
+                </template>
+                <!-- Target URL (standalone only) -->
+                <template x-if="!recordState.useDebugBrowser">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target URL</label>
+                        <input type="url" x-model="recordState.targetUrl"
+                               placeholder="https://ardt.operations.dynamics.com/..."
+                               class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-xs">
+                    </div>
+                </template>
                 <!-- Error message -->
                 <div x-show="recordState.errorMessage" class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-sm text-red-700 dark:text-red-400" x-text="recordState.errorMessage"></div>
             </div>
             <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2 bg-gray-50 dark:bg-gray-700/30">
                 <button @click="cancelRecordSetup()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400">Cancel</button>
                 <button @click="startSegmentRecording()"
-                        :disabled="recordState.starting || !recordState.targetUrl.trim()"
+                        :disabled="recordState.starting || (!recordState.useDebugBrowser && !recordState.targetUrl.trim())"
                         class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1">
                     <i data-lucide="circle" class="w-3.5 h-3.5" x-show="!recordState.starting"></i>
                     <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin" x-show="recordState.starting"></i>
@@ -1277,6 +1290,7 @@ function chainEditor() {
         recordState: {
             active: false,
             phase: 'idle',   // idle|setup|recording|converting|done|error
+            useDebugBrowser: false,  // true = inject into debug browser, false = standalone
             sessionId: null,
             insertAfterOrder: null,
             segmentName: '',
@@ -1725,6 +1739,19 @@ function chainEditor() {
         },
 
         async debugStopExecution() {
+            // Auto-stop recording if active in debug browser
+            if (this.recordState.phase === 'recording' && this.recordState.useDebugBrowser) {
+                this._stopRecordPolling();
+                this._stopRecordTimer();
+                try {
+                    await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/stop/`, {
+                        method: 'POST', headers: { 'X-CSRFToken': CSRF },
+                    });
+                } catch(e) { /* ignore — browser is being closed anyway */ }
+                this.recordState.phase = 'idle';
+                this.recordState.active = false;
+                this.recordState.useDebugBrowser = false;
+            }
             try {
                 await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/stop/`, {
                     method: 'POST', headers: { 'X-CSRFToken': CSRF },
@@ -2208,7 +2235,11 @@ function chainEditor() {
         // ================ RECORDING METHODS ================
 
         openRecordSetup() {
-            if (!HAS_CREDENTIALS) {
+            // If debug is active, use in-browser recording (no credentials check needed)
+            this.recordState.useDebugBrowser = this.debugState.active &&
+                ['paused', 'running', 'auto_healing'].includes(this.debugState.status);
+
+            if (!this.recordState.useDebugBrowser && !HAS_CREDENTIALS) {
                 if (confirm('No ERP credentials set. Go to credentials page?')) {
                     window.open('/erp-automation/credentials/', '_blank');
                 }
@@ -2218,9 +2249,11 @@ function chainEditor() {
             this.recordState.errorMessage = '';
             this.recordState.segmentName = '';
             this.recordState.insertAfterOrder = null; // null = end
-            // Reset env URL if default env set
-            const defEnv = this._environments.find(e => e.id === this.recordState.selectedEnvId);
-            if (defEnv) this.recordState.targetUrl = defEnv.url + '?cmp=ardt&mi=DefaultDashboard';
+            if (!this.recordState.useDebugBrowser) {
+                // Standalone: reset env URL
+                const defEnv = this._environments.find(e => e.id === this.recordState.selectedEnvId);
+                if (defEnv) this.recordState.targetUrl = defEnv.url + '?cmp=ardt&mi=DefaultDashboard';
+            }
             this.$nextTick(() => lucide.createIcons());
         },
 
@@ -2235,7 +2268,7 @@ function chainEditor() {
         },
 
         async startSegmentRecording() {
-            if (!this.recordState.targetUrl.trim()) {
+            if (!this.recordState.useDebugBrowser && !this.recordState.targetUrl.trim()) {
                 this.recordState.errorMessage = 'Target URL is required';
                 return;
             }
@@ -2247,32 +2280,59 @@ function chainEditor() {
 
             const sessionName = this.recordState.segmentName.trim() || `${CHAIN_NAME} - Recorded Segment`;
 
-            const formData = new FormData();
-            formData.append('session_name', sessionName);
-            formData.append('target_url', this.recordState.targetUrl.trim());
-
-            try {
-                const resp = await fetch('/erp-automation/record/start/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': CSRF },
-                    body: formData,
-                });
-                const data = await resp.json();
-
-                if (data.success) {
-                    this.recordState.sessionId = data.session_id;
-                    this.recordState.phase = 'recording';
-                    this.recordState.active = true;
-                    this._startRecordPolling();
-                    this._startRecordTimer();
-                    this.$nextTick(() => lucide.createIcons());
-                } else {
-                    this.recordState.errorMessage = data.message || 'Failed to start recording';
+            if (this.recordState.useDebugBrowser) {
+                // ── In-browser recording via debug executor ──
+                try {
+                    const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/start/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify({ session_name: sessionName }),
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.recordState.sessionId = data.session_id;
+                        this.recordState.phase = 'recording';
+                        this.recordState.active = true;
+                        this._startDebugRecordPolling();
+                        this._startRecordTimer();
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.recordState.errorMessage = data.message || 'Failed to start recording';
+                    }
+                } catch (err) {
+                    this.recordState.errorMessage = 'Network error: ' + err.message;
+                } finally {
+                    this.recordState.starting = false;
                 }
-            } catch (err) {
-                this.recordState.errorMessage = 'Network error: ' + err.message;
-            } finally {
-                this.recordState.starting = false;
+            } else {
+                // ── Standalone recording (new browser) ──
+                const formData = new FormData();
+                formData.append('session_name', sessionName);
+                formData.append('target_url', this.recordState.targetUrl.trim());
+
+                try {
+                    const resp = await fetch('/erp-automation/record/start/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                        body: formData,
+                    });
+                    const data = await resp.json();
+
+                    if (data.success) {
+                        this.recordState.sessionId = data.session_id;
+                        this.recordState.phase = 'recording';
+                        this.recordState.active = true;
+                        this._startRecordPolling();
+                        this._startRecordTimer();
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.recordState.errorMessage = data.message || 'Failed to start recording';
+                    }
+                } catch (err) {
+                    this.recordState.errorMessage = 'Network error: ' + err.message;
+                } finally {
+                    this.recordState.starting = false;
+                }
             }
         },
 
@@ -2282,18 +2342,27 @@ function chainEditor() {
             this._stopRecordTimer();
 
             try {
-                const resp = await fetch('/erp-automation/record/stop/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': CSRF },
-                });
-                const ct = resp.headers.get('content-type') || '';
-                if (!resp.ok || !ct.includes('application/json')) {
+                // Stop recording via appropriate endpoint
+                let stopResp;
+                if (this.recordState.useDebugBrowser) {
+                    stopResp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/stop/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                    });
+                } else {
+                    stopResp = await fetch('/erp-automation/record/stop/', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': CSRF },
+                    });
+                }
+                const ct = stopResp.headers.get('content-type') || '';
+                if (!stopResp.ok || !ct.includes('application/json')) {
                     this.recordState.errorMessage = 'Stop failed (non-JSON response). Actions may have been saved.';
                     this.recordState.phase = 'error';
                     return;
                 }
 
-                const data = await resp.json();
+                const data = await stopResp.json();
                 if (!data.success) {
                     this.recordState.errorMessage = data.message || 'Failed to stop recording';
                     this.recordState.phase = 'error';
@@ -2348,6 +2417,52 @@ function chainEditor() {
             if (this.recordState.pollInterval) {
                 clearInterval(this.recordState.pollInterval);
                 this.recordState.pollInterval = null;
+            }
+        },
+
+        // Debug browser recording polling (separate from standalone)
+        _startDebugRecordPolling() {
+            this.recordState.pollErrorCount = 0;
+            this.recordState.pollInterval = setInterval(() => this._pollDebugRecordActions(), 2000);
+        },
+
+        async _pollDebugRecordActions() {
+            try {
+                const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/recording/poll/`);
+                const ct = resp.headers.get('content-type') || '';
+                if (!resp.ok || !ct.includes('application/json')) {
+                    this.recordState.pollErrorCount++;
+                    if (this.recordState.pollErrorCount > 15) {
+                        this._stopRecordPolling();
+                        this.recordState.errorMessage = 'Polling lost connection.';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                this.recordState.pollErrorCount = 0;
+
+                if (!data.recording) {
+                    // Recording was stopped externally
+                    this._stopRecordPolling();
+                    this._stopRecordTimer();
+                    this.recordState.phase = 'idle';
+                    this.recordState.active = false;
+                    return;
+                }
+                if (data.actions) {
+                    for (const action of data.actions) {
+                        if (!this.recordState.capturedActions.find(a => a.order === action.order)) {
+                            this.recordState.capturedActions.push(action);
+                        }
+                    }
+                    this.recordState.actionCount = data.total || this.recordState.capturedActions.length;
+                }
+            } catch (err) {
+                this.recordState.pollErrorCount++;
+                if (this.recordState.pollErrorCount > 15) {
+                    this._stopRecordPolling();
+                    this.recordState.errorMessage = 'Polling lost connection.';
+                }
             }
         },
 
