@@ -840,6 +840,22 @@ class WorkflowExecutor:
         # Get the value to use (from static, field, or template)
         value = step.get_value(row_data, self.context_vars)
 
+        # ── PAGE AWARENESS: Pre-step state ─────────────────────────
+        _page_reader = None
+        _pre_grid_rows = None
+        if self.page:
+            try:
+                from .page_awareness import D365PageReader
+                _page_reader = D365PageReader(self.page)
+                pre_state = _page_reader.snapshot_short()
+                logger.info(f"[PageState] BEFORE '{step.name}': {pre_state}")
+
+                # For "New" actions on grids, capture row count for comparison
+                if step.action_type == 'click' and step.name and 'new' in step.name.lower():
+                    _pre_grid_rows = _page_reader.count_grid_rows()
+            except Exception as pa_err:
+                logger.debug(f"[PageState] Pre-step read failed: {pa_err}")
+
         # Special actions that don't need a locator
         if step.action_type == "wait_time":
             wait_ms = int(value) if value else step.wait_after
@@ -855,6 +871,16 @@ class WorkflowExecutor:
             except PlaywrightTimeout:
                 pass  # D365 SPA may not trigger full load state change
             self.page.wait_for_timeout(min(wait_ms, 3000))
+            # ── PAGE AWARENESS: Post-navigate state ──────────
+            if _page_reader:
+                try:
+                    post_state = _page_reader.snapshot_short()
+                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                    ctx = _page_reader.get_page_context()
+                    if ctx.get("form_name"):
+                        logger.info(f"[PageState] 📍 Now on form: {ctx['form_name']} — {ctx.get('title', '')}")
+                except Exception:
+                    pass
             return {"success": True, "message": f"Navigation wait {wait_ms}ms"}
 
         if step.action_type == "press_key":
@@ -865,19 +891,53 @@ class WorkflowExecutor:
             logger.info(f"[press_key] Pressed '{key}'")
             if step.wait_after > 0:
                 self.page.wait_for_timeout(step.wait_after)
+            # ── PAGE AWARENESS: Post-press_key state ─────────
+            if _page_reader:
+                try:
+                    post_state = _page_reader.snapshot_short()
+                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                except Exception:
+                    pass
             return {"success": True, "message": f"Pressed {key}"}
 
         if step.action_type == "type_text":
-            # Type text into whatever element currently has focus (no locator needed)
+            # Type text into the focused element. If a locator is provided,
+            # first verify/click it to ensure focus is on the correct field.
             if not value:
                 return {"success": False, "message": "No value for type_text"}
             try:
+                # --- Focus verification: if locator exists, confirm field before typing ---
+                if step.locator:
+                    logger.info(f"[type_text] Locator provided — verifying focus on '{step.locator.name}'")
+                    from .locator_engine import LocatorEngine
+                    engine = LocatorEngine(self.page)
+                    el = engine.find_element(step.locator)
+                    if el:
+                        # Check if this element already has focus
+                        is_focused = False
+                        try:
+                            is_focused = el.evaluate("el => el === document.activeElement")
+                        except Exception:
+                            pass
+                        if is_focused:
+                            logger.info(f"[type_text] Focus verified — already on '{step.locator.name}'")
+                        else:
+                            logger.info(f"[type_text] Focus MISMATCH — clicking '{step.locator.name}' to correct")
+                            try:
+                                el.click(timeout=3000)
+                                self.page.wait_for_timeout(300)
+                            except Exception as click_err:
+                                logger.warning(f"[type_text] Click to fix focus failed: {click_err}")
+                    else:
+                        logger.warning(f"[type_text] Locator '{step.locator.name}' not found — typing into current focus")
+
                 if step.clear_before_fill:
                     self.page.keyboard.press("Control+a")
                     self.page.keyboard.press("Delete")
                     self.page.wait_for_timeout(200)
                 self.page.keyboard.insert_text(value)
-                logger.info(f"[type_text] Inserted '{value}' into focused element")
+                target_info = f"'{step.locator.name}'" if step.locator else "focused element"
+                logger.info(f"[type_text] Inserted '{value}' into {target_info}")
                 if step.press_key_after:
                     self.page.wait_for_timeout(300)
                     self.page.keyboard.press(step.press_key_after)
@@ -885,7 +945,37 @@ class WorkflowExecutor:
                 if step.wait_after > 0:
                     logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
                     self.page.wait_for_timeout(step.wait_after)
-                return {"success": True, "message": f"Typed '{value}' into focused element"}
+
+                # ── PAGE AWARENESS: Post-type_text verification ───────
+                result = {"success": True, "message": f"Typed '{value}' into {target_info}"}
+                if _page_reader:
+                    try:
+                        post_state = _page_reader.snapshot_short()
+                        logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+
+                        # Read back focused field to verify value was accepted
+                        focused_after = _page_reader.get_focused_field()
+                        actual_val = focused_after.get("value", "")
+                        # After press_key_after (Enter/Tab/Escape), focus may have
+                        # moved away — so check the locator's element value instead
+                        if step.locator:
+                            field_val = _page_reader.get_field_value(
+                                step.locator.name.split("_")[-1]  # Try short name
+                            )
+                            if field_val is None:
+                                # Fallback: try dyn_control from locator name
+                                field_val = actual_val
+                            actual_val = field_val or actual_val
+
+                        if actual_val and value.strip() in actual_val.strip():
+                            logger.info(f"[PageState] ✓ type_text verified: '{actual_val}'")
+                            result["value_verified"] = True
+                        elif actual_val:
+                            logger.warning(f"[PageState] ⚠ type_text value check: typed '{value}', field now has '{actual_val}'")
+                            result["value_after"] = actual_val
+                    except Exception as pa_err:
+                        logger.debug(f"[PageState] type_text post-check failed: {pa_err}")
+                return result
             except Exception as e:
                 return {"success": False, "message": f"type_text failed: {e}"}
 
@@ -1059,6 +1149,13 @@ class WorkflowExecutor:
                 if clicked:
                     if step.wait_after > 0:
                         self.page.wait_for_timeout(step.wait_after)
+                    # ── PAGE AWARENESS: Post-select_grid_row state ────
+                    if _page_reader:
+                        try:
+                            post_state = _page_reader.snapshot_short()
+                            logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                        except Exception:
+                            pass
                     return {"success": True, "message": f"Selected row '{search_value}' via Playwright {method}"}
                 else:
                     return {"success": False, "message": f"Found '{search_value}' but Playwright click failed"}
@@ -1178,6 +1275,37 @@ class WorkflowExecutor:
                     # Save result to context if requested
                     if step.save_result_as:
                         self.context_vars[step.save_result_as] = value or result.get("value")
+
+                    # ── PAGE AWARENESS: Post-step verification ───────
+                    if _page_reader:
+                        try:
+                            post_state = _page_reader.snapshot_short()
+                            logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+
+                            # Verify fill/type actions: read back the value
+                            if step.action_type == 'fill' and value and element:
+                                actual = _page_reader.get_field_value_by_element(element)
+                                if actual is not None:
+                                    if value.strip() in actual.strip() or actual.strip() in value.strip():
+                                        logger.info(f"[PageState] ✓ Value verified: '{actual}'")
+                                        result["value_verified"] = True
+                                    else:
+                                        logger.warning(f"[PageState] ✗ VALUE MISMATCH: set '{value}' but field has '{actual}'")
+                                        result["value_verified"] = False
+                                        result["actual_value"] = actual
+
+                            # Verify grid "New" click: row count should increase
+                            if _pre_grid_rows is not None:
+                                post_rows = _page_reader.count_grid_rows()
+                                delta = post_rows - _pre_grid_rows
+                                if delta > 0:
+                                    logger.info(f"[PageState] ✓ Grid rows: {_pre_grid_rows} → {post_rows} (+{delta})")
+                                    result["grid_row_added"] = True
+                                else:
+                                    logger.warning(f"[PageState] ✗ Grid rows UNCHANGED: {_pre_grid_rows} → {post_rows}")
+                                    result["grid_row_added"] = False
+                        except Exception as pa_err:
+                            logger.debug(f"[PageState] Post-step read failed: {pa_err}")
 
                     return result
 
@@ -2373,6 +2501,22 @@ class DebugExecutor(WorkflowExecutor):
             loop_info = f" [Loop {loop_ctx.get('LOOP_ITERATION','?')}: {loop_ctx.get('LOOP_ITEM','')}]" if loop_ctx else ""
             logger.info(f"[DebugExec] [{idx+1}/{total_steps}] Step {step.order}: {step.name}{loop_info}")
             result = self._execute_step(step, step_row_data)
+
+            # ── PAGE AWARENESS: Capture page state for debug UI ──────
+            if self.page:
+                try:
+                    from .page_awareness import D365PageReader
+                    _reader = D365PageReader(self.page)
+                    page_state = _reader.snapshot()
+                    page_state["step_result"] = {
+                        "value_verified": result.get("value_verified"),
+                        "actual_value": result.get("actual_value"),
+                        "value_after": result.get("value_after"),
+                        "grid_row_added": result.get("grid_row_added"),
+                    }
+                    self._update_state(page_state=page_state)
+                except Exception as pa_err:
+                    logger.debug(f"[PageState] Debug state capture failed: {pa_err}")
 
             if result["success"]:
                 steps_completed += 1

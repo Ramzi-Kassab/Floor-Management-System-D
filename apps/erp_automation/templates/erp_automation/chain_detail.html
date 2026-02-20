@@ -171,6 +171,79 @@
         </div>
     </template>
 
+    <!-- ============ PAGE STATE PANEL (Debug Mode) ============ -->
+    <template x-if="debugState.active && debugState.pageState">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Page State</span>
+                    <span class="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded"
+                          x-text="debugState.pageState?.page?.form_name || 'unknown'"></span>
+                </div>
+                <button @click="debugState._showPageState = !debugState._showPageState"
+                        class="text-xs text-gray-400 hover:text-gray-600">
+                    <span x-text="debugState._showPageState === false ? 'Show' : 'Hide'"></span>
+                </button>
+            </div>
+            <div x-show="debugState._showPageState !== false" class="space-y-1.5">
+                <!-- Focused field -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Focus:</span>
+                    <span class="font-mono text-gray-700 dark:text-gray-300"
+                          x-text="debugState.pageState?.focused?.dyn_control || debugState.pageState?.focused?.name || debugState.pageState?.focused?.label || debugState.pageState?.focused?.tag || '—'"></span>
+                    <template x-if="debugState.pageState?.focused?.value">
+                        <span class="text-gray-400">= "<span class="text-amber-600 dark:text-amber-400" x-text="debugState.pageState.focused.value"></span>"</span>
+                    </template>
+                </div>
+                <!-- Grid rows -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Grid:</span>
+                    <span class="font-mono" :class="{
+                        'text-gray-700 dark:text-gray-300': debugState.pageState?.grid_rows > 0,
+                        'text-gray-400': !debugState.pageState?.grid_rows
+                    }" x-text="(debugState.pageState?.grid_rows || 0) + ' rows'"></span>
+                    <!-- Grid row added/unchanged indicator -->
+                    <template x-if="debugState.pageState?.step_result?.grid_row_added === true">
+                        <span class="text-green-600 dark:text-green-400 font-medium">+1 row</span>
+                    </template>
+                    <template x-if="debugState.pageState?.step_result?.grid_row_added === false">
+                        <span class="text-red-500 font-medium">unchanged</span>
+                    </template>
+                </div>
+                <!-- Page context -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Page:</span>
+                    <span class="text-gray-600 dark:text-gray-400 truncate"
+                          x-text="debugState.pageState?.page?.title || '—'"></span>
+                </div>
+                <!-- Value verification -->
+                <template x-if="debugState.pageState?.step_result?.value_verified === true">
+                    <div class="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                        <span>Value verified</span>
+                    </div>
+                </template>
+                <template x-if="debugState.pageState?.step_result?.value_verified === false">
+                    <div class="flex items-center gap-1 text-xs text-red-500">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        <span>VALUE MISMATCH — actual: "<span class="font-mono" x-text="debugState.pageState.step_result.actual_value"></span>"</span>
+                    </div>
+                </template>
+                <!-- Errors detected -->
+                <template x-if="debugState.pageState?.errors?.length > 0">
+                    <div class="mt-1 p-1.5 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600 dark:text-red-400">
+                        <template x-for="err in debugState.pageState.errors" :key="err.text">
+                            <div class="flex items-start gap-1">
+                                <span class="font-medium uppercase" x-text="err.type + ':'"></span>
+                                <span x-text="err.text"></span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
     <!-- ============ SEGMENTS ACCORDION ============ -->
     <template x-for="(seg, segIdx) in segments" :key="seg.link_id">
         <div :id="'segment-' + segIdx"
@@ -343,6 +416,16 @@
                                                 </template>
                                                 <template x-if="step.check_for_errors">
                                                     <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Checks for D365 errors">ERR</span>
+                                                </template>
+                                                <template x-if="step.repeat_group">
+                                                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                                                          :title="'Repeat group: ' + step.repeat_group + (step.repeat_data_source ? ' (source: ' + step.repeat_data_source + ')' : '')"
+                                                          x-text="'LOOP: ' + step.repeat_group"></span>
+                                                </template>
+                                                <!-- Show loop iteration during debug -->
+                                                <template x-if="debugState.active && debugState.currentStep && debugState.currentStep.id === step.id && debugState.currentStep.loop_iteration">
+                                                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-600 text-white font-medium"
+                                                          x-text="'Iter ' + debugState.currentStep.loop_iteration + '/' + debugState.currentStep.loop_count"></span>
                                                 </template>
                                             </div>
                                         </template>
@@ -1306,6 +1389,9 @@ function chainEditor() {
             breakpointStepIds: new Set(),
             // Step-by-step mode
             stepByStepMode: false,
+            // Page awareness state from D365PageReader
+            pageState: null,
+            _showPageState: true,
             // Track which segments have been completed (by link_order — unique per chain)
             _completedLinkOrders: new Set(),
             _skippedLinkOrders: new Set(),
@@ -1542,6 +1628,11 @@ function chainEditor() {
                 // Screenshot
                 if (data.screenshot_base64 && this.debugState.status === 'paused') {
                     this.debugState.screenshotBase64 = data.screenshot_base64;
+                }
+
+                // Page state from D365PageReader
+                if (data.page_state) {
+                    this.debugState.pageState = data.page_state;
                 }
 
                 // Pre-fill tester when newly paused
