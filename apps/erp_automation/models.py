@@ -414,6 +414,20 @@ class WorkflowStep(models.Model):
         help_text="Save step result to context with this key"
     )
 
+    # Repeat group — loop a group of steps over an array in row_data
+    repeat_group = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Loop group name (e.g., 'bom_lines'). Consecutive steps with the same group repeat together."
+    )
+    repeat_data_source = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Key in row_data containing the list to iterate (e.g., 'BOM_LINES'). Only needed on the first step of the group."
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1161,6 +1175,12 @@ class ERPJobData(models.Model):
             else:
                 row[f'BOM_LINE_{i+1}_ITEM'] = ''
                 row[f'BOM_LINE_{i+1}_QTY'] = ''
+
+        # BOM_LINES: list of dicts for repeat-group loop iteration (unlimited)
+        row['BOM_LINES'] = [
+            {'ITEM': item, 'QTY': qty}
+            for item, qty in flat_lines
+        ]
 
         return row
 

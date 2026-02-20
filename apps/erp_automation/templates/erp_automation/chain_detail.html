@@ -344,6 +344,16 @@
                                                 <template x-if="step.check_for_errors">
                                                     <span class="ml-1 text-xs px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" title="Checks for D365 errors">ERR</span>
                                                 </template>
+                                                <template x-if="step.repeat_group">
+                                                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                                                          :title="'Repeat group: ' + step.repeat_group + (step.repeat_data_source ? ' (source: ' + step.repeat_data_source + ')' : '')"
+                                                          x-text="'LOOP: ' + step.repeat_group"></span>
+                                                </template>
+                                                <!-- Show loop iteration during debug -->
+                                                <template x-if="debugState.active && debugState.currentStep && debugState.currentStep.id === step.id && debugState.currentStep.loop_iteration">
+                                                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-600 text-white font-medium"
+                                                          x-text="'Iter ' + debugState.currentStep.loop_iteration + '/' + debugState.currentStep.loop_count"></span>
+                                                </template>
                                             </div>
                                         </template>
                                         <template x-if="editingStep === step.id">

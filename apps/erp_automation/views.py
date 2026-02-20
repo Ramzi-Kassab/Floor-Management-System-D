@@ -2703,6 +2703,8 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
             "press_key_after": s.press_key_after,
             "clear_before_fill": s.clear_before_fill,
             "interaction_mode": s.interaction_mode or "auto",
+            "repeat_group": s.repeat_group or "",
+            "repeat_data_source": s.repeat_data_source or "",
         }
 
     def get_context_data(self, **kwargs):
@@ -3253,6 +3255,8 @@ def _step_to_dict(step):
         "press_key_after": step.press_key_after or "",
         "clear_before_fill": step.clear_before_fill,
         "interaction_mode": step.interaction_mode or "auto",
+        "repeat_group": step.repeat_group or "",
+        "repeat_data_source": step.repeat_data_source or "",
     }
 
 
@@ -3315,6 +3319,8 @@ def api_step_create(request, wf_pk):
             press_key_after=data.get("press_key_after") or "",
             clear_before_fill=bool(data.get("clear_before_fill")),
             interaction_mode=data.get("interaction_mode") or "auto",
+            repeat_group=data.get("repeat_group") or "",
+            repeat_data_source=data.get("repeat_data_source") or "",
         )
 
         # Renumber all steps sequentially (1, 2, 3, ...)
@@ -3356,7 +3362,7 @@ def api_step_update(request, wf_pk, step_pk):
     # Update fields if provided
     for field in ["name", "action_type", "value_static", "value_field",
                   "value_template", "condition_value", "press_key_after",
-                  "interaction_mode"]:
+                  "interaction_mode", "repeat_group", "repeat_data_source"]:
         if field in data:
             setattr(step, field, data[field])
 
@@ -3567,6 +3573,8 @@ def api_workflow_steps(request, wf_pk):
             "press_key_after": s.press_key_after,
             "clear_before_fill": s.clear_before_fill,
             "interaction_mode": s.interaction_mode or "auto",
+            "repeat_group": s.repeat_group or "",
+            "repeat_data_source": s.repeat_data_source or "",
         })
     return JsonResponse({"steps": steps})
 
@@ -3720,6 +3728,8 @@ def api_chain_all_steps(request, pk):
                 "press_key_after": s.press_key_after,
                 "clear_before_fill": s.clear_before_fill,
                 "interaction_mode": s.interaction_mode or "auto",
+                "repeat_group": s.repeat_group or "",
+                "repeat_data_source": s.repeat_data_source or "",
             })
         segments.append({
             "link_id": link.pk,

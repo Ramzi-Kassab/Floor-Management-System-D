@@ -675,15 +675,50 @@ class WorkflowExecutor:
                 logger.info(f"Condition: {workflow.condition_field}={condition_value}")
 
             # Get steps for this condition
-            steps = workflow.get_steps_for_condition(condition_value)
+            raw_steps = list(workflow.get_steps_for_condition(condition_value))
 
-            total_steps = steps.count()
-            logger.info(f"Executing workflow '{workflow.name}' with {total_steps} steps")
+            # ── Expand repeat groups ──────────────────────────────────
+            expanded_steps = []  # list of (WorkflowStep, loop_context_or_None)
+            ri = 0
+            while ri < len(raw_steps):
+                s = raw_steps[ri]
+                if s.repeat_group:
+                    group_name = s.repeat_group
+                    group_steps = []
+                    data_source_key = None
+                    while ri < len(raw_steps) and raw_steps[ri].repeat_group == group_name:
+                        if raw_steps[ri].repeat_data_source:
+                            data_source_key = raw_steps[ri].repeat_data_source
+                        group_steps.append(raw_steps[ri])
+                        ri += 1
+                    data_source_key = data_source_key or group_name.upper()
+                    loop_data = row_data.get(data_source_key, []) if row_data else []
+                    if isinstance(loop_data, list):
+                        for loop_idx, loop_item in enumerate(loop_data):
+                            loop_ctx = {'LOOP_INDEX': str(loop_idx), 'LOOP_ITERATION': str(loop_idx + 1)}
+                            if isinstance(loop_item, dict):
+                                for k, v in loop_item.items():
+                                    loop_ctx[f'LOOP_{k}'] = str(v) if v else ''
+                            for gs in group_steps:
+                                expanded_steps.append((gs, loop_ctx))
+                else:
+                    expanded_steps.append((s, None))
+                    ri += 1
 
-            for step in steps:
+            total_steps = len(expanded_steps)
+            logger.info(f"Executing workflow '{workflow.name}' with {total_steps} steps (expanded)")
+
+            for step, loop_ctx in expanded_steps:
                 if self.should_stop:
                     logger.info("Workflow stopped by user")
                     break
+
+                # Merge loop context
+                if loop_ctx:
+                    step_row_data = dict(row_data) if row_data else {}
+                    step_row_data.update(loop_ctx)
+                else:
+                    step_row_data = row_data
 
                 # Check if browser is still alive before each step
                 if not self.is_browser_alive():
@@ -709,8 +744,9 @@ class WorkflowExecutor:
                     self.on_step_start(step, steps_completed, total_steps)
 
                 # Execute step
-                logger.info(f"[{steps_completed+1}/{total_steps}] Step {step.order}: {step.name} ({step.action_type})")
-                result = self._execute_step(step, row_data)
+                loop_info = f" [Loop {loop_ctx['LOOP_ITERATION']}: {loop_ctx.get('LOOP_ITEM','')}]" if loop_ctx else ""
+                logger.info(f"[{steps_completed+1}/{total_steps}] Step {step.order}: {step.name}{loop_info} ({step.action_type})")
+                result = self._execute_step(step, step_row_data)
 
                 if result["success"]:
                     steps_completed += 1
@@ -823,8 +859,35 @@ class WorkflowExecutor:
 
         if step.action_type == "press_key":
             key = value or step.press_key_after
+            if not key:
+                return {"success": False, "message": "No key specified for press_key"}
             self.page.keyboard.press(key)
+            logger.info(f"[press_key] Pressed '{key}'")
+            if step.wait_after > 0:
+                self.page.wait_for_timeout(step.wait_after)
             return {"success": True, "message": f"Pressed {key}"}
+
+        if step.action_type == "type_text":
+            # Type text into whatever element currently has focus (no locator needed)
+            if not value:
+                return {"success": False, "message": "No value for type_text"}
+            try:
+                if step.clear_before_fill:
+                    self.page.keyboard.press("Control+a")
+                    self.page.keyboard.press("Delete")
+                    self.page.wait_for_timeout(200)
+                self.page.keyboard.insert_text(value)
+                logger.info(f"[type_text] Inserted '{value}' into focused element")
+                if step.press_key_after:
+                    self.page.wait_for_timeout(300)
+                    self.page.keyboard.press(step.press_key_after)
+                    logger.info(f"[type_text] Pressed '{step.press_key_after}' after typing")
+                if step.wait_after > 0:
+                    logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
+                    self.page.wait_for_timeout(step.wait_after)
+                return {"success": True, "message": f"Typed '{value}' into focused element"}
+            except Exception as e:
+                return {"success": False, "message": f"type_text failed: {e}"}
 
         if step.action_type == "screenshot":
             path = os.path.join(self.screenshots_dir, f"step_{step.order}.png")
@@ -846,10 +909,10 @@ class WorkflowExecutor:
 
         if step.action_type == "select_grid_row":
             # Search a D365 grid for a row where a column matches the value,
-            # then click the row selector (radio button) on that row.
-            # value = the search text (e.g. MAT# from {{MAT NO.}})
-            # value_field = column header text to search in (e.g. "Name")
-            # Falls back to clicking any cell in the matching row.
+            # then click it using Playwright (NOT JS .click() which doesn't
+            # trigger D365 custom event handlers on dyn-hyperlink elements).
+            # value = the search text (e.g. route number from {{ROUTE}})
+            # value_field = column header text to search in (e.g. "Route number")
             search_value = (value or "").strip()
             column_header = (step.value_field or "Name").strip()
             if not search_value:
@@ -857,23 +920,18 @@ class WorkflowExecutor:
 
             logger.info(f"select_grid_row: searching '{column_header}' column for '{search_value}'")
 
-            # JavaScript to find the row in a D365 grid and click its selector
+            # Phase 1: Use JS to FIND the element and return its selector (not click it)
             js_result = self.page.evaluate("""(args) => {
                 const { searchValue, columnHeader } = args;
 
-                // D365 grid cells contain <input> elements — text is in .value not .textContent
                 function getCellText(cell) {
-                    // Check input/textarea value first (D365 pattern)
                     const input = cell.querySelector('input, textarea');
                     if (input && input.value) return input.value.trim();
-                    // Check title attribute (D365 sometimes uses this)
                     if (cell.title) return cell.title.trim();
-                    // Fallback to textContent
                     return (cell.textContent || '').trim();
                 }
 
-                function searchInDocument(doc) {
-                    // Strategy 1: Find column index from header, then match cell value
+                function searchInDocument(doc, isIframe, frameIdx) {
                     const headers = doc.querySelectorAll('th, [role="columnheader"]');
                     let colIdx = -1;
                     for (let i = 0; i < headers.length; i++) {
@@ -884,13 +942,11 @@ class WorkflowExecutor:
                         }
                     }
 
-                    // Get all grid rows
                     const rows = doc.querySelectorAll('tr[role="row"], [role="row"]');
                     for (const row of rows) {
                         const cells = row.querySelectorAll('td, [role="gridcell"]');
                         if (cells.length === 0) continue;
 
-                        // Check if any cell matches (prefer column index if found)
                         let matched = false;
                         let matchedCell = null;
                         if (colIdx >= 0 && colIdx < cells.length) {
@@ -900,7 +956,6 @@ class WorkflowExecutor:
                                 matchedCell = cells[colIdx];
                             }
                         }
-                        // Fallback: check all cells
                         if (!matched) {
                             for (const cell of cells) {
                                 const cellText = getCellText(cell);
@@ -913,44 +968,50 @@ class WorkflowExecutor:
                         }
 
                         if (matched) {
-                            // Try to click the row selector (radio button)
+                            // Return info about the found element for Playwright to click
+                            // Prefer the input inside the matched cell
+                            let target = null;
+
+                            // Try row radio button first
                             const radio = row.querySelector('input[type="radio"], [role="radio"]');
-                            if (radio) { radio.click(); return { success: true, method: 'radio' }; }
-
-                            // Try clicking the matched cell's input (focuses the row in D365)
-                            if (matchedCell) {
-                                const input = matchedCell.querySelector('input');
-                                if (input) { input.click(); return { success: true, method: 'cell_input' }; }
+                            if (radio) {
+                                target = radio;
+                            } else if (matchedCell) {
+                                // Use the matched cell's input
+                                target = matchedCell.querySelector('input') || matchedCell;
+                            } else {
+                                target = row;
                             }
 
-                            // Try first cell (BOM number cell)
-                            const firstCell = cells[0];
-                            if (firstCell) {
-                                const input = firstCell.querySelector('input');
-                                if (input) { input.click(); return { success: true, method: 'first_input' }; }
-                                const link = firstCell.querySelector('a, button, span[tabindex]');
-                                if (link) { link.click(); return { success: true, method: 'first_cell_link' }; }
-                                firstCell.click();
-                                return { success: true, method: 'first_cell' };
-                            }
-
-                            row.click();
-                            return { success: true, method: 'row' };
+                            // Get bounding rect for Playwright click
+                            const rect = target.getBoundingClientRect();
+                            // Also get input ID/value for Playwright locator fallback
+                            const inputEl = matchedCell ? matchedCell.querySelector('input') : null;
+                            return {
+                                success: true,
+                                x: Math.round(rect.x + rect.width / 2),
+                                y: Math.round(rect.y + rect.height / 2),
+                                inputId: inputEl ? inputEl.id : null,
+                                inputValue: inputEl ? inputEl.value : null,
+                                isIframe: isIframe,
+                                frameIdx: frameIdx,
+                                method: radio ? 'radio' : 'cell'
+                            };
                         }
                     }
                     return null;
                 }
 
                 // Search main document
-                let result = searchInDocument(document);
+                let result = searchInDocument(document, false, -1);
                 if (result) return result;
 
-                // Search all iframes
+                // Search iframes
                 const frames = document.querySelectorAll('iframe');
-                for (const frame of frames) {
+                for (let fi = 0; fi < frames.length; fi++) {
                     try {
-                        const fDoc = frame.contentDocument || frame.contentWindow.document;
-                        result = searchInDocument(fDoc);
+                        const fDoc = frames[fi].contentDocument || frames[fi].contentWindow.document;
+                        result = searchInDocument(fDoc, true, fi);
                         if (result) return result;
                     } catch (e) { /* cross-origin */ }
                 }
@@ -960,17 +1021,78 @@ class WorkflowExecutor:
 
             if js_result and js_result.get("success"):
                 method = js_result.get("method", "unknown")
-                logger.info(f"select_grid_row: found and clicked via {method}")
-                return {"success": True, "message": f"Selected row matching '{search_value}' via {method}"}
+                x, y = js_result.get("x", 0), js_result.get("y", 0)
+                input_id = js_result.get("inputId")
+                logger.info(f"select_grid_row: found '{search_value}' via {method} at ({x},{y}) inputId={input_id}")
+
+                # Phase 2: Use Playwright to perform the actual click
+                # D365 dyn-hyperlink inputs need real mouse events, not JS .click()
+                clicked = False
+
+                # Try 1: Click by input ID if available (most precise)
+                if input_id and not clicked:
+                    try:
+                        target = js_result.get("isIframe") and js_result.get("frameIdx", -1) >= 0
+                        if target:
+                            frame = self.page.frames[js_result["frameIdx"] + 1]  # +1 for main frame
+                            locator = frame.locator(f"#{input_id}")
+                        else:
+                            locator = self.page.locator(f"#{input_id}")
+                        locator.click(timeout=5000)
+                        clicked = True
+                        logger.info(f"select_grid_row: Playwright clicked #{input_id}")
+                    except Exception as e:
+                        logger.debug(f"select_grid_row: ID click failed: {e}")
+
+                # Try 2: Click by input[value] selector
+                if not clicked and js_result.get("inputValue"):
+                    try:
+                        sel = f"input[value='{search_value}']"
+                        locator = self.page.locator(sel).first
+                        locator.click(timeout=5000)
+                        clicked = True
+                        logger.info(f"select_grid_row: Playwright clicked input[value='{search_value}']")
+                    except Exception as e:
+                        logger.debug(f"select_grid_row: value selector click failed: {e}")
+
+                # Try 3: Click by coordinates from JS bounding rect
+                if not clicked and x > 0 and y > 0:
+                    try:
+                        self.page.mouse.click(x, y)
+                        clicked = True
+                        logger.info(f"select_grid_row: Playwright mouse.click({x},{y})")
+                    except Exception as e:
+                        logger.debug(f"select_grid_row: coordinate click failed: {e}")
+
+                if clicked:
+                    if step.wait_after > 0:
+                        self.page.wait_for_timeout(step.wait_after)
+                    return {"success": True, "message": f"Selected row '{search_value}' via Playwright {method}"}
+                else:
+                    return {"success": False, "message": f"Found '{search_value}' but Playwright click failed"}
             else:
                 err = js_result.get("error", "Unknown") if js_result else "JS returned null"
                 logger.warning(f"select_grid_row failed: {err}")
 
-                # Fallback: try Playwright locator for text match
+                # Fallback: try Playwright locator for input[value] directly
+                try:
+                    locator = self.page.locator(f"input[value='{search_value}']").first
+                    if locator.is_visible(timeout=5000):
+                        locator.click()
+                        logger.info(f"select_grid_row: fallback clicked input[value='{search_value}']")
+                        if step.wait_after > 0:
+                            self.page.wait_for_timeout(step.wait_after)
+                        return {"success": True, "message": f"Selected row via input[value] fallback for '{search_value}'"}
+                except Exception:
+                    pass
+
+                # Fallback: try Playwright text locator
                 try:
                     row_locator = self.page.locator(f"text='{search_value}'").first
                     if row_locator.is_visible(timeout=3000):
                         row_locator.click()
+                        if step.wait_after > 0:
+                            self.page.wait_for_timeout(step.wait_after)
                         return {"success": True, "message": f"Selected row via text locator for '{search_value}'"}
                 except Exception:
                     pass
@@ -2113,13 +2235,66 @@ class DebugExecutor(WorkflowExecutor):
                 row_data.get(workflow.condition_field, "")
             )
 
-        steps = list(workflow.get_steps_for_condition(condition_value))
+        raw_steps = list(workflow.get_steps_for_condition(condition_value))
+
+        # ── Expand repeat groups ──────────────────────────────────
+        # Steps with the same repeat_group are executed once per item
+        # in the data source array. We expand them into (step, loop_ctx)
+        # tuples where loop_ctx is None for normal steps or a dict with
+        # LOOP_ITEM, LOOP_QTY, LOOP_INDEX for repeat iterations.
+        steps = []  # list of (WorkflowStep, loop_context_dict_or_None)
+        i = 0
+        while i < len(raw_steps):
+            s = raw_steps[i]
+            if s.repeat_group:
+                # Collect all consecutive steps with same repeat_group
+                group_name = s.repeat_group
+                group_steps = []
+                data_source_key = None
+                while i < len(raw_steps) and raw_steps[i].repeat_group == group_name:
+                    if raw_steps[i].repeat_data_source:
+                        data_source_key = raw_steps[i].repeat_data_source
+                    group_steps.append(raw_steps[i])
+                    i += 1
+                # Get the data array from row_data
+                data_source_key = data_source_key or group_name.upper()
+                loop_data = row_data.get(data_source_key, []) if row_data else []
+                if not isinstance(loop_data, list):
+                    loop_data = []
+                if not loop_data:
+                    logger.warning(f"[DebugExec] Repeat group '{group_name}': no data in '{data_source_key}', skipping {len(group_steps)} steps")
+                else:
+                    logger.info(f"[DebugExec] Repeat group '{group_name}': {len(loop_data)} iterations × {len(group_steps)} steps")
+                    for loop_idx, loop_item in enumerate(loop_data):
+                        loop_ctx = {
+                            'LOOP_INDEX': str(loop_idx),
+                            'LOOP_ITERATION': str(loop_idx + 1),
+                        }
+                        # Merge all keys from the loop item dict
+                        if isinstance(loop_item, dict):
+                            for k, v in loop_item.items():
+                                loop_ctx[f'LOOP_{k}'] = str(v) if v else ''
+                        else:
+                            loop_ctx['LOOP_VALUE'] = str(loop_item)
+                        for gs in group_steps:
+                            steps.append((gs, loop_ctx))
+            else:
+                steps.append((s, None))
+                i += 1
+
         total_steps = len(steps)
         self._update_state(total_steps=total_steps)
 
         idx = 0
         while idx < len(steps):
-            step = steps[idx]
+            step, loop_ctx = steps[idx]
+
+            # Merge loop context into row_data for template resolution
+            if loop_ctx:
+                step_row_data = dict(row_data) if row_data else {}
+                step_row_data.update(loop_ctx)
+            else:
+                step_row_data = row_data
 
             if self.should_stop:
                 logger.info("[DebugExec] Stopped by user")
@@ -2155,7 +2330,7 @@ class DebugExecutor(WorkflowExecutor):
                         "action_type": step.action_type,
                         "locator_name": step.locator.name if step.locator else None,
                         "locator_id": step.locator.pk if step.locator else None,
-                        "value": step.get_value(row_data, self.context_vars) if step.action_type in ("fill", "select") else "",
+                        "value": step.get_value(step_row_data, self.context_vars) if step.action_type in ("fill", "select") else "",
                     },
                     error={"message": f"Breakpoint hit at step {step.order}: {step.name}", "is_breakpoint": True},
                     screenshot_base64=screenshot_b64,
@@ -2191,7 +2366,8 @@ class DebugExecutor(WorkflowExecutor):
                 "action_type": step.action_type,
                 "locator_name": step.locator.name if step.locator else None,
                 "locator_id": step.locator.pk if step.locator else None,
-                "value": step.get_value(row_data, self.context_vars) if step.action_type in ("fill", "select") else "",
+                "value": step.get_value(step_row_data, self.context_vars) if step.action_type in ("fill", "select") else "",
+                "loop_ctx": loop_ctx,
             }
             self._update_state(
                 status="running",
@@ -2202,8 +2378,9 @@ class DebugExecutor(WorkflowExecutor):
                 auto_heal_attempts=[],
             )
 
-            logger.info(f"[DebugExec] [{idx+1}/{total_steps}] Step {step.order}: {step.name}")
-            result = self._execute_step(step, row_data)
+            loop_info = f" [Loop {loop_ctx.get('LOOP_ITERATION','?')}: {loop_ctx.get('LOOP_ITEM','')}]" if loop_ctx else ""
+            logger.info(f"[DebugExec] [{idx+1}/{total_steps}] Step {step.order}: {step.name}{loop_info}")
+            result = self._execute_step(step, step_row_data)
 
             if result["success"]:
                 steps_completed += 1
@@ -2289,7 +2466,7 @@ class DebugExecutor(WorkflowExecutor):
             # ── PHASE 1: Auto-heal (only for locator/interaction failures, NOT d365 dialogs) ──
             if step.locator and not is_d365_dialog:
                 self._update_state(status="auto_healing", error=error_info)
-                healed_result = self._try_auto_heal(step, row_data)
+                healed_result = self._try_auto_heal(step, step_row_data)
                 if healed_result and healed_result.get("success"):
                     logger.info(f"[DebugExec] Auto-healed step {step.order}!")
                     steps_completed += 1
@@ -2348,7 +2525,7 @@ class DebugExecutor(WorkflowExecutor):
                 if step.locator:
                     step.locator.refresh_from_db()
                 self._update_state(status="running", error=None, screenshot_base64=None)
-                retry_result = self._execute_step(step, row_data)
+                retry_result = self._execute_step(step, step_row_data)
                 if retry_result["success"]:
                     steps_completed += 1
                     self._create_step_record(execution_record, step, "success", retry_result, step_started)
@@ -2386,7 +2563,7 @@ class DebugExecutor(WorkflowExecutor):
                         if step.locator:
                             step.locator.refresh_from_db()
                         self._update_state(status="running")
-                        result3 = self._execute_step(step, row_data)
+                        result3 = self._execute_step(step, step_row_data)
                         if result3["success"]:
                             steps_completed += 1
                             self._create_step_record(execution_record, step, "success", result3, step_started)
