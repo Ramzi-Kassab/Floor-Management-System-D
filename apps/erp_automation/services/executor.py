@@ -868,16 +868,44 @@ class WorkflowExecutor:
             return {"success": True, "message": f"Pressed {key}"}
 
         if step.action_type == "type_text":
-            # Type text into whatever element currently has focus (no locator needed)
+            # Type text into the focused element. If a locator is provided,
+            # first verify/click it to ensure focus is on the correct field.
             if not value:
                 return {"success": False, "message": "No value for type_text"}
             try:
+                # --- Focus verification: if locator exists, confirm field before typing ---
+                if step.locator:
+                    logger.info(f"[type_text] Locator provided — verifying focus on '{step.locator.name}'")
+                    from .locator_engine import LocatorEngine
+                    engine = LocatorEngine()
+                    loc_result = engine.find_element(self.page, step.locator)
+                    if loc_result and loc_result.get("element"):
+                        el = loc_result["element"]
+                        # Check if this element already has focus
+                        is_focused = False
+                        try:
+                            is_focused = el.evaluate("el => el === document.activeElement")
+                        except Exception:
+                            pass
+                        if is_focused:
+                            logger.info(f"[type_text] Focus verified — already on '{step.locator.name}'")
+                        else:
+                            logger.info(f"[type_text] Focus MISMATCH — clicking '{step.locator.name}' to correct")
+                            try:
+                                el.click(timeout=3000)
+                                self.page.wait_for_timeout(300)
+                            except Exception as click_err:
+                                logger.warning(f"[type_text] Click to fix focus failed: {click_err}")
+                    else:
+                        logger.warning(f"[type_text] Locator '{step.locator.name}' not found — typing into current focus")
+
                 if step.clear_before_fill:
                     self.page.keyboard.press("Control+a")
                     self.page.keyboard.press("Delete")
                     self.page.wait_for_timeout(200)
                 self.page.keyboard.insert_text(value)
-                logger.info(f"[type_text] Inserted '{value}' into focused element")
+                target_info = f"'{step.locator.name}'" if step.locator else "focused element"
+                logger.info(f"[type_text] Inserted '{value}' into {target_info}")
                 if step.press_key_after:
                     self.page.wait_for_timeout(300)
                     self.page.keyboard.press(step.press_key_after)
@@ -885,7 +913,7 @@ class WorkflowExecutor:
                 if step.wait_after > 0:
                     logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
                     self.page.wait_for_timeout(step.wait_after)
-                return {"success": True, "message": f"Typed '{value}' into focused element"}
+                return {"success": True, "message": f"Typed '{value}' into {target_info}"}
             except Exception as e:
                 return {"success": False, "message": f"type_text failed: {e}"}
 
