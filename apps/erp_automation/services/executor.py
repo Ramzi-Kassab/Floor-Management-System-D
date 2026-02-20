@@ -911,8 +911,7 @@ class WorkflowExecutor:
             # Search a D365 grid for a row where a column matches the value,
             # then click it using Playwright (NOT JS .click() which doesn't
             # trigger D365 custom event handlers on dyn-hyperlink elements).
-            # value = the search text (e.g. route number from {{ROUTE}})
-            # value_field = column header text to search in (e.g. "Route number")
+            # Includes scroll support for D365 FixedDataTable virtualized grids.
             search_value = (value or "").strip()
             column_header = (step.value_field or "Name").strip()
             if not search_value:
@@ -920,8 +919,8 @@ class WorkflowExecutor:
 
             logger.info(f"select_grid_row: searching '{column_header}' column for '{search_value}'")
 
-            # Phase 1: Use JS to FIND the element and return its selector (not click it)
-            js_result = self.page.evaluate("""(args) => {
+            # JS function to search visible rows and return element info
+            SEARCH_JS = """(args) => {
                 const { searchValue, columnHeader } = args;
 
                 function getCellText(cell) {
@@ -931,93 +930,86 @@ class WorkflowExecutor:
                     return (cell.textContent || '').trim();
                 }
 
-                function searchInDocument(doc, isIframe, frameIdx) {
+                function searchInDocument(doc) {
                     const headers = doc.querySelectorAll('th, [role="columnheader"]');
                     let colIdx = -1;
                     for (let i = 0; i < headers.length; i++) {
                         const txt = (headers[i].textContent || '').trim();
                         if (txt === columnHeader || txt.includes(columnHeader)) {
-                            colIdx = i;
-                            break;
+                            colIdx = i; break;
                         }
                     }
-
                     const rows = doc.querySelectorAll('tr[role="row"], [role="row"]');
                     for (const row of rows) {
                         const cells = row.querySelectorAll('td, [role="gridcell"]');
                         if (cells.length === 0) continue;
-
-                        let matched = false;
                         let matchedCell = null;
                         if (colIdx >= 0 && colIdx < cells.length) {
-                            const cellText = getCellText(cells[colIdx]);
-                            if (cellText === searchValue || cellText.startsWith(searchValue)) {
-                                matched = true;
-                                matchedCell = cells[colIdx];
-                            }
+                            const t = getCellText(cells[colIdx]);
+                            if (t === searchValue || t.startsWith(searchValue)) matchedCell = cells[colIdx];
                         }
-                        if (!matched) {
+                        if (!matchedCell) {
                             for (const cell of cells) {
-                                const cellText = getCellText(cell);
-                                if (cellText === searchValue) {
-                                    matched = true;
-                                    matchedCell = cell;
-                                    break;
-                                }
+                                if (getCellText(cell) === searchValue) { matchedCell = cell; break; }
                             }
                         }
-
-                        if (matched) {
-                            // Return info about the found element for Playwright to click
-                            // Prefer the input inside the matched cell
-                            let target = null;
-
-                            // Try row radio button first
-                            const radio = row.querySelector('input[type="radio"], [role="radio"]');
-                            if (radio) {
-                                target = radio;
-                            } else if (matchedCell) {
-                                // Use the matched cell's input
-                                target = matchedCell.querySelector('input') || matchedCell;
-                            } else {
-                                target = row;
-                            }
-
-                            // Get bounding rect for Playwright click
+                        if (matchedCell) {
+                            let target = row.querySelector('input[type="radio"], [role="radio"]');
+                            if (!target) target = matchedCell.querySelector('input') || matchedCell;
                             const rect = target.getBoundingClientRect();
-                            // Also get input ID/value for Playwright locator fallback
-                            const inputEl = matchedCell ? matchedCell.querySelector('input') : null;
+                            const inputEl = matchedCell.querySelector('input');
                             return {
                                 success: true,
                                 x: Math.round(rect.x + rect.width / 2),
                                 y: Math.round(rect.y + rect.height / 2),
                                 inputId: inputEl ? inputEl.id : null,
                                 inputValue: inputEl ? inputEl.value : null,
-                                isIframe: isIframe,
-                                frameIdx: frameIdx,
-                                method: radio ? 'radio' : 'cell'
+                                method: target.type === 'radio' ? 'radio' : 'cell'
                             };
                         }
                     }
                     return null;
                 }
-
-                // Search main document
-                let result = searchInDocument(document, false, -1);
+                let result = searchInDocument(document);
                 if (result) return result;
-
-                // Search iframes
                 const frames = document.querySelectorAll('iframe');
-                for (let fi = 0; fi < frames.length; fi++) {
+                for (const frame of frames) {
                     try {
-                        const fDoc = frames[fi].contentDocument || frames[fi].contentWindow.document;
-                        result = searchInDocument(fDoc, true, fi);
+                        result = searchInDocument(frame.contentDocument || frame.contentWindow.document);
                         if (result) return result;
-                    } catch (e) { /* cross-origin */ }
+                    } catch (e) {}
                 }
+                return { success: false };
+            }"""
 
-                return { success: false, error: 'Row not found matching: ' + searchValue };
-            }""", {"searchValue": search_value, "columnHeader": column_header})
+            # Phase 1: Search currently visible rows
+            js_result = self.page.evaluate(SEARCH_JS, {"searchValue": search_value, "columnHeader": column_header})
+
+            # Phase 2: If not found, scroll the grid and search again (D365 virtualization)
+            if not js_result or not js_result.get("success"):
+                logger.info(f"select_grid_row: not in visible rows, scrolling grid...")
+                MAX_SCROLL_ATTEMPTS = 30
+                for scroll_attempt in range(MAX_SCROLL_ATTEMPTS):
+                    # Try Ctrl+End first to jump to bottom, then scroll up
+                    # But simpler: use Page Down on the grid
+                    if scroll_attempt == 0:
+                        # First click any grid cell to focus the grid
+                        try:
+                            grid_cell = self.page.locator(f"input[aria-label='{column_header}']").first
+                            if grid_cell.is_visible(timeout=3000):
+                                grid_cell.click()
+                                self.page.wait_for_timeout(300)
+                        except Exception:
+                            pass
+                    self.page.keyboard.press("PageDown")
+                    self.page.wait_for_timeout(500)
+                    js_result = self.page.evaluate(SEARCH_JS, {"searchValue": search_value, "columnHeader": column_header})
+                    if js_result and js_result.get("success"):
+                        logger.info(f"select_grid_row: found after {scroll_attempt + 1} PageDown scrolls")
+                        break
+                else:
+                    logger.warning(f"select_grid_row: not found after {MAX_SCROLL_ATTEMPTS} scrolls")
+                    return {"success": False, "message": f"Row not found for '{search_value}' after {MAX_SCROLL_ATTEMPTS} scrolls"}
 
             if js_result and js_result.get("success"):
                 method = js_result.get("method", "unknown")
