@@ -840,6 +840,22 @@ class WorkflowExecutor:
         # Get the value to use (from static, field, or template)
         value = step.get_value(row_data, self.context_vars)
 
+        # ── PAGE AWARENESS: Pre-step state ─────────────────────────
+        _page_reader = None
+        _pre_grid_rows = None
+        if self.page:
+            try:
+                from .page_awareness import D365PageReader
+                _page_reader = D365PageReader(self.page)
+                pre_state = _page_reader.snapshot_short()
+                logger.info(f"[PageState] BEFORE '{step.name}': {pre_state}")
+
+                # For "New" actions on grids, capture row count for comparison
+                if step.action_type == 'click' and step.name and 'new' in step.name.lower():
+                    _pre_grid_rows = _page_reader.count_grid_rows()
+            except Exception as pa_err:
+                logger.debug(f"[PageState] Pre-step read failed: {pa_err}")
+
         # Special actions that don't need a locator
         if step.action_type == "wait_time":
             wait_ms = int(value) if value else step.wait_after
@@ -855,6 +871,16 @@ class WorkflowExecutor:
             except PlaywrightTimeout:
                 pass  # D365 SPA may not trigger full load state change
             self.page.wait_for_timeout(min(wait_ms, 3000))
+            # ── PAGE AWARENESS: Post-navigate state ──────────
+            if _page_reader:
+                try:
+                    post_state = _page_reader.snapshot_short()
+                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                    ctx = _page_reader.get_page_context()
+                    if ctx.get("form_name"):
+                        logger.info(f"[PageState] 📍 Now on form: {ctx['form_name']} — {ctx.get('title', '')}")
+                except Exception:
+                    pass
             return {"success": True, "message": f"Navigation wait {wait_ms}ms"}
 
         if step.action_type == "press_key":
@@ -865,6 +891,13 @@ class WorkflowExecutor:
             logger.info(f"[press_key] Pressed '{key}'")
             if step.wait_after > 0:
                 self.page.wait_for_timeout(step.wait_after)
+            # ── PAGE AWARENESS: Post-press_key state ─────────
+            if _page_reader:
+                try:
+                    post_state = _page_reader.snapshot_short()
+                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                except Exception:
+                    pass
             return {"success": True, "message": f"Pressed {key}"}
 
         if step.action_type == "type_text":
@@ -877,10 +910,9 @@ class WorkflowExecutor:
                 if step.locator:
                     logger.info(f"[type_text] Locator provided — verifying focus on '{step.locator.name}'")
                     from .locator_engine import LocatorEngine
-                    engine = LocatorEngine()
-                    loc_result = engine.find_element(self.page, step.locator)
-                    if loc_result and loc_result.get("element"):
-                        el = loc_result["element"]
+                    engine = LocatorEngine(self.page)
+                    el = engine.find_element(step.locator)
+                    if el:
                         # Check if this element already has focus
                         is_focused = False
                         try:
@@ -913,9 +945,133 @@ class WorkflowExecutor:
                 if step.wait_after > 0:
                     logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
                     self.page.wait_for_timeout(step.wait_after)
-                return {"success": True, "message": f"Typed '{value}' into {target_info}"}
+
+                # ── PAGE AWARENESS: Post-type_text verification ───────
+                result = {"success": True, "message": f"Typed '{value}' into {target_info}"}
+                if _page_reader:
+                    try:
+                        post_state = _page_reader.snapshot_short()
+                        logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+
+                        # Read back focused field to verify value was accepted
+                        focused_after = _page_reader.get_focused_field()
+                        actual_val = focused_after.get("value", "")
+                        # After press_key_after (Enter/Tab/Escape), focus may have
+                        # moved away — so check the locator's element value instead
+                        if step.locator:
+                            field_val = _page_reader.get_field_value(
+                                step.locator.name.split("_")[-1]  # Try short name
+                            )
+                            if field_val is None:
+                                # Fallback: try dyn_control from locator name
+                                field_val = actual_val
+                            actual_val = field_val or actual_val
+
+                        if actual_val and value.strip() in actual_val.strip():
+                            logger.info(f"[PageState] ✓ type_text verified: '{actual_val}'")
+                            result["value_verified"] = True
+                        elif actual_val:
+                            logger.warning(f"[PageState] ⚠ type_text value check: typed '{value}', field now has '{actual_val}'")
+                            result["value_after"] = actual_val
+                    except Exception as pa_err:
+                        logger.debug(f"[PageState] type_text post-check failed: {pa_err}")
+                return result
             except Exception as e:
                 return {"success": False, "message": f"type_text failed: {e}"}
+
+        if step.action_type == "click_dynamic_locator":
+            # Click an element found by substituting the resolved value into
+            # the locator's strategy templates.  Strategies can use any
+            # {{PLACEHOLDER}} (e.g. {{VALUE}}, {{ROUTE}}, {{ITEM}}) — all
+            # are replaced with the step's resolved value at runtime.
+            # Includes D365 grid scroll support for virtualized rows.
+            if not value:
+                return {"success": False, "message": "No value for click_dynamic_locator"}
+            try:
+                escaped = value.replace('"', '\\"')
+
+                # Build selectors from locator strategies — replace ANY
+                # {{…}} placeholder with the resolved value so users can
+                # name placeholders however they like ({{VALUE}}, {{ROUTE}}, etc.)
+                selectors = []
+                if step.locator:
+                    for strat in step.locator.strategies.filter(is_active=True).order_by('priority'):
+                        sel_value = re.sub(r'\{\{[^}]+\}\}', escaped, strat.value)
+                        selectors.append((strat.strategy_type, sel_value))
+                        logger.info(f"[click_dynamic_locator] Strategy: {strat.strategy_type}='{sel_value}' (raw: '{strat.value}')")
+                logger.info(f"[click_dynamic_locator] Resolved value='{value}', {len(selectors)} selectors built")
+                if not selectors:
+                    selectors = [
+                        ('css', f'input[value="{escaped}"].dyn-hyperlink'),
+                        ('css', f'input[value="{escaped}"]'),
+                    ]
+
+                def _try_click_selectors(page_or_frame, label="page"):
+                    """Try each selector on the given page/frame."""
+                    for stype, sel in selectors:
+                        try:
+                            if stype == 'css':
+                                loc = page_or_frame.locator(sel).first
+                            elif stype == 'xpath':
+                                loc = page_or_frame.locator(f"xpath={sel}").first
+                            else:
+                                loc = page_or_frame.locator(sel).first
+                            if loc.is_visible(timeout=2000):
+                                loc.click(timeout=5000)
+                                logger.info(f"[click_dynamic_locator] Clicked {stype}='{sel}' on {label}")
+                                return True
+                        except Exception:
+                            pass
+                    return False
+
+                def _try_all_targets():
+                    """Try main page then all iframes."""
+                    if _try_click_selectors(self.page, "main"):
+                        return True
+                    for frame in self.page.frames[1:]:
+                        if _try_click_selectors(frame, "iframe"):
+                            return True
+                    return False
+
+                # Phase 1: Try visible elements
+                clicked = _try_all_targets()
+
+                # Phase 2: Scroll grid to find off-screen element (D365 virtualization)
+                if not clicked:
+                    logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid...")
+                    MAX_SCROLLS = 30
+                    for scroll_i in range(MAX_SCROLLS):
+                        if scroll_i == 0:
+                            # Focus the grid first by clicking any grid cell
+                            try:
+                                grid_cell = self.page.locator("input.dyn-hyperlink").first
+                                if grid_cell.is_visible(timeout=2000):
+                                    grid_cell.click()
+                                    self.page.wait_for_timeout(300)
+                            except Exception:
+                                pass
+                        self.page.keyboard.press("PageDown")
+                        self.page.wait_for_timeout(500)
+                        if _try_all_targets():
+                            clicked = True
+                            logger.info(f"[click_dynamic_locator] Found after {scroll_i + 1} PageDown scrolls")
+                            break
+
+                if not clicked:
+                    return {"success": False, "message": f"click_dynamic_locator: no visible element with value '{value}'"}
+
+                if step.wait_after > 0:
+                    self.page.wait_for_timeout(step.wait_after)
+                # ── PAGE AWARENESS: Post-click state ─────────
+                if _page_reader:
+                    try:
+                        post_state = _page_reader.snapshot_short()
+                        logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                    except Exception:
+                        pass
+                return {"success": True, "message": f"Clicked element with value '{value}'"}
+            except Exception as e:
+                return {"success": False, "message": f"click_dynamic_locator failed: {e}"}
 
         if step.action_type == "screenshot":
             path = os.path.join(self.screenshots_dir, f"step_{step.order}.png")
@@ -1087,6 +1243,13 @@ class WorkflowExecutor:
                 if clicked:
                     if step.wait_after > 0:
                         self.page.wait_for_timeout(step.wait_after)
+                    # ── PAGE AWARENESS: Post-select_grid_row state ────
+                    if _page_reader:
+                        try:
+                            post_state = _page_reader.snapshot_short()
+                            logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+                        except Exception:
+                            pass
                     return {"success": True, "message": f"Selected row '{search_value}' via Playwright {method}"}
                 else:
                     return {"success": False, "message": f"Found '{search_value}' but Playwright click failed"}
@@ -1206,6 +1369,119 @@ class WorkflowExecutor:
                     # Save result to context if requested
                     if step.save_result_as:
                         self.context_vars[step.save_result_as] = value or result.get("value")
+
+                    # ── PAGE AWARENESS: Post-step verification ───────
+                    if _page_reader:
+                        try:
+                            post_state = _page_reader.snapshot_short()
+                            logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
+
+                            # Verify fill/type actions: read back the value
+                            if step.action_type == 'fill' and value and element:
+                                actual = _page_reader.get_field_value_by_element(element)
+                                if actual is not None:
+                                    if value.strip() in actual.strip() or actual.strip() in value.strip():
+                                        logger.info(f"[PageState] ✓ Value verified: '{actual}'")
+                                        result["value_verified"] = True
+                                    else:
+                                        logger.warning(f"[PageState] ✗ VALUE MISMATCH: set '{value}' but field has '{actual}'")
+                                        result["value_verified"] = False
+                                        result["actual_value"] = actual
+
+                            # Verify grid "New" click: row count should increase
+                            if _pre_grid_rows is not None:
+                                post_rows = _page_reader.count_grid_rows()
+                                delta = post_rows - _pre_grid_rows
+                                if delta > 0:
+                                    logger.info(f"[PageState] ✓ Grid rows: {_pre_grid_rows} → {post_rows} (+{delta})")
+                                    result["grid_row_added"] = True
+                                else:
+                                    logger.warning(f"[PageState] ✗ Grid rows UNCHANGED: {_pre_grid_rows} → {post_rows}")
+                                    result["grid_row_added"] = False
+
+                            # ── SELECT-ALL VERIFY & RETRY ─────────────────
+                            # Detect "select all" steps and verify that rows
+                            # are actually selected.  D365 FixedDataTable has
+                            # duplicate header elements — the click may land
+                            # on a shadow copy that does nothing.
+                            _is_select_all = (
+                                step.action_type == 'click'
+                                and step.name
+                                and 'select all' in step.name.lower()
+                            )
+                            if _is_select_all:
+                                grid_scope = ""
+                                if step.locator and step.locator.page_context:
+                                    grid_scope = step.locator.page_context  # e.g. "BOM Table" → "BOMTable"
+                                    grid_scope = grid_scope.replace(" ", "")
+                                sel_state = _page_reader.count_selected_grid_rows(grid_scope)
+                                logger.info(
+                                    f"[PageState] Select-all check: "
+                                    f"{sel_state['selected']}/{sel_state['total']} rows, "
+                                    f"checkbox={sel_state['checkboxState']}"
+                                )
+                                if sel_state['total'] > 0 and not sel_state['all_selected']:
+                                    logger.warning("[PageState] ✗ Select-all did NOT select all rows — retrying")
+                                    result["select_all_verified"] = False
+                                    # Retry 1: click the same element again
+                                    # (first click may have toggled off)
+                                    for retry_i in range(2):
+                                        try:
+                                            element_retry = self.locator_engine.find_element(
+                                                step.locator, timeout=step.timeout
+                                            )
+                                            if element_retry:
+                                                element_retry.click(timeout=3000)
+                                                self.page.wait_for_timeout(800)
+                                                sel2 = _page_reader.count_selected_grid_rows(grid_scope)
+                                                logger.info(
+                                                    f"[PageState] Retry {retry_i+1}: "
+                                                    f"{sel2['selected']}/{sel2['total']}, "
+                                                    f"cb={sel2['checkboxState']}"
+                                                )
+                                                if sel2['all_selected']:
+                                                    result["select_all_verified"] = True
+                                                    logger.info("[PageState] ✓ Select-all verified after retry click")
+                                                    break
+                                        except Exception as re_err:
+                                            logger.debug(f"[PageState] Retry click failed: {re_err}")
+
+                                    # Retry 2: Ctrl+A as keyboard fallback
+                                    if not result.get("select_all_verified"):
+                                        try:
+                                            # Click inside the grid body first
+                                            grid_cell = self.page.locator(
+                                                ".fixedDataTableLayout_body input, "
+                                                ".fixedDataTableLayout_body [role='gridcell']"
+                                            ).first
+                                            if grid_cell.is_visible(timeout=2000):
+                                                grid_cell.click(timeout=3000)
+                                                self.page.wait_for_timeout(300)
+                                            self.page.keyboard.press("Control+a")
+                                            self.page.wait_for_timeout(800)
+                                            sel3 = _page_reader.count_selected_grid_rows(grid_scope)
+                                            logger.info(
+                                                f"[PageState] After Ctrl+A: "
+                                                f"{sel3['selected']}/{sel3['total']}, "
+                                                f"cb={sel3['checkboxState']}"
+                                            )
+                                            if sel3['all_selected']:
+                                                result["select_all_verified"] = True
+                                                logger.info("[PageState] ✓ Select-all verified after Ctrl+A")
+                                        except Exception as ka_err:
+                                            logger.debug(f"[PageState] Ctrl+A fallback failed: {ka_err}")
+
+                                    if not result.get("select_all_verified"):
+                                        logger.warning(
+                                            "[PageState] ✗ Select-all STILL failed after retries"
+                                        )
+                                else:
+                                    result["select_all_verified"] = True
+                                    if sel_state['total'] > 0:
+                                        logger.info("[PageState] ✓ Select-all verified: all rows selected")
+
+                        except Exception as pa_err:
+                            logger.debug(f"[PageState] Post-step read failed: {pa_err}")
 
                     return result
 
@@ -2401,6 +2677,22 @@ class DebugExecutor(WorkflowExecutor):
             loop_info = f" [Loop {loop_ctx.get('LOOP_ITERATION','?')}: {loop_ctx.get('LOOP_ITEM','')}]" if loop_ctx else ""
             logger.info(f"[DebugExec] [{idx+1}/{total_steps}] Step {step.order}: {step.name}{loop_info}")
             result = self._execute_step(step, step_row_data)
+
+            # ── PAGE AWARENESS: Capture page state for debug UI ──────
+            if self.page:
+                try:
+                    from .page_awareness import D365PageReader
+                    _reader = D365PageReader(self.page)
+                    page_state = _reader.snapshot()
+                    page_state["step_result"] = {
+                        "value_verified": result.get("value_verified"),
+                        "actual_value": result.get("actual_value"),
+                        "value_after": result.get("value_after"),
+                        "grid_row_added": result.get("grid_row_added"),
+                    }
+                    self._update_state(page_state=page_state)
+                except Exception as pa_err:
+                    logger.debug(f"[PageState] Debug state capture failed: {pa_err}")
 
             if result["success"]:
                 steps_completed += 1

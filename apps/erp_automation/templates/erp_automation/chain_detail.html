@@ -171,6 +171,79 @@
         </div>
     </template>
 
+    <!-- ============ PAGE STATE PANEL (Debug Mode) ============ -->
+    <template x-if="debugState.active && debugState.pageState">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Page State</span>
+                    <span class="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded"
+                          x-text="debugState.pageState?.page?.form_name || 'unknown'"></span>
+                </div>
+                <button @click="debugState._showPageState = !debugState._showPageState"
+                        class="text-xs text-gray-400 hover:text-gray-600">
+                    <span x-text="debugState._showPageState === false ? 'Show' : 'Hide'"></span>
+                </button>
+            </div>
+            <div x-show="debugState._showPageState !== false" class="space-y-1.5">
+                <!-- Focused field -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Focus:</span>
+                    <span class="font-mono text-gray-700 dark:text-gray-300"
+                          x-text="debugState.pageState?.focused?.dyn_control || debugState.pageState?.focused?.name || debugState.pageState?.focused?.label || debugState.pageState?.focused?.tag || '—'"></span>
+                    <template x-if="debugState.pageState?.focused?.value">
+                        <span class="text-gray-400">= "<span class="text-amber-600 dark:text-amber-400" x-text="debugState.pageState.focused.value"></span>"</span>
+                    </template>
+                </div>
+                <!-- Grid rows -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Grid:</span>
+                    <span class="font-mono" :class="{
+                        'text-gray-700 dark:text-gray-300': debugState.pageState?.grid_rows > 0,
+                        'text-gray-400': !debugState.pageState?.grid_rows
+                    }" x-text="(debugState.pageState?.grid_rows || 0) + ' rows'"></span>
+                    <!-- Grid row added/unchanged indicator -->
+                    <template x-if="debugState.pageState?.step_result?.grid_row_added === true">
+                        <span class="text-green-600 dark:text-green-400 font-medium">+1 row</span>
+                    </template>
+                    <template x-if="debugState.pageState?.step_result?.grid_row_added === false">
+                        <span class="text-red-500 font-medium">unchanged</span>
+                    </template>
+                </div>
+                <!-- Page context -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-16 text-gray-400 flex-shrink-0">Page:</span>
+                    <span class="text-gray-600 dark:text-gray-400 truncate"
+                          x-text="debugState.pageState?.page?.title || '—'"></span>
+                </div>
+                <!-- Value verification -->
+                <template x-if="debugState.pageState?.step_result?.value_verified === true">
+                    <div class="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                        <span>Value verified</span>
+                    </div>
+                </template>
+                <template x-if="debugState.pageState?.step_result?.value_verified === false">
+                    <div class="flex items-center gap-1 text-xs text-red-500">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        <span>VALUE MISMATCH — actual: "<span class="font-mono" x-text="debugState.pageState.step_result.actual_value"></span>"</span>
+                    </div>
+                </template>
+                <!-- Errors detected -->
+                <template x-if="debugState.pageState?.errors?.length > 0">
+                    <div class="mt-1 p-1.5 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600 dark:text-red-400">
+                        <template x-for="err in debugState.pageState.errors" :key="err.text">
+                            <div class="flex items-start gap-1">
+                                <span class="font-medium uppercase" x-text="err.type + ':'"></span>
+                                <span x-text="err.text"></span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
     <!-- ============ SEGMENTS ACCORDION ============ -->
     <template x-for="(seg, segIdx) in segments" :key="seg.link_id">
         <div :id="'segment-' + segIdx"
@@ -376,9 +449,10 @@
                                         </template>
                                         <template x-if="editingStep === step.id">
                                             <select x-model="editForm.action_type" class="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                                <option value="click">click</option><option value="fill">fill</option><option value="select">select</option>
+                                                <option value="click">click</option><option value="fill">fill</option><option value="type_text">type_text</option><option value="select">select</option>
                                                 <option value="check">check</option><option value="navigate">navigate</option><option value="wait_time">wait_time</option>
                                                 <option value="press_key">press_key</option><option value="hover">hover</option><option value="goto_url">goto_url</option>
+                                                <option value="select_grid_row">select_grid_row</option><option value="click_dynamic_locator">click_dynamic_locator</option><option value="read_value">read_value</option>
                                             </select>
                                         </template>
                                     </td>
@@ -496,16 +570,18 @@
                                                         <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
                                                     </button>
                                                 </template>
-                                                <template x-if="debugState.active && debugState.status === 'paused'">
+                                                <template x-if="debugState.active">
                                                     <span class="flex items-center gap-0.5">
                                                         <button @click="debugRunStepOnly(step)" class="p-1 text-purple-500 hover:text-purple-700"
+                                                                :class="debugState.status !== 'paused' ? 'opacity-60' : ''"
                                                                 title="Run only this step (test in isolation)">
                                                             <i data-lucide="zap" class="w-3.5 h-3.5"></i>
                                                         </button>
-                                                        <!-- Run from step: only available for steps in the currently running segment -->
-                                                        <template x-if="debugState._runningLinkOrder === seg.link_order">
+                                                        <!-- Run from step: available for the currently running segment or when paused -->
+                                                        <template x-if="debugState._runningLinkOrder === seg.link_order || debugState.status === 'paused'">
                                                             <button @click="debugRunFromStep(step)" class="p-1 text-amber-500 hover:text-amber-700"
-                                                                    title="Resume execution starting from this step">
+                                                                    :class="debugState.status !== 'paused' ? 'opacity-60' : ''"
+                                                                    title="Run from this step">
                                                                 <i data-lucide="play" class="w-3.5 h-3.5"></i>
                                                             </button>
                                                         </template>
@@ -873,9 +949,10 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Action Type</label>
                         <select x-model="addModal.data.action_type" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="click">click</option><option value="fill">fill</option><option value="select">select</option>
+                            <option value="click">click</option><option value="fill">fill</option><option value="type_text">type_text</option><option value="select">select</option>
                             <option value="check">check</option><option value="navigate">navigate</option><option value="wait_time">wait_time</option>
                             <option value="press_key">press_key</option><option value="hover">hover</option><option value="goto_url">goto_url</option>
+                            <option value="select_grid_row">select_grid_row</option><option value="click_dynamic_locator">click_dynamic_locator</option><option value="read_value">read_value</option>
                         </select>
                     </div>
                 </div>
@@ -1316,6 +1393,9 @@ function chainEditor() {
             breakpointStepIds: new Set(),
             // Step-by-step mode
             stepByStepMode: false,
+            // Page awareness state from D365PageReader
+            pageState: null,
+            _showPageState: true,
             // Track which segments have been completed (by link_order — unique per chain)
             _completedLinkOrders: new Set(),
             _skippedLinkOrders: new Set(),
@@ -1554,6 +1634,11 @@ function chainEditor() {
                     this.debugState.screenshotBase64 = data.screenshot_base64;
                 }
 
+                // Page state from D365PageReader
+                if (data.page_state) {
+                    this.debugState.pageState = data.page_state;
+                }
+
                 // Pre-fill tester when newly paused
                 if (this.debugState.status === 'paused' && prevStatus !== 'paused') {
                     this.debugState.testStrategyType = data.error?.failing_strategy_type || 'xpath';
@@ -1616,7 +1701,28 @@ function chainEditor() {
         },
 
         async debugRunFromStep(step) {
-            if (!this.debugState.executionId || this.debugState.status !== 'paused') return;
+            if (!this.debugState.executionId) return;
+            // If running, enable step-by-step mode first to pause ASAP,
+            // then queue the rerun command — it will be processed when paused.
+            if (this.debugState.status !== 'paused') {
+                try {
+                    // Enable step-by-step to trigger a pause at the next step
+                    if (!this.debugState.stepByStepMode) {
+                        await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/step-mode/`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                            body: JSON.stringify({ enabled: true }),
+                        });
+                        this.debugState.stepByStepMode = true;
+                    }
+                    // Queue the rerun — will be picked up after the pause
+                    await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/rerun-from-step/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify({ step_id: step.id }),
+                    });
+                    this.flash('Will jump to step ' + step.order + ' after current step finishes', 'success');
+                } catch(e) { this.flash('Error: ' + e.message, 'error'); }
+                return;
+            }
             try {
                 const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/rerun-from-step/`, {
                     method: 'POST',
@@ -1748,6 +1854,24 @@ function chainEditor() {
         async debugRunStepOnly(step) {
             // Run a single step in isolation (test it without affecting chain flow)
             if (!this.debugState.executionId) return;
+            // If running, enable step-by-step to pause first, then queue step run
+            if (this.debugState.status !== 'paused') {
+                try {
+                    if (!this.debugState.stepByStepMode) {
+                        await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/step-mode/`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                            body: JSON.stringify({ enabled: true }),
+                        });
+                        this.debugState.stepByStepMode = true;
+                    }
+                    await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/run-single-step/`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify({ step_id: step.id }),
+                    });
+                    this.flash(`Will run step ${step.order} after current step finishes`, 'success');
+                } catch(e) { this.flash('Error: ' + e.message, 'error'); }
+                return;
+            }
             try {
                 const resp = await fetch(`/erp-automation/api/debug/${this.debugState.executionId}/run-single-step/`, {
                     method: 'POST',

@@ -41,6 +41,9 @@ class ActionType(models.TextChoices):
     READ_VALUE = "read_value", "Read Value"
     GOTO_URL = "goto_url", "Navigate to URL"
     SELECT_GRID_ROW = "select_grid_row", "Select Grid Row"
+    TYPE_TEXT = "type_text", "Type Text (keyboard)"
+    NAVIGATE = "navigate", "Navigate (SPA)"
+    CLICK_DYNAMIC = "click_dynamic_locator", "Click Dynamic Locator"
 
 
 class InteractionMode(models.TextChoices):
@@ -324,7 +327,7 @@ class WorkflowStep(models.Model):
 
     # Action configuration
     action_type = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=ActionType.choices,
         default=ActionType.CLICK
     )
@@ -554,7 +557,7 @@ class RecordedAction(models.Model):
 
     # Action details
     action_type = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=ActionType.choices
     )
 
