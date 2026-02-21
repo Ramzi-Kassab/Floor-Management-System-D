@@ -993,13 +993,56 @@ class WorkflowExecutor:
                             pass
                     return False
 
+                # JS search for D365 inputs whose .value is set via JS (not HTML attr)
+                FIND_BY_VALUE_JS = """(targetVal) => {
+                    const inputs = document.querySelectorAll('input');
+                    for (const inp of inputs) {
+                        if (inp.value === targetVal) {
+                            const rect = inp.getBoundingClientRect();
+                            if (rect.width === 0 || rect.height === 0) continue;
+                            return {found: true, id: inp.id || '', cx: rect.x + rect.width/2, cy: rect.y + rect.height/2};
+                        }
+                    }
+                    return {found: false};
+                }"""
+
                 def _try_all_targets():
-                    """Try main page then all iframes."""
+                    """Try main page then all iframes — selectors first, then JS .value fallback."""
+                    # Attempt 1: CSS/XPath selectors (fast, works when HTML attr is set)
                     if _try_click_selectors(self.page, "main"):
                         return True
                     for frame in self.page.frames[1:]:
                         if _try_click_selectors(frame, "iframe"):
                             return True
+                    # Attempt 2: JS .value search (D365 sets input values via JS, not HTML attr)
+                    all_frames = [self.page] + list(self.page.frames[1:])
+                    for fi, frame in enumerate(all_frames):
+                        frame_label = "main" if fi == 0 else f"iframe[{fi}]"
+                        try:
+                            el_info = frame.evaluate(FIND_BY_VALUE_JS, value)
+                        except Exception:
+                            continue
+                        if not el_info or not el_info.get("found"):
+                            continue
+                        logger.info(f"[click_dynamic_locator] JS .value match in {frame_label}, id={el_info.get('id')}")
+                        # Click via #id selector or mouse coordinates
+                        if el_info.get("id"):
+                            try:
+                                frame.locator(f"#{el_info['id']}").click(timeout=5000)
+                                return True
+                            except Exception:
+                                pass
+                        try:
+                            if fi == 0:
+                                self.page.mouse.click(el_info["cx"], el_info["cy"])
+                            else:
+                                frame.locator("body").click(
+                                    position={"x": int(el_info["cx"]), "y": int(el_info["cy"])},
+                                    timeout=5000
+                                )
+                            return True
+                        except Exception:
+                            pass
                     return False
 
                 # Phase 1: Try visible elements
