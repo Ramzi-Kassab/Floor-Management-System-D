@@ -887,17 +887,19 @@ class WorkflowExecutor:
             key = value or step.press_key_after
             if not key:
                 return {"success": False, "message": "No key specified for press_key"}
+            key_upper = key.strip().upper()
+            # Special tokens for grid scrolling
+            if key_upper.startswith("SCROLL_GRID"):
+                direction = "left" if "LEFT" in key_upper else "right"
+                result = self._scroll_grid_horizontal(direction)
+                logger.info(f"[press_key] Scroll grid {direction}: {result.get('message', '')}")
+                if step.wait_after > 0:
+                    self.page.wait_for_timeout(step.wait_after)
+                return result
             self.page.keyboard.press(key)
             logger.info(f"[press_key] Pressed '{key}'")
             if step.wait_after > 0:
                 self.page.wait_for_timeout(step.wait_after)
-            # ── PAGE AWARENESS: Post-press_key state ─────────
-            if _page_reader:
-                try:
-                    post_state = _page_reader.snapshot_short()
-                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
-                except Exception:
-                    pass
             return {"success": True, "message": f"Pressed {key}"}
 
         if step.action_type == "type_text":
@@ -909,9 +911,7 @@ class WorkflowExecutor:
                 # --- Focus verification: if locator exists, confirm field before typing ---
                 if step.locator:
                     logger.info(f"[type_text] Locator provided — verifying focus on '{step.locator.name}'")
-                    from .locator_engine import LocatorEngine
-                    engine = LocatorEngine(self.page)
-                    el = engine.find_element(step.locator)
+                    el = self.locator_engine.find_element(step.locator)
                     if el:
                         # Check if this element already has focus
                         is_focused = False
@@ -939,136 +939,130 @@ class WorkflowExecutor:
                 target_info = f"'{step.locator.name}'" if step.locator else "focused element"
                 logger.info(f"[type_text] Inserted '{value}' into {target_info}")
                 if step.press_key_after:
-                    self.page.wait_for_timeout(300)
+                    self.page.wait_for_timeout(100)
                     self.page.keyboard.press(step.press_key_after)
                     logger.info(f"[type_text] Pressed '{step.press_key_after}' after typing")
                 if step.wait_after > 0:
                     logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
                     self.page.wait_for_timeout(step.wait_after)
 
-                # ── PAGE AWARENESS: Post-type_text verification ───────
-                result = {"success": True, "message": f"Typed '{value}' into {target_info}"}
-                if _page_reader:
-                    try:
-                        post_state = _page_reader.snapshot_short()
-                        logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
-
-                        # Read back focused field to verify value was accepted
-                        focused_after = _page_reader.get_focused_field()
-                        actual_val = focused_after.get("value", "")
-                        # After press_key_after (Enter/Tab/Escape), focus may have
-                        # moved away — so check the locator's element value instead
-                        if step.locator:
-                            field_val = _page_reader.get_field_value(
-                                step.locator.name.split("_")[-1]  # Try short name
-                            )
-                            if field_val is None:
-                                # Fallback: try dyn_control from locator name
-                                field_val = actual_val
-                            actual_val = field_val or actual_val
-
-                        if actual_val and value.strip() in actual_val.strip():
-                            logger.info(f"[PageState] ✓ type_text verified: '{actual_val}'")
-                            result["value_verified"] = True
-                        elif actual_val:
-                            logger.warning(f"[PageState] ⚠ type_text value check: typed '{value}', field now has '{actual_val}'")
-                            result["value_after"] = actual_val
-                    except Exception as pa_err:
-                        logger.debug(f"[PageState] type_text post-check failed: {pa_err}")
-                return result
+                return {"success": True, "message": f"Typed '{value}' into {target_info}"}
             except Exception as e:
                 return {"success": False, "message": f"type_text failed: {e}"}
 
         if step.action_type == "click_dynamic_locator":
             # Click an element found by substituting the resolved value into
-            # the locator's strategy templates.  Strategies can use any
-            # {{PLACEHOLDER}} (e.g. {{VALUE}}, {{ROUTE}}, {{ITEM}}) — all
-            # are replaced with the step's resolved value at runtime.
-            # Includes D365 grid scroll support for virtualized rows.
+            # the locator's strategy templates.  Uses Playwright's locator API
+            # which auto-searches all frames/iframes.
             if not value:
                 return {"success": False, "message": "No value for click_dynamic_locator"}
             try:
                 escaped = value.replace('"', '\\"')
 
                 # Build selectors from locator strategies — replace ANY
-                # {{…}} placeholder with the resolved value so users can
-                # name placeholders however they like ({{VALUE}}, {{ROUTE}}, etc.)
+                # {{…}} placeholder with the resolved value
                 selectors = []
                 if step.locator:
                     for strat in step.locator.strategies.filter(is_active=True).order_by('priority'):
                         sel_value = re.sub(r'\{\{[^}]+\}\}', escaped, strat.value)
                         selectors.append((strat.strategy_type, sel_value))
-                        logger.info(f"[click_dynamic_locator] Strategy: {strat.strategy_type}='{sel_value}' (raw: '{strat.value}')")
-                logger.info(f"[click_dynamic_locator] Resolved value='{value}', {len(selectors)} selectors built")
+                        logger.info(f"[click_dynamic_locator] Strategy: {strat.strategy_type}='{sel_value}'")
                 if not selectors:
                     selectors = [
                         ('css', f'input[value="{escaped}"].dyn-hyperlink'),
                         ('css', f'input[value="{escaped}"]'),
                     ]
+                logger.info(f"[click_dynamic_locator] Resolved value='{value}', {len(selectors)} selectors")
 
-                def _try_click_selectors(page_or_frame, label="page"):
-                    """Try each selector on the given page/frame."""
-                    for stype, sel in selectors:
+                # Phase 1: Try each selector via Playwright locator (auto-searches all frames)
+                clicked = False
+                for strat_type, sel_value in selectors:
+                    try:
+                        if strat_type == 'css':
+                            loc = self.page.locator(sel_value).first
+                        elif strat_type == 'xpath':
+                            loc = self.page.locator(f"xpath={sel_value}").first
+                        elif strat_type == 'text':
+                            loc = self.page.locator(f"text={sel_value}").first
+                        else:
+                            continue
+                        loc.wait_for(state="visible", timeout=5000)
+                        loc.click(timeout=5000)
+                        clicked = True
+                        logger.info(f"[click_dynamic_locator] Clicked via {strat_type}='{sel_value}'")
+                        break
+                    except Exception as e:
+                        logger.debug(f"[click_dynamic_locator] {strat_type} failed: {e}")
+                        continue
+
+                # Phase 2: Search each Playwright frame separately (handles iframes properly)
+                if not clicked:
+                    logger.info(f"[click_dynamic_locator] Playwright selectors failed, trying per-frame JS search")
+                    FIND_JS = """(targetVal) => {
+                        // Search inputs by .value property (D365 sets via JS, not HTML attr)
+                        const inputs = document.querySelectorAll('input');
+                        for (const inp of inputs) {
+                            if (inp.value === targetVal) {
+                                const rect = inp.getBoundingClientRect();
+                                if (rect.width === 0 || rect.height === 0) continue;
+                                return {found: true, id: inp.id || '', cx: rect.x + rect.width/2, cy: rect.y + rect.height/2, tag: 'input'};
+                            }
+                        }
+                        // Search cells, links, spans by textContent and title
+                        const els = document.querySelectorAll('td, [role="gridcell"], a, span');
+                        for (const el of els) {
+                            const txt = (el.textContent || '').trim();
+                            const title = (el.title || '').trim();
+                            if (txt === targetVal || title === targetVal) {
+                                const inp = el.querySelector('input');
+                                const target = inp || el;
+                                const rect = target.getBoundingClientRect();
+                                if (rect.width === 0 || rect.height === 0) continue;
+                                return {found: true, id: target.id || '', cx: rect.x + rect.width/2, cy: rect.y + rect.height/2, tag: target.tagName};
+                            }
+                        }
+                        return {found: false, inputCount: inputs.length};
+                    }"""
+                    all_frames = [self.page] + list(self.page.frames[1:])
+                    for fi, frame in enumerate(all_frames):
+                        frame_label = "main" if fi == 0 else f"iframe[{fi}]"
                         try:
-                            if stype == 'css':
-                                loc = page_or_frame.locator(sel).first
-                            elif stype == 'xpath':
-                                loc = page_or_frame.locator(f"xpath={sel}").first
-                            else:
-                                loc = page_or_frame.locator(sel).first
-                            if loc.is_visible(timeout=2000):
-                                loc.click(timeout=5000)
-                                logger.info(f"[click_dynamic_locator] Clicked {stype}='{sel}' on {label}")
-                                return True
-                        except Exception:
-                            pass
-                    return False
-
-                def _try_all_targets():
-                    """Try main page then all iframes."""
-                    if _try_click_selectors(self.page, "main"):
-                        return True
-                    for frame in self.page.frames[1:]:
-                        if _try_click_selectors(frame, "iframe"):
-                            return True
-                    return False
-
-                # Phase 1: Try visible elements
-                clicked = _try_all_targets()
-
-                # Phase 2: Scroll grid to find off-screen element (D365 virtualization)
-                if not clicked:
-                    logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid...")
-                    MAX_SCROLLS = 30
-                    for scroll_i in range(MAX_SCROLLS):
-                        if scroll_i == 0:
-                            # Focus the grid first by clicking any grid cell
+                            el_info = frame.evaluate(FIND_JS, value)
+                        except Exception as e:
+                            logger.debug(f"[click_dynamic_locator] {frame_label} JS failed: {e}")
+                            continue
+                        if not el_info or not el_info.get("found"):
+                            logger.debug(f"[click_dynamic_locator] '{value}' NOT in {frame_label} ({el_info.get('inputCount', '?')} inputs)")
+                            continue
+                        logger.info(f"[click_dynamic_locator] FOUND '{value}' in {frame_label} tag={el_info.get('tag')} id={el_info.get('id')}")
+                        # Click via Playwright frame.locator (handles iframe coordinates)
+                        if el_info.get("id"):
                             try:
-                                grid_cell = self.page.locator("input.dyn-hyperlink").first
-                                if grid_cell.is_visible(timeout=2000):
-                                    grid_cell.click()
-                                    self.page.wait_for_timeout(300)
-                            except Exception:
-                                pass
-                        self.page.keyboard.press("PageDown")
-                        self.page.wait_for_timeout(500)
-                        if _try_all_targets():
-                            clicked = True
-                            logger.info(f"[click_dynamic_locator] Found after {scroll_i + 1} PageDown scrolls")
-                            break
+                                frame.locator(f"#{el_info['id']}").click(timeout=5000)
+                                clicked = True
+                                logger.info(f"[click_dynamic_locator] Clicked #{el_info['id']} in {frame_label}")
+                                break
+                            except Exception as e:
+                                logger.debug(f"[click_dynamic_locator] ID click failed: {e}")
+                        # Fallback: mouse click (coordinates from iframe are iframe-relative)
+                        if not clicked:
+                            try:
+                                if fi == 0:
+                                    self.page.mouse.click(el_info["cx"], el_info["cy"])
+                                else:
+                                    # For iframes, use frame.locator approach with coordinates
+                                    frame.locator(f"*:nth-match(*, 1)").click(position={"x": int(el_info["cx"]), "y": int(el_info["cy"])}, timeout=5000)
+                                clicked = True
+                                logger.info(f"[click_dynamic_locator] Mouse clicked in {frame_label}")
+                                break
+                            except Exception as e:
+                                logger.debug(f"[click_dynamic_locator] Mouse click failed: {e}")
 
                 if not clicked:
-                    return {"success": False, "message": f"click_dynamic_locator: no visible element with value '{value}'"}
+                    return {"success": False, "message": f"click_dynamic_locator: '{value}' not found"}
 
                 if step.wait_after > 0:
                     self.page.wait_for_timeout(step.wait_after)
-                # ── PAGE AWARENESS: Post-click state ─────────
-                if _page_reader:
-                    try:
-                        post_state = _page_reader.snapshot_short()
-                        logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
-                    except Exception:
-                        pass
                 return {"success": True, "message": f"Clicked element with value '{value}'"}
             except Exception as e:
                 return {"success": False, "message": f"click_dynamic_locator failed: {e}"}
@@ -1699,6 +1693,72 @@ class WorkflowExecutor:
         "refreshing",
         "updating",
     ]
+
+    def _scroll_grid_horizontal(self, direction: str = "left") -> Dict[str, Any]:
+        """Scroll a D365 FixedDataTable grid horizontally by dragging the scrollbar face."""
+        face_selector = '.ScrollbarLayout_faceHorizontal'
+        track_selector = '.ScrollbarLayout_main.ScrollbarLayout_mainHorizontal'
+
+        face = self.page.locator(face_selector).first
+        track = self.page.locator(track_selector).first
+
+        try:
+            face.wait_for(state="visible", timeout=5000)
+        except Exception:
+            return {"success": False, "message": "Scrollbar face not visible"}
+
+        track_box = track.bounding_box()
+        if not track_box:
+            return {"success": False, "message": "Track bounding box is None"}
+
+        if direction == "left":
+            target_x = 5
+        else:
+            target_x = int(track_box['width']) - 5
+        target_y = int(track_box['height']) // 2
+
+        face_box_before = face.bounding_box()
+
+        # APPROACH 1: drag_to() — Playwright handles iframe coordinates
+        try:
+            face.drag_to(track, target_position={"x": target_x, "y": target_y})
+            self.page.wait_for_timeout(500)
+            face_box_after = face.bounding_box()
+            if face_box_after and face_box_before:
+                moved = abs(face_box_after['x'] - face_box_before['x'])
+                if moved > 5:
+                    return {"success": True, "message": f"Scrolled {direction} via drag_to ({moved:.0f}px)"}
+        except Exception as e:
+            logger.warning(f"[scroll_grid] drag_to failed: {e}")
+
+        # APPROACH 2: scroll_into_view + bounding_box + page.mouse
+        try:
+            face.scroll_into_view_if_needed(timeout=3000)
+            self.page.wait_for_timeout(200)
+            face_box = face.bounding_box()
+            track_box = track.bounding_box()
+            if not face_box or not track_box:
+                return {"success": False, "message": "Bounding boxes unavailable"}
+            start_x = face_box['x'] + face_box['width'] / 2
+            start_y = face_box['y'] + face_box['height'] / 2
+            end_x = (track_box['x'] + 5) if direction == "left" else (track_box['x'] + track_box['width'] - 5)
+            self.page.mouse.move(start_x, start_y)
+            self.page.wait_for_timeout(200)
+            self.page.mouse.down()
+            self.page.wait_for_timeout(100)
+            self.page.mouse.move(end_x, start_y, steps=30)
+            self.page.wait_for_timeout(100)
+            self.page.mouse.up()
+            self.page.wait_for_timeout(500)
+            face_box_after = face.bounding_box()
+            if face_box_after and face_box_before:
+                moved = abs(face_box_after['x'] - face_box_before['x'])
+                if moved > 5:
+                    return {"success": True, "message": f"Scrolled {direction} via mouse drag ({moved:.0f}px)"}
+        except Exception as e:
+            logger.warning(f"[scroll_grid] Approach 2 failed: {e}")
+
+        return {"success": False, "message": "All scroll approaches failed"}
 
     def detect_error_message(self, patterns: List[str] = None) -> Optional[str]:
         """
