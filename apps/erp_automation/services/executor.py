@@ -995,7 +995,7 @@ class WorkflowExecutor:
                         logger.debug(f"[click_dynamic_locator] {strat_type} failed: {e}")
                         continue
 
-                # Phase 2: Search each Playwright frame separately (handles iframes properly)
+                # Phase 2: Per-frame JS search with scroll support for D365 virtualized grids
                 if not clicked:
                     logger.info(f"[click_dynamic_locator] Playwright selectors failed, trying per-frame JS search")
                     FIND_JS = """(targetVal) => {
@@ -1023,43 +1023,59 @@ class WorkflowExecutor:
                         }
                         return {found: false, inputCount: inputs.length};
                     }"""
-                    all_frames = [self.page] + list(self.page.frames[1:])
-                    for fi, frame in enumerate(all_frames):
-                        frame_label = "main" if fi == 0 else f"iframe[{fi}]"
-                        try:
-                            el_info = frame.evaluate(FIND_JS, value)
-                        except Exception as e:
-                            logger.debug(f"[click_dynamic_locator] {frame_label} JS failed: {e}")
-                            continue
-                        if not el_info or not el_info.get("found"):
-                            logger.debug(f"[click_dynamic_locator] '{value}' NOT in {frame_label} ({el_info.get('inputCount', '?')} inputs)")
-                            continue
-                        logger.info(f"[click_dynamic_locator] FOUND '{value}' in {frame_label} tag={el_info.get('tag')} id={el_info.get('id')}")
-                        # Click via Playwright frame.locator (handles iframe coordinates)
-                        if el_info.get("id"):
+
+                    def _search_all_frames():
+                        """Search all Playwright frames for the target value."""
+                        all_frames = [self.page] + list(self.page.frames[1:])
+                        for fi, frame in enumerate(all_frames):
+                            frame_label = "main" if fi == 0 else f"iframe[{fi}]"
                             try:
-                                frame.locator(f"#{el_info['id']}").click(timeout=5000)
-                                clicked = True
-                                logger.info(f"[click_dynamic_locator] Clicked #{el_info['id']} in {frame_label}")
-                                break
+                                el_info = frame.evaluate(FIND_JS, value)
                             except Exception as e:
-                                logger.debug(f"[click_dynamic_locator] ID click failed: {e}")
-                        # Fallback: mouse click (coordinates from iframe are iframe-relative)
-                        if not clicked:
+                                logger.debug(f"[click_dynamic_locator] {frame_label} JS failed: {e}")
+                                continue
+                            if not el_info or not el_info.get("found"):
+                                logger.debug(f"[click_dynamic_locator] '{value}' NOT in {frame_label} ({el_info.get('inputCount', '?')} inputs)")
+                                continue
+                            logger.info(f"[click_dynamic_locator] FOUND '{value}' in {frame_label} tag={el_info.get('tag')} id={el_info.get('id')}")
+                            # Click via Playwright frame.locator (handles iframe coordinates)
+                            if el_info.get("id"):
+                                try:
+                                    frame.locator(f"#{el_info['id']}").click(timeout=5000)
+                                    logger.info(f"[click_dynamic_locator] Clicked #{el_info['id']} in {frame_label}")
+                                    return True
+                                except Exception as e:
+                                    logger.debug(f"[click_dynamic_locator] ID click failed: {e}")
+                            # Fallback: mouse click
                             try:
                                 if fi == 0:
                                     self.page.mouse.click(el_info["cx"], el_info["cy"])
                                 else:
-                                    # For iframes, use frame.locator approach with coordinates
-                                    frame.locator(f"*:nth-match(*, 1)").click(position={"x": int(el_info["cx"]), "y": int(el_info["cy"])}, timeout=5000)
-                                clicked = True
+                                    frame.locator("body").click(position={"x": int(el_info["cx"]), "y": int(el_info["cy"])}, timeout=5000)
                                 logger.info(f"[click_dynamic_locator] Mouse clicked in {frame_label}")
-                                break
+                                return True
                             except Exception as e:
                                 logger.debug(f"[click_dynamic_locator] Mouse click failed: {e}")
+                        return False
+
+                    # First attempt: search without scrolling
+                    clicked = _search_all_frames()
+
+                    # Scroll loop: D365 FixedDataTable virtualizes rows — off-screen
+                    # rows don't exist in DOM. Scroll down and search after each scroll.
+                    if not clicked:
+                        logger.info(f"[click_dynamic_locator] '{value}' not in visible rows, scrolling grid...")
+                        MAX_SCROLLS = 30
+                        for scroll_i in range(MAX_SCROLLS):
+                            self.page.keyboard.press("PageDown")
+                            self.page.wait_for_timeout(400)
+                            if _search_all_frames():
+                                clicked = True
+                                logger.info(f"[click_dynamic_locator] Found '{value}' after {scroll_i + 1} PageDown scrolls")
+                                break
 
                 if not clicked:
-                    return {"success": False, "message": f"click_dynamic_locator: '{value}' not found"}
+                    return {"success": False, "message": f"click_dynamic_locator: '{value}' not found after scrolling"}
 
                 if step.wait_after > 0:
                     self.page.wait_for_timeout(step.wait_after)
