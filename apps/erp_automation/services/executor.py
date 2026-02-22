@@ -1095,79 +1095,75 @@ class WorkflowExecutor:
                 # Phase 1: Try visible elements
                 found = _try_all()
 
-                # Phase 2: Smart batch scroll for D365 virtualized grids
-                MAX_SCROLLS = 30
+                # Phase 2: Mouse wheel scroll — no keyboard focus needed
+                MAX_SCROLLS = 50
                 if not found:
-                    logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid...")
-                    # Focus grid first by clicking any grid cell, then Escape
-                    # to exit cell edit mode so PageDown scrolls the grid
+                    logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid via mouse.wheel...")
+
+                    # Position mouse over the grid body for wheel events
+                    grid_cx, grid_cy = None, None
                     try:
-                        grid_cell = self.page.locator("input.dyn-hyperlink").first
-                        if grid_cell.is_visible(timeout=2000):
-                            grid_cell.click()
-                            self.page.wait_for_timeout(200)
-                            self.page.keyboard.press("Escape")
-                            self.page.wait_for_timeout(300)
+                        grid_el = self.page.locator(".fixedDataTableLayout_body").first
+                        if grid_el.is_visible(timeout=3000):
+                            box = grid_el.bounding_box()
+                            if box:
+                                grid_cx = box['x'] + box['width'] / 2
+                                grid_cy = box['y'] + box['height'] / 2
                     except Exception:
                         pass
+                    if not grid_cx:
+                        # Fallback: use first visible hyperlink position
+                        try:
+                            hl = self.page.locator("input.dyn-hyperlink").first
+                            if hl.is_visible(timeout=2000):
+                                box = hl.bounding_box()
+                                if box:
+                                    grid_cx = box['x'] + box['width'] / 2
+                                    grid_cy = box['y'] + box['height'] / 2
+                        except Exception:
+                            pass
+                    if not grid_cx:
+                        grid_cx, grid_cy = 600, 400  # Last resort center
+                    logger.info(f"[click_dynamic_locator] Mouse wheel at ({grid_cx:.0f}, {grid_cy:.0f})")
 
-                    # Scroll one PageDown at a time — prevents skipping past target
-                    BATCH_SIZE = 1
-                    MAX_BATCHES = 30
-                    overshot = False
+                    self.page.mouse.move(grid_cx, grid_cy)
+                    last_bottom = None
 
-                    for batch_num in range(MAX_BATCHES):
-                        if found:
-                            break
-                        for _ in range(BATCH_SIZE):
-                            self.page.keyboard.press("PageDown")
-                            self.page.wait_for_timeout(100)
-                        self.page.wait_for_timeout(400)
+                    for scroll_num in range(MAX_SCROLLS):
+                        # Scroll down one "page" via mouse wheel
+                        self.page.mouse.wheel(0, 300)
+                        self.page.wait_for_timeout(500)
 
-                        # Check after scrolling
+                        # Check for target
                         if _try_all():
                             found = True
-                            total_pds = (batch_num + 1) * BATCH_SIZE
-                            logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after batch {batch_num + 1} ({total_pds} PageDowns)")
+                            logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {scroll_num + 1} wheel scrolls")
                             break
 
-                        # Detect overshoot via visible grid values
+                        # Detect overshoot or bottom via visible grid values
                         try:
                             visible_values = self._read_grid_hyperlink_values()
                             if visible_values:
-                                logger.info(f"[click_dynamic_locator] Batch {batch_num + 1}: visible range {visible_values[0]}..{visible_values[-1]}")
+                                if scroll_num % 5 == 0:
+                                    logger.info(f"[click_dynamic_locator] Scroll {scroll_num + 1}: range {visible_values[0]}..{visible_values[-1]}")
+                                # Overshot: all visible values > target
                                 if all(v > value for v in visible_values):
-                                    logger.info(f"[click_dynamic_locator] Overshot! All visible > '{value}', scrolling back up")
-                                    overshot = True
+                                    logger.info(f"[click_dynamic_locator] Overshot! Scrolling back up...")
+                                    for up_i in range(MAX_SCROLLS):
+                                        self.page.mouse.wheel(0, -300)
+                                        self.page.wait_for_timeout(500)
+                                        if _try_all():
+                                            found = True
+                                            logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {up_i + 1} wheel-ups")
+                                            break
                                     break
-                                if batch_num > 0 and visible_values[-1] == getattr(self, '_last_grid_bottom', None):
-                                    logger.info(f"[click_dynamic_locator] Grid bottom reached, scrolling back up")
-                                    overshot = True
+                                # Bottom reached: same last value as previous
+                                if visible_values[-1] == last_bottom:
+                                    logger.info(f"[click_dynamic_locator] Grid bottom reached at {visible_values[-1]}")
                                     break
-                                self._last_grid_bottom = visible_values[-1]
-                        except Exception as e:
-                            logger.debug(f"[click_dynamic_locator] Grid read failed: {e}")
-
-                    # Scroll back up if overshot
-                    if overshot and not found:
-                        logger.info(f"[click_dynamic_locator] Scrolling back up to find '{value}'")
-                        for up_i in range(MAX_SCROLLS):
-                            self.page.keyboard.press("PageUp")
-                            self.page.wait_for_timeout(300)
-                            if _try_all():
-                                found = True
-                                logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {up_i + 1} PageUps back")
-                                break
-
-                    # Last resort: incremental scroll
-                    if not found:
-                        for scroll_i in range(MAX_SCROLLS):
-                            self.page.keyboard.press("PageDown")
-                            self.page.wait_for_timeout(300)
-                            if _try_all():
-                                found = True
-                                logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {scroll_i + 1} incremental scrolls")
-                                break
+                                last_bottom = visible_values[-1]
+                        except Exception:
+                            pass
 
                 if not found:
                     return {"success": False, "message": f"click_dynamic_locator: no visible element with value '{value}'"}
