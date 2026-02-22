@@ -1128,11 +1128,12 @@ class WorkflowExecutor:
 
                     self.page.mouse.move(grid_cx, grid_cy)
                     last_bottom = None
+                    same_bottom_count = 0
 
                     for scroll_num in range(MAX_SCROLLS):
-                        # Scroll down one "page" via mouse wheel
-                        self.page.mouse.wheel(0, 300)
-                        self.page.wait_for_timeout(500)
+                        # Scroll down ~one page via mouse wheel (800px ≈ 10-12 grid rows)
+                        self.page.mouse.wheel(0, 800)
+                        self.page.wait_for_timeout(600)
 
                         # Check for target
                         if _try_all():
@@ -1144,23 +1145,27 @@ class WorkflowExecutor:
                         try:
                             visible_values = self._read_grid_hyperlink_values()
                             if visible_values:
-                                if scroll_num % 5 == 0:
+                                if scroll_num % 3 == 0:
                                     logger.info(f"[click_dynamic_locator] Scroll {scroll_num + 1}: range {visible_values[0]}..{visible_values[-1]}")
                                 # Overshot: all visible values > target
                                 if all(v > value for v in visible_values):
                                     logger.info(f"[click_dynamic_locator] Overshot! Scrolling back up...")
                                     for up_i in range(MAX_SCROLLS):
-                                        self.page.mouse.wheel(0, -300)
-                                        self.page.wait_for_timeout(500)
+                                        self.page.mouse.wheel(0, -400)
+                                        self.page.wait_for_timeout(600)
                                         if _try_all():
                                             found = True
                                             logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {up_i + 1} wheel-ups")
                                             break
                                     break
-                                # Bottom reached: same last value as previous
+                                # Bottom: require 3 consecutive same readings
                                 if visible_values[-1] == last_bottom:
-                                    logger.info(f"[click_dynamic_locator] Grid bottom reached at {visible_values[-1]}")
-                                    break
+                                    same_bottom_count += 1
+                                    if same_bottom_count >= 3:
+                                        logger.info(f"[click_dynamic_locator] Grid bottom confirmed at {visible_values[-1]}")
+                                        break
+                                else:
+                                    same_bottom_count = 0
                                 last_bottom = visible_values[-1]
                         except Exception:
                             pass

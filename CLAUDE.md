@@ -971,6 +971,14 @@ Strategies (ordered by priority):
 ```
 At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-0117"). Any `{{...}}` placeholder name works — they're all replaced via `re.sub(r'\{\{[^}]+\}\}', escaped, strat.value)`.
 
+### Recent Enhancements (Feb 22, 2026 — Session 4) — WF-9 Filter Cleanup & Chain Data Flow
+- **Step #22 "Click Apply Filter" Deactivated**: Step #21 fills the Item Number filter with `press_key_after='Enter'`, which applies the filter and closes the panel instantly. Step #22 "Click Apply Filter" then finds nothing (button already gone). Deactivated as redundant — Enter handles it.
+- **Step #21 wait_after Increased to 1500ms**: Gives D365 time to apply the filter and re-render the grid before step #23 (Activate) runs.
+- **Locator #522 Hardened**: Added P3 `contains(@id, "RouteVersion_ItemId_ApplyFilters")` fallback xpath strategy (standard D365 dynamic-prefix pattern).
+- **Chain 11 Cleaned Up**: Deactivated link #30 (redundant "filter for route number" workflow pk=95) — those filter steps are already integrated into WF-9 steps 7-10. Chain 11 now has 2 active links: WF-0 (login) + WF-9 (route registration).
+- **Chain 10 Context Mapping Issue Identified**: WF-2B saves captured item number as `ITEM_NO` (underscore) via `save_result_as`. WF-9 templates use `{{ITEM NO}}` (space). Chain 10 link #100 context_mapping `{'ITEM_NO': 'ITEM_NO'}` puts value under underscore key, but `get_value()` finds the empty space-key from initial row_data first. Fix needed: change context_mapping to `{'ITEM NO': 'ITEM_NO'}` so the captured value overwrites the empty key.
+- **D365 Filter Pattern — Enter vs Apply Button**: When D365 combobox filter fields have `press_key_after='Enter'`, Enter applies the filter AND closes the filter panel. No separate "Click Apply" step needed — it's redundant and will fail (element gone). Use Enter on the fill step with adequate `wait_after` instead.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
