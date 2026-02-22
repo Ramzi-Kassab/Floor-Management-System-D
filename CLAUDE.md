@@ -910,6 +910,11 @@ python manage.py check
 - **Grid Focus + Escape for Scroll Mode**: Before scrolling with PageDown, the code clicks `input.dyn-hyperlink.first` to focus the grid. But this puts the cell in edit mode (text selected), and PageDown in edit mode doesn't scroll the grid. Fix: press `Escape` after the focus click to exit cell edit mode, restoring grid-level focus so PageDown scrolls properly.
 - **BATCH_SIZE 3→1**: Changed scroll batch from 3 PageDowns to 1 PageDown per check cycle. With batch=3, the grid could scroll 3 pages (~33 rows) past the target in one batch — by the time `_try_all()` runs, the target row is above the viewport and virtualized away. With batch=1, every PageDown is followed by a check, preventing overshoot. MAX_BATCHES increased from 12 to 30 to compensate.
 
+### Recent Enhancements (Feb 22, 2026 — Session 3) — Activate Button Locator Fix
+- **Locator #465 Fix (d365_route_version_activate_btn)**: WF-9 step #19 "Click Activate Route Version" was finding the `<span class="button-label">` label element but clicking it had no effect. D365 handles button events on the actual `<button>` element, not the label span. Fixed by adding new strategies targeting the button element directly.
+- **D365 Button Label Pattern**: D365 toolbar buttons have structure `<button id="prefix_BOMRouteVersionActivate"><span id="prefix_BOMRouteVersionActivate_label" class="button-label">Activate</span></button>`. Clicking the inner `<span>` does NOT trigger the button action. Always target the `<button>` element (exclude `_label` suffix) or use `//button[.//span[text()="ButtonText"]]`.
+- **Updated Locator #465 Strategies**: P0 xpath `//*[contains(@id, "BOMRouteVersionActivate") and not(contains(@id, "_label"))]` (button element), P1 xpath `//button[.//span[text()="Activate"]]` (text-based), P2 xpath `//*[contains(@id, "RouteVersionActivate_label")]` (label fallback). Deactivated case-sensitive strategy that had 0 successes / 8 failures.
+
 ### D365 Grid Hyperlink Click Pattern (Reference for Future Similar Tasks)
 **Problem**: D365 FixedDataTable grids use virtualized rows (only visible rows in DOM) and hyperlink inputs (`input.dyn-hyperlink`) that require double-click to navigate to a detail page. Single click only selects the row.
 
