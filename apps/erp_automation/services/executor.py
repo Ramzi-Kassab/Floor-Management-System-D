@@ -887,17 +887,48 @@ class WorkflowExecutor:
             key = value or step.press_key_after
             if not key:
                 return {"success": False, "message": "No key specified for press_key"}
+
+            # Special tokens for D365 FixedDataTable grid scrolling
+            key_upper = key.upper().strip()
+            if key_upper in ("SCROLL_GRID_LEFT", "SCROLL_GRID_RIGHT"):
+                direction = "left" if "LEFT" in key_upper else "right"
+                grid_scope = (step.value_field or "").strip()
+                result = self._scroll_grid_horizontal(direction, grid_scope)
+                if step.wait_after > 0:
+                    self.page.wait_for_timeout(step.wait_after)
+                return result
+
+            # Browser zoom via Ctrl+Minus/Plus keyboard shortcut
+            if key_upper.startswith("ZOOM_"):
+                try:
+                    if key_upper == "ZOOM_OUT":
+                        self.page.keyboard.press("Control+Minus")
+                        msg = "Zoomed out 1 step"
+                    elif key_upper in ("ZOOM_IN", "ZOOM_100"):
+                        self.page.keyboard.press("Control+0")
+                        msg = "Zoom reset to 100%"
+                    else:
+                        import math
+                        target_pct = int(key_upper.split("_")[1])
+                        n = max(1, round(math.log(target_pct / 100) / math.log(0.8333)))
+                        self.page.keyboard.press("Control+0")
+                        self.page.wait_for_timeout(200)
+                        for _ in range(n):
+                            self.page.keyboard.press("Control+Minus")
+                            self.page.wait_for_timeout(200)
+                        msg = f"Zoomed to ~{round(100 * 0.8333**n)}% ({n} steps)"
+                    logger.info(f"[zoom] {msg}")
+                    if step.wait_after > 0:
+                        self.page.wait_for_timeout(step.wait_after)
+                    return {"success": True, "message": msg}
+                except Exception as e:
+                    logger.warning(f"[zoom] Keyboard zoom failed: {e}")
+                    return {"success": False, "message": f"Keyboard zoom failed: {e}"}
+
             self.page.keyboard.press(key)
             logger.info(f"[press_key] Pressed '{key}'")
             if step.wait_after > 0:
                 self.page.wait_for_timeout(step.wait_after)
-            # ── PAGE AWARENESS: Post-press_key state ─────────
-            if _page_reader:
-                try:
-                    post_state = _page_reader.snapshot_short()
-                    logger.info(f"[PageState] AFTER  '{step.name}': {post_state}")
-                except Exception:
-                    pass
             return {"success": True, "message": f"Pressed {key}"}
 
         if step.action_type == "type_text":
@@ -1046,30 +1077,80 @@ class WorkflowExecutor:
                     return False
 
                 # Phase 1: Try visible elements
-                clicked = _try_all_targets()
+                found = _try_all_targets()
 
-                # Phase 2: Scroll grid to find off-screen element (D365 virtualization)
-                if not clicked:
+                # Phase 2: Smart batch scroll for D365 virtualized grids
+                MAX_SCROLLS = 30
+                if not found:
                     logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid...")
-                    MAX_SCROLLS = 30
-                    for scroll_i in range(MAX_SCROLLS):
-                        if scroll_i == 0:
-                            # Focus the grid first by clicking any grid cell
-                            try:
-                                grid_cell = self.page.locator("input.dyn-hyperlink").first
-                                if grid_cell.is_visible(timeout=2000):
-                                    grid_cell.click()
-                                    self.page.wait_for_timeout(300)
-                            except Exception:
-                                pass
-                        self.page.keyboard.press("PageDown")
-                        self.page.wait_for_timeout(500)
+                    # Focus grid first by clicking any grid cell
+                    try:
+                        grid_cell = self.page.locator("input.dyn-hyperlink").first
+                        if grid_cell.is_visible(timeout=2000):
+                            grid_cell.click()
+                            self.page.wait_for_timeout(300)
+                    except Exception:
+                        pass
+
+                    # Smart scroll: batch PageDowns with overshoot detection
+                    BATCH_SIZE = 3
+                    MAX_BATCHES = 12
+                    overshot = False
+
+                    for batch_num in range(MAX_BATCHES):
+                        if found:
+                            break
+                        for _ in range(BATCH_SIZE):
+                            self.page.keyboard.press("PageDown")
+                            self.page.wait_for_timeout(100)
+                        self.page.wait_for_timeout(400)
+
+                        # Check via JS .value search + CSS/XPath
                         if _try_all_targets():
-                            clicked = True
-                            logger.info(f"[click_dynamic_locator] Found after {scroll_i + 1} PageDown scrolls")
+                            found = True
+                            total_pds = (batch_num + 1) * BATCH_SIZE
+                            logger.info(f"[click_dynamic_locator] Found '{value}' after batch {batch_num + 1} ({total_pds} PageDowns)")
                             break
 
-                if not clicked:
+                        # Detect overshoot via visible grid values
+                        try:
+                            visible_values = self._read_grid_hyperlink_values()
+                            if visible_values:
+                                logger.info(f"[click_dynamic_locator] Batch {batch_num + 1}: visible range {visible_values[0]}..{visible_values[-1]}")
+                                if all(v > value for v in visible_values):
+                                    logger.info(f"[click_dynamic_locator] Overshot! All visible > '{value}', scrolling back up")
+                                    overshot = True
+                                    break
+                                if batch_num > 0 and visible_values[-1] == getattr(self, '_last_grid_bottom', None):
+                                    logger.info(f"[click_dynamic_locator] Grid bottom reached, scrolling back up")
+                                    overshot = True
+                                    break
+                                self._last_grid_bottom = visible_values[-1]
+                        except Exception as e:
+                            logger.debug(f"[click_dynamic_locator] Grid read failed: {e}")
+
+                    # Scroll back up if overshot
+                    if overshot and not found:
+                        logger.info(f"[click_dynamic_locator] Scrolling back up to find '{value}'")
+                        for up_i in range(MAX_SCROLLS):
+                            self.page.keyboard.press("PageUp")
+                            self.page.wait_for_timeout(300)
+                            if _try_all_targets():
+                                found = True
+                                logger.info(f"[click_dynamic_locator] Found '{value}' after {up_i + 1} PageUps back")
+                                break
+
+                    # Last resort: incremental scroll
+                    if not found:
+                        for scroll_i in range(MAX_SCROLLS):
+                            self.page.keyboard.press("PageDown")
+                            self.page.wait_for_timeout(300)
+                            if _try_all_targets():
+                                found = True
+                                logger.info(f"[click_dynamic_locator] Found '{value}' after {scroll_i + 1} incremental scrolls")
+                                break
+
+                if not found:
                     return {"success": False, "message": f"click_dynamic_locator: no visible element with value '{value}'"}
 
                 if step.wait_after > 0:
@@ -1099,6 +1180,8 @@ class WorkflowExecutor:
             try:
                 self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 self.page.wait_for_timeout(step.wait_after if step.wait_after > 0 else 3000)
+                # Apply keyboard zoom once after first real navigation
+                self._apply_keyboard_zoom()
                 return {"success": True, "message": f"Navigated to {url}"}
             except Exception as e:
                 return {"success": False, "message": f"goto_url failed: {e}"}
@@ -1520,6 +1603,178 @@ class WorkflowExecutor:
                 return {"success": False, "message": str(e)}
 
         return {"success": False, "message": "Max retries exceeded"}
+
+    def _read_grid_hyperlink_values(self) -> list:
+        """Read visible hyperlink input values from D365 grid.
+
+        Returns sorted list of values from visible dyn-hyperlink inputs.
+        Used to detect overshoot during grid scrolling.
+        """
+        js = """
+        (() => {
+            const values = [];
+            const inputs = document.querySelectorAll('input.dyn-hyperlink');
+            inputs.forEach(inp => {
+                if (inp.value && inp.offsetParent !== null) {
+                    values.push(inp.value);
+                }
+            });
+            return [...new Set(values)].sort();
+        })()
+        """
+        for target in [self.page] + list(self.page.frames[1:]):
+            try:
+                result = target.evaluate(js)
+                if result:
+                    return result
+            except Exception:
+                continue
+        return []
+
+    def _click_grid_hyperlink(self, element, value: str):
+        """Click a D365 grid hyperlink input with multiple fallback methods."""
+        # Method A: dblclick
+        try:
+            element.dblclick(timeout=5000)
+            self.page.wait_for_timeout(500)
+            logger.info(f"[grid_hyperlink] A: dblclick done for '{value}'")
+        except Exception as e:
+            logger.debug(f"[grid_hyperlink] A: dblclick failed: {e}")
+        try:
+            if not element.is_visible(timeout=1000):
+                logger.info(f"[grid_hyperlink] Navigation detected after A, stopping")
+                return
+        except:
+            logger.info(f"[grid_hyperlink] Element detached after A, stopping")
+            return
+
+        # Method B: click + mouse.click at coordinates
+        try:
+            box = element.bounding_box()
+            if box:
+                cx = box['x'] + box['width'] / 2
+                cy = box['y'] + box['height'] / 2
+                element.click(timeout=5000)
+                self.page.wait_for_timeout(300)
+                self.page.mouse.click(cx, cy)
+                self.page.wait_for_timeout(500)
+                logger.info(f"[grid_hyperlink] B: click+mouse.click done for '{value}'")
+        except Exception as e:
+            logger.debug(f"[grid_hyperlink] B: click+mouse failed: {e}")
+        try:
+            if not element.is_visible(timeout=1000):
+                logger.info(f"[grid_hyperlink] Navigation detected after B, stopping")
+                return
+        except:
+            logger.info(f"[grid_hyperlink] Element detached after B, stopping")
+            return
+
+        # Method C: click + JS click
+        try:
+            element.click(timeout=5000)
+            self.page.wait_for_timeout(300)
+            element.evaluate("el => el.click()")
+            self.page.wait_for_timeout(500)
+            logger.info(f"[grid_hyperlink] C: click+JS click done for '{value}'")
+        except Exception as e:
+            logger.debug(f"[grid_hyperlink] C: click+JS failed: {e}")
+
+    def _scroll_grid_horizontal(self, direction: str = "left", grid_scope: str = "") -> Dict[str, Any]:
+        """Scroll a D365 FixedDataTable grid horizontally by dragging the scrollbar face."""
+        face_selector = '.ScrollbarLayout_faceHorizontal'
+        track_selector = '.ScrollbarLayout_main.ScrollbarLayout_mainHorizontal'
+
+        face = self.page.locator(face_selector).first
+        track = self.page.locator(track_selector).first
+
+        try:
+            face.wait_for(state="visible", timeout=5000)
+        except Exception:
+            logger.warning("[scroll_grid] Scrollbar face not visible within 5s")
+            return {"success": False, "message": "Scrollbar face not visible"}
+
+        track_box = track.bounding_box()
+        if not track_box:
+            return {"success": False, "message": "Track bounding box is None"}
+
+        if direction == "left":
+            target_x = 5
+        else:
+            target_x = int(track_box['width']) - 5
+        target_y = int(track_box['height']) // 2
+
+        face_box_before = face.bounding_box()
+        logger.info(
+            f"[scroll_grid] face at x={face_box_before['x']:.0f}, "
+            f"track x={track_box['x']:.0f} w={track_box['width']:.0f}, "
+            f"target_position=({target_x}, {target_y})"
+        )
+
+        # APPROACH 1: drag_to()
+        try:
+            face.drag_to(track, target_position={"x": target_x, "y": target_y})
+            self.page.wait_for_timeout(500)
+            face_box_after = face.bounding_box()
+            if face_box_after and face_box_before:
+                moved = abs(face_box_after['x'] - face_box_before['x'])
+                logger.info(f"[scroll_grid] drag_to: face moved {moved:.0f}px")
+                if moved > 5:
+                    return {"success": True, "message": f"Scrolled {direction} via drag_to ({moved:.0f}px)"}
+            else:
+                return {"success": True, "message": f"Scrolled {direction} via drag_to (unverified)"}
+        except Exception as e:
+            logger.warning(f"[scroll_grid] drag_to failed: {e}")
+
+        # APPROACH 2: manual mouse drag
+        logger.info("[scroll_grid] Trying approach 2: manual mouse drag")
+        try:
+            face.scroll_into_view_if_needed(timeout=3000)
+            self.page.wait_for_timeout(200)
+            face_box = face.bounding_box()
+            track_box = track.bounding_box()
+            if not face_box or not track_box:
+                return {"success": False, "message": "bounding_box None"}
+            start_x = face_box['x'] + face_box['width'] / 2
+            start_y = face_box['y'] + face_box['height'] / 2
+            end_x = (track_box['x'] + 5) if direction == "left" \
+                else (track_box['x'] + track_box['width'] - 5)
+            self.page.mouse.move(start_x, start_y)
+            self.page.wait_for_timeout(200)
+            self.page.mouse.down()
+            self.page.wait_for_timeout(100)
+            self.page.mouse.move(end_x, start_y, steps=30)
+            self.page.wait_for_timeout(100)
+            self.page.mouse.up()
+            self.page.wait_for_timeout(500)
+            face_box_after = face.bounding_box()
+            if face_box_after:
+                moved = abs(face_box_after['x'] - face_box['x'])
+                logger.info(f"[scroll_grid] mouse drag: face moved {moved:.0f}px")
+                if moved > 5:
+                    return {"success": True, "message": f"Scrolled {direction} via mouse drag ({moved:.0f}px)"}
+            else:
+                return {"success": True, "message": f"Scrolled {direction} via mouse drag (unverified)"}
+        except Exception as e:
+            logger.warning(f"[scroll_grid] Approach 2 (mouse drag) failed: {e}")
+
+        return {"success": False, "message": "All scroll approaches failed"}
+
+    def _apply_keyboard_zoom(self):
+        """Apply browser zoom via Ctrl+Minus keyboard shortcut after first navigation."""
+        if getattr(self, '_zoom_applied', False):
+            return
+        zoom_steps = getattr(self, '_zoom_steps', 0)
+        if zoom_steps <= 0:
+            return
+        try:
+            for i in range(zoom_steps):
+                self.page.keyboard.press("Control+Minus")
+                self.page.wait_for_timeout(300)
+            self._zoom_applied = True
+            pct = round(100 * (0.8333 ** zoom_steps))
+            logger.info(f"Browser zoom: {zoom_steps}x Ctrl+Minus applied (~{pct}%)")
+        except Exception as e:
+            logger.warning(f"Keyboard zoom failed: {e}")
 
     def _perform_action(
         self,
@@ -2648,7 +2903,7 @@ class DebugExecutor(WorkflowExecutor):
                     break
                 elif bp_action == "rerun_from_step":
                     target_step_id = self._debug_state.get("_rerun_from_step_id")
-                    idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                    idx = next((i for i, s in enumerate(steps) if s[0].pk == target_step_id), idx)
                     logger.info(f"[DebugExec] Rerunning from step index {idx}")
                     self._update_state(status="running", error=None, screenshot_base64=None)
                     continue
@@ -2746,7 +3001,7 @@ class DebugExecutor(WorkflowExecutor):
                         break
                     elif sbs_action == "rerun_from_step":
                         target_step_id = self._debug_state.get("_rerun_from_step_id")
-                        idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                        idx = next((i for i, s in enumerate(steps) if s[0].pk == target_step_id), idx)
                         self._update_state(status="running", error=None, screenshot_base64=None)
                         continue
                     elif sbs_action == "rerun_from_link":
@@ -2817,7 +3072,7 @@ class DebugExecutor(WorkflowExecutor):
                 break
             elif action == "rerun_from_step":
                 target_step_id = self._debug_state.get("_rerun_from_step_id")
-                idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                idx = next((i for i, s in enumerate(steps) if s[0].pk == target_step_id), idx)
                 logger.info(f"[DebugExec] Rerunning from step index {idx}")
                 self._update_state(status="running", error=None, screenshot_base64=None)
                 continue
@@ -2869,7 +3124,7 @@ class DebugExecutor(WorkflowExecutor):
                         break
                     elif action2 == "rerun_from_step":
                         target_step_id = self._debug_state.get("_rerun_from_step_id")
-                        idx = next((i for i, s in enumerate(steps) if s.pk == target_step_id), idx)
+                        idx = next((i for i, s in enumerate(steps) if s[0].pk == target_step_id), idx)
                         logger.info(f"[DebugExec] Rerunning from step index {idx}")
                         self._update_state(status="running", error=None, screenshot_base64=None)
                         continue
