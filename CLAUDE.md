@@ -876,6 +876,20 @@ python manage.py check
 - **WF-9 `select_grid_row` Column Header**: Step #16 `value_field` set to "Route number" matching D365's `aria-label` on route grid cells.
 - **New Locators Created**: PK 500 (`d365_bom_select_all_checkbox`), 502 (`d365_bom_config_lookup_btn`), 503 (`d365_bom_config_variant_select`), 506 (`d365_bom_item_lookup_btn`), 511 (`d365_route_add_btn`).
 
+### Recent Enhancements (Feb 21, 2026 — Session 2) — type_text Focus Verification & BOM Line Fixes
+- **type_text Focus Verification**: `type_text` handler now supports locator-based focus verification. If a locator is assigned to the step, it checks if the correct field has focus before typing. If focus is wrong, clicks the locator to correct it. Logs focus match/mismatch for debugging.
+- **BOM Line Tab → Escape**: WF-7B Fill Quantity step changed `press_key_after` from Tab to Escape. Tab was advancing cursor to the next cell ("Per series"), causing the next iteration's item number to be typed into the wrong field.
+- **New BOM Line Wait Increase**: Increased "New BOM Line" click wait from 1500ms to 2500ms for D365 to fully render the new row.
+- **Locator #512** (`d365_bom_line_item_input`): Created with `name`/`css`/`xpath` strategies targeting `input[name="ItemId"]`, assigned to Fill Item Number step (PK=1737) for focus verification.
+
+### Recent Enhancements (Feb 22, 2026 — Pre-Session) — Grid Helpers, Zoom, Horizontal Scroll
+- **`_read_grid_hyperlink_values()`**: New helper method reads all visible `input.dyn-hyperlink` values from the current grid via JS evaluation. Returns sorted list of string values. Used for overshoot detection during `click_dynamic_locator` scrolling — compares visible range against target value to detect when we've scrolled too far.
+- **`_scroll_grid_horizontal(direction)`**: New helper scrolls D365 FixedDataTable grids horizontally by dragging the scrollbar face. Uses `drag_to()` approach with manual mouse drag fallback. Supports `left` and `right` directions. Used by `SCROLL_GRID_LEFT`/`SCROLL_GRID_RIGHT` special tokens in `press_key` handler.
+- **`_apply_keyboard_zoom()`**: New helper applies browser zoom via `Ctrl+Minus` after first D365 navigation. Reduces viewport zoom to fit more grid columns. Called once per execution session.
+- **press_key Special Tokens**: Extended `press_key` handler to support special tokens: `SCROLL_GRID_LEFT`, `SCROLL_GRID_RIGHT` (call `_scroll_grid_horizontal()`), `ZOOM_OUT`, `ZOOM_IN`, `ZOOM_N` (browser zoom via Ctrl+Minus/Plus/0). These work alongside standard key names like `Tab`, `Escape`, `Enter`.
+- **Repeat Group s[0].pk Tuple Fix**: Fixed `step.pk` access for repeat-group expanded steps — expanded steps are stored as `(step, iteration_data)` tuples, so the step object needs `s[0]` indexing before accessing `.pk`.
+- **type_text Optimization**: Reuses `self.locator_engine` instead of creating new `LocatorEngine` per call. Reduced pre-key wait from 300ms to 100ms. Removed page awareness post-verification block (saved 300-500ms per call).
+
 ### Recent Enhancements (Feb 22, 2026) — Dynamic Locators, Select-All Verification, Debug UX
 - **`click_dynamic_locator` Action Type**: New executor action that builds locator selectors at runtime by replacing `{{PLACEHOLDER}}` tokens in strategy templates with the step's resolved value. Supports ANY placeholder name (`{{VALUE}}`, `{{ROUTE}}`, `{{ITEM}}`, etc.) via `re.sub(r'\{\{[^}]+\}\}', escaped, strat.value)`. Includes D365 grid scroll support — PageDown up to 30 times to find off-screen elements in virtualized FixedDataTable grids. Used for WF-9 step #15 "Click Route Number Link" with locator #530 (`d365_route_grid_hyperlink`).
 - **ActionType Model Expanded**: Added `TYPE_TEXT = "type_text"`, `NAVIGATE = "navigate"`, `CLICK_DYNAMIC = "click_dynamic_locator"` to `ActionType` TextChoices. `max_length` on `WorkflowStep.action_type` and `RecordedAction.action_type` increased from 20 to 30. Migration `0015_add_action_types_and_max_length`.
@@ -888,6 +902,64 @@ python manage.py check
 - **WF-7B Stabilization Step**: Step #11 "Click Grid Checkbox (accept & stabilize)" added after repeat group to stabilize the BOM grid. Step #7 (Click Item Lookup) deactivated — was reopening lookup after Enter already closed dropdown, causing navigation away. Step #10 `press_key_after` changed from Escape to none.
 - **WF-2 Combobox Steps: Enter → Tab**: All combobox steps in WF-2 (Create Released Product) changed from `press_key_after='Enter'` to `press_key_after='Tab'`. Tab cleanly moves focus without triggering D365's heavy combobox validation lookup. Wait times increased to 1500-2000ms. Prevents serial number value from leaking into Tracking Dimension Group field.
 - **D365 Page Awareness System**: `page_awareness.py` — `D365PageReader` class with read-only JS evaluation methods: `get_focused_field()`, `get_field_value()`, `count_grid_rows()`, `count_selected_grid_rows()`, `get_grid_row_values()`, `get_page_context()`, `get_error_messages()`, `snapshot()`, `snapshot_short()`. Hooks in executor: pre/post state logging, fill value verification, grid row count verification, select-all verification. Page state panel in chain_detail.html debug UI.
+
+### Recent Enhancements (Feb 22, 2026 — Session 2) — click_dynamic_locator & _click_grid_hyperlink Fixes
+- **`click_dynamic_locator` Hybrid Finding (CSS/XPath + JS fallback)**: The action handler uses a two-layer finding strategy. Primary: CSS/XPath selectors from locator strategies with Playwright `is_visible(timeout=2000)` auto-wait — critical because after PageDown, D365 virtualized grids take a few hundred ms to render new rows and Playwright retries during the timeout window. Fallback: JS `.value` property search via `frame.evaluate()` across all frames — runs once with no retry, used when CSS attribute selectors don't match (D365 sometimes sets `.value` via JS without updating the HTML attribute).
+- **`_click_grid_hyperlink()` Coordinate-Based dblclick**: Rewritten to use raw `page.mouse.dblclick(cx, cy)` at bounding box coordinates instead of `element.dblclick()`. D365 grid hyperlinks (`input.dyn-hyperlink`) respond to real mouse events for navigation — Playwright's abstracted element-level dblclick selects the row but doesn't trigger D365's hyperlink navigation handler. Three fallback methods: A) `mouse.dblclick(cx,cy)`, B) two rapid `mouse.click(cx,cy)`, C) JS `el.click()` twice. Each method waits 2000ms then checks `element.is_visible()` — only proceeds to next method if element still present.
+- **`scroll_into_view_if_needed()` Before Click**: D365 FixedDataTable pre-renders buffer rows just outside the visible viewport. CSS selectors can find these off-screen elements and `is_visible()` returns True (they have dimensions in the DOM). But clicking them has no effect because they're outside the viewport. Fix: call `element.scroll_into_view_if_needed(timeout=3000)` before getting bounding box coordinates, ensuring the element is in the visible viewport when clicked.
+- **Grid Focus + Escape for Scroll Mode**: Before scrolling with PageDown, the code clicks `input.dyn-hyperlink.first` to focus the grid. But this puts the cell in edit mode (text selected), and PageDown in edit mode doesn't scroll the grid. Fix: press `Escape` after the focus click to exit cell edit mode, restoring grid-level focus so PageDown scrolls properly.
+- **BATCH_SIZE 3→1**: Changed scroll batch from 3 PageDowns to 1 PageDown per check cycle. With batch=3, the grid could scroll 3 pages (~33 rows) past the target in one batch — by the time `_try_all()` runs, the target row is above the viewport and virtualized away. With batch=1, every PageDown is followed by a check, preventing overshoot. MAX_BATCHES increased from 12 to 30 to compensate.
+
+### D365 Grid Hyperlink Click Pattern (Reference for Future Similar Tasks)
+**Problem**: D365 FixedDataTable grids use virtualized rows (only visible rows in DOM) and hyperlink inputs (`input.dyn-hyperlink`) that require double-click to navigate to a detail page. Single click only selects the row.
+
+**Architecture** (`click_dynamic_locator` action in `executor.py`):
+```
+click_dynamic_locator(value="ROUTE-0117")
+  │
+  ├── Step 1: Build selectors from locator strategies
+  │   └── Replace {{PLACEHOLDER}} tokens with resolved value
+  │       e.g. css: input[value="{{ROUTE}}"].dyn-hyperlink → input[value="ROUTE-0117"].dyn-hyperlink
+  │
+  ├── Step 2: _try_all() — Find element in visible area
+  │   ├── _find_and_dblclick_selectors(main_page) — CSS/XPath with 2000ms auto-wait
+  │   ├── _find_and_dblclick_selectors(each_iframe) — same for iframes
+  │   └── _js_find_and_dblclick() — JS .value search fallback across all frames
+  │
+  ├── Step 3: If not found → Scroll grid
+  │   ├── Focus grid: click input.dyn-hyperlink.first + Escape (exit edit mode)
+  │   ├── Loop: 1 PageDown → wait 400ms → _try_all() → check overshoot
+  │   ├── Overshoot detection: compare visible values vs target (string compare)
+  │   ├── If overshot: scroll back up with PageUp, checking each time
+  │   └── Last resort: incremental PageDown scroll
+  │
+  └── Step 4: _click_grid_hyperlink(element, value) — Navigate
+      ├── scroll_into_view_if_needed() — bring off-screen buffer rows into viewport
+      ├── Get bounding_box() → cx, cy coordinates
+      ├── Method A: page.mouse.dblclick(cx, cy) → wait 2000ms → check is_visible
+      ├── Method B: mouse.click + mouse.click (rapid) → wait 2000ms → check
+      └── Method C: JS el.click() + el.click() → wait 2000ms
+```
+
+**Key Lessons Learned**:
+1. **CSS `input[value="X"]` checks HTML attribute, JS `.value` checks property** — D365 may set one or both. Use CSS/XPath as primary (with Playwright auto-wait) and JS `.value` search as fallback.
+2. **Playwright auto-wait vs JS evaluate**: `loc.is_visible(timeout=2000)` retries for up to 2s (essential after PageDown when rows need time to render). `frame.evaluate()` runs once immediately with no retry.
+3. **`element.dblclick()` ≠ `page.mouse.dblclick(cx, cy)`**: For D365 hyperlinks, raw mouse events at coordinates trigger navigation. Playwright element-level dblclick only selects the row.
+4. **D365 pre-renders buffer rows off-screen**: CSS selectors find them, `is_visible()` returns True, but clicks have no effect. Always `scroll_into_view_if_needed()` before clicking.
+5. **Grid focus + edit mode blocks scrolling**: Clicking a grid input enters edit mode. Press Escape to restore grid-level focus before using PageDown.
+6. **Batch scrolling overshoots**: With BATCH_SIZE>1, PageDown jumps multiple pages and the target row gets virtualized away before the check runs. BATCH_SIZE=1 prevents this.
+7. **Post-dblclick wait must be 2000ms**: D365 SPA navigation takes 1-2s. With only 500ms wait, `is_visible()` returns True (element not yet gone), causing Methods B/C to fire extra clicks that confuse D365.
+8. **ElementHandle vs Locator API**: `ElementHandle.is_visible()` takes NO parameters. `Locator.is_visible(timeout=X)` accepts timeout. Passing `timeout` to ElementHandle causes TypeError silently caught by except blocks. Use `is_visible()` with no args for compatibility with both types.
+
+**Locator Strategy Pattern for Dynamic Grid Values**:
+```
+Locator: d365_route_grid_hyperlink (pk=530)
+Strategies (ordered by priority):
+  P0 css:   input[value="{{ROUTE}}"].dyn-hyperlink
+  P1 xpath: //input[@value="{{ROUTE}}" and contains(@class, "dyn-hyperlink")]
+  P2 xpath: //input[@value="{{ROUTE}}"]
+```
+At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-0117"). Any `{{...}}` placeholder name works — they're all replaced via `re.sub(r'\{\{[^}]+\}\}', escaped, strat.value)`.
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).

@@ -1006,8 +1006,14 @@ class WorkflowExecutor:
                         ('css', f'input[value="{escaped}"]'),
                     ]
 
-                def _try_click_selectors(page_or_frame, label="page"):
-                    """Try each selector on the given page/frame."""
+                # ── FINDING: CSS/XPath selectors (primary) + JS .value search (fallback) ──
+                # Playwright's loc.is_visible(timeout=...) auto-waits for elements to
+                # appear after scrolling — critical for D365 virtualized grids where
+                # rows take a few hundred ms to render after PageDown.
+                # JS frame.evaluate() runs once with no retry, so it's the fallback.
+
+                def _find_and_dblclick_selectors(page_or_frame, label="page"):
+                    """Find element by CSS/XPath selectors, then dblclick combo. Returns True if found."""
                     for stype, sel in selectors:
                         try:
                             if stype == 'css':
@@ -1017,14 +1023,14 @@ class WorkflowExecutor:
                             else:
                                 loc = page_or_frame.locator(sel).first
                             if loc.is_visible(timeout=2000):
-                                loc.click(timeout=5000)
-                                logger.info(f"[click_dynamic_locator] Clicked {stype}='{sel}' on {label}")
+                                logger.info(f"[click_dynamic_locator] Found {stype}='{sel}' on {label}")
+                                self._click_grid_hyperlink(loc, value)
                                 return True
                         except Exception:
                             pass
                     return False
 
-                # JS search for D365 inputs whose .value is set via JS (not HTML attr)
+                # JS search fallback for D365 inputs whose .value is set via JS
                 FIND_BY_VALUE_JS = """(targetVal) => {
                     const inputs = document.querySelectorAll('input');
                     for (const inp of inputs) {
@@ -1037,15 +1043,8 @@ class WorkflowExecutor:
                     return {found: false};
                 }"""
 
-                def _try_all_targets():
-                    """Try main page then all iframes — selectors first, then JS .value fallback."""
-                    # Attempt 1: CSS/XPath selectors (fast, works when HTML attr is set)
-                    if _try_click_selectors(self.page, "main"):
-                        return True
-                    for frame in self.page.frames[1:]:
-                        if _try_click_selectors(frame, "iframe"):
-                            return True
-                    # Attempt 2: JS .value search (D365 sets input values via JS, not HTML attr)
+                def _js_find_and_dblclick():
+                    """JS .value search across all frames, then dblclick at coords. Returns True if found."""
                     all_frames = [self.page] + list(self.page.frames[1:])
                     for fi, frame in enumerate(all_frames):
                         frame_label = "main" if fi == 0 else f"iframe[{fi}]"
@@ -1056,45 +1055,65 @@ class WorkflowExecutor:
                         if not el_info or not el_info.get("found"):
                             continue
                         logger.info(f"[click_dynamic_locator] JS .value match in {frame_label}, id={el_info.get('id')}")
-                        # Click via #id selector or mouse coordinates
+                        # Click via #id locator (dblclick combo) or coordinates
                         if el_info.get("id"):
                             try:
-                                frame.locator(f"#{el_info['id']}").click(timeout=5000)
-                                return True
+                                loc = frame.locator(f"[id='{el_info['id']}']").first
+                                if loc.is_visible(timeout=2000):
+                                    self._click_grid_hyperlink(loc, value)
+                                    return True
                             except Exception:
                                 pass
+                        # Coordinate fallback: dblclick at JS-found position
+                        cx, cy = el_info["cx"], el_info["cy"]
                         try:
                             if fi == 0:
-                                self.page.mouse.click(el_info["cx"], el_info["cy"])
+                                self.page.mouse.dblclick(cx, cy)
                             else:
-                                frame.locator("body").click(
-                                    position={"x": int(el_info["cx"]), "y": int(el_info["cy"])},
-                                    timeout=5000
-                                )
+                                frame.locator("body").dblclick(
+                                    position={"x": int(cx), "y": int(cy)}, timeout=5000)
+                            self.page.wait_for_timeout(500)
+                            logger.info(f"[click_dynamic_locator] Dblclick at ({cx:.0f},{cy:.0f}) in {frame_label}")
                             return True
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"[click_dynamic_locator] Coord dblclick failed: {e}")
+                    return False
+
+                def _try_all():
+                    """Try CSS/XPath on main page + all iframes, then JS .value fallback."""
+                    # Method 1: CSS/XPath selectors with Playwright auto-wait
+                    if _find_and_dblclick_selectors(self.page, "main"):
+                        return True
+                    for frame in self.page.frames[1:]:
+                        if _find_and_dblclick_selectors(frame, "iframe"):
+                            return True
+                    # Method 2: JS .value search (fallback)
+                    if _js_find_and_dblclick():
+                        return True
                     return False
 
                 # Phase 1: Try visible elements
-                found = _try_all_targets()
+                found = _try_all()
 
                 # Phase 2: Smart batch scroll for D365 virtualized grids
                 MAX_SCROLLS = 30
                 if not found:
                     logger.info(f"[click_dynamic_locator] '{value}' not visible, scrolling grid...")
-                    # Focus grid first by clicking any grid cell
+                    # Focus grid first by clicking any grid cell, then Escape
+                    # to exit cell edit mode so PageDown scrolls the grid
                     try:
                         grid_cell = self.page.locator("input.dyn-hyperlink").first
                         if grid_cell.is_visible(timeout=2000):
                             grid_cell.click()
+                            self.page.wait_for_timeout(200)
+                            self.page.keyboard.press("Escape")
                             self.page.wait_for_timeout(300)
                     except Exception:
                         pass
 
-                    # Smart scroll: batch PageDowns with overshoot detection
-                    BATCH_SIZE = 3
-                    MAX_BATCHES = 12
+                    # Scroll one PageDown at a time — prevents skipping past target
+                    BATCH_SIZE = 1
+                    MAX_BATCHES = 30
                     overshot = False
 
                     for batch_num in range(MAX_BATCHES):
@@ -1105,11 +1124,11 @@ class WorkflowExecutor:
                             self.page.wait_for_timeout(100)
                         self.page.wait_for_timeout(400)
 
-                        # Check via JS .value search + CSS/XPath
-                        if _try_all_targets():
+                        # Check after scrolling
+                        if _try_all():
                             found = True
                             total_pds = (batch_num + 1) * BATCH_SIZE
-                            logger.info(f"[click_dynamic_locator] Found '{value}' after batch {batch_num + 1} ({total_pds} PageDowns)")
+                            logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after batch {batch_num + 1} ({total_pds} PageDowns)")
                             break
 
                         # Detect overshoot via visible grid values
@@ -1135,9 +1154,9 @@ class WorkflowExecutor:
                         for up_i in range(MAX_SCROLLS):
                             self.page.keyboard.press("PageUp")
                             self.page.wait_for_timeout(300)
-                            if _try_all_targets():
+                            if _try_all():
                                 found = True
-                                logger.info(f"[click_dynamic_locator] Found '{value}' after {up_i + 1} PageUps back")
+                                logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {up_i + 1} PageUps back")
                                 break
 
                     # Last resort: incremental scroll
@@ -1145,9 +1164,9 @@ class WorkflowExecutor:
                         for scroll_i in range(MAX_SCROLLS):
                             self.page.keyboard.press("PageDown")
                             self.page.wait_for_timeout(300)
-                            if _try_all_targets():
+                            if _try_all():
                                 found = True
-                                logger.info(f"[click_dynamic_locator] Found '{value}' after {scroll_i + 1} incremental scrolls")
+                                logger.info(f"[click_dynamic_locator] ✓ Found '{value}' after {scroll_i + 1} incremental scrolls")
                                 break
 
                 if not found:
@@ -1632,52 +1651,82 @@ class WorkflowExecutor:
         return []
 
     def _click_grid_hyperlink(self, element, value: str):
-        """Click a D365 grid hyperlink input with multiple fallback methods."""
-        # Method A: dblclick
+        """Click a D365 grid hyperlink input with multiple fallback methods.
+
+        Uses raw mouse.dblclick() at bounding box coordinates — D365
+        hyperlinks respond to real mouse events, not Playwright element events.
+        After each method, wait 2s for D365 to navigate, then check if element
+        is gone. Only proceed to next method if element still present.
+        """
+        # Scroll element into viewport first — D365 pre-renders buffer rows
+        # just outside the viewport; CSS selector finds them but they're off-screen
         try:
-            element.dblclick(timeout=5000)
-            self.page.wait_for_timeout(500)
-            logger.info(f"[grid_hyperlink] A: dblclick done for '{value}'")
+            element.scroll_into_view_if_needed(timeout=3000)
+            self.page.wait_for_timeout(300)
+        except Exception:
+            pass
+
+        # Get bounding box coordinates for raw mouse events
+        try:
+            box = element.bounding_box()
+        except Exception:
+            box = None
+        if not box:
+            logger.warning(f"[grid_hyperlink] Cannot get bounding box for '{value}', trying element.dblclick()")
+            try:
+                element.dblclick(timeout=5000)
+                self.page.wait_for_timeout(2000)
+            except Exception as e:
+                logger.debug(f"[grid_hyperlink] element.dblclick failed: {e}")
+            return
+
+        cx = box['x'] + box['width'] / 2
+        cy = box['y'] + box['height'] / 2
+        logger.info(f"[grid_hyperlink] Coords for '{value}': ({cx:.0f}, {cy:.0f})")
+
+        # Method A: raw mouse dblclick at coordinates
+        try:
+            self.page.mouse.dblclick(cx, cy)
+            self.page.wait_for_timeout(2000)
+            logger.info(f"[grid_hyperlink] A: mouse.dblclick({cx:.0f},{cy:.0f}) done")
         except Exception as e:
-            logger.debug(f"[grid_hyperlink] A: dblclick failed: {e}")
+            logger.debug(f"[grid_hyperlink] A: mouse.dblclick failed: {e}")
         try:
-            if not element.is_visible(timeout=1000):
+            if not element.is_visible():
                 logger.info(f"[grid_hyperlink] Navigation detected after A, stopping")
                 return
         except:
             logger.info(f"[grid_hyperlink] Element detached after A, stopping")
             return
 
-        # Method B: click + mouse.click at coordinates
+        # Method B: two separate mouse clicks at coordinates (rapid)
+        logger.info(f"[grid_hyperlink] Element still visible after A, trying B...")
         try:
-            box = element.bounding_box()
-            if box:
-                cx = box['x'] + box['width'] / 2
-                cy = box['y'] + box['height'] / 2
-                element.click(timeout=5000)
-                self.page.wait_for_timeout(300)
-                self.page.mouse.click(cx, cy)
-                self.page.wait_for_timeout(500)
-                logger.info(f"[grid_hyperlink] B: click+mouse.click done for '{value}'")
+            self.page.mouse.click(cx, cy)
+            self.page.wait_for_timeout(150)
+            self.page.mouse.click(cx, cy)
+            self.page.wait_for_timeout(2000)
+            logger.info(f"[grid_hyperlink] B: click+click({cx:.0f},{cy:.0f}) done")
         except Exception as e:
-            logger.debug(f"[grid_hyperlink] B: click+mouse failed: {e}")
+            logger.debug(f"[grid_hyperlink] B: click+click failed: {e}")
         try:
-            if not element.is_visible(timeout=1000):
+            if not element.is_visible():
                 logger.info(f"[grid_hyperlink] Navigation detected after B, stopping")
                 return
         except:
             logger.info(f"[grid_hyperlink] Element detached after B, stopping")
             return
 
-        # Method C: click + JS click
+        # Method C: JS click on element
+        logger.info(f"[grid_hyperlink] Element still visible after B, trying C...")
         try:
-            element.click(timeout=5000)
-            self.page.wait_for_timeout(300)
             element.evaluate("el => el.click()")
             self.page.wait_for_timeout(500)
-            logger.info(f"[grid_hyperlink] C: click+JS click done for '{value}'")
+            element.evaluate("el => el.click()")
+            self.page.wait_for_timeout(2000)
+            logger.info(f"[grid_hyperlink] C: JS click+click done for '{value}'")
         except Exception as e:
-            logger.debug(f"[grid_hyperlink] C: click+JS failed: {e}")
+            logger.debug(f"[grid_hyperlink] C: JS click failed: {e}")
 
     def _scroll_grid_horizontal(self, direction: str = "left", grid_scope: str = "") -> Dict[str, Any]:
         """Scroll a D365 FixedDataTable grid horizontally by dragging the scrollbar face."""
