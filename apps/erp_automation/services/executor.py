@@ -892,11 +892,18 @@ class WorkflowExecutor:
                 return {"success": False, "message": "No key specified for press_key"}
 
             # Special tokens for D365 FixedDataTable grid scrolling
+            # Supports fraction suffix: SCROLL_GRID_RIGHT:0.3 (scrolls 30% of track)
             key_upper = key.upper().strip()
-            if key_upper in ("SCROLL_GRID_LEFT", "SCROLL_GRID_RIGHT"):
+            if key_upper.startswith("SCROLL_GRID_LEFT") or key_upper.startswith("SCROLL_GRID_RIGHT"):
                 direction = "left" if "LEFT" in key_upper else "right"
-                grid_scope = (step.value_field or "").strip()
-                result = self._scroll_grid_horizontal(direction, grid_scope)
+                # Parse optional fraction from "SCROLL_GRID_RIGHT:0.3"
+                distance_fraction = 1.0
+                if ":" in key_upper:
+                    try:
+                        distance_fraction = float(key_upper.split(":")[1])
+                    except (ValueError, IndexError):
+                        pass
+                result = self._scroll_grid_horizontal(direction, distance_fraction=distance_fraction)
                 if step.wait_after > 0:
                     self.page.wait_for_timeout(step.wait_after)
                 return result
@@ -1732,8 +1739,15 @@ class WorkflowExecutor:
         except Exception as e:
             logger.debug(f"[grid_hyperlink] C: JS click failed: {e}")
 
-    def _scroll_grid_horizontal(self, direction: str = "left", grid_scope: str = "") -> Dict[str, Any]:
-        """Scroll a D365 FixedDataTable grid horizontally by dragging the scrollbar face."""
+    def _scroll_grid_horizontal(self, direction: str = "left", grid_scope: str = "", distance_fraction: float = 1.0) -> Dict[str, Any]:
+        """Scroll a D365 FixedDataTable grid horizontally by dragging the scrollbar face.
+
+        Args:
+            direction: "left" or "right"
+            grid_scope: optional grid ID (unused currently)
+            distance_fraction: 0.0-1.0, fraction of track width to scroll.
+                1.0 = scroll to the edge (full). 0.3 = scroll 30% of track width.
+        """
         face_selector = '.ScrollbarLayout_faceHorizontal'
         track_selector = '.ScrollbarLayout_main.ScrollbarLayout_mainHorizontal'
 
@@ -1747,13 +1761,25 @@ class WorkflowExecutor:
             return {"success": False, "message": "Scrollbar face not visible"}
 
         track_box = track.bounding_box()
-        if not track_box:
-            return {"success": False, "message": "Track bounding box is None"}
+        face_box_current = face.bounding_box()
+        if not track_box or not face_box_current:
+            return {"success": False, "message": "Track or face bounding box is None"}
 
-        if direction == "left":
-            target_x = 5
+        if distance_fraction >= 1.0:
+            # Full scroll: go to edge
+            if direction == "left":
+                target_x = 5
+            else:
+                target_x = int(track_box['width']) - 5
         else:
-            target_x = int(track_box['width']) - 5
+            # Fractional scroll: move face by fraction of track width
+            face_center_relative = (face_box_current['x'] + face_box_current['width'] / 2) - track_box['x']
+            delta = track_box['width'] * distance_fraction
+            if direction == "left":
+                target_x = max(5, int(face_center_relative - delta))
+            else:
+                target_x = min(int(track_box['width']) - 5, int(face_center_relative + delta))
+            logger.info(f"[scroll_grid] fractional={distance_fraction}, face_rel={face_center_relative:.0f}, delta={delta:.0f}, target_x={target_x}")
         target_y = int(track_box['height']) // 2
 
         face_box_before = face.bounding_box()
