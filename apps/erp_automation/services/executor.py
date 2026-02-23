@@ -144,6 +144,9 @@ class D365InteractionEngine:
             return self._execute_select(element, value, step, mode)
         elif action_type == "check":
             return self._execute_check(element, value, step, mode)
+        elif action_type == "right_click":
+            element.click(button="right", timeout=step.timeout)
+            return {"success": True, "message": "Right-clicked (context menu)"}
         elif action_type == "hover":
             element.hover()
             return {"success": True, "message": "Hovered"}

@@ -44,6 +44,7 @@ class ActionType(models.TextChoices):
     TYPE_TEXT = "type_text", "Type Text (keyboard)"
     NAVIGATE = "navigate", "Navigate (SPA)"
     CLICK_DYNAMIC = "click_dynamic_locator", "Click Dynamic Locator"
+    RIGHT_CLICK = "right_click", "Right Click (Context Menu)"
 
 
 class InteractionMode(models.TextChoices):
