@@ -995,6 +995,17 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 - **10 New Locators Created (pk=541-550)**: `d365_journal_config_lookup_btn`, `d365_journal_config_variant_select`, `d365_journal_line_location`, `d365_journal_serial_lookup_btn`, `d365_context_menu_view_details`, `d365_invent_serial_new_btn`, `d365_invent_serial_header_input`, `d365_invent_serial_back_btn`, `d365_journal_line_serial_dd`, `d365_journal_number_field`. Each with 3 strategies (name/css/xpath).
 - **D365 Button vs Label Pattern Reinforced**: D365 buttons have `<button id="X"><span id="X_label">`. Always target `//button[contains(@id, "...")]` not `//*[contains(@id, "...")]` to avoid matching the inner span which doesn't respond to click events.
 
+### Recent Enhancements (Feb 24, 2026 — Session 2) — WF-7B Scroll Fix & Chain Context Mapping
+- **WF-7B Scroll Step Before Select-All**: Added `press_key` step (pk=1847, order 1) with `PageDown` value before Select All Checkbox (step #2). D365 BOM Table page has "Bill of materials header" FastTab section above the grid which pushes the BOM lines grid below the viewport. The scroll brings the grid into view so the select-all checkbox click lands correctly. `continue_on_error=True`, `wait_after=500ms`.
+- **WF-7B Step Reordering Cleanup**: Renumbered all 20 active steps cleanly from 1-20 (no gaps). Moved all inactive steps (pk=1739, 1745, 1746, 1742) to high order numbers (9996-9999) to avoid UNIQUE constraint collisions during future reordering.
+- **Fractional Horizontal Scroll**: `_scroll_grid_horizontal()` in `executor.py` now accepts `distance_fraction` parameter (0.0-1.0, default 1.0). When fraction < 1.0, scrolls relative to current face position instead of to the edge. press_key handler parses fraction from `SCROLL_GRID_RIGHT:0.3` format (colon-separated). WF-11 step #30 uses `SCROLL_GRID_RIGHT:0.3` for a gentle 30% scroll.
+- **Chain Context Mapping Fix (ITEM NO vs ITEM_NO)**: WF-2B (link 40) captures D365-generated item number as `ITEM_NO` (underscore) via `save_result_as`. WF-9 and WF-11 templates use `{{ITEM NO}}` (space). Fixed context_mapping on chain 10 links:
+  - Link #100 (WF-9): `{'ITEM_NO': 'ITEM_NO'}` → `{'ITEM NO': 'ITEM_NO'}` — captured value now overwrites the empty space-key
+  - Link #110 (Workflow approve): `{'ITEM_NO': 'ITEM_NO'}` — unchanged, templates use `{{ITEM_NO}}` (underscore)
+  - Link #120 (WF-11): `{'ITEM_NO': 'ITEM_NO'}` → `{'ITEM NO': 'ITEM_NO'}` — same fix as WF-9
+- **Read Journal Number Moved Earlier**: WF-11 step "Read Movement Journal Number" (pk=1844) moved from order 37 to order 19 (after Fill Description, before Click OK). Journal number is available during creation dialog, not after posting.
+- **Locator #546 Fix**: `d365_invent_serial_new_btn` P0 xpath changed from `//*[contains(@id...)]` to `//button[contains(@id, "InventSerial") and contains(@id, "SystemDefinedNewButton")]` to avoid matching inner `<span>` label.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
