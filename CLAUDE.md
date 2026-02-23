@@ -1006,6 +1006,12 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 - **Read Journal Number Moved Earlier**: WF-11 step "Read Movement Journal Number" (pk=1844) moved from order 37 to order 19 (after Fill Description, before Click OK). Journal number is available during creation dialog, not after posting.
 - **Locator #546 Fix**: `d365_invent_serial_new_btn` P0 xpath changed from `//*[contains(@id...)]` to `//button[contains(@id, "InventSerial") and contains(@id, "SystemDefinedNewButton")]` to avoid matching inner `<span>` label.
 
+### Recent Enhancements (Feb 24, 2026 — Session 3) — WF-7B Grid Activation & WF-9 Site Locator
+- **WF-7B Select-All Grid Activation Fix**: D365 FixedDataTable renders 2-4 duplicate header rows. The select-all checkbox xpath `[1]` picks the first copy, which is non-functional before the grid is "activated" by user interaction. Fix: Added "Click Grid Body (activate grid)" step (pk=1848, order 2) with new locator pk=551 (`d365_bom_grid_body_click`) before the Select All step. This clicks any element inside the grid body to initialize it, making the header checkbox functional. Strategies target `fixedDataTableLayout_body//input.dyn-hyperlink` and `role="row"//input`. Wait 800ms after click, 1000ms after select-all.
+- **WF-7B Updated Step Order**: 21 active steps (1-21): PageDown → Click Grid Body → Select All → Delete → Confirm → [repeat: New Line, Fill Item, Config, Variant, Qty] → Grid Checkbox → Approve/Activate flow.
+- **WF-9 Fill Site Locator Fix (pk=532)**: Old strategies targeted `SiteId`/`RouteVersion_SiteId` (wrong field name). Actual D365 element: `<input id="InventoryDimensions_InventSiteId_..." role="combobox" aria-label="Site">`. New strategies: P0 `aria-label: Site`, P1-P3 xpath with `InventSiteId`, P4 css `input[aria-label="Site"]`. Interaction mode changed from `standard_input` to `combobox`.
+- **Chain Context Mapping Fix Verified**: Confirmed `get_value()` template resolution works correctly with new context mappings — captured D365 item number flows through `{'ITEM NO': 'ITEM_NO'}` mapping to resolve `{{ITEM NO}}` templates in WF-9 and WF-11.
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
