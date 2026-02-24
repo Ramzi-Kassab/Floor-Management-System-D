@@ -1022,6 +1022,13 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 - **Result Saving in All Execution Paths**: After successful chain completion, captured context values are saved back to `ERPJobData`: `ITEM_NO` → `job_data.item_number`, `JOURNAL_NUMBER` → `job_data.movement_journal_number`. Implemented in 3 paths: (1) single workflow execution in views.py, (2) regular chain execution in `chain_executor.py`, (3) debug chain execution in `executor.py` (`start_debug_chain`).
 - **D365 Input Disambiguation Pattern**: When D365 renders multiple `<input>` elements with similar IDs (e.g., `InventSiteId_0_0_input`, `_0_1_input`, `_0_2_input`), always filter by `@role="combobox"` for the editable field. Readonly duplicates have `role="textbox"`. This is the definitive pattern for all future D365 locators.
 
+### Recent Enhancements (Feb 24, 2026 — Session 5) — Size Fraction Display & Collapsible Sections
+- **Size Fraction Formatting**: All decimal size displays (e.g., `12.000`, `6.125`, `8.500`) now show as clean fractions (`12`, `6 1/8`, `8 1/2`). Uses Python `fractions.Fraction` with `.limit_denominator(32)` for common drill bit denominators (1/8, 1/16, 1/32).
+- **`format_size_fraction()` Utility**: New function in `apps/erp_automation/templatetags/erp_filters.py` converts Decimal → fraction string. Handles edge cases: None/empty → "", whole numbers drop `.000`, pure fractions like `0.875` → `7/8`.
+- **`size_fraction` Template Filter**: Django template filter `{{ value|size_fraction }}` wraps `format_size_fraction()`. Used in `job_data_detail.html`, `job_data_list.html`, `recording_detail.html`.
+- **`ERPJobData._format_size()` Method**: Model method that formats `size_inches` as fraction string, falling back to `size_raw`. Called by `get_row_data()` for the `SIZE` template variable — so `{{SIZE}}` in workflow steps resolves to fraction format (e.g., `8 1/2` not `8.500`).
+- **Job Data Detail Collapsible Sections**: All 11 sections in `job_data_detail.html` made collapsible with Alpine.js toggle pattern. Default: Section 1 (Core Info) and Section 7 (ERP Output) open, all others collapsed. "Collapse All / Expand All" buttons at top using `$dispatch('toggle-all-sections')` event pattern.
+
 ---
 
 ## ERP Automation: Complete Architecture Reference
