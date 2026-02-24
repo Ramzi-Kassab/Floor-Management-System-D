@@ -1035,6 +1035,12 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 
 ### Recent Bug Fixes (Feb 25, 2026) — System Audit Fixes
 - **Fix #1: WorkOrderCreateEnhancedForm KeyError**: `WorkOrderCreateEnhancedForm.__init__()` in `apps/workorders/forms.py` referenced `self.fields['customer']` and `self.fields['from_location_text']` which were not in `Meta.fields`, causing KeyError on form instantiation. Fixed by adding both fields to `Meta.fields` with `HiddenInput` widgets (they're populated by JS from serial number lookup, same pattern as drill_bit/design/bom).
+- **Fix #2: Stock Divergence — Issue/Transfer/Adjustment Missing Updates**: Three posting views (`StockIssuePostView`, `StockTransferPostView`, `StockAdjustmentDocPostView`) in `apps/inventory/views.py` created incomplete `StockLedger` entries and never updated `StockBalance` or `InventoryStock`. Fixes:
+  1. **Extracted shared `_update_stock_balance_shared()` function** — standalone utility replacing GRNPostView's private method. Called by all 4 posting views (GRN, Issue, Transfer, Adjustment).
+  2. **StockIssuePostView**: Added missing `uom`, `owner_party`, `ownership_type`, `quality_status`, `condition` fields from line; added `issue_line` FK; fixed `reference_id` to be per-line (was per-document — violated UniqueConstraint); added idempotency check; added StockBalance/InventoryStock update; uses enum `TransactionType.ISSUE` instead of string.
+  3. **StockTransferPostView**: Fixed non-existent field references (`line.from_location` → `transfer.from_location`, `line.to_location` → `transfer.to_location`, `line.qty_transferred` → `line.qty_shipped`); added all 5 dimension fields with from/to split for owner and quality; separate reference_ids for OUT/IN entries; added StockBalance update for BOTH locations.
+  4. **StockAdjustmentDocPostView**: Fixed invalid `transaction_type="ADJUSTMENT"` to use `ADJ_IN`/`ADJ_OUT` based on qty sign; added all 5 dimension fields; added `adjustment_line` FK; per-line reference_id and idempotency.
+- **Fix #3: SyncStockFromBalancesView Crash**: Two bugs in `SyncStockFromBalancesView` at `/inventory/admin/sync-stock/`: (1) Referenced non-existent `Lot` model instead of `MaterialLot` (line 7081), (2) Used `redirect('inventory:balance_list')` instead of correct `'inventory:stock_balance_list'` (line 7113).
 
 ---
 
@@ -1462,6 +1468,13 @@ Items noted for future enhancement. These are not bugs — they are improvements
    - **Need to scan entire codebase for more cases.**
 
 3. **Phase Out InventoryStock (Legacy Stock Model)**: `InventoryStock` reads from the old `InventoryTransaction` ledger (deprecated). `VariantStock` and `StockBalance` both read from `StockLedger` (the correct system). All views that currently read from `InventoryStock` should be migrated to use `VariantStock` or `StockBalance` queries.
+
+4. **ERP Baseline + Local Tracking Strategy**: The system is NOT the authority for receiving (GRN) — the ERP (D365) is. But the system IS the authority for consumption (issues via work orders). To keep inventory accurate despite this dual-system reality:
+   - **Periodic ERP On-Hand Import**: Enhance `import_stock_from_onhand` command to create `StockLedger` entries with `transaction_type='ERP_SYNC'` representing the difference between system balance and ERP balance. This captures all missed GRNs as a single reconciliation adjustment. Store import date for "accurate as of" tracking.
+   - **Track Issues Precisely via Work Orders**: Already accurate — every WO tracks what's issued. Fix #2 ensures Issue/Transfer/Adjustment update ALL stock tables.
+   - **Stock Formula**: `Accurate Stock = Last ERP Sync Balance - Issues Since Last Sync + Manual GRNs Since Last Sync`
+   - **Reconciliation Dashboard**: Show last sync date, days since sync, items with largest discrepancies, items with negative stock (= missed GRN). One-click "Import from ERP" button.
+   - **Priority**: Build this AFTER fixing the stock posting (Fix #2) so the issue tracking is solid first.
 
 ---
 

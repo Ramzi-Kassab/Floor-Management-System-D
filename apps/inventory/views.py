@@ -4917,8 +4917,8 @@ class GRNPostView(LoginRequiredMixin, View):
                             from .models import VariantStock
                             VariantStock.update_from_ledger_entry(ledger_entry)
 
-                        # Update StockBalance
-                        self._update_stock_balance(
+                        # Update StockBalance and InventoryStock
+                        _update_stock_balance_shared(
                             item=line.item,
                             location=location,
                             lot=line.lot,
@@ -4970,58 +4970,6 @@ class GRNPostView(LoginRequiredMixin, View):
             messages.error(request, f"Error posting GRN: {str(e)}")
 
         return redirect("inventory:grn_detail", pk=pk)
-
-    def _update_stock_balance(self, item, location, lot, owner_party,
-                              ownership_type, quality_status, condition,
-                              qty_change, cost_change):
-        """Update or create StockBalance and InventoryStock entries."""
-        from decimal import Decimal
-
-        # Update StockBalance (detailed inventory with dimensions)
-        balance, created = StockBalance.objects.get_or_create(
-            item=item,
-            location=location,
-            lot=lot,
-            owner_party=owner_party,
-            ownership_type=ownership_type,
-            quality_status=quality_status,
-            condition=condition,
-            defaults={
-                'qty_on_hand': Decimal('0'),
-                'qty_reserved': Decimal('0'),
-                'qty_available': Decimal('0'),
-                'total_cost': Decimal('0'),
-            }
-        )
-
-        balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
-        balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
-        balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
-
-        if balance.qty_on_hand > 0:
-            balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
-
-        balance.last_movement_date = timezone.now()
-        balance.save()
-
-        # Also update InventoryStock (simpler model used by item views)
-        lot_number = lot.lot_number if lot else ''
-        inv_stock, _ = InventoryStock.objects.get_or_create(
-            item=item,
-            location=location,
-            lot_number=lot_number,
-            serial_number='',
-            defaults={
-                'quantity_on_hand': Decimal('0'),
-                'quantity_reserved': Decimal('0'),
-                'quantity_available': Decimal('0'),
-            }
-        )
-
-        inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
-        inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
-        inv_stock.last_movement_date = timezone.now()
-        inv_stock.save()
 
     def _update_po_status(self, po):
         """Update PO status based on received quantities."""
@@ -5122,6 +5070,62 @@ class StockIssueDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
+def _update_stock_balance_shared(item, location, lot, owner_party,
+                                 ownership_type, quality_status, condition,
+                                 qty_change, cost_change):
+    """
+    Shared utility to update StockBalance and InventoryStock after a ledger entry.
+    Called by GRN, Issue, Transfer, and Adjustment posting views.
+    """
+    from decimal import Decimal
+
+    # Update StockBalance (detailed inventory with dimensions)
+    balance, created = StockBalance.objects.get_or_create(
+        item=item,
+        location=location,
+        lot=lot,
+        owner_party=owner_party,
+        ownership_type=ownership_type,
+        quality_status=quality_status,
+        condition=condition,
+        defaults={
+            'qty_on_hand': Decimal('0'),
+            'qty_reserved': Decimal('0'),
+            'qty_available': Decimal('0'),
+            'total_cost': Decimal('0'),
+        }
+    )
+
+    balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
+    balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
+    balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
+
+    if balance.qty_on_hand > 0:
+        balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
+
+    balance.last_movement_date = timezone.now()
+    balance.save()
+
+    # Also update InventoryStock (simpler model used by item views)
+    lot_number = lot.lot_number if lot else ''
+    inv_stock, _ = InventoryStock.objects.get_or_create(
+        item=item,
+        location=location,
+        lot_number=lot_number,
+        serial_number='',
+        defaults={
+            'quantity_on_hand': Decimal('0'),
+            'quantity_reserved': Decimal('0'),
+            'quantity_available': Decimal('0'),
+        }
+    )
+
+    inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
+    inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
+    inv_stock.last_movement_date = timezone.now()
+    inv_stock.save()
+
+
 class StockIssuePostView(LoginRequiredMixin, View):
     """Post a Stock Issue to create ledger entries."""
 
@@ -5132,38 +5136,87 @@ class StockIssuePostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT issues can be posted.")
             return redirect("inventory:issue_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in issue.lines.filter(is_posted=False):
-                ledger_entry = StockLedger.objects.create(
-                    transaction_type="ISSUE",
-                    transaction_date=issue.issue_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.location,
-                    lot=line.lot,
-                    qty_delta=-line.qty_issued,  # Negative for issue
-                    unit_cost=line.unit_cost,
-                    total_cost=line.total_cost,
-                    reference_type="ISSUE",
-                    reference_id=str(issue.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Create unique reference_id for idempotent posting
+                    reference_id = f"{issue.issue_number}-LINE-{line.line_number}"
 
-                # Update VariantStock if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_entry)
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='ISSUE',
+                        reference_id=reference_id
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    ledger_entry = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.ISSUE,
+                        transaction_date=issue.issue_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=line.location,
+                        lot=line.lot,
+                        qty_delta=-line.qty_issued,  # Negative for issue
+                        uom=line.uom,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=-line.qty_issued * line.unit_cost,
+                        reference_type='ISSUE',
+                        reference_id=reference_id,
+                        issue_line=line,
+                        notes=f"Issue from {issue.issue_number}",
+                        created_by=request.user,
+                    )
 
-            issue.status = "POSTED"
-            issue.posted_date = timezone.now()
-            issue.posted_by = request.user
-            issue.save()
+                    # Update VariantStock if variant specified
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_entry)
 
-            messages.success(request, f"Issue {issue.issue_number} posted.")
+                    # Update StockBalance and InventoryStock
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=line.location,
+                        lot=line.lot,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        qty_change=-line.qty_issued,
+                        cost_change=-line.qty_issued * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                issue.status = "POSTED"
+                issue.posted_date = timezone.now()
+                issue.posted_by = request.user
+                issue.save()
+                messages.success(request, f"Issue {issue.issue_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting issue: {str(e)}")
 
@@ -5251,51 +5304,138 @@ class StockTransferPostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT transfers can be posted.")
             return redirect("inventory:transfer_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in transfer.lines.filter(is_posted=False):
-                # Create OUT entry (from location)
-                ledger_out = StockLedger.objects.create(
-                    transaction_type="TRANSFER_OUT",
-                    transaction_date=transfer.transfer_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.from_location,
-                    lot=line.lot,
-                    qty_delta=-line.qty_transferred,
-                    reference_type="TRANSFER",
-                    reference_id=str(transfer.pk),
-                    created_by=request.user,
-                )
-                # Create IN entry (to location)
-                ledger_in = StockLedger.objects.create(
-                    transaction_type="TRANSFER_IN",
-                    transaction_date=transfer.transfer_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.to_location,
-                    lot=line.lot,
-                    qty_delta=line.qty_transferred,
-                    reference_type="TRANSFER",
-                    reference_id=str(transfer.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Use qty_shipped as the transfer quantity
+                    qty = line.qty_shipped if line.qty_shipped else line.qty_requested
 
-                # Update VariantStock for both locations if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_out)
-                    VariantStock.update_from_ledger_entry(ledger_in)
+                    # Create unique reference_ids for idempotent posting
+                    ref_out = f"{transfer.transfer_number}-LINE-{line.line_number}-OUT"
+                    ref_in = f"{transfer.transfer_number}-LINE-{line.line_number}-IN"
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='TRANSFER',
+                        reference_id=ref_out
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-            transfer.status = "POSTED"
-            transfer.posted_date = timezone.now()
-            transfer.posted_by = request.user
-            transfer.save()
+                    # Ownership: from_owner is on header; to_owner may be null
+                    # (same owner if just location transfer)
+                    out_owner = transfer.from_owner
+                    in_owner = transfer.to_owner if transfer.to_owner else transfer.from_owner
 
-            messages.success(request, f"Transfer {transfer.transfer_number} posted.")
+                    # Quality status: line has from/to (to may be null = same)
+                    out_quality = line.from_quality_status
+                    in_quality = line.to_quality_status if line.to_quality_status else line.from_quality_status
+
+                    # Create OUT entry (from location — negative)
+                    ledger_out = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.TRANSFER_OUT,
+                        transaction_date=transfer.transfer_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=transfer.from_location,  # From HEADER, not line
+                        lot=line.lot,
+                        qty_delta=-qty,
+                        uom=line.uom,
+                        owner_party=out_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=out_quality,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=-qty * line.unit_cost,
+                        reference_type='TRANSFER',
+                        reference_id=ref_out,
+                        transfer_line=line,
+                        notes=f"Transfer out from {transfer.from_location.code} via {transfer.transfer_number}",
+                        created_by=request.user,
+                    )
+
+                    # Create IN entry (to location — positive)
+                    ledger_in = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.TRANSFER_IN,
+                        transaction_date=transfer.transfer_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=transfer.to_location,  # From HEADER, not line
+                        lot=line.lot,
+                        qty_delta=qty,
+                        uom=line.uom,
+                        owner_party=in_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=in_quality,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=qty * line.unit_cost,
+                        reference_type='TRANSFER',
+                        reference_id=ref_in,
+                        transfer_line=line,
+                        notes=f"Transfer in to {transfer.to_location.code} via {transfer.transfer_number}",
+                        created_by=request.user,
+                    )
+
+                    # Update VariantStock for both locations
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_out)
+                        VariantStock.update_from_ledger_entry(ledger_in)
+
+                    # Update StockBalance and InventoryStock — OUT (decrease at source)
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=transfer.from_location,
+                        lot=line.lot,
+                        owner_party=out_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=out_quality,
+                        condition=line.condition,
+                        qty_change=-qty,
+                        cost_change=-qty * line.unit_cost,
+                    )
+
+                    # Update StockBalance and InventoryStock — IN (increase at destination)
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=transfer.to_location,
+                        lot=line.lot,
+                        owner_party=in_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=in_quality,
+                        condition=line.condition,
+                        qty_change=qty,
+                        cost_change=qty * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                transfer.status = "POSTED"
+                transfer.posted_date = timezone.now()
+                transfer.posted_by = request.user
+                transfer.save()
+                messages.success(request, f"Transfer {transfer.transfer_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting transfer: {str(e)}")
 
@@ -5383,39 +5523,94 @@ class StockAdjustmentDocPostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT adjustments can be posted.")
             return redirect("inventory:adjustment_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in adjustment.lines.filter(is_posted=False):
-                # qty_adjustment = qty_actual - qty_system
-                ledger_entry = StockLedger.objects.create(
-                    transaction_type="ADJUSTMENT",
-                    transaction_date=adjustment.adjustment_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.location,
-                    lot=line.lot,
-                    qty_delta=line.qty_adjustment,
-                    unit_cost=line.unit_cost,
-                    total_cost=line.total_cost,
-                    reference_type="ADJUSTMENT",
-                    reference_id=str(adjustment.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Create unique reference_id for idempotent posting
+                    reference_id = f"{adjustment.adjustment_number}-LINE-{line.line_number}"
 
-                # Update VariantStock if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_entry)
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='ADJUSTMENT',
+                        reference_id=reference_id
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    # qty_adjustment = qty_actual - qty_system
+                    # Positive = increase (ADJ_IN), Negative = decrease (ADJ_OUT)
+                    if line.qty_adjustment >= 0:
+                        txn_type = StockLedger.TransactionType.ADJUSTMENT_IN
+                    else:
+                        txn_type = StockLedger.TransactionType.ADJUSTMENT_OUT
 
-            adjustment.status = "POSTED"
-            adjustment.posted_date = timezone.now()
-            adjustment.posted_by = request.user
-            adjustment.save()
+                    ledger_entry = StockLedger.objects.create(
+                        transaction_type=txn_type,
+                        transaction_date=adjustment.adjustment_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=line.location,
+                        lot=line.lot,
+                        qty_delta=line.qty_adjustment,
+                        uom=line.uom,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=line.qty_adjustment * line.unit_cost,
+                        reference_type='ADJUSTMENT',
+                        reference_id=reference_id,
+                        adjustment_line=line,
+                        notes=f"Adjustment from {adjustment.adjustment_number}: {line.notes or ''}",
+                        created_by=request.user,
+                    )
 
-            messages.success(request, f"Adjustment {adjustment.adjustment_number} posted.")
+                    # Update VariantStock if variant specified
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_entry)
+
+                    # Update StockBalance and InventoryStock
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=line.location,
+                        lot=line.lot,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        qty_change=line.qty_adjustment,
+                        cost_change=line.qty_adjustment * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                adjustment.status = "POSTED"
+                adjustment.posted_date = timezone.now()
+                adjustment.posted_by = request.user
+                adjustment.save()
+                messages.success(request, f"Adjustment {adjustment.adjustment_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting adjustment: {str(e)}")
 
