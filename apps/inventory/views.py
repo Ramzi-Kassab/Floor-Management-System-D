@@ -7078,7 +7078,7 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
             try:
                 item = InventoryItem.objects.get(pk=agg['item'])
                 location = InventoryLocation.objects.get(pk=agg['location'])
-                lot = Lot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
+                lot = MaterialLot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
                 lot_number = lot.lot_number if lot else ''
 
                 inv_stock, created = InventoryStock.objects.get_or_create(
@@ -7110,7 +7110,7 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
         else:
             messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
 
-        return redirect('inventory:balance_list')
+        return redirect('inventory:stock_balance_list')
 
 
 # =============================================================================

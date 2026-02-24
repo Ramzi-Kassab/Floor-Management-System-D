@@ -1449,6 +1449,22 @@ StockLedger.objects.filter(
 
 ---
 
+## Todo-Enhancement
+
+Items noted for future enhancement. These are not bugs — they are improvements to revisit later.
+
+1. **Stock Issue / Transfer / Adjustment Create Forms**: The create forms for stock documents (`/inventory/issues/create/`, `/inventory/transfers/create/`, `/inventory/adjustments/create/`) are overly complicated and require too many fields (default_location, owner_party, ownership_type, etc.) to create a simple document. Needs UX simplification — auto-populate defaults, reduce required fields, add smart defaults based on item/variant selection.
+
+2. **Audit All Parallel/Duplicate Models**: The system has multiple cases where a model was created and then a parallel one was added doing mostly the same work. Known cases:
+   - **Stock tracking**: `VariantStock` vs `InventoryStock` vs `StockBalance` — three models caching stock data from the ledger. Plan: phase out `InventoryStock` (legacy, reads from deprecated `InventoryTransaction`), keep `VariantStock` (cutter dashboards) and `StockBalance` (multi-dimensional).
+   - **BOM system**: `apps/inventory/models.py` has `BillOfMaterial`/`BOMLine` AND `apps/technology/models.py` has `BOM`/`BOMLine`. Only the technology version is used. Inventory version is dead code.
+   - **Transaction ledger**: Old `InventoryTransaction` ledger vs new `StockLedger`. GRN writes to both. Should consolidate to `StockLedger` only.
+   - **Need to scan entire codebase for more cases.**
+
+3. **Phase Out InventoryStock (Legacy Stock Model)**: `InventoryStock` reads from the old `InventoryTransaction` ledger (deprecated). `VariantStock` and `StockBalance` both read from `StockLedger` (the correct system). All views that currently read from `InventoryStock` should be migrated to use `VariantStock` or `StockBalance` queries.
+
+---
+
 ## Need Help?
 
 1. **Check this file first** for patterns and conventions
