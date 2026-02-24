@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load erp_filters %}
 
 {% block title %}Job Data: {{ job.work_order_number }} - ARDT FMS{% endblock %}
 
@@ -55,6 +56,20 @@
       x-data="jobDataDetail()" class="space-y-6">
     {% csrf_token %}
 
+    <!-- Section Collapse/Expand Controls -->
+    <div class="flex items-center justify-end gap-2 -mt-2 mb-1">
+        <button type="button" @click="$dispatch('toggle-all-sections', { open: false })"
+                class="inline-flex items-center px-2.5 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg transition-colors">
+            <i data-lucide="minimize-2" class="w-3 h-3 mr-1"></i>
+            Collapse All
+        </button>
+        <button type="button" @click="$dispatch('toggle-all-sections', { open: true })"
+                class="inline-flex items-center px-2.5 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg transition-colors">
+            <i data-lucide="maximize-2" class="w-3 h-3 mr-1"></i>
+            Expand All
+        </button>
+    </div>
+
     <!-- Status Alert Banner (for stuck/error states) -->
     {% if job.status == 'ERROR' %}
     <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -107,11 +122,15 @@
     {% endif %}
 
     <!-- Section 1: Core Information -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="info" class="w-5 h-5 inline mr-2 text-blue-500"></i>
-            Core Information
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: true }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="info" class="w-5 h-5 inline mr-2 text-blue-500"></i>
+                Core Information
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <!-- WO Number (read-only) -->
             <div>
@@ -128,13 +147,16 @@
             <!-- Size Raw + Size (inches) -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size (Raw / Inches)</label>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
                     <input type="text" name="size_raw" value="{{ job.size_raw|default:'' }}"
                            placeholder="Raw value"
                            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
                     <input type="text" name="size_inches" value="{{ job.size_inches|default:'' }}"
                            placeholder="e.g. 8.5"
                            class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    {% if job.size_inches %}
+                    <span class="text-sm font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap" title="Fraction: {{ job.size_inches|size_fraction }}&quot;">{{ job.size_inches|size_fraction }}"</span>
+                    {% endif %}
                 </div>
             </div>
             <!-- SMI Type -->
@@ -156,14 +178,19 @@
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Section 2: Derived Fields -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="cpu" class="w-5 h-5 inline mr-2 text-purple-500"></i>
-            Derived Fields
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="cpu" class="w-5 h-5 inline mr-2 text-purple-500"></i>
+                Derived Fields
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <!-- L5 MAT Full -->
             <div>
@@ -203,14 +230,19 @@
                 <label for="id_has_port" class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Has Port</label>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Section 3: Repair Modifiers -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="wrench" class="w-5 h-5 inline mr-2 text-orange-500"></i>
-            Repair Modifiers
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="wrench" class="w-5 h-5 inline mr-2 text-orange-500"></i>
+                Repair Modifiers
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <div class="flex items-center">
                 <input type="checkbox" id="id_has_usr" disabled
@@ -249,14 +281,20 @@
                 <label for="id_is_scrap" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Is Scrap</label>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Section 4: Route -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="route" class="w-5 h-5 inline mr-2 text-green-500"></i>
-            Route
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="route" class="w-5 h-5 inline mr-2 text-green-500"></i>
+                Route
+                {% if job.route %}<span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">({{ job.route.route_number }})</span>{% endif %}
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <div class="space-y-4">
             <!-- Current Route -->
             <div class="flex items-center gap-3">
@@ -295,12 +333,14 @@
                 </select>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Section 5: Cutter BOM -->
     {{ job.cutter_bom_data|json_script:"cutter-bom-json" }}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
          x-data="{
+            open: false,
             cutterBom: JSON.parse(document.getElementById('cutter-bom-json').textContent),
             get flatRows() {
                 const rows = [];
@@ -339,14 +379,16 @@
                 });
                 return rows;
             }
-         }">
-        <div class="flex items-center justify-between mb-4">
+         }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                 <i data-lucide="layers" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
                 Cutter BOM
+                <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2" x-show="flatRows.length > 0" x-text="'(' + flatRows.length + ' rows)'"></span>
             </h3>
-            <span class="text-xs text-gray-400" x-show="flatRows.length > 0" x-text="flatRows.length + ' rows'"></span>
-        </div>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
 
         <template x-if="flatRows.length > 0">
             <div class="overflow-x-auto">
@@ -426,16 +468,23 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No cutter data</p>
             </div>
         </template>
+        </div>
     </div>
 
     <!-- Section 6: Modified Cutters -->
     {{ job.modified_cutters_data|json_script:"modified-cutters-json" }}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
-         x-data="{ modifiedCutters: JSON.parse(document.getElementById('modified-cutters-json').textContent) }">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="replace" class="w-5 h-5 inline mr-2 text-amber-500"></i>
-            Modified Cutters
-        </h3>
+         x-data="{ open: false, modifiedCutters: JSON.parse(document.getElementById('modified-cutters-json').textContent) }"
+         @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="replace" class="w-5 h-5 inline mr-2 text-amber-500"></i>
+                Modified Cutters
+                <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2" x-show="modifiedCutters && modifiedCutters.length > 0" x-text="'(' + modifiedCutters.length + ')'"></span>
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
 
         <template x-if="modifiedCutters && modifiedCutters.length > 0">
             <div class="overflow-x-auto">
@@ -467,15 +516,20 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No modified cutters</p>
             </div>
         </template>
+        </div>
     </div>
 
     <!-- Section 7: ERP Output -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="server" class="w-5 h-5 inline mr-2 text-teal-500"></i>
-            ERP Output
-            <span class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">(populated by ERP automation)</span>
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: true }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="server" class="w-5 h-5 inline mr-2 text-teal-500"></i>
+                ERP Output
+                <span class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">(populated by ERP automation)</span>
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
             <!-- Item Number -->
             <div>
@@ -502,24 +556,35 @@
                        class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white text-sm cursor-not-allowed">
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Section 8: Notes -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="message-square" class="w-5 h-5 inline mr-2 text-gray-500"></i>
-            Notes
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="message-square" class="w-5 h-5 inline mr-2 text-gray-500"></i>
+                Notes
+                {% if job.notes %}<span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">(has notes)</span>{% endif %}
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         <textarea name="notes" rows="4" placeholder="Add any notes or remarks..."
                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y">{{ job.notes|default:'' }}</textarea>
+        </div>
     </div>
 
     <!-- Section 9: Workflow & ERP Target URL -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="globe" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
-            Workflow & ERP URL
-        </h3>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
+        <button type="button" @click="open = !open" class="w-full flex items-center justify-between text-left">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="globe" class="w-5 h-5 inline mr-2 text-indigo-500"></i>
+                Workflow & ERP URL
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0" :class="open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-transition.duration.200ms class="mt-4">
         {% if workflows %}
         <div class="space-y-3">
             {% for wf in workflows %}
@@ -565,10 +630,11 @@
             <a href="{% url 'erp_automation:workflow_list' %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">Manage Workflows</a>
         </div>
         {% endif %}
+        </div>
     </div>
 
     <!-- Section 10: Execution History (collapsible) -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
         <button @click="open = !open" class="w-full flex items-center justify-between text-left">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                 <i data-lucide="activity" class="w-5 h-5 inline mr-2 text-cyan-500"></i>
@@ -638,7 +704,7 @@
 
     <!-- Section 11: Chain Execution History (collapsible) -->
     {% if chain_executions %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="{ open: false }" @toggle-all-sections.window="open = $event.detail.open">
         <button @click="open = !open" class="w-full flex items-center justify-between text-left">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                 <i data-lucide="link-2" class="w-5 h-5 inline mr-2 text-indigo-500"></i>

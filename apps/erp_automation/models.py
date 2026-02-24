@@ -1122,6 +1122,17 @@ class ERPJobData(models.Model):
         """Short display name for UI."""
         return f"WO {self.work_order_number}" if self.work_order_number else f"Job #{self.pk}"
 
+    def _format_size(self):
+        """Format size as clean fraction string.
+
+        12.000 → "12", 6.125 → "6 1/8", 8.500 → "8 1/2", etc.
+        Falls back to size_raw if size_inches is not set.
+        """
+        from apps.erp_automation.templatetags.erp_filters import format_size_fraction
+        if self.size_inches is not None:
+            return format_size_fraction(self.size_inches)
+        return self.size_raw or ''
+
     def get_row_data(self):
         """Convert ERPJobData fields to a row_data dict for workflow template substitution.
 
@@ -1144,7 +1155,7 @@ class ERPJobData(models.Model):
             'ITEM NO': self.item_number or '',
             'ORDER NO.': self.work_order_number or '',
             'SERIAL NO': self.serial_number or '',
-            'SIZE': str(self.size_inches or self.size_raw or ''),
+            'SIZE': self._format_size(),
             'TYPE': self.smi_type or '',
             'MAT NO.': self.l5_mat_original or self.l5_mat_full or '',
             'FROM': self.account or '',

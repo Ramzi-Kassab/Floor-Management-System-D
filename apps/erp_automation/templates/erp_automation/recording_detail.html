@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load erp_filters %}
 
 {% block title %}Recording: {{ session.name }} - ERP Automation{% endblock %}
 
@@ -166,7 +167,7 @@
                         <option value="">-- Select a Job Data record --</option>
                         {% for jd in job_data_records %}
                         <option value="{{ jd.pk }}" {% if linked_job_data and linked_job_data.pk == jd.pk %}selected{% endif %}>
-                            {{ jd.work_order_number }} - {{ jd.serial_number }} ({{ jd.account }}) — {{ jd.smi_type }} {{ jd.size_inches }}"
+                            {{ jd.work_order_number }} - {{ jd.serial_number }} ({{ jd.account }}) — {{ jd.smi_type }} {% if jd.size_inches %}{{ jd.size_inches|size_fraction }}"{% endif %}
                         </option>
                         {% endfor %}
                     </select>
