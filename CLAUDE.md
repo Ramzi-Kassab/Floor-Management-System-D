@@ -1033,6 +1033,13 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 
 ## ERP Automation: Complete Architecture Reference
 
+### Recent Bug Fixes (Feb 25, 2026) — System Audit Fixes
+- **Fix #1: WorkOrderCreateEnhancedForm KeyError**: `WorkOrderCreateEnhancedForm.__init__()` in `apps/workorders/forms.py` referenced `self.fields['customer']` and `self.fields['from_location_text']` which were not in `Meta.fields`, causing KeyError on form instantiation. Fixed by adding both fields to `Meta.fields` with `HiddenInput` widgets (they're populated by JS from serial number lookup, same pattern as drill_bit/design/bom).
+
+---
+
+## ERP Automation: Complete Architecture Reference
+
 ### What the System Does (End-to-End)
 The ERP Automation module automates D365 (Dynamics 365) ERP operations for drill bit repair job cards. The full pipeline:
 1. **Upload** Job Card Excel → `job_card_parser.py` extracts all fields
@@ -1222,23 +1229,31 @@ Final: job_data.item_number = "RPR-0042", job_data.movement_journal_number = "MV
 
 ### Key Improvements Needed
 
+#### CRITICAL — Production-Grade Headless Execution (Required for Server Deployment)
+These 5 enhancements are required before deploying to a hosted Linux server where Playwright runs headless (no visible browser). They ensure errors are diagnosable without a GUI.
+
+1. **Screenshot on error**: When a step fails, automatically capture a full-page screenshot and save it to disk (and link it to the `StepExecution` record). Viewable from the job data detail page and execution history. This is the primary debugging tool in headless mode — replaces "looking at the browser."
+2. **Pre-execution validation**: Before opening the browser, validate the entire workflow/chain: all steps have locators, all `{{TEMPLATE}}` variables exist in `row_data`, all required fields are present on the `ERPJobData` record. Fail fast with a clear error report instead of discovering missing data mid-run.
+3. **Auto-retry with backoff**: When a step fails (locator not found, click didn't register), automatically retry 2-3 times with increasing wait intervals (1s, 3s, 5s) before giving up. Many D365 failures are transient (slow rendering, network lag). Currently only the debug mode has manual retry.
+4. **Execution report**: After a chain completes (or fails), generate a structured summary viewable in the browser: total duration, per-step timing, pass/fail status per step, error messages, and screenshots for failed steps. Replaces the live debug panel for production runs.
+5. **Video recording option**: Toggle on `WorkflowExecution` or `ChainExecution` to record the full Playwright session as MP4 video. Playwright supports this natively via `browser.new_context(record_video_dir=...)`. Stored on disk, linked from execution detail page. Essential for diagnosing complex multi-step failures.
+
 #### HIGH Priority
-1. **Pre-execution validation**: Check all steps have locators, all templates exist in row_data, all required fields present — before starting the browser
-2. **Smart waits based on recording timing**: Capture time deltas between user actions during recording; use actual pauses as `wait_after` values instead of generic 500ms
-3. **Loop detection in converter**: Detect repeated step patterns and auto-create `repeat_group` (currently manual)
-4. **Network-aware waits**: After click/fill, wait for D365 AJAX to complete (`networkidle`) instead of fixed timer
+6. **Smart waits based on recording timing**: Capture time deltas between user actions during recording; use actual pauses as `wait_after` values instead of generic 500ms
+7. **Loop detection in converter**: Detect repeated step patterns and auto-create `repeat_group` (currently manual)
+8. **Network-aware waits**: After click/fill, wait for D365 AJAX to complete (`networkidle`) instead of fixed timer
 
 #### MEDIUM Priority
-5. **Strategy success-based reordering**: Use `success_count`/`failure_count` to reorder strategies (already tracked, just not applied)
-6. **Dry-run mode**: Find elements without clicking (validate workflow before live run)
-7. **Conditional branching in converter**: Detect if-else patterns from recordings (currently all steps are linear)
-8. **Error recovery chains**: On step failure, try alternative locator before failing
+9. **Strategy success-based reordering**: Use `success_count`/`failure_count` to reorder strategies (already tracked, just not applied)
+10. **Dry-run mode**: Find elements without clicking (validate workflow before live run)
+11. **Conditional branching in converter**: Detect if-else patterns from recordings (currently all steps are linear)
+12. **Error recovery chains**: On step failure, try alternative locator before failing
 
 #### LOW Priority
-9. **Scroll event capture in recorder**: Record scroll positions for explicit scroll steps
-10. **Keyboard shortcut capture**: Record Ctrl+S, Alt+F4, etc. (currently only Tab/Enter/Escape)
-11. **RC (Roller Cone) route selection**: Only FC routes fully implemented
-12. **Screenshot comparison for visual regression**: Compare page screenshots to baselines
+13. **Scroll event capture in recorder**: Record scroll positions for explicit scroll steps
+14. **Keyboard shortcut capture**: Record Ctrl+S, Alt+F4, etc. (currently only Tab/Enter/Escape)
+15. **RC (Roller Cone) route selection**: Only FC routes fully implemented
+16. **Screenshot comparison for visual regression**: Compare page screenshots to baselines
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
