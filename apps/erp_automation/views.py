@@ -1998,7 +1998,11 @@ def _live_execution_thread(workflow, row_data, execution, job_data, credentials,
             context_vars = result.get("context", {})
             if context_vars.get("item_number"):
                 job_data.item_number = context_vars["item_number"]
-            job_data.save(update_fields=['status', 'item_number', 'updated_at'])
+            if context_vars.get("ITEM_NO"):
+                job_data.item_number = context_vars["ITEM_NO"]
+            if context_vars.get("JOURNAL_NUMBER"):
+                job_data.movement_journal_number = context_vars["JOURNAL_NUMBER"]
+            job_data.save(update_fields=['status', 'item_number', 'movement_journal_number', 'updated_at'])
 
             with _live_execution_lock:
                 state = _live_execution_state.get(exec_id)
@@ -2886,7 +2890,11 @@ def api_execute_chain(request, pk):
                 context_vars = result.get("context", {})
                 if context_vars.get("item_number"):
                     job_data.item_number = context_vars["item_number"]
-                job_data.save(update_fields=['status', 'item_number', 'updated_at'])
+                if context_vars.get("ITEM_NO"):
+                    job_data.item_number = context_vars["ITEM_NO"]
+                if context_vars.get("JOURNAL_NUMBER"):
+                    job_data.movement_journal_number = context_vars["JOURNAL_NUMBER"]
+                job_data.save(update_fields=['status', 'item_number', 'movement_journal_number', 'updated_at'])
             else:
                 job_data.status = 'ERROR'
                 job_data.save(update_fields=['status', 'updated_at'])

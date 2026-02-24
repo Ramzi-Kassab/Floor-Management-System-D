@@ -1095,6 +1095,8 @@ class ERPJobData(models.Model):
         help_text="Generated or ERP-assigned item number")
     production_order_number = models.CharField(max_length=50, blank=True)
     transfer_order_number = models.CharField(max_length=50, blank=True)
+    movement_journal_number = models.CharField(max_length=50, blank=True,
+        help_text="Movement Journal number captured from D365")
 
     # --- Metadata ---
     source_file = models.CharField(max_length=500, blank=True,
