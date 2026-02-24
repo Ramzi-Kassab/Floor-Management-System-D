@@ -1022,6 +1022,217 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 - **Result Saving in All Execution Paths**: After successful chain completion, captured context values are saved back to `ERPJobData`: `ITEM_NO` → `job_data.item_number`, `JOURNAL_NUMBER` → `job_data.movement_journal_number`. Implemented in 3 paths: (1) single workflow execution in views.py, (2) regular chain execution in `chain_executor.py`, (3) debug chain execution in `executor.py` (`start_debug_chain`).
 - **D365 Input Disambiguation Pattern**: When D365 renders multiple `<input>` elements with similar IDs (e.g., `InventSiteId_0_0_input`, `_0_1_input`, `_0_2_input`), always filter by `@role="combobox"` for the editable field. Readonly duplicates have `role="textbox"`. This is the definitive pattern for all future D365 locators.
 
+---
+
+## ERP Automation: Complete Architecture Reference
+
+### What the System Does (End-to-End)
+The ERP Automation module automates D365 (Dynamics 365) ERP operations for drill bit repair job cards. The full pipeline:
+1. **Upload** Job Card Excel → `job_card_parser.py` extracts all fields
+2. **Route Selection** → `route_selector.py` auto-selects production route
+3. **Chain Execution** → `chain_executor.py` runs linked workflows sequentially
+4. **Each Workflow** → `executor.py` executes steps via Playwright browser automation
+5. **Results Captured** → Item number, journal number saved back to `ERPJobData`
+
+### What Participates in the Chain vs What Doesn't
+
+**Active in Chain Execution (Chain 10 — ARAMCO FC Repair):**
+| Link | Workflow | Purpose | Key Templates | Captures |
+|------|----------|---------|---------------|----------|
+| 10 | WF-0 (Login) | ADFS login | `{{ERP_USERNAME}}`, `{{ERP_PASSWORD}}` | — |
+| 20 | WF-1 (Navigate) | Go to Create Product page | — | — |
+| 30 | WF-2 (Create Item) | Fill product master fields | `{{SERIAL NO}}`, `{{SIZE}}`, `{{TYPE}}`, `{{FROM}}` | — |
+| 40 | WF-2B (Read Item#) | Capture generated item number | — | `ITEM_NO` |
+| 50 | WF-3 (Product Details) | Fill dimensions, tracking groups | `{{ITEM_GROUP}}`, `{{BODY_MATERIAL}}` | — |
+| 60 | WF-4 (Release Product) | Release and approve | — | — |
+| 70 | WF-5 (BOM Lookup) | Navigate to BOM table | `{{MAT NO.}}` | — |
+| 80 | WF-6 (BOM Version) | Create BOM version | — | — |
+| 90 | WF-7B (BOM Lines) | Delete old + add new BOM lines | `{{LOOP_ITEM}}`, `{{LOOP_QTY}}` (repeat group) | — |
+| 100 | WF-9 (Route) | Register production route | `{{ITEM NO}}`, `{{ROUTE}}` | — |
+| 110 | WF-10 (Approve) | Approve workflow | `{{ITEM_NO}}` | — |
+| 120 | WF-11 (Journal) | Create movement journal | `{{ITEM NO}}`, `{{SERIAL NO}}` | `JOURNAL_NUMBER` |
+
+**NOT in Chain (standalone/utility):**
+- Recording sessions — used to create new workflows
+- FieldMapping model — designed but unused (templates handle mapping)
+- ItemCounter — generates item numbers but chain reads from D365
+- ERPEnvironment — just stores URLs for selection
+
+### Context Variable Flow Through Chain
+```
+Initial row_data (from ERPJobData.get_row_data()):
+  {SERIAL NO, SIZE, TYPE, MAT NO., FROM, ACCOUNT, ROUTE, BOM_LINES, ...}
+
+Link 40 (WF-2B): save_result_as="ITEM_NO" → context = {ITEM_NO: "RPR-0042"}
+
+Link 100 (WF-9): context_mapping = {"ITEM NO": "ITEM_NO"}
+  → merged row_data: {ITEM NO: "RPR-0042", ...}  (overwrites empty initial value)
+
+Link 120 (WF-11): same context_mapping + save_result_as="JOURNAL_NUMBER"
+  → context = {ITEM_NO: "RPR-0042", JOURNAL_NUMBER: "MVT-0891"}
+
+Final: job_data.item_number = "RPR-0042", job_data.movement_journal_number = "MVT-0891"
+```
+
+### Action Types Catalog (17 Total)
+
+| Action | Purpose | Locator? | Value? | D365 Notes |
+|--------|---------|----------|--------|------------|
+| `click` | Click element | Required | — | Uses InteractionMode chain; combobox→Alt+Down, lookup→double-click |
+| `fill` | Type into field | Required | Required | Mode-aware: combobox→clear+type+Tab; standard→fill() |
+| `select` | Select dropdown option | Required | Required | D365 has NO native `<select>`; clicks the option element |
+| `check` | Toggle checkbox | Required | "true"/"false" | D365 checkboxes are custom divs; fallback: click→force-click→Space |
+| `type_text` | Type into focused element | Optional (verify) | Required | Uses `keyboard.insert_text()` (bypasses autocomplete); for repeat loops |
+| `press_key` | Press keyboard key | — | Key name | Special: `SCROLL_GRID_RIGHT:0.3`, `ZOOM_OUT`, `PageDown` |
+| `click_dynamic_locator` | Click element with runtime value | Required (template) | Required | `{{PLACEHOLDER}}` replaced at runtime; mouse wheel grid scroll |
+| `select_grid_row` | Find and click grid row | — | Search value | JS scans rows, Playwright mouse-clicks (not JS click) |
+| `read_value` | Read field value to context | Required | — | `save_result_as` stores to context; tries input_value→inner_text |
+| `navigate` | Wait for SPA navigation | — | — | D365 SPA: waits for domcontentloaded, applies zoom |
+| `goto_url` | Navigate to URL | — | URL | 60s timeout, applies zoom after |
+| `right_click` | Context menu | Required | — | `element.click(button="right")` |
+| `wait_time` | Explicit wait | — | Milliseconds | Direct `page.wait_for_timeout()` |
+| `screenshot` | Capture page | — | — | Saved to screenshots dir |
+| `assert_text` | Verify text content | Required | Expected text | Substring match |
+| `assert_visible` | Verify element visible | Required | — | Boolean check |
+
+### Interaction Modes (10 Total)
+
+| Mode | When Used | Click Chain | Fill Chain |
+|------|-----------|------------|------------|
+| `auto` | Default — detect at runtime | Detect from DOM attributes | — |
+| `standard_input` | Regular text fields | click → force-click | fill() → click+type |
+| `combobox` | D365 combobox (`role="combobox"`) | click → Alt+ArrowDown | clear+type → Tab |
+| `lookup_button` | D365 lookup "..." buttons | click → 500ms → click again | — |
+| `custom_dropdown` | Already-open dropdown options | click | — |
+| `checkbox_toggle` | D365 custom checkboxes | click → force-click → Space | — |
+| `dialog_button` | OK/Cancel/Yes/No buttons | click → force-click → Enter | — |
+| `nav_button` | Toolbar buttons (New/Save) | click → force-click → JS click | — |
+| `tab_header` | D365 form tab headers | scroll into view → click | — |
+| `segmented_entry` | Multi-part input controls | click → force-click | click+type (segment) |
+
+### D365 Element Patterns — Recording Best Practices
+
+#### Pattern 1: Dynamic IDs (Most Common)
+**Problem**: D365 prepends session-specific prefixes: `ecoresproductdetailsextendedgrid_2_SystemDefinedNewButton`
+**Solution**: Use `contains(@id)` xpath: `//*[contains(@id, "SystemDefinedNewButton")]`
+**Recording**: Converter auto-strips prefix and generates double-contains xpath
+**Best Locator**: `xpath: //*[contains(@id, "StablePart1") and contains(@id, "StablePart2")]`
+
+#### Pattern 2: Combobox Fields
+**Element**: `<input role="combobox" name="FieldName" aria-label="Label">`
+**Interaction**: Click → Alt+ArrowDown (opens dropdown) → Type → Tab (confirms)
+**Best Locator**: `name: FieldName` (most stable, no dynamic prefix)
+**Alternative**: `xpath: //input[@role="combobox" and @name="FieldName"]`
+**NEVER use**: Enter after combobox (triggers heavy validation lookup); use Tab instead
+
+#### Pattern 3: Lookup Buttons ("..." flyout)
+**Element**: `<div class="lookupButton">` inside `<div data-dyn-controlname="Config">`
+**Interaction**: Click once (focus) → 500ms → Click again (open flyout)
+**Best Locator**: `xpath: //*[@data-dyn-controlname="Config"]//div[contains(@class, "lookupButton")]`
+**Key**: Two clicks required; single click only focuses the button
+
+#### Pattern 4: Grid Hyperlinks (FixedDataTable)
+**Element**: `<input class="dyn-hyperlink" value="ROUTE-0117">`
+**Interaction**: Double-click at coordinates (not element.dblclick()) to navigate
+**Best Locator**: Dynamic template: `css: input[value="{{ROUTE}}"].dyn-hyperlink`
+**Key**: Grid is virtualized — only visible rows in DOM. Must scroll to find off-screen rows.
+**Scroll**: Mouse wheel (not PageDown — requires grid focus). Check overshoot after each scroll.
+
+#### Pattern 5: Duplicate Input Fields
+**Problem**: D365 renders multiple `<input>` with similar IDs (e.g., `InventSiteId_0_0_input`, `_0_1_input`, `_0_2_input`)
+**Editable**: `role="combobox"` — this is the one to target
+**Readonly copies**: `role="textbox"` — clicking these does nothing
+**Solution**: Always filter by `@role="combobox"` in locator strategies
+**Best Locator**: `xpath: //input[contains(@id, "InventSiteId") and @role="combobox"]`
+
+#### Pattern 6: Buttons vs Labels
+**Structure**: `<button id="X"><span id="X_label" class="button-label">Text</span></button>`
+**Problem**: Clicking `<span>` (the label) does NOT trigger button action
+**Solution**: Target `<button>` element, exclude `_label` suffix
+**Best Locator**: `xpath: //button[contains(@id, "ActivateBtn") and not(contains(@id, "_label"))]`
+**Alternative**: `xpath: //button[.//span[text()="Activate"]]`
+
+#### Pattern 7: FixedDataTable Header Duplicates
+**Problem**: D365 grids render 2-4 copies of header rows. Select-all checkbox in first copy is non-functional.
+**Solution**: Click any element inside grid body FIRST to "activate" the grid, then click select-all
+**Best Practice**: Add a "Click Grid Body" step before "Select All" in workflows
+
+#### Pattern 8: D365 Dialog Buttons (OK/Cancel)
+**Element**: `<button class="CommandButton">` with `data-dyn-controlname` containing "ok"/"button"
+**Interaction**: Click → force-click fallback → Enter fallback
+**Key**: Skip error checking after dialog buttons (D365 always shows processing messages)
+**Best Locator**: `xpath: //*[contains(@id, "OKCommand") and not(contains(@id, "_label"))]`
+
+#### Pattern 9: D365 Filter Columns (Grid Filtering)
+**Instead of scrolling** to find a row, use D365's built-in column filter:
+1. Click column header → opens filter panel
+2. Fill filter value (combobox mode, press Enter to apply)
+3. Enter applies filter AND closes panel — no separate "Apply" step needed
+4. Grid now shows only matching row(s) → click_dynamic_locator finds it immediately
+**Key**: Enter on filter field is sufficient. Don't add a "Click Apply" step (redundant — button gone after Enter).
+
+#### Pattern 10: Horizontal Scroll (Grid Columns)
+**Avoid explicit scroll steps**: D365 grid columns are always in DOM (only rows virtualized). Playwright's `fill()` and `click()` auto-scroll elements into view via `scrollIntoViewIfNeeded()`.
+**If needed**: Use `SCROLL_GRID_RIGHT:0.3` (fractional) — but beware `drag_to()` generates click events that D365 interprets as actions.
+
+### Recorder Limitations — What Cannot Be Captured
+
+| Limitation | Impact | Workaround |
+|-----------|--------|------------|
+| Drag and drop | Can't record grid reordering | Manual workflow step creation |
+| File uploads | Browser security blocks file paths | Manual step with `goto_url` |
+| Scroll events | Scroll position not captured | Add explicit scroll steps post-conversion |
+| Right-click menus | Captured as click (lose context) | Set `right_click` action type manually |
+| D365 keyboard shortcuts (Ctrl+S) | Only Tab/Enter/Escape captured | Add `press_key` steps manually |
+| Timing-dependent actions | Pauses between actions lost | Set `wait_after` manually post-conversion |
+| Autocomplete selections | Only final value captured | Works — fill + Tab triggers selection |
+| Double-click navigation | Two clicks captured separately | Converter should merge (currently doesn't) |
+
+### Converter Limitations — What Needs Manual Fix After Quick-Convert
+
+| Issue | How to Detect | Manual Fix |
+|-------|---------------|------------|
+| No loop detection | Same 5 steps repeated N times | Set `repeat_group` on steps, add `BOM_LINES` to data |
+| No conditional detection | Steps for ARAMCO mixed with LSTK | Set `condition_value` per step |
+| Generic aria-label as primary | Converter warns in output | Promote `@name` strategy to P0 |
+| Fill without value template | Converter warns "no mapping" | Set `value_template` to `{{FIELD}}` |
+| Navigate events as waits | Steps with `navigate` action | Review if actual navigation needed |
+| D365 combobox Enter→Tab | All combobox fills use Enter | Change `press_key_after` to Tab |
+| Missing wait_after | Fast steps fail on slow network | Increase `wait_after` (1500-3000ms) |
+
+### Unused/Dead Code in the App
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `FieldMapping` model | Unused | Templates handle mapping; could remove |
+| `Workflow.valid_sheets` | Unused | Sheets not validated |
+| `Workflow.required_fields` | Unused | No pre-execution validation |
+| `Locator.screenshot` | Unused | ImageField never populated |
+| `StepExecution.screenshot` | Unused | Captured but not shown in UI |
+| `RecordedAction.element_rect` | Captured | Not used in conversion or execution |
+| `LocatorStrategy.offset_direction` | Defined | For TEXT_NEARBY strategy (not implemented) |
+| `LocatorStrategy.success_count/failure_count` | Tracked | But NOT used for strategy reordering |
+
+### Key Improvements Needed
+
+#### HIGH Priority
+1. **Pre-execution validation**: Check all steps have locators, all templates exist in row_data, all required fields present — before starting the browser
+2. **Smart waits based on recording timing**: Capture time deltas between user actions during recording; use actual pauses as `wait_after` values instead of generic 500ms
+3. **Loop detection in converter**: Detect repeated step patterns and auto-create `repeat_group` (currently manual)
+4. **Network-aware waits**: After click/fill, wait for D365 AJAX to complete (`networkidle`) instead of fixed timer
+
+#### MEDIUM Priority
+5. **Strategy success-based reordering**: Use `success_count`/`failure_count` to reorder strategies (already tracked, just not applied)
+6. **Dry-run mode**: Find elements without clicking (validate workflow before live run)
+7. **Conditional branching in converter**: Detect if-else patterns from recordings (currently all steps are linear)
+8. **Error recovery chains**: On step failure, try alternative locator before failing
+
+#### LOW Priority
+9. **Scroll event capture in recorder**: Record scroll positions for explicit scroll steps
+10. **Keyboard shortcut capture**: Record Ctrl+S, Alt+F4, etc. (currently only Tab/Enter/Escape)
+11. **RC (Roller Cone) route selection**: Only FC routes fully implemented
+12. **Screenshot comparison for visual regression**: Compare page screenshots to baselines
+
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
 
