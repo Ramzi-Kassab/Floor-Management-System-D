@@ -317,6 +317,19 @@ class ChainExecutor:
             chain_execution.context = accumulated_context
             chain_execution.save()
 
+            # Save captured values back to job_data
+            if job_data and accumulated_context:
+                update_fields = ['updated_at']
+                if accumulated_context.get("ITEM_NO"):
+                    job_data.item_number = accumulated_context["ITEM_NO"]
+                    update_fields.append('item_number')
+                if accumulated_context.get("JOURNAL_NUMBER"):
+                    job_data.movement_journal_number = accumulated_context["JOURNAL_NUMBER"]
+                    update_fields.append('movement_journal_number')
+                if len(update_fields) > 1:
+                    job_data.save(update_fields=update_fields)
+                    logger.info(f"[ChainExec] Saved captured values to job_data: {update_fields}")
+
             msg = f"Chain completed: {completed_links}/{total_links} links"
             logger.info(f"[ChainExec] {msg}")
             return {

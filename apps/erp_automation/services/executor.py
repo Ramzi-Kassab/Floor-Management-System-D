@@ -2762,6 +2762,20 @@ class DebugExecutor(WorkflowExecutor):
                 chain_execution.completed_at = timezone.now()
                 chain_execution.context = accumulated_context
                 chain_execution.save()
+
+                # Save captured values back to job_data
+                if job_data and accumulated_context:
+                    update_fields = ['updated_at']
+                    if accumulated_context.get("ITEM_NO"):
+                        job_data.item_number = accumulated_context["ITEM_NO"]
+                        update_fields.append('item_number')
+                    if accumulated_context.get("JOURNAL_NUMBER"):
+                        job_data.movement_journal_number = accumulated_context["JOURNAL_NUMBER"]
+                        update_fields.append('movement_journal_number')
+                    if len(update_fields) > 1:
+                        job_data.save(update_fields=update_fields)
+                        logger.info(f"[DebugChain] Saved captured values to job_data: {update_fields}")
+
                 self._update_state(status="completed")
                 logger.info(f"[DebugChain] Chain completed: {completed_link_count}/{total_links} links")
 
