@@ -173,6 +173,8 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit',
             'design',
             'bom',
+            'customer',
+            'from_location_text',
             'bit_received_date',
             'due_date',
             'description',
@@ -189,6 +191,8 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit': forms.HiddenInput(attrs={'id': 'id_drill_bit'}),
             'design': forms.HiddenInput(attrs={'id': 'id_design'}),
             'bom': forms.HiddenInput(attrs={'id': 'id_bom'}),
+            'customer': forms.HiddenInput(attrs={'id': 'id_customer'}),
+            'from_location_text': forms.HiddenInput(attrs={'id': 'id_from_location_text'}),
             'bit_received_date': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
