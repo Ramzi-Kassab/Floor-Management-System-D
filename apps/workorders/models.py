@@ -755,6 +755,20 @@ class WorkOrder(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_work_orders"
     )
 
+    # Status transition rules — forward flow with hold/cancel branches
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['PLANNED', 'RELEASED', 'CANCELLED'],
+        'PLANNED': ['RELEASED', 'ON_HOLD', 'CANCELLED'],
+        'RELEASED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
+        'IN_PROGRESS': ['QC_PENDING', 'ON_HOLD', 'CANCELLED'],
+        'ON_HOLD': ['PLANNED', 'RELEASED', 'IN_PROGRESS', 'CANCELLED'],
+        'QC_PENDING': ['QC_PASSED', 'QC_FAILED', 'ON_HOLD'],
+        'QC_FAILED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
+        'QC_PASSED': ['COMPLETED'],
+        'COMPLETED': [],  # terminal
+        'CANCELLED': [],  # terminal
+    }
+
     class Meta:
         db_table = "work_orders"
         ordering = ["-created_at"]
@@ -769,6 +783,23 @@ class WorkOrder(models.Model):
             models.Index(fields=["assigned_to", "status"], name="wo_assigned_status_idx"),
             models.Index(fields=["due_date"], name="wo_due_date_idx"),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = WorkOrder.objects.only('status').get(pk=self.pk)
+            except WorkOrder.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change work order status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def __str__(self):
         return f"{self.wo_number}"

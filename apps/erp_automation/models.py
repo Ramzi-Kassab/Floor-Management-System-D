@@ -291,6 +291,30 @@ class Workflow(models.Model):
     def __str__(self):
         return self.name
 
+    # ── Status transition validation ──────────────────────────────
+    STATUS_TRANSITIONS = {
+        'draft': ['active', 'archived'],
+        'active': ['archived'],
+        'archived': [],  # terminal
+    }
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = Workflow.objects.only('status').get(pk=self.pk)
+            except Workflow.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change status from '{original.get_status_display()}' to "
+                                  f"'{self.get_status_display()}'. "
+                                  f"Allowed transitions: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
+
     def get_steps_for_condition(self, condition_value=None):
         """Get workflow steps, filtered by condition if applicable.
 
@@ -1117,6 +1141,32 @@ class ERPJobData(models.Model):
 
     def __str__(self):
         return f"{self.work_order_number} - {self.serial_number} ({self.status})"
+
+    # ── Status transition validation ──────────────────────────────
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['READY', 'ERROR'],
+        'READY': ['SENT', 'ERROR'],
+        'SENT': ['COMPLETED', 'ERROR'],
+        'ERROR': ['READY'],          # allow retry after error
+        'COMPLETED': [],             # terminal
+    }
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = ERPJobData.objects.only('status').get(pk=self.pk)
+            except ERPJobData.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change status from '{original.get_status_display()}' to "
+                                  f"'{self.get_status_display()}'. "
+                                  f"Allowed transitions: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def get_display_name(self):
         """Short display name for UI."""

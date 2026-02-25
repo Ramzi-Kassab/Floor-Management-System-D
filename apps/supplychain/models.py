@@ -1370,6 +1370,20 @@ class PurchaseOrder(models.Model):
         help_text="User who created PO"
     )
 
+    # Status transition rules — forward flow with cancel branch
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['PENDING_APPROVAL', 'CANCELLED'],
+        'PENDING_APPROVAL': ['APPROVED', 'DRAFT', 'CANCELLED'],
+        'APPROVED': ['SENT', 'CANCELLED'],
+        'SENT': ['ACKNOWLEDGED', 'CANCELLED'],
+        'ACKNOWLEDGED': ['IN_PROGRESS', 'PARTIALLY_RECEIVED', 'CANCELLED'],
+        'IN_PROGRESS': ['PARTIALLY_RECEIVED', 'COMPLETED', 'CANCELLED'],
+        'PARTIALLY_RECEIVED': ['COMPLETED', 'CANCELLED'],
+        'COMPLETED': ['CLOSED'],
+        'CANCELLED': [],  # terminal
+        'CLOSED': [],  # terminal
+    }
+
     class Meta:
         db_table = "purchase_orders_v2"
         ordering = ['-order_date', '-po_number']
@@ -1385,6 +1399,23 @@ class PurchaseOrder(models.Model):
             ("can_approve_purchase_orders", "Can approve purchase orders"),
             ("can_send_purchase_orders", "Can send POs to vendors"),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = PurchaseOrder.objects.only('status').get(pk=self.pk)
+            except PurchaseOrder.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change PO status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def __str__(self):
         return f"{self.po_number} - {self.vendor.name}"

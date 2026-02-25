@@ -3283,6 +3283,14 @@ class GoodsReceiptNote(models.Model):
         null=True, blank=True, related_name="grns_confirmed"
     )
 
+    # Status transition rules — CONFIRMED is irreversible (stock posted)
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['PENDING_QC', 'CONFIRMED', 'CANCELLED'],
+        'PENDING_QC': ['CONFIRMED', 'CANCELLED'],
+        'CONFIRMED': [],  # terminal — stock already posted to ledger
+        'CANCELLED': [],  # terminal
+    }
+
     class Meta:
         db_table = "goods_receipt_notes"
         verbose_name = "Goods Receipt Note"
@@ -3294,6 +3302,23 @@ class GoodsReceiptNote(models.Model):
             models.Index(fields=["supplier"]),
             models.Index(fields=["grn_number"]),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = GoodsReceiptNote.objects.only('status').get(pk=self.pk)
+            except GoodsReceiptNote.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change GRN status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed: {', '.join(allowed) or 'none (terminal — stock already posted)'}."
+                    })
 
     def __str__(self):
         return f"{self.grn_number} ({self.get_status_display()})"

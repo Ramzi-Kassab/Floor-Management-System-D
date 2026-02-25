@@ -1041,6 +1041,14 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
   3. **StockTransferPostView**: Fixed non-existent field references (`line.from_location` → `transfer.from_location`, `line.to_location` → `transfer.to_location`, `line.qty_transferred` → `line.qty_shipped`); added all 5 dimension fields with from/to split for owner and quality; separate reference_ids for OUT/IN entries; added StockBalance update for BOTH locations.
   4. **StockAdjustmentDocPostView**: Fixed invalid `transaction_type="ADJUSTMENT"` to use `ADJ_IN`/`ADJ_OUT` based on qty sign; added all 5 dimension fields; added `adjustment_line` FK; per-line reference_id and idempotency.
 - **Fix #3: SyncStockFromBalancesView Crash**: Two bugs in `SyncStockFromBalancesView` at `/inventory/admin/sync-stock/`: (1) Referenced non-existent `Lot` model instead of `MaterialLot` (line 7081), (2) Used `redirect('inventory:balance_list')` instead of correct `'inventory:stock_balance_list'` (line 7113).
+- **Fix #4: Status Transition Validation**: Added `STATUS_TRANSITIONS` dict and `clean()` method to 7 models to prevent invalid status changes. Django `clean()` is called by `full_clean()` from forms/admin but NOT by direct `Model.save()`. Each model defines allowed transitions and raises `ValidationError` on invalid ones.
+  - **Design** (`apps/technology/models.py`): DRAFT → ACTIVE/OBSOLETE, ACTIVE → OBSOLETE, OBSOLETE = terminal
+  - **BOM** (`apps/technology/models.py`): Same transitions as Design (DRAFT/ACTIVE/OBSOLETE)
+  - **WorkOrder** (`apps/workorders/models.py`): Full 10-status flow: DRAFT → PLANNED → RELEASED → IN_PROGRESS → QC_PENDING → QC_PASSED → COMPLETED. ON_HOLD can resume to PLANNED/RELEASED/IN_PROGRESS. CANCELLED = terminal.
+  - **GoodsReceiptNote** (`apps/inventory/models.py`): DRAFT → PENDING_QC/CONFIRMED/CANCELLED. CONFIRMED = terminal (stock posted to ledger, irreversible).
+  - **PurchaseOrder** (`apps/supplychain/models.py`): 10-status flow: DRAFT → PENDING_APPROVAL → APPROVED → SENT → ACKNOWLEDGED → IN_PROGRESS → PARTIALLY_RECEIVED → COMPLETED → CLOSED. CANCELLED/CLOSED = terminal.
+  - **Workflow** (`apps/erp_automation/models.py`): draft → active/archived, active → archived, archived = terminal. Note: lowercase status values per `WorkflowStatus` choices.
+  - **ERPJobData** (`apps/erp_automation/models.py`): DRAFT → READY → SENT → COMPLETED. ERROR can retry back to READY. COMPLETED = terminal.
 
 ---
 
@@ -1486,8 +1494,9 @@ Items noted for future enhancement. These are not bugs — they are improvements
 | 1 | WorkOrderCreateEnhancedForm KeyError (`customer`/`from_location_text` not in Meta.fields) | ✅ Done | `9a3d0db` |
 | 2 | Stock Divergence — Issue/Transfer/Adjustment posting now updates StockBalance + InventoryStock | ✅ Done | `a121c6f` |
 | 3 | SyncStockFromBalancesView — Lot→MaterialLot + balance_list→stock_balance_list | ✅ Done | `62db65b` |
+| 4 | Status Transition Validation — clean() + STATUS_TRANSITIONS on 7 models | ✅ Done | — |
 
-### Phase 2: ERP Data Reconciliation (NEXT — waiting for user's D365 export files)
+### Phase 2: ERP Data Reconciliation (DELAYED — waiting for user's D365 export files)
 **Context**: IT department refused to stop D365. System coexists with ERP. Issues tracked accurately via WOs, but GRNs may be missed (done in ERP only).
 
 **D365 Export Files Needed** (user will provide):
@@ -1522,7 +1531,8 @@ Items noted for future enhancement. These are not bugs — they are improvements
 ### Phase 4: Remaining Audit Fixes
 | # | Category | Issues | Status |
 |---|----------|--------|--------|
-| 4-8 | Architectural | Status state machines, RBAC placeholders, dual HDBS FK/CharField, god function refactoring | Pending |
+| 4 | Architectural | Status state machines (7 models) | ✅ Done |
+| 5-8 | Architectural | HDBS case mismatch, N+1 query, RBAC placeholders, god function refactoring | Pending |
 | 9-15 | Missing Features | Validation gaps, missing error handling, incomplete workflows | Pending |
 | 16-22 | Dead Code | Unused models, orphaned views, legacy imports | Pending |
 | 23-27 | Inconsistencies | Naming conventions, field type mismatches, URL pattern inconsistencies | Pending |
