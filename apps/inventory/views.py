@@ -1727,9 +1727,12 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         from datetime import timedelta
-        from django.db.models import Sum, F, Value, DecimalField
+        from django.db.models import Sum, F, Value, DecimalField, Case, When
         from django.db.models.functions import Coalesce
         from decimal import Decimal
+        from .models import StockLedger, VariantStock
+        from apps.technology.models import BOMLine
+        from apps.supplychain.models import PurchaseOrderLine
 
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Cutter Inventory Dashboard"
@@ -1749,7 +1752,66 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         category_attributes = self._get_category_attributes()
         context["category_attributes"] = category_attributes
 
-        # Build cutter data with stock, consumption, requirements
+        # ── BULK QUERIES (replace N+1 per-item queries) ──────────────
+
+        # 1) Variant stock: one query → map of variant_id → total qty
+        variant_stock_map = {}
+        for vs in VariantStock.objects.filter(
+            variant__base_item__category__code="CUT-PDC",
+            variant__base_item__is_active=True,
+            variant__is_active=True,
+        ).values("variant_id").annotate(
+            total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+        ):
+            variant_stock_map[vs["variant_id"]] = vs["total"]
+
+        # 2) Consumption: one query → map of item_id → {6m, 3m, 2m}
+        consumption_map = {}
+        for row in StockLedger.objects.filter(
+            item__category__code="CUT-PDC",
+            item__is_active=True,
+            transaction_type__in=["ISSUE", "CONSUMPTION"],
+            transaction_date__gte=six_months_ago,
+        ).values("item_id").annotate(
+            c6m=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()),
+            c3m=Coalesce(Sum(Case(
+                When(transaction_date__gte=three_months_ago, then="qty_delta"),
+                default=Value(0), output_field=DecimalField(),
+            )), Value(0), output_field=DecimalField()),
+            c2m=Coalesce(Sum(Case(
+                When(transaction_date__gte=two_months_ago, then="qty_delta"),
+                default=Value(0), output_field=DecimalField(),
+            )), Value(0), output_field=DecimalField()),
+        ):
+            consumption_map[row["item_id"]] = row
+
+        # 3) BOM requirements: one query → map of item_id → total qty
+        bom_map = {}
+        for row in BOMLine.objects.filter(
+            inventory_item__category__code="CUT-PDC",
+            inventory_item__is_active=True,
+        ).values("inventory_item_id").annotate(
+            total=Coalesce(Sum("quantity"), Value(0), output_field=DecimalField())
+        ):
+            bom_map[row["inventory_item_id"]] = row["total"]
+
+        # 4) PO on-order: one query → map of item_id → outstanding qty
+        po_map = {}
+        for row in PurchaseOrderLine.objects.filter(
+            inventory_item__category__code="CUT-PDC",
+            inventory_item__is_active=True,
+            purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
+            is_cancelled=False,
+        ).values("inventory_item_id").annotate(
+            total=Coalesce(
+                Sum(F("quantity_ordered") - F("quantity_received")),
+                Value(0), output_field=DecimalField(),
+            )
+        ):
+            po_map[row["inventory_item_id"]] = max(row["total"], Decimal("0"))
+
+        # ── BUILD PER-ITEM ROWS (using pre-computed maps) ────────────
+
         cutter_data = []
         row_num = 0
         for cutter in context["cutters"]:
@@ -1783,13 +1845,11 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "remarks": cutter.notes or "",  # Use notes field for remarks
             }
 
-            # Get stock by variant
+            # Get stock by variant (uses pre-computed variant_stock_map)
             for variant in cutter.variants.all():
                 if variant.variant_case and variant.variant_case.code in variant_codes:
-                    # Get total stock for this variant across all locations
-                    variant_stock = VariantStock.objects.filter(
-                        variant=variant
-                    ).aggregate(total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField()))["total"]
+                    # Look up from pre-computed map instead of per-variant query
+                    variant_stock = variant_stock_map.get(variant.id, Decimal("0"))
                     row["variants"][variant.variant_case.code] = variant_stock
                     row["total_stock"] += variant_stock
 
@@ -1809,44 +1869,20 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                         if variant.customer and "halliburton" in variant.customer.name.lower() and variant.account == "LSTK":
                             row["lstk_rcl"] += variant_stock
 
-            # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
-            from .models import StockLedger
-            consumption_qs = StockLedger.objects.filter(
-                item=cutter,
-                transaction_type__in=["ISSUE", "CONSUMPTION"],
-            )
-
-            row["consumption_6m"] = abs(consumption_qs.filter(
-                transaction_date__gte=six_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
-
-            row["consumption_3m"] = abs(consumption_qs.filter(
-                transaction_date__gte=three_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
-
-            row["consumption_2m"] = abs(consumption_qs.filter(
-                transaction_date__gte=two_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+            # Get consumption from pre-computed map
+            cons = consumption_map.get(cutter.id, {})
+            row["consumption_6m"] = abs(cons.get("c6m", Decimal("0")))
+            row["consumption_3m"] = abs(cons.get("c3m", Decimal("0")))
+            row["consumption_2m"] = abs(cons.get("c2m", Decimal("0")))
 
             # Calculate safety stock from 2-month consumption
             row["safety_stock"] = self._calculate_safety_stock(row["consumption_2m"])
 
-            # Get BOM requirements (cutters needed for drill bits)
-            from apps.technology.models import BOMLine
-            row["bom_requirement"] = BOMLine.objects.filter(
-                inventory_item=cutter
-            ).aggregate(total=Coalesce(Sum("quantity"), Value(0), output_field=DecimalField()))["total"]
+            # Get BOM requirements from pre-computed map
+            row["bom_requirement"] = bom_map.get(cutter.id, Decimal("0"))
 
-            # Get on order quantity (open PO lines)
-            from apps.supplychain.models import PurchaseOrderLine
-            on_order = PurchaseOrderLine.objects.filter(
-                inventory_item=cutter,
-                purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
-                is_cancelled=False
-            ).aggregate(
-                total=Coalesce(Sum(F("quantity_ordered") - F("quantity_received")), Value(0), output_field=DecimalField())
-            )["total"]
-            row["on_order"] = max(on_order, Decimal("0"))
+            # Get on order quantity from pre-computed map
+            row["on_order"] = po_map.get(cutter.id, Decimal("0"))
 
             # Calculate forecast: Total New + On Order - BOM Requirement
             row["forecast"] = row["total_new"] + row["on_order"] - row["bom_requirement"]
