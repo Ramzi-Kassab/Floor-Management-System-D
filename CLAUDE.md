@@ -1478,6 +1478,67 @@ Items noted for future enhancement. These are not bugs — they are improvements
 
 ---
 
+## Master Plan — System Audit & Improvement Roadmap
+
+### Phase 1: Critical Bug Fixes ✅ COMPLETED
+| # | Fix | Status | Commit |
+|---|-----|--------|--------|
+| 1 | WorkOrderCreateEnhancedForm KeyError (`customer`/`from_location_text` not in Meta.fields) | ✅ Done | `9a3d0db` |
+| 2 | Stock Divergence — Issue/Transfer/Adjustment posting now updates StockBalance + InventoryStock | ✅ Done | `a121c6f` |
+| 3 | SyncStockFromBalancesView — Lot→MaterialLot + balance_list→stock_balance_list | ✅ Done | `62db65b` |
+
+### Phase 2: ERP Data Reconciliation (NEXT — waiting for user's D365 export files)
+**Context**: IT department refused to stop D365. System coexists with ERP. Issues tracked accurately via WOs, but GRNs may be missed (done in ERP only).
+
+**D365 Export Files Needed** (user will provide):
+1. **Inventory Transactions** (`Inventory Management → Inquiries → Transactions`) — ALL posted transactions (movements, receipts, issues). Right-click → Export all rows. Contains: item number, qty, warehouse, serial, date, journal reference.
+2. **On-Hand Inventory** (`Inventory Management → Inquiries → On-hand list`) — Current stock snapshot for reconciliation baseline.
+3. **Movement Journal Lines** — Via Inventory Transactions filtered by Reference = "Inventory journal"
+
+**Build Plan** (after receiving files):
+1. Study exported Excel column structure
+2. Build `import_erp_transactions` management command — parses D365 Inventory Transactions Excel, creates StockLedger entries with `transaction_type='ERP_SYNC'`
+3. Build `import_erp_onhand` management command — reconciles system balance vs D365 on-hand, creates adjustment entries for discrepancies
+4. Build **Reconciliation Dashboard** page — last sync date, discrepancies, negative stock alerts, one-click import button
+5. Stock Formula: `Accurate Stock = Last ERP Sync Balance - Issues Since Last Sync + Manual GRNs Since Sync`
+
+### Phase 3: Parallel Model Cleanup
+**Goal**: Remove duplicate/parallel models that cause data divergence.
+
+| Duplicate Pair | Keep | Remove | Status |
+|----------------|------|--------|--------|
+| `VariantStock` vs `InventoryStock` vs `StockBalance` | `VariantStock` + `StockBalance` | `InventoryStock` (legacy) | Pending |
+| `InventoryTransaction` vs `StockLedger` | `StockLedger` | `InventoryTransaction` | Pending |
+| `inventory.BillOfMaterial/BOMLine` vs `technology.BOM/BOMLine` | `technology.BOM` | `inventory.BillOfMaterial` (dead code) | Pending |
+| Other duplicates | TBD — full codebase scan needed | TBD | Pending |
+
+**Approach for each removal**:
+1. Find ALL references to the deprecated model (views, templates, management commands, APIs)
+2. Migrate each reference to use the replacement model
+3. Verify no data loss — run side-by-side comparison queries
+4. Remove the deprecated model + migration to drop table
+5. Clean up imports
+
+### Phase 4: Remaining Audit Fixes
+| # | Category | Issues | Status |
+|---|----------|--------|--------|
+| 4-8 | Architectural | Status state machines, RBAC placeholders, dual HDBS FK/CharField, god function refactoring | Pending |
+| 9-15 | Missing Features | Validation gaps, missing error handling, incomplete workflows | Pending |
+| 16-22 | Dead Code | Unused models, orphaned views, legacy imports | Pending |
+| 23-27 | Inconsistencies | Naming conventions, field type mismatches, URL pattern inconsistencies | Pending |
+
+### Workflow for Each Fix
+1. Restudy the code (fresh context each session)
+2. Run server → give user link to see the bug
+3. User confirms the bug
+4. Implement fix
+5. User verifies fix works
+6. Update CLAUDE.md with documentation
+7. Sync worktree ↔ D3
+8. Commit + push to GitHub
+
+---
+
 ## Need Help?
 
 1. **Check this file first** for patterns and conventions
