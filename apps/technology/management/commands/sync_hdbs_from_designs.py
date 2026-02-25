@@ -53,8 +53,9 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Found {len(hdbs_map)} unique HDBS type names\n")
 
-        # Check which already exist
-        existing = {h.hdbs_name: h for h in HDBSType.objects.all()}
+        # Check which already exist — use LOWERCASE keys for case-insensitive matching.
+        # Design.hdbs_type may have "GT65RHs" while HDBSType.hdbs_name has "GT65RHS".
+        existing = {h.hdbs_name.lower(): h for h in HDBSType.objects.all()}
         existing_junctions = set(
             DesignHDBS.objects.filter(is_current=True).values_list('design_id', 'hdbs_type_id')
         )
@@ -67,16 +68,23 @@ class Command(BaseCommand):
         for hdbs_name, data in sorted(hdbs_map.items()):
             sizes = data['sizes']
             design_list = data['designs']
+            lookup_key = hdbs_name.lower()
 
-            if hdbs_name in existing:
-                hdbs_obj = existing[hdbs_name]
+            if lookup_key in existing:
+                hdbs_obj = existing[lookup_key]
+                if hdbs_obj.hdbs_name != hdbs_name:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  ~ Case match: Design '{hdbs_name}' -> HDBSType '{hdbs_obj.hdbs_name}'"
+                        )
+                    )
                 # Check if we need to add sizes
                 current_sizes = set(hdbs_obj.sizes.all())
                 missing_sizes = sizes - current_sizes
                 if missing_sizes:
                     for sz in missing_sizes:
                         self.stdout.write(
-                            self.style.WARNING(f"  ~ Link size {sz.size_display} to {hdbs_name}")
+                            self.style.WARNING(f"  ~ Link size {sz.size_display} to {hdbs_obj.hdbs_name}")
                         )
                         if confirm:
                             hdbs_obj.sizes.add(sz)
@@ -98,13 +106,13 @@ class Command(BaseCommand):
                     )
                     for sz in sizes:
                         hdbs_obj.sizes.add(sz)
-                    existing[hdbs_name] = hdbs_obj
+                    existing[lookup_key] = hdbs_obj
                 hdbs_created += 1
                 sizes_linked += len(sizes)
 
             # Create DesignHDBS junction records
             if confirm:
-                hdbs_obj = existing.get(hdbs_name)
+                hdbs_obj = existing.get(lookup_key)
             for design in design_list:
                 if confirm and hdbs_obj:
                     key = (design.pk, hdbs_obj.pk)

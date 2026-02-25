@@ -1049,6 +1049,7 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
   - **PurchaseOrder** (`apps/supplychain/models.py`): 10-status flow: DRAFT → PENDING_APPROVAL → APPROVED → SENT → ACKNOWLEDGED → IN_PROGRESS → PARTIALLY_RECEIVED → COMPLETED → CLOSED. CANCELLED/CLOSED = terminal.
   - **Workflow** (`apps/erp_automation/models.py`): draft → active/archived, active → archived, archived = terminal. Note: lowercase status values per `WorkflowStatus` choices.
   - **ERPJobData** (`apps/erp_automation/models.py`): DRAFT → READY → SENT → COMPLETED. ERROR can retry back to READY. COMPLETED = terminal.
+- **Fix #5: HDBS Case Mismatch**: `sync_hdbs_from_designs` management command used case-sensitive dictionary lookup, causing `Design.hdbs_type='GT65RHs'` to miss `HDBSType.hdbs_name='GT65RHS'`. Fixed by using `.lower()` keys in the lookup dict. DesignHDBS junction table now populated (was empty). Also logs case-match warnings during sync (e.g., "Design 'GT65RHs' -> HDBSType 'GT65RHS'").
 
 ---
 
@@ -1494,7 +1495,8 @@ Items noted for future enhancement. These are not bugs — they are improvements
 | 1 | WorkOrderCreateEnhancedForm KeyError (`customer`/`from_location_text` not in Meta.fields) | ✅ Done | `9a3d0db` |
 | 2 | Stock Divergence — Issue/Transfer/Adjustment posting now updates StockBalance + InventoryStock | ✅ Done | `a121c6f` |
 | 3 | SyncStockFromBalancesView — Lot→MaterialLot + balance_list→stock_balance_list | ✅ Done | `62db65b` |
-| 4 | Status Transition Validation — clean() + STATUS_TRANSITIONS on 7 models | ✅ Done | — |
+| 4 | Status Transition Validation — clean() + STATUS_TRANSITIONS on 7 models | ✅ Done | `73c8585` |
+| 5 | HDBS case mismatch — case-insensitive sync command + data fix | ✅ Done | — |
 
 ### Phase 2: ERP Data Reconciliation (DELAYED — waiting for user's D365 export files)
 **Context**: IT department refused to stop D365. System coexists with ERP. Issues tracked accurately via WOs, but GRNs may be missed (done in ERP only).
@@ -1532,7 +1534,8 @@ Items noted for future enhancement. These are not bugs — they are improvements
 | # | Category | Issues | Status |
 |---|----------|--------|--------|
 | 4 | Architectural | Status state machines (7 models) | ✅ Done |
-| 5-8 | Architectural | HDBS case mismatch, N+1 query, RBAC placeholders, god function refactoring | Pending |
+| 5 | Architectural | HDBS case mismatch fix | ✅ Done |
+| 6-8 | Architectural | N+1 query, RBAC placeholders, god function refactoring | Pending |
 | 9-15 | Missing Features | Validation gaps, missing error handling, incomplete workflows | Pending |
 | 16-22 | Dead Code | Unused models, orphaned views, legacy imports | Pending |
 | 23-27 | Inconsistencies | Naming conventions, field type mismatches, URL pattern inconsistencies | Pending |
