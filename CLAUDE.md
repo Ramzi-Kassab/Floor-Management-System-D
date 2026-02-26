@@ -1514,22 +1514,21 @@ Items noted for future enhancement. These are not bugs — they are improvements
 4. Build **Reconciliation Dashboard** page — last sync date, discrepancies, negative stock alerts, one-click import button
 5. Stock Formula: `Accurate Stock = Last ERP Sync Balance - Issues Since Last Sync + Manual GRNs Since Sync`
 
-### Phase 3: Parallel Model Cleanup
+### Phase 3: Parallel Model Cleanup ✅ COMPLETED
 **Goal**: Remove duplicate/parallel models that cause data divergence.
 
 | Duplicate Pair | Keep | Remove | Status |
 |----------------|------|--------|--------|
-| `VariantStock` vs `InventoryStock` vs `StockBalance` | `VariantStock` + `StockBalance` | `InventoryStock` (legacy) | Pending |
-| `InventoryTransaction` vs `StockLedger` | `StockLedger` | `InventoryTransaction` | Pending |
-| `inventory.BillOfMaterial/BOMLine` vs `technology.BOM/BOMLine` | `technology.BOM` | `inventory.BillOfMaterial` (dead code) | Pending |
-| Other duplicates | TBD — full codebase scan needed | TBD | Pending |
+| `VariantStock` vs `InventoryStock` vs `StockBalance` | `VariantStock` + `StockBalance` | `InventoryStock` (legacy) | ✅ Done |
+| `InventoryTransaction` vs `StockLedger` | `StockLedger` | `InventoryTransaction` | ✅ Done |
+| `inventory.BillOfMaterial/BOMLine` vs `technology.BOM/BOMLine` | `technology.BOM` | `inventory.BillOfMaterial` (dead code) | ✅ Done |
 
-**Approach for each removal**:
-1. Find ALL references to the deprecated model (views, templates, management commands, APIs)
-2. Migrate each reference to use the replacement model
-3. Verify no data loss — run side-by-side comparison queries
-4. Remove the deprecated model + migration to drop table
-5. Clean up imports
+**What was done** (Feb 26, 2026):
+1. Removed all cross-app references: views.py, admin.py, forms.py, urls.py (inventory), reports/views.py, supplychain/views.py, technology/views.py, 3 management commands, all test files
+2. Migrated references to replacement models: `InventoryStock` → `StockBalance` (field mapping: `quantity_on_hand` → `qty_on_hand`, `quantity_reserved` → `qty_reserved`, `quantity_available` → `qty_available`), `InventoryTransaction` → `StockLedger` (field mapping: `quantity` → `qty_delta`, `link_type` → `reference_type`, `reference_number` → `reference_id`)
+3. Removed model class definitions from `apps/inventory/models.py` (~300 lines)
+4. Created migration `0033_remove_deprecated_models.py` (DeleteModel for BOMLine → BillOfMaterial → InventoryTransaction → InventoryStock)
+5. 17 files changed, 229 insertions, 1,378 deletions. Commits: `53996d8` (model removal), prior commits for reference cleanup
 
 ### Phase 4: Remaining Audit Fixes
 | # | Category | Issues | Status |

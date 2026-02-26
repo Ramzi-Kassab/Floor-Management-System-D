@@ -471,48 +471,9 @@ class DrillBitCreateForm(forms.ModelForm):
                 raise forms.ValidationError("Serial number must be at least 4 characters.")
         return serial
 
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-
-        # Auto-populate bit_type from design if available
-        if instance.design:
-            # Set bit_type based on design category
-            if hasattr(instance.design, 'category') and instance.design.category:
-                if 'RC' in instance.design.category.upper() or 'ROLLER' in instance.design.category.upper():
-                    instance.bit_type = DrillBit.BitCategory.RC
-                else:
-                    instance.bit_type = DrillBit.BitCategory.FC
-
-            # Auto-populate size from design
-            if instance.design.size:
-                instance.size = instance.design.size.size_value if hasattr(instance.design.size, 'size_value') else 0
-
-        # Auto-populate brazing_bom / system_bom from legacy bom field
-        if instance.bom and not instance.brazing_bom and not instance.system_bom:
-            from apps.technology.models import BOM
-            if instance.bom.bom_type == BOM.BOMType.SYSTEM:
-                instance.system_bom = instance.bom
-            else:
-                # Default: treat as brazing BOM
-                instance.brazing_bom = instance.bom
-
-        # Set initial status
-        instance.status = DrillBit.Status.NEW
-        instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
-
-        if commit:
-            instance.save()
-        return instance
-        self.fields["bom"].queryset = BOM.objects.filter(
-            status="ACTIVE",
-            design__isnull=False
-        ).select_related("design", "design__size").order_by("design__mat_no", "code")
-        self.fields["bom"].required = False
-        self.fields["bom"].label_from_instance = lambda obj: f"{obj.code} ({obj.name or 'L5'})"
-
-        # Only active locations
-        self.fields["bit_location"].queryset = Location.objects.filter(is_active=True)
-        self.fields["bit_location"].required = True
+    # NOTE: Duplicate save() method and orphaned __init__ code REMOVED (Feb 2026).
+    # The first save() (with bit_type/bom auto-population) was unreachable because
+    # Python uses the LAST definition. The active save() is below (calls sync_from_design()).
 
     def clean_serial_number(self):
         serial_number = self.cleaned_data.get("serial_number")

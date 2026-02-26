@@ -1631,7 +1631,7 @@ class DesignPocket(models.Model):
     )
     pocket_config = models.ForeignKey(
         DesignPocketConfig,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name='pockets',
         verbose_name='Pocket Configuration'
     )

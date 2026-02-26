@@ -21,7 +21,6 @@ Sprint 4 Additions:
 - repair_bom_lines - BOM line items
 - process_routes - Repair routing templates
 - process_route_operations - Operations within routes
-- operation_executions - Actual operation tracking
 - work_order_costs - Cost summary per work order
 """
 
@@ -1108,103 +1107,11 @@ class BitEvaluation(models.Model):
 # SPRINT 4: STATUS TRACKING & AUDIT
 # =============================================================================
 
-class StatusTransitionLog(models.Model):
-    """
-    Sprint 4: Audit trail for status changes on any model.
-    Uses GenericForeignKey to track status changes across DrillBit, WorkOrder, etc.
-    """
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE,
-        related_name='status_transition_logs'
-    )
-    object_id = models.PositiveBigIntegerField()
-    content_object = GenericForeignKey("content_type", "object_id")
+# NOTE: StatusTransitionLog model REMOVED (Feb 2026) — never written to in production.
+# Utility functions log_status_transition() and get_status_history() also removed from utils.py.
 
-    from_status = models.CharField(max_length=30, blank=True)
-    to_status = models.CharField(max_length=30)
-    changed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, related_name="status_transitions"
-    )
-    changed_at = models.DateTimeField(auto_now_add=True)
-    reason = models.TextField(blank=True, help_text="Reason for status change")
-
-    class Meta:
-        db_table = "status_transition_logs"
-        ordering = ["-changed_at"]
-        verbose_name = "Status Transition Log"
-        verbose_name_plural = "Status Transition Logs"
-        indexes = [
-            models.Index(fields=["content_type", "object_id"]),
-            models.Index(fields=["changed_at"]),
-        ]
-
-    def __str__(self):
-        return f"{self.content_type.model} #{self.object_id}: {self.from_status} → {self.to_status}"
-
-
-class BitRepairHistory(models.Model):
-    """
-    Sprint 4: Complete repair history for a drill bit.
-    Tracks every repair performed, costs, and condition changes.
-    """
-    class RepairType(models.TextChoices):
-        REDRESS = "REDRESS", "Redress"
-        MAJOR_REPAIR = "MAJOR_REPAIR", "Major Repair"
-        MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair"
-        REBUILD = "REBUILD", "Rebuild"
-        REFURBISH = "REFURBISH", "Refurbish"
-
-    drill_bit = models.ForeignKey(
-        DrillBit, on_delete=models.CASCADE, related_name="repair_history"
-    )
-    work_order = models.ForeignKey(
-        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="bit_repair_records"
-    )
-
-    repair_number = models.IntegerField(help_text="Repair sequence number for this bit")
-    repair_date = models.DateField()
-    repair_type = models.CharField(max_length=20, choices=RepairType.choices)
-
-    # Work details
-    work_performed = models.TextField(blank=True)
-    parts_replaced = models.TextField(blank=True)
-
-    # Costs
-    labor_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    material_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    overhead_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-
-    @property
-    def total_cost(self):
-        return self.labor_cost + self.material_cost + self.overhead_cost
-
-    # Condition
-    condition_before = models.CharField(max_length=50, blank=True)
-    condition_after = models.CharField(max_length=50, blank=True)
-
-    # Serial tracking for Aramco
-    serial_before = models.CharField(max_length=60, blank=True)
-    serial_after = models.CharField(max_length=60, blank=True)
-
-    # Audit
-    created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, related_name="created_repair_records"
-    )
-
-    class Meta:
-        db_table = "bit_repair_history"
-        ordering = ["drill_bit", "-repair_number"]
-        verbose_name = "Bit Repair History"
-        verbose_name_plural = "Bit Repair Histories"
-        unique_together = ["drill_bit", "repair_number"]
-
-    def __str__(self):
-        return f"{self.drill_bit.serial_number} - Repair #{self.repair_number}"
+# NOTE: BitRepairHistory model REMOVED (Feb 2026) — never written to in production.
+# DrillBit.repair_count tracks repairs; CutterEvaluationMatrix tracks evaluations.
 
 
 class SalvageItem(models.Model):
@@ -1611,67 +1518,8 @@ class ProcessRouteOperation(models.Model):
         return f"{self.route.route_number} Seq {self.sequence}: {self.operation_name}"
 
 
-class OperationExecution(models.Model):
-    """
-    Sprint 4: Actual execution of an operation on a work order.
-    """
-    class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        IN_PROGRESS = "IN_PROGRESS", "In Progress"
-        COMPLETED = "COMPLETED", "Completed"
-        SKIPPED = "SKIPPED", "Skipped"
-
-    work_order = models.ForeignKey(
-        WorkOrder, on_delete=models.CASCADE, related_name="operation_executions"
-    )
-    route_operation = models.ForeignKey(
-        ProcessRouteOperation, on_delete=models.PROTECT,
-        related_name="executions"
-    )
-    sequence = models.IntegerField()
-
-    # Status
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-
-    # Operator
-    operator = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="operation_executions"
-    )
-
-    # Time tracking
-    start_time = models.DateTimeField(null=True, blank=True)
-    end_time = models.DateTimeField(null=True, blank=True)
-    actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-
-    # Cost
-    labor_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-
-    # QC
-    qc_performed = models.BooleanField(default=False)
-    qc_passed = models.BooleanField(null=True, blank=True)
-    qc_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="qc_operations"
-    )
-    qc_notes = models.TextField(blank=True)
-
-    # Notes
-    operator_notes = models.TextField(blank=True)
-    issues_encountered = models.TextField(blank=True)
-
-    class Meta:
-        db_table = "operation_executions"
-        ordering = ["work_order", "sequence"]
-        verbose_name = "Operation Execution"
-        verbose_name_plural = "Operation Executions"
-        indexes = [
-            models.Index(fields=["work_order", "status"]),
-            models.Index(fields=["status"]),
-        ]
-
-    def __str__(self):
-        return f"{self.work_order.wo_number} Op {self.sequence}: {self.status}"
+# NOTE: OperationExecution model REMOVED (Feb 2026) — never written to in production.
+# RouterSheetEntry is the active step-tracking system for work orders.
 
 
 class WorkOrderCost(models.Model):
@@ -1727,14 +1575,14 @@ class WorkOrderCost(models.Model):
 
     def recalculate(self):
         """Recalculate all costs from related records."""
-        # Labor from operation executions
         from django.db.models import Sum
-        labor_agg = self.work_order.operation_executions.aggregate(
-            hours=Sum("actual_hours"),
-            cost=Sum("labor_cost")
+        # NOTE: OperationExecution-based labor calculation removed (Feb 2026)
+        # Labor hours/cost should be tracked via WorkOrderTimeLog instead
+        labor_agg = self.work_order.time_logs.aggregate(
+            minutes=Sum("duration_minutes")
         )
-        self.actual_labor_hours = labor_agg["hours"] or 0
-        self.labor_cost = labor_agg["cost"] or 0
+        total_minutes = labor_agg["minutes"] or 0
+        self.actual_labor_hours = Decimal(str(total_minutes)) / Decimal("60")
 
         # Materials from repair BOMs
         material_agg = self.work_order.repair_boms.aggregate(
@@ -2261,15 +2109,11 @@ class APIThreadInspection(models.Model):
 class RouterSheetEntry(models.Model):
     """
     Individual step entry in a router sheet with QR-based time tracking.
-    Extends OperationExecution with additional Job Card specific fields.
     """
     work_order = models.ForeignKey(
         WorkOrder, on_delete=models.CASCADE, related_name="router_entries"
     )
-    operation_execution = models.OneToOneField(
-        OperationExecution, on_delete=models.CASCADE, null=True, blank=True,
-        related_name="router_entry"
-    )
+    # NOTE: operation_execution OneToOneField to OperationExecution REMOVED (Feb 2026)
 
     # Step info (can be standalone if no ProcessRoute assigned)
     step_number = models.IntegerField()

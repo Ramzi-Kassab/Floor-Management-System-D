@@ -17,8 +17,6 @@ from .models import (
     WorkOrderPhoto,
     WorkOrderTimeLog,
     # Sprint 4 Models
-    StatusTransitionLog,
-    BitRepairHistory,
     SalvageItem,
     RepairApprovalAuthority,
     RepairEvaluation,
@@ -26,7 +24,7 @@ from .models import (
     RepairBOMLine,
     ProcessRoute,
     ProcessRouteOperation,
-    OperationExecution,
+    # OperationExecution removed (Feb 2026)
     WorkOrderCost,
     # Job Card Models
     CutterEvaluationMatrix,
@@ -185,31 +183,7 @@ class BitEvaluationAdmin(admin.ModelAdmin):
     list_select_related = ["drill_bit", "evaluated_by"]
 
 
-# =============================================================================
-# STATUS TRANSITION LOG
-# =============================================================================
-
-@admin.register(StatusTransitionLog)
-class StatusTransitionLogAdmin(admin.ModelAdmin):
-    list_display = ["content_object", "from_status", "to_status", "changed_by", "changed_at"]
-    list_filter = ["from_status", "to_status"]
-    search_fields = ["reason"]
-    list_select_related = ["changed_by"]
-    date_hierarchy = "changed_at"
-    readonly_fields = ["changed_at"]
-
-
-# =============================================================================
-# BIT REPAIR HISTORY
-# =============================================================================
-
-@admin.register(BitRepairHistory)
-class BitRepairHistoryAdmin(admin.ModelAdmin):
-    list_display = ["drill_bit", "repair_number", "repair_type", "repair_date", "total_cost"]
-    list_filter = ["repair_type"]
-    search_fields = ["drill_bit__serial_number"]
-    list_select_related = ["drill_bit", "work_order"]
-    date_hierarchy = "repair_date"
+# NOTE: StatusTransitionLog, BitRepairHistory admin registrations REMOVED (Feb 2026)
 
 
 # =============================================================================
@@ -283,11 +257,7 @@ class ProcessRouteAdmin(admin.ModelAdmin):
     inlines = [ProcessRouteOperationInline]
 
 
-@admin.register(OperationExecution)
-class OperationExecutionAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "route_operation", "sequence", "status", "start_time", "end_time"]
-    list_filter = ["status"]
-    list_select_related = ["work_order", "route_operation", "operator"]
+# NOTE: OperationExecution admin registration REMOVED (Feb 2026)
 
 
 # =============================================================================

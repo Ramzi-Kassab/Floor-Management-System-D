@@ -401,46 +401,5 @@ class TestExportPermissions:
         assert response['Content-Type'] == 'text/csv'
 
 
-# =============================================================================
-# VIEW-ONLY MODEL PERMISSION TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestViewOnlyModelPermissions:
-    """Tests for view-only models (StatusTransitionLog, BitRepairHistory, OperationExecution)."""
-
-    def test_status_log_list_requires_login(self, client):
-        """Test status log list requires authentication."""
-        url = reverse('workorders:statustransitionlog_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_repair_history_list_requires_login(self, client):
-        """Test repair history list requires authentication."""
-        url = reverse('workorders:bitrepairhistory_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_operation_execution_list_requires_login(self, client):
-        """Test operation execution list requires authentication."""
-        url = reverse('workorders:operationexecution_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_authenticated_can_view_status_logs(self, authenticated_client):
-        """Test authenticated user can view status logs."""
-        url = reverse('workorders:statustransitionlog_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_authenticated_can_view_repair_history(self, authenticated_client):
-        """Test authenticated user can view repair history."""
-        url = reverse('workorders:bitrepairhistory_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_authenticated_can_view_operation_executions(self, authenticated_client):
-        """Test authenticated user can view operation executions."""
-        url = reverse('workorders:operationexecution_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
+# NOTE: TestViewOnlyModelPermissions for StatusTransitionLog, BitRepairHistory,
+# OperationExecution REMOVED (Feb 2026) — models and views were dead code.

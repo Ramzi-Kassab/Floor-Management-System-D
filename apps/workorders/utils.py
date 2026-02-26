@@ -187,66 +187,8 @@ def calculate_progress(work_order):
     return status_progress.get(work_order.status, 0)
 
 
-# =============================================================================
-# STATUS TRANSITION LOGGING
-# =============================================================================
-
-def log_status_transition(instance, from_status, to_status, user, reason=""):
-    """
-    Record a status transition in the audit log.
-
-    Args:
-        instance: The model instance that had its status changed (WorkOrder, DrillBit, etc.)
-        from_status: The previous status value
-        to_status: The new status value
-        user: The user who made the change
-        reason: Optional reason for the status change
-
-    Returns:
-        StatusTransitionLog: The created log entry, or None if no change
-    """
-    from django.contrib.contenttypes.models import ContentType
-    from .models import StatusTransitionLog
-
-    if from_status == to_status:
-        return None
-
-    content_type = ContentType.objects.get_for_model(instance)
-
-    return StatusTransitionLog.objects.create(
-        content_type=content_type,
-        object_id=instance.pk,
-        from_status=from_status or "",
-        to_status=to_status,
-        changed_by=user,
-        reason=reason,
-    )
-
-
-def get_status_history(instance, limit=None):
-    """
-    Get the status transition history for a model instance.
-
-    Args:
-        instance: The model instance to get history for
-        limit: Optional limit on number of records to return
-
-    Returns:
-        QuerySet: StatusTransitionLog entries for this instance
-    """
-    from django.contrib.contenttypes.models import ContentType
-    from .models import StatusTransitionLog
-
-    content_type = ContentType.objects.get_for_model(instance)
-    queryset = StatusTransitionLog.objects.filter(
-        content_type=content_type,
-        object_id=instance.pk,
-    ).select_related('changed_by').order_by('-changed_at')
-
-    if limit:
-        queryset = queryset[:limit]
-
-    return queryset
+# NOTE: log_status_transition() and get_status_history() REMOVED (Feb 2026).
+# StatusTransitionLog model was never written to in production.
 
 
 # WorkOrder-specific transition rules

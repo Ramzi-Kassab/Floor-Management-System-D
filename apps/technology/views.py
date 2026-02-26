@@ -3721,7 +3721,7 @@ def api_boms_list(request):
     for b in boms:
         result.append({
             'id': b.pk,
-            'code': b.code or b.brazing_mat_no or b.system_mat_no or str(b),
+            'code': b.code or b.system_mat_no or str(b),
             'name': b.name or f"L5 ({b.get_status_display()})",
             'status': b.status,
         })

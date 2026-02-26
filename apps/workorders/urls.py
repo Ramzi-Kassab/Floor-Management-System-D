@@ -184,8 +184,5 @@ urlpatterns = [
     path("costs/create/", views.WorkOrderCostCreateView.as_view(), name="workordercost_create"),
     path("costs/<int:pk>/edit/", views.WorkOrderCostUpdateView.as_view(), name="workordercost_update"),
     path("costs/<int:pk>/delete/", views.WorkOrderCostDeleteView.as_view(), name="workordercost_delete"),
-    # View-Only URLs (3 patterns)
-    path("status-logs/", views.StatusTransitionLogListView.as_view(), name="statustransitionlog_list"),
-    path("repair-history/", views.BitRepairHistoryListView.as_view(), name="bitrepairhistory_list"),
-    path("operation-executions/", views.OperationExecutionListView.as_view(), name="operationexecution_list"),
+    # NOTE: StatusTransitionLog, BitRepairHistory, OperationExecution URLs removed (Feb 2026)
 ]

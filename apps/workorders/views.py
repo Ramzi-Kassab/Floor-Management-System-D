@@ -554,7 +554,7 @@ from .forms import (
 from .models import (
     SalvageItem, RepairApprovalAuthority, RepairEvaluation,
     RepairBOM, ProcessRoute, WorkOrderCost,
-    StatusTransitionLog, BitRepairHistory, OperationExecution
+    # StatusTransitionLog, BitRepairHistory, OperationExecution removed (Feb 2026)
 )
 
 
@@ -1034,99 +1034,7 @@ class WorkOrderCostDeleteView(LoginRequiredMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
-# ============================================================================
-# StatusTransitionLog Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class StatusTransitionLogListView(LoginRequiredMixin, ListView):
-    """List status transition logs (view-only)"""
-    model = StatusTransitionLog
-    template_name = "workorders/statustransitionlog_list.html"
-    context_object_name = "logs"
-    paginate_by = 50
-
-    def get_queryset(self):
-        queryset = StatusTransitionLog.objects.select_related('changed_by')
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(
-                Q(from_status__icontains=search) |
-                Q(to_status__icontains=search) |
-                Q(reason__icontains=search)
-            )
-
-        return queryset.order_by('-changed_at')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Status Transition Logs'
-        return context
-
-
-# ============================================================================
-# BitRepairHistory Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class BitRepairHistoryListView(LoginRequiredMixin, ListView):
-    """List bit repair history (view-only)"""
-    model = BitRepairHistory
-    template_name = "workorders/bitrepairhistory_list.html"
-    context_object_name = "repairs"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = BitRepairHistory.objects.select_related('drill_bit', 'quality_inspector')
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(
-                Q(drill_bit__serial_number__icontains=search) |
-                Q(work_performed__icontains=search)
-            )
-
-        repair_type = self.request.GET.get('repair_type')
-        if repair_type:
-            queryset = queryset.filter(repair_type=repair_type)
-
-        return queryset.order_by('-repair_date')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Bit Repair History'
-        return context
-
-
-# ============================================================================
-# OperationExecution Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class OperationExecutionListView(LoginRequiredMixin, ListView):
-    """List operation executions (view-only)"""
-    model = OperationExecution
-    template_name = "workorders/operationexecution_list.html"
-    context_object_name = "executions"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = OperationExecution.objects.select_related(
-            'work_order', 'process_route_operation', 'operator'
-        )
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(work_order__wo_number__icontains=search)
-
-        status = self.request.GET.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-
-        return queryset.order_by('-start_time')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Operation Executions'
-        return context
+# NOTE: StatusTransitionLog, BitRepairHistory, OperationExecution list views REMOVED (Feb 2026)
 
 
 @login_required

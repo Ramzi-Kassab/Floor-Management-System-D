@@ -2186,11 +2186,7 @@ class MaterialConsumption(models.Model):
         related_name="material_consumptions"
     )
 
-    # Link to operation (optional)
-    operation_execution = models.ForeignKey(
-        "workorders.OperationExecution", on_delete=models.SET_NULL,
-        null=True, blank=True, related_name="material_consumptions"
-    )
+    # NOTE: operation_execution FK to OperationExecution REMOVED (Feb 2026) — model was dead code
 
     # Cost
     unit_cost = models.DecimalField(max_digits=15, decimal_places=4, default=0)

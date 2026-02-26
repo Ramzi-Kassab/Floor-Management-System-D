@@ -31,7 +31,7 @@ from .models import (
     RouterSheetEntry, EvaluationChecklist,
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
-    ProcessRoute, ProcessRouteOperation, OperationExecution,
+    ProcessRoute, ProcessRouteOperation,
     RepairEvaluation, WorkOrderCost, ProductionPlanEntry,
     PlannerSettings, PlannerHoliday,
     EvaluationRoute, EvaluationRouteStep
@@ -344,14 +344,8 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         except WorkOrderCost.DoesNotExist:
             context["cost_summary"] = None
 
-        # Status transitions
-        from django.contrib.contenttypes.models import ContentType
-        from .models import StatusTransitionLog
-        wo_ct = ContentType.objects.get_for_model(WorkOrder)
-        context["status_history"] = StatusTransitionLog.objects.filter(
-            content_type=wo_ct,
-            object_id=wo.pk
-        ).order_by('-changed_at')[:10]
+        # Status transitions — StatusTransitionLog removed (Feb 2026), was never written to
+        context["status_history"] = []
 
         return context
 
