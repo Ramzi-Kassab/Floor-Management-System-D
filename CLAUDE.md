@@ -114,15 +114,23 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - **Pocket**: Individual position on a blade where a cutter is placed
 
 #### Cutter Variant Cases
-| Code | Description | Use Case |
-|------|-------------|----------|
-| NEW-PUR | New Purchased | Fresh from supplier |
-| NEW-EO | ENO As New | Evaluated as new condition |
-| NEW-RET | Retrofit as New | Retrofitted, counts as new |
-| NEW-CLI | Client Stock (LSTK) | Halliburton consignment |
-| USED-GRD | ENO Ground | Ground/refurbished |
-| USED-RCL | ARDT Reclaimed | Reclaimed by ARDT |
-| USED-CLI | Client Used | Customer's used cutters |
+Canonical codes defined in `apps/inventory/constants.py` and seeded by `seed_variant_cases` command:
+
+| Code | Description | Condition | Ownership | Use Case |
+|------|-------------|-----------|-----------|----------|
+| NEW-PUR | New Purchased | NEW | ARDT | Fresh from supplier |
+| NEW-MFG | New Manufactured | NEW | ARDT | Manufactured in-house |
+| NEW-RET | Retrofit (as New) | NEW | ARDT | Refurbished to new condition |
+| NEW-EO | E&O (Excess & Obsolete) | NEW | ARDT | Excess/obsolete, new condition |
+| GRD-EO | E&O Ground | USED | ARDT | Ground cutters in E&O stock |
+| USED-RCL | Used Reclaimed | USED | ARDT | Standard reclaim by ARDT |
+| CLI-NEW | Client New | NEW | CLIENT | New items provided by client |
+| CLI-RCL | Client Reclaimed | USED | CLIENT | Used/reclaimed from client (LSTK) |
+
+**Deprecated codes** (deactivated by seed, may still exist in old database records):
+`NEW-ENO` → NEW-EO, `USED-GRD` → GRD-EO, `USED-STD` → USED-RCL, `CLI-USED` → CLI-RCL
+
+**Note**: Some views and import commands still reference deprecated codes (`USED-GRD`, `NEW-CLI`, `USED-CLI`) because existing database records were created with them. Run `fix_variant_codes` management command to migrate old records to current codes.
 
 ---
 
@@ -1052,6 +1060,14 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 - **Fix #5: HDBS Case Mismatch**: `sync_hdbs_from_designs` management command used case-sensitive dictionary lookup, causing `Design.hdbs_type='GT65RHs'` to miss `HDBSType.hdbs_name='GT65RHS'`. Fixed by using `.lower()` keys in the lookup dict. DesignHDBS junction table now populated (was empty). Also logs case-match warnings during sync (e.g., "Design 'GT65RHs' -> HDBSType 'GT65RHS'").
 - **Fix #6: N+1 Query in CutterInventoryListView**: `get_context_data()` in `apps/inventory/views.py` ran ~3,000-3,600 queries for 300 cutters (per-item VariantStock aggregation, StockLedger consumption, BOMLine requirements, PurchaseOrderLine on-order). Replaced with 4 bulk queries using `.values().annotate()` pre-computed into dict maps, then dict lookups in the per-item loop. Reduces to ~5-10 total queries. Consumption uses `Case/When` to compute 6m/3m/2m in a single query.
 
+### Recent Bug Fixes (Feb 26, 2026) — System Audit Fixes (Batch 3)
+- **Fix #16-18: Dead Model Removal**: Removed 3 models (`StatusTransitionLog`, `BitRepairHistory`, `OperationExecution`) from `apps/workorders/`. These models had admin registrations, views, URLs, and templates but were NEVER written to in production (no `.objects.create()` or `.save()` outside tests). Removal included: model definitions, admin registrations, 3 ListView classes, 3 URL patterns, `log_status_transition()`/`get_status_history()` utility functions, 3 template files, ~12 test classes across 5 test files. Also removed `RouterSheetEntry.operation_execution` OneToOneField (always null) and refactored `WorkOrderCost.recalculate()` to use `WorkOrderTimeLog` instead of deleted `OperationExecution`. Migrations: `workorders/0020`, `inventory/0034`. Commit `2176324`.
+- **Fix #20: DrillBitCreateForm Dead Code**: Removed duplicate `save()` method from `DrillBitCreateForm` in `apps/workorders/forms.py`.
+- **Fix #21: sync_to_design() Stub**: Removed empty `sync_to_design()` method from `CutterMapDocument` in `apps/cutter_map/models.py`.
+- **Fix #23: Variant Case Code Mismatches**: Created centralized `apps/inventory/constants.py` with all 8 canonical variant case codes matching `seed_variant_cases.py`. Fixed `fix_variant_codes.py` which had broken mappings (used `NEW-ENO` instead of `NEW-EO`, inverted `USED-RCL→USED-STD`). Updated CLAUDE.md "Cutter Variant Cases" table to match actual seed data (old table listed `NEW-CLI`/`USED-GRD`/`USED-CLI` which are deprecated codes). Key finding: multiple import commands still reference deprecated codes (`USED-GRD`, `NEW-CLI`) because database records were created with them — run `fix_variant_codes` to migrate.
+- **Fix #24: SalesOrder Template Field Mismatches**: All 3 SalesOrder templates (`salesorder_form.html`, `salesorder_detail.html`, `salesorder_list.html`) referenced non-existent model fields from an older version: `order_number` (→ `so_number`), `expected_delivery_date` (→ `required_date`/`promised_date`), plus 8 orphaned fields (`priority`, `payment_terms`, `credit_limit`, `contact_person`, `shipping_address`, `billing_address`, `special_instructions`). Rewrote all 3 templates to match actual `SalesOrder` model fields and `SalesOrderForm.Meta.fields`.
+- **Fix #25: GRN System Overlap (Documented)**: Two parallel GRN systems exist: `GoodsReceiptNote`/`GRNLine` in inventory app (full-featured: QC, variance, 3-way matching, StockLedger integration) and `Receipt`/`ReceiptLine` in supplychain app (simpler: basic inspection, no ledger integration). `GoodsReceiptNote` is the production system; `Receipt` is used only in tests. Supplychain URLs alias Receipt views as "GRN" views causing confusion. Consolidation deferred — requires data migration and careful test updates.
+
 ---
 
 ## ERP Automation: Complete Architecture Reference
@@ -1471,13 +1487,13 @@ Items noted for future enhancement. These are not bugs — they are improvements
 
 1. **Stock Issue / Transfer / Adjustment Create Forms**: The create forms for stock documents (`/inventory/issues/create/`, `/inventory/transfers/create/`, `/inventory/adjustments/create/`) are overly complicated and require too many fields (default_location, owner_party, ownership_type, etc.) to create a simple document. Needs UX simplification — auto-populate defaults, reduce required fields, add smart defaults based on item/variant selection.
 
-2. **Audit All Parallel/Duplicate Models**: The system has multiple cases where a model was created and then a parallel one was added doing mostly the same work. Known cases:
-   - **Stock tracking**: `VariantStock` vs `InventoryStock` vs `StockBalance` — three models caching stock data from the ledger. Plan: phase out `InventoryStock` (legacy, reads from deprecated `InventoryTransaction`), keep `VariantStock` (cutter dashboards) and `StockBalance` (multi-dimensional).
-   - **BOM system**: `apps/inventory/models.py` has `BillOfMaterial`/`BOMLine` AND `apps/technology/models.py` has `BOM`/`BOMLine`. Only the technology version is used. Inventory version is dead code.
-   - **Transaction ledger**: Old `InventoryTransaction` ledger vs new `StockLedger`. GRN writes to both. Should consolidate to `StockLedger` only.
-   - **Need to scan entire codebase for more cases.**
+2. **~~Audit All Parallel/Duplicate Models~~**: ✅ DONE (Feb 2026). Removed `InventoryStock`, `InventoryTransaction`, `BillOfMaterial`/`BOMLine` from inventory app. `VariantStock` + `StockBalance` + `StockLedger` are the active models. `technology.BOM`/`BOMLine` is the active BOM system.
 
-3. **Phase Out InventoryStock (Legacy Stock Model)**: `InventoryStock` reads from the old `InventoryTransaction` ledger (deprecated). `VariantStock` and `StockBalance` both read from `StockLedger` (the correct system). All views that currently read from `InventoryStock` should be migrated to use `VariantStock` or `StockBalance` queries.
+3. **~~Phase Out InventoryStock~~**: ✅ DONE (Feb 2026). Removed `InventoryStock` model and all references. Views migrated to `StockBalance` queries.
+
+4. **Consolidate GRN Systems (inventory + supplychain)**: Two parallel GRN models exist: `GoodsReceiptNote`/`GRNLine` (inventory, production) and `Receipt`/`ReceiptLine` (supplychain, test-only). Supplychain aliases Receipt views as "GRN" views (`GRNListView = ReceiptListView`). Plan: migrate supplychain tests to use `GoodsReceiptNote`, remove `Receipt`/`ReceiptLine` models, clean up URL aliases.
+
+5. **Migrate Deprecated Variant Case Codes**: Multiple import commands and views reference deprecated variant codes (`USED-GRD`, `NEW-CLI`, `USED-CLI`) because database records were created with them. After running `fix_variant_codes` command to migrate existing records, update the hardcoded lists in `inventory/views.py`, `technology/views.py`, `cutter_map/views.py`, and import commands to use canonical codes from `apps/inventory/constants.py`.
 
 4. **ERP Baseline + Local Tracking Strategy**: The system is NOT the authority for receiving (GRN) — the ERP (D365) is. But the system IS the authority for consumption (issues via work orders). To keep inventory accurate despite this dual-system reality:
    - **Periodic ERP On-Hand Import**: Enhance `import_stock_from_onhand` command to create `StockLedger` entries with `transaction_type='ERP_SYNC'` representing the difference between system balance and ERP balance. This captures all missed GRNs as a single reconciliation adjustment. Store import date for "accurate as of" tracking.
@@ -1538,8 +1554,15 @@ Items noted for future enhancement. These are not bugs — they are improvements
 | 6 | Architectural | N+1 query fix in CutterInventoryListView (~3,600 → ~5 queries) | ✅ Done |
 | 7-8 | Architectural | RBAC placeholders, god function refactoring | Deferred |
 | 9-15 | Missing Features | Validation gaps, missing error handling, incomplete workflows | Pending |
-| 16-22 | Dead Code | Unused models, orphaned views, legacy imports | Pending |
-| 23-27 | Inconsistencies | Naming conventions, field type mismatches, URL pattern inconsistencies | Pending |
+| 16-18 | Dead Code | StatusTransitionLog, BitRepairHistory, OperationExecution removed | ✅ Done |
+| 20 | Dead Code | DrillBitCreateForm duplicate save() removed | ✅ Done |
+| 21 | Dead Code | CutterMapDocument.sync_to_design() stub removed | ✅ Done |
+| 22 | Dead Code | BitType deprecated model | Deferred (41 records, needs data migration) |
+| 26 | Inconsistency | api_boms_list brazing_mat_no reference fixed | ✅ Done |
+| 27 | Inconsistency | DesignPocket cascade conflict (PROTECT→CASCADE) | ✅ Done |
+| 23 | Inconsistency | Variant case code mismatches — created `constants.py`, fixed `fix_variant_codes.py`, updated CLAUDE.md | ✅ Done |
+| 24 | Inconsistency | SalesOrder template field mismatches (form/detail/list used wrong field names) | ✅ Done |
+| 25 | Inconsistency | GRN system overlap (inventory vs supplychain) — documented, deferred consolidation | Documented |
 
 ### Workflow for Each Fix
 1. Restudy the code (fresh context each session)
