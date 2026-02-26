@@ -33,9 +33,6 @@
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            <i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i>Transaction
-        </a>
         <a href="{% url 'inventory:bulk_variant_create' item.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
             <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Add Variants
         </a>
