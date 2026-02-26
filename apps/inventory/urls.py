@@ -68,13 +68,7 @@ urlpatterns = [
     path("items/import/", views.ItemImportView.as_view(), name="item_import"),
     path("items/export/", views.ItemExportView.as_view(), name="item_export"),
     path("items/import/template/", views.ItemImportTemplateView.as_view(), name="item_import_template"),
-    # Transactions
-    path("transactions/", views.TransactionListView.as_view(), name="transaction_list"),
-    path("transactions/create/", views.TransactionCreateView.as_view(), name="transaction_create"),
-    path("transactions/<int:pk>/", views.TransactionDetailView.as_view(), name="transaction_detail"),
-    # Stock
-    path("stock/", views.StockListView.as_view(), name="stock_list"),
-    path("stock/<int:pk>/adjust/", views.StockAdjustView.as_view(), name="stock_adjust"),
+    # NOTE: Transaction and InventoryStock URLs removed (deprecated models)
     # Variant Stock (stock by item variant - NEW, USED, etc.)
     path("variant-stock/", views.VariantStockListView.as_view(), name="variant_stock_list"),
     # Cutter Inventory (PDC Cutters specific dashboard)
@@ -174,14 +168,7 @@ urlpatterns = [
     path("reservations/create/", views.StockReservationCreateView.as_view(), name="reservation_create"),
     path("reservations/<int:pk>/cancel/", views.StockReservationCancelView.as_view(), name="reservation_cancel"),
 
-    # =========================================================================
-    # PHASE 7: BOM
-    # =========================================================================
-    path("bom/", views.BOMListView.as_view(), name="bom_list"),
-    path("bom/create/", views.BOMCreateView.as_view(), name="bom_create"),
-    path("bom/<int:pk>/", views.BOMDetailView.as_view(), name="bom_detail"),
-    path("bom/<int:pk>/edit/", views.BOMUpdateView.as_view(), name="bom_update"),
-    path("bom/<int:pk>/recalculate/", views.BOMRecalculateView.as_view(), name="bom_recalculate"),
+    # NOTE: BOM URLs removed (dead code — active BOM system is in technology app)
 
     # =========================================================================
     # PHASE 8: CYCLE COUNT

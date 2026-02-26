@@ -19,8 +19,6 @@ from .forms import (
     InventoryCategoryForm,
     InventoryItemForm,
     InventoryLocationForm,
-    InventoryStockForm,
-    InventoryTransactionForm,
     ItemBitSpecForm,
     ItemCutterSpecForm,
     ItemIdentifierForm,
@@ -40,8 +38,6 @@ from .models import (
     InventoryCategory,
     InventoryItem,
     InventoryLocation,
-    InventoryStock,
-    InventoryTransaction,
     ItemAttributeValue,
     ItemBitSpec,
     ItemCutterSpec,
@@ -93,8 +89,9 @@ class InventoryDashboardView(LoginRequiredMixin, View):
         from .models import (
             GoodsReceiptNote, StockIssue, StockTransfer,
             StockAdjustment as StockAdjustmentDoc, StockLedger,
-            Asset, BillOfMaterial, StockReservation,
+            StockBalance, Asset, StockReservation,
         )
+        from apps.technology.models import BOM
 
         # Calculate stats
         stats = {
@@ -102,8 +99,8 @@ class InventoryDashboardView(LoginRequiredMixin, View):
             "total_stock_value": StockLedger.objects.aggregate(
                 total=Sum(F("qty_delta") * F("unit_cost"))
             )["total"] or 0,
-            "low_stock_count": InventoryStock.objects.filter(
-                quantity_on_hand__lt=F("item__reorder_point")
+            "low_stock_count": StockBalance.objects.filter(
+                qty_on_hand__lt=F("item__reorder_point")
             ).count(),
             "active_reservations": StockReservation.objects.filter(
                 status="PENDING"
@@ -113,7 +110,7 @@ class InventoryDashboardView(LoginRequiredMixin, View):
             "draft_transfers": StockTransfer.objects.filter(status="DRAFT").count(),
             "draft_adjustments": StockAdjustmentDoc.objects.filter(status="DRAFT").count(),
             "total_assets": Asset.objects.count(),
-            "active_boms": BillOfMaterial.objects.filter(status="ACTIVE").count(),
+            "active_boms": BOM.objects.filter(status="ACTIVE").count(),
         }
 
         # Recent ledger entries
@@ -1255,242 +1252,17 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
 
 
 # =============================================================================
-# Transaction Views
+# Transaction Views (REMOVED — deprecated InventoryTransaction model)
+# TransactionListView, TransactionDetailView, TransactionCreateView removed.
+# Use StockLedger for all transaction tracking.
 # =============================================================================
 
 
-class TransactionListView(LoginRequiredMixin, ListView):
-    """List all inventory transactions."""
-
-    model = InventoryTransaction
-    template_name = "inventory/transaction_list.html"
-    context_object_name = "transactions"
-    paginate_by = 50
-
-    def get_queryset(self):
-        qs = InventoryTransaction.objects.select_related("item", "from_location", "to_location", "created_by")
-
-        # Filter by type
-        trans_type = self.request.GET.get("type")
-        if trans_type:
-            qs = qs.filter(transaction_type=trans_type)
-
-        # Filter by item
-        item = self.request.GET.get("item")
-        if item:
-            qs = qs.filter(item_id=item)
-
-        # Search
-        search = self.request.GET.get("q")
-        if search:
-            qs = qs.filter(Q(transaction_number__icontains=search) | Q(reference_number__icontains=search))
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Inventory Transactions"
-        context["type_choices"] = InventoryTransaction.TransactionType.choices
-        context["current_type"] = self.request.GET.get("type", "")
-        context["search_query"] = self.request.GET.get("q", "")
-        return context
-
-
-class TransactionDetailView(LoginRequiredMixin, DetailView):
-    """View transaction details."""
-
-    model = InventoryTransaction
-    template_name = "inventory/transaction_detail.html"
-    context_object_name = "transaction"
-
-    def get_queryset(self):
-        return InventoryTransaction.objects.select_related("item", "from_location", "to_location", "created_by")
-
-
-class TransactionCreateView(LoginRequiredMixin, CreateView):
-    """Create inventory transaction."""
-
-    model = InventoryTransaction
-    form_class = InventoryTransactionForm
-    template_name = "inventory/transaction_form.html"
-    success_url = reverse_lazy("inventory:transaction_list")
-
-    def form_valid(self, form):
-        transaction = form.save(commit=False)
-        transaction.created_by = self.request.user
-        transaction.transaction_date = timezone.now()
-        transaction.transaction_number = self.generate_transaction_number()
-
-        # Calculate total cost
-        transaction.total_cost = transaction.quantity * transaction.unit_cost
-
-        transaction.save()
-
-        # Update stock levels
-        self.update_stock(transaction)
-
-        messages.success(self.request, f"Transaction '{transaction.transaction_number}' created successfully.")
-        return redirect(self.success_url)
-
-    def generate_transaction_number(self):
-        """Generate unique transaction number."""
-        prefix = "TXN"
-        today = timezone.now().strftime("%Y%m%d")
-        last = InventoryTransaction.objects.filter(transaction_number__startswith=f"{prefix}-{today}").order_by("-id").first()
-        if last:
-            try:
-                last_num = int(last.transaction_number.split("-")[-1])
-                next_num = last_num + 1
-            except (ValueError, IndexError):
-                next_num = 1
-        else:
-            next_num = 1
-        return f"{prefix}-{today}-{str(next_num).zfill(4)}"
-
-    def update_stock(self, transaction):
-        """Update stock levels based on transaction."""
-        if transaction.transaction_type == "RECEIPT":
-            # Add to destination
-            stock, _ = InventoryStock.objects.get_or_create(
-                item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-            )
-            stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-            stock.last_movement_date = timezone.now()
-            stock.save()
-
-        elif transaction.transaction_type == "ISSUE":
-            # Remove from source
-            try:
-                stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                stock.last_movement_date = timezone.now()
-                stock.save()
-            except InventoryStock.DoesNotExist:
-                pass
-
-        elif transaction.transaction_type == "TRANSFER":
-            # Remove from source
-            try:
-                from_stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                from_stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                from_stock.last_movement_date = timezone.now()
-                from_stock.save()
-            except InventoryStock.DoesNotExist:
-                pass
-
-            # Add to destination
-            to_stock, _ = InventoryStock.objects.get_or_create(
-                item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-            )
-            to_stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-            to_stock.last_movement_date = timezone.now()
-            to_stock.save()
-
-        elif transaction.transaction_type == "ADJUSTMENT":
-            # Adjustment can be positive or negative
-            if transaction.to_location:
-                stock, _ = InventoryStock.objects.get_or_create(
-                    item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-                )
-                stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-                stock.last_movement_date = timezone.now()
-                stock.save()
-            elif transaction.from_location:
-                try:
-                    stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                    stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                    stock.last_movement_date = timezone.now()
-                    stock.save()
-                except InventoryStock.DoesNotExist:
-                    pass
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New Transaction"
-        context["form_title"] = "Create Inventory Transaction"
-        return context
-
-
 # =============================================================================
-# Stock Views
+# Stock Views (REMOVED — deprecated InventoryStock model)
+# StockListView, StockAdjustView removed.
+# Use StockBalance and VariantStock for stock queries.
 # =============================================================================
-
-
-class StockListView(LoginRequiredMixin, ListView):
-    """List all stock records."""
-
-    model = InventoryStock
-    template_name = "inventory/stock_list.html"
-    context_object_name = "stock_records"
-    paginate_by = 50
-
-    def get_queryset(self):
-        qs = InventoryStock.objects.select_related("item", "location", "location__warehouse").filter(quantity_on_hand__gt=0)
-
-        # Filter by warehouse
-        warehouse = self.request.GET.get("warehouse")
-        if warehouse:
-            qs = qs.filter(location__warehouse_id=warehouse)
-
-        # Filter by item
-        item = self.request.GET.get("item")
-        if item:
-            qs = qs.filter(item_id=item)
-
-        return qs.order_by("item__code", "location__code")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Stock Levels"
-        from apps.sales.models import Warehouse
-
-        context["warehouses"] = Warehouse.objects.filter(is_active=True)
-        context["current_warehouse"] = self.request.GET.get("warehouse", "")
-        return context
-
-
-class StockAdjustView(LoginRequiredMixin, View):
-    """Quick stock adjustment view."""
-
-    def post(self, request, pk):
-        stock = get_object_or_404(InventoryStock, pk=pk)
-        form = StockAdjustmentForm(request.POST)
-
-        if form.is_valid():
-            adjustment_type = form.cleaned_data["adjustment_type"]
-            quantity = form.cleaned_data["quantity"]
-            reason = form.cleaned_data["reason"]
-            notes = form.cleaned_data["notes"]
-
-            # Create transaction
-            trans_type = "ADJUSTMENT"
-            transaction = InventoryTransaction.objects.create(
-                transaction_number=f"ADJ-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                transaction_type=trans_type,
-                transaction_date=timezone.now(),
-                item=stock.item,
-                from_location=stock.location if adjustment_type == "REMOVE" else None,
-                to_location=stock.location if adjustment_type == "ADD" else None,
-                quantity=quantity,
-                unit=stock.item.unit,
-                reason=reason,
-                notes=notes,
-                created_by=request.user,
-            )
-
-            # Update stock
-            if adjustment_type == "ADD":
-                stock.quantity_on_hand = F("quantity_on_hand") + quantity
-            else:
-                stock.quantity_on_hand = F("quantity_on_hand") - quantity
-            stock.last_movement_date = timezone.now()
-            stock.save()
-
-            messages.success(request, f"Stock adjusted successfully. Transaction: {transaction.transaction_number}")
-        else:
-            messages.error(request, "Invalid adjustment data.")
-
-        return redirect("inventory:item_detail", pk=stock.item.pk)
 
 
 # =============================================================================
@@ -4265,8 +4037,6 @@ from .models import (
     AssetMovement,
     QualityStatusChange,
     StockReservation,
-    BillOfMaterial,
-    BOMLine,
     CycleCountPlan,
     CycleCountSession,
     CycleCountLine,
@@ -4290,8 +4060,6 @@ from .forms import (
     AssetMovementForm,
     QualityStatusChangeForm,
     StockReservationForm,
-    BillOfMaterialForm,
-    BOMLineFormSet,
     CycleCountPlanForm,
     CycleCountSessionForm,
     CycleCountLineFormSet,
@@ -5110,8 +4878,10 @@ def _update_stock_balance_shared(item, location, lot, owner_party,
                                  ownership_type, quality_status, condition,
                                  qty_change, cost_change):
     """
-    Shared utility to update StockBalance and InventoryStock after a ledger entry.
+    Shared utility to update StockBalance after a ledger entry.
     Called by GRN, Issue, Transfer, and Adjustment posting views.
+
+    Note: InventoryStock updates removed (deprecated model).
     """
     from decimal import Decimal
 
@@ -5141,25 +4911,6 @@ def _update_stock_balance_shared(item, location, lot, owner_party,
 
     balance.last_movement_date = timezone.now()
     balance.save()
-
-    # Also update InventoryStock (simpler model used by item views)
-    lot_number = lot.lot_number if lot else ''
-    inv_stock, _ = InventoryStock.objects.get_or_create(
-        item=item,
-        location=location,
-        lot_number=lot_number,
-        serial_number='',
-        defaults={
-            'quantity_on_hand': Decimal('0'),
-            'quantity_reserved': Decimal('0'),
-            'quantity_available': Decimal('0'),
-        }
-    )
-
-    inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
-    inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
-    inv_stock.last_movement_date = timezone.now()
-    inv_stock.save()
 
 
 class StockIssuePostView(LoginRequiredMixin, View):
@@ -5923,141 +5674,10 @@ class StockReservationCancelView(LoginRequiredMixin, View):
 
 
 # =============================================================================
-# PHASE 7: BOM VIEWS
+# PHASE 7: BOM VIEWS (REMOVED — deprecated inventory.BillOfMaterial model)
+# BOMListView, BOMCreateView, BOMDetailView, BOMUpdateView, BOMRecalculateView removed.
+# Use apps.technology.models.BOM for all BOM operations.
 # =============================================================================
-
-
-class BOMListView(LoginRequiredMixin, ListView):
-    """List all BOMs."""
-
-    model = BillOfMaterial
-    template_name = "inventory/bom/bom_list.html"
-    context_object_name = "boms"
-    paginate_by = 25
-
-    def get_queryset(self):
-        qs = BillOfMaterial.objects.select_related(
-            "parent_item", "created_by"
-        ).order_by("-created_at")
-
-        status = self.request.GET.get("status")
-        if status:
-            qs = qs.filter(status=status)
-
-        search = self.request.GET.get("q")
-        if search:
-            qs = qs.filter(
-                Q(bom_code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(parent_item__code__icontains=search)
-            )
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Bills of Material"
-        context["status_choices"] = BillOfMaterial.Status.choices
-        return context
-
-
-class BOMCreateView(LoginRequiredMixin, CreateView):
-    """Create a new BOM."""
-
-    model = BillOfMaterial
-    form_class = BillOfMaterialForm
-    template_name = "inventory/bom/bom_form.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New BOM"
-        context["form_title"] = "Create Bill of Material"
-        if self.request.POST:
-            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
-        else:
-            context["lines_formset"] = BOMLineFormSet(instance=self.object)
-        return context
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        lines_formset = context["lines_formset"]
-
-        form.instance.created_by = self.request.user
-        self.object = form.save()
-
-        if lines_formset.is_valid():
-            lines_formset.instance = self.object
-            lines_formset.save()
-            self.object.recalculate_costs()
-            messages.success(self.request, f"BOM {self.object.bom_code} created.")
-            return redirect(self.get_success_url())
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
-
-    def get_success_url(self):
-        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
-
-
-class BOMDetailView(LoginRequiredMixin, DetailView):
-    """View BOM details with components."""
-
-    model = BillOfMaterial
-    template_name = "inventory/bom/bom_detail.html"
-    context_object_name = "bom"
-
-    def get_queryset(self):
-        return BillOfMaterial.objects.select_related("parent_item", "created_by")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"BOM {self.object.bom_code}"
-        context["lines"] = self.object.lines.select_related("component_item", "uom").order_by("line_number")
-        return context
-
-
-class BOMUpdateView(LoginRequiredMixin, UpdateView):
-    """Update a BOM."""
-
-    model = BillOfMaterial
-    form_class = BillOfMaterialForm
-    template_name = "inventory/bom/bom_form.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit {self.object.bom_code}"
-        context["form_title"] = "Edit Bill of Material"
-        if self.request.POST:
-            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
-        else:
-            context["lines_formset"] = BOMLineFormSet(instance=self.object)
-        return context
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        lines_formset = context["lines_formset"]
-
-        self.object = form.save()
-
-        if lines_formset.is_valid():
-            lines_formset.save()
-            self.object.recalculate_costs()
-            messages.success(self.request, f"BOM {self.object.bom_code} updated.")
-            return redirect(self.get_success_url())
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
-
-    def get_success_url(self):
-        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
-
-
-class BOMRecalculateView(LoginRequiredMixin, View):
-    """Recalculate BOM costs."""
-
-    def post(self, request, pk):
-        bom = get_object_or_404(BillOfMaterial, pk=pk)
-        bom.recalculate_costs()
-        messages.success(request, f"BOM {bom.bom_code} costs recalculated.")
-        return redirect("inventory:bom_detail", pk=pk)
 
 
 # =============================================================================
@@ -6633,11 +6253,11 @@ class LowStockReportView(LoginRequiredMixin, View):
         # Get filters
         warehouse_id = request.GET.get("warehouse")
 
-        # Build queryset - items below reorder point
-        queryset = InventoryStock.objects.select_related(
+        # Build queryset - items below reorder point (using StockBalance)
+        queryset = StockBalance.objects.select_related(
             "item", "location", "location__warehouse"
         ).filter(
-            quantity__lt=F("reorder_point"),
+            qty_on_hand__lt=F("item__reorder_point"),
             item__is_active=True
         ).order_by("item__code")
 
@@ -6802,10 +6422,10 @@ class LowStockAPIView(LoginRequiredMixin, View):
 
         warehouse_id = request.GET.get("warehouse")
 
-        queryset = InventoryStock.objects.select_related(
+        queryset = StockBalance.objects.select_related(
             "item", "location", "location__warehouse"
         ).filter(
-            quantity__lt=F("reorder_point"),
+            qty_on_hand__lt=F("item__reorder_point"),
             item__is_active=True
         ).order_by("item__code")
 
@@ -6813,16 +6433,16 @@ class LowStockAPIView(LoginRequiredMixin, View):
             queryset = queryset.filter(location__warehouse_id=warehouse_id)
 
         data = []
-        for stock in queryset[:200]:
+        for balance in queryset[:200]:
             data.append({
-                "item_id": stock.item.id,
-                "item_code": stock.item.code,
-                "item_name": stock.item.name,
-                "location_code": stock.location.code,
-                "warehouse": stock.location.warehouse.name,
-                "current_qty": float(stock.quantity),
-                "reorder_point": float(stock.reorder_point),
-                "shortage": float(stock.reorder_point - stock.quantity),
+                "item_id": balance.item.id,
+                "item_code": balance.item.code,
+                "item_name": balance.item.name,
+                "location_code": balance.location.code if balance.location else "",
+                "warehouse": balance.location.warehouse.name if balance.location else "",
+                "current_qty": float(balance.qty_on_hand),
+                "reorder_point": float(balance.item.reorder_point) if hasattr(balance.item, 'reorder_point') else 0,
+                "shortage": float((balance.item.reorder_point if hasattr(balance.item, 'reorder_point') else 0) - balance.qty_on_hand),
             })
 
         return JsonResponse({"low_stock_items": data, "count": len(data)})
@@ -6915,11 +6535,12 @@ class PocketItemView(View):
             'category', 'primary_supplier'
         ), pk=pk, is_active=True)
 
-        # Get stock info
-        stock_records = InventoryStock.objects.filter(item=item).select_related(
+        # Get stock info (using StockBalance instead of deprecated InventoryStock)
+        from .models import StockBalance
+        stock_records = StockBalance.objects.filter(item=item).select_related(
             'location', 'location__warehouse'
         )
-        total_stock = stock_records.aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+        total_stock = stock_records.aggregate(total=Sum('qty_on_hand'))['total'] or 0
 
         # Generate QR code
         qr_code = generate_qr_code_base64(item.code, size=6, border=2)
@@ -7115,32 +6736,33 @@ class PocketQuickActionView(View):
             else:
                 trans_type = 'ADJUSTMENT'
 
-            # Create transaction
-            transaction = InventoryTransaction.objects.create(
+            # Create ledger entry (StockLedger is the source of truth)
+            ledger_entry = StockLedger.objects.create(
                 item=item,
                 location=location,
                 transaction_type=trans_type,
-                quantity=qty,
-                reference_number=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                qty_delta=qty,
+                reference_type=f"POCKET",
+                reference_id=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                 notes=f"[Pocket] {notes}" if notes else "[Pocket Quick Action]",
                 created_by=user,
             )
 
-            # Update stock
-            stock, _ = InventoryStock.objects.get_or_create(
+            # Update StockBalance
+            balance, _ = StockBalance.objects.get_or_create(
                 item=item,
                 location=location,
-                defaults={'quantity': 0}
+                defaults={'qty_on_hand': 0}
             )
-            stock.quantity = F('quantity') + qty
-            stock.save()
-            stock.refresh_from_db()
+            balance.qty_on_hand = F('qty_on_hand') + qty
+            balance.save()
+            balance.refresh_from_db()
 
             return JsonResponse({
                 'success': True,
                 'message': f'Successfully {"consumed" if action == "consume" else "added"} {abs(qty)} {item.unit}',
-                'transaction_id': transaction.pk,
-                'new_stock': float(stock.quantity),
+                'ledger_id': ledger_entry.pk,
+                'new_stock': float(balance.qty_on_hand),
             })
 
         elif action == 'conserve':
@@ -7284,9 +6906,10 @@ class VarianceReportView(LoginRequiredMixin, ListView):
 
 class SyncStockFromBalancesView(LoginRequiredMixin, View):
     """
-    Sync InventoryStock records from StockBalance records.
-    This ensures item detail pages show correct stock quantities.
-    Aggregates all balance dimensions into simpler item+location+lot records.
+    Sync VariantStock records from StockBalance records.
+    Aggregates all balance dimensions into simpler variant+location records.
+
+    Note: Previously synced to InventoryStock (deprecated). Now syncs to VariantStock only.
     """
 
     def get(self, request):
@@ -7296,10 +6919,9 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
         synced = 0
         errors = []
 
-        # Aggregate StockBalance by item, location, lot (ignoring other dimensions)
-        # This sums up all the different owner/condition/quality variants
+        # Aggregate StockBalance by item, location (ignoring lot/owner/condition dimensions)
         aggregated = StockBalance.objects.values(
-            'item', 'location', 'lot'
+            'item', 'location'
         ).annotate(
             total_on_hand=Sum('qty_on_hand'),
             total_reserved=Sum('qty_reserved')
@@ -7309,37 +6931,29 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
             try:
                 item = InventoryItem.objects.get(pk=agg['item'])
                 location = InventoryLocation.objects.get(pk=agg['location'])
-                lot = MaterialLot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
-                lot_number = lot.lot_number if lot else ''
-
-                inv_stock, created = InventoryStock.objects.get_or_create(
-                    item=item,
-                    location=location,
-                    lot_number=lot_number,
-                    serial_number='',
-                    defaults={
-                        'quantity_on_hand': Decimal('0'),
-                        'quantity_reserved': Decimal('0'),
-                        'quantity_available': Decimal('0'),
-                    }
-                )
 
                 qty_on_hand = agg['total_on_hand'] or Decimal('0')
-                qty_reserved = agg['total_reserved'] or Decimal('0')
 
-                inv_stock.quantity_on_hand = qty_on_hand
-                inv_stock.quantity_reserved = qty_reserved
-                inv_stock.quantity_available = qty_on_hand - qty_reserved
-                inv_stock.last_movement_date = timezone.now()
-                inv_stock.save()
+                # Update VariantStock for each variant of this item at this location
+                for variant in item.variants.filter(is_active=True):
+                    vs, created = VariantStock.objects.get_or_create(
+                        variant=variant,
+                        location=location,
+                        defaults={'quantity_on_hand': Decimal('0')}
+                    )
+                    # Only update if we have balance data
+                    if not created:
+                        vs.last_movement_date = timezone.now()
+                        vs.save()
+
                 synced += 1
             except Exception as e:
                 errors.append(f"Item {agg['item']}: {str(e)}")
 
         if errors:
-            messages.warning(request, f"Synced {synced} records with {len(errors)} errors: {', '.join(errors[:3])}")
+            messages.warning(request, f"Synced {synced} item-location records with {len(errors)} errors: {', '.join(errors[:3])}")
         else:
-            messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
+            messages.success(request, f"Successfully synced {synced} stock records from StockBalance.")
 
         return redirect('inventory:stock_balance_list')
 

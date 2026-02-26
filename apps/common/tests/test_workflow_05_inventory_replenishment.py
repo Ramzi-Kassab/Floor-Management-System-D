@@ -184,7 +184,7 @@ class TestInventoryReplenishmentWorkflow:
         9. Update inventory
         10. Verify stock restored
         """
-        from apps.inventory.models import InventoryStock, InventoryTransaction
+        from apps.inventory.models import StockBalance, StockLedger
         from apps.supplychain.models import PurchaseRequisition, PurchaseOrder, PurchaseOrderLine, Receipt, ReceiptLine
         from apps.notifications.models import Notification
 
@@ -199,17 +199,17 @@ class TestInventoryReplenishmentWorkflow:
 
         initial_qty = Decimal('50.000')  # Below min of 100
 
-        stock = InventoryStock.objects.create(
+        stock = StockBalance.objects.create(
             item=inventory_item_low_stock,
             location=inventory_location,
-            quantity_on_hand=initial_qty,
-            quantity_reserved=Decimal('0.000'),
-            quantity_available=initial_qty
+            qty_on_hand=initial_qty,
+            qty_reserved=Decimal('0.000'),
+            qty_available=initial_qty
         )
 
-        assert stock.quantity_on_hand < inventory_item_low_stock.min_stock
+        assert stock.qty_on_hand < inventory_item_low_stock.min_stock
         print(f"  Item: {inventory_item_low_stock.name}")
-        print(f"  Current stock: {stock.quantity_on_hand}")
+        print(f"  Current stock: {stock.qty_on_hand}")
         print(f"  Minimum required: {inventory_item_low_stock.min_stock}")
         print(f"  Status: LOW STOCK!")
 
@@ -389,33 +389,28 @@ class TestInventoryReplenishmentWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 9] Updating inventory levels...")
 
-        # Create inventory transaction
-        transaction = InventoryTransaction.objects.create(
-            transaction_number='TXN-RCPT-001',
-            transaction_type=InventoryTransaction.TransactionType.RECEIPT,
-            transaction_date=timezone.now(),
+        # Create stock ledger entry
+        ledger_entry = StockLedger.objects.create(
             item=inventory_item_low_stock,
-            to_location=inventory_location,
-            quantity=receipt_line.quantity_accepted,
-            unit=inventory_item_low_stock.unit,
-            unit_cost=po_line.unit_price,
-            total_cost=po_line.line_total,
-            link_type=InventoryTransaction.LinkType.PURCHASE_ORDER,
-            reference_number=po.po_number,
+            transaction_type=StockLedger.TransactionType.RECEIPT,
+            qty_delta=receipt_line.quantity_accepted,
+            location=inventory_location,
+            reference_type='PO',
+            reference_id=f'PO-{po.pk}',
             notes='Stock replenishment from PO',
             created_by=inventory_manager
         )
 
-        # Update stock (convert to Decimal for arithmetic)
-        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) + Decimal(str(receipt_line.quantity_accepted))
-        stock.quantity_available = Decimal(str(stock.quantity_available)) + Decimal(str(receipt_line.quantity_accepted))
+        # Update stock balance
+        stock.qty_on_hand = Decimal(str(stock.qty_on_hand)) + Decimal(str(receipt_line.quantity_accepted))
+        stock.qty_available = Decimal(str(stock.qty_available)) + Decimal(str(receipt_line.quantity_accepted))
         stock.save()
 
-        assert transaction.pk is not None
-        print(f"  Transaction: {transaction.transaction_number}")
+        assert ledger_entry.pk is not None
+        print(f"  Ledger entry: {ledger_entry.pk}")
         print(f"  Previous stock: {initial_qty}")
         print(f"  Added: {receipt_line.quantity_accepted}")
-        print(f"  New stock: {stock.quantity_on_hand}")
+        print(f"  New stock: {stock.qty_on_hand}")
 
         # ---------------------------------------------------------------------
         # STEP 10: Verify stock restored
@@ -488,7 +483,7 @@ class TestInventoryReplenishmentWorkflow:
 
         Tests scenario where vendor delivers in multiple shipments.
         """
-        from apps.inventory.models import InventoryStock, InventoryTransaction
+        from apps.inventory.models import StockBalance, StockLedger
         from apps.supplychain.models import PurchaseOrder, PurchaseOrderLine, Receipt, ReceiptLine
 
         print("\n" + "="*60)
@@ -496,12 +491,12 @@ class TestInventoryReplenishmentWorkflow:
         print("="*60)
 
         # Setup initial stock
-        stock = InventoryStock.objects.create(
+        stock = StockBalance.objects.create(
             item=inventory_item_low_stock,
             location=inventory_location,
-            quantity_on_hand=Decimal('25.000'),
-            quantity_reserved=Decimal('0.000'),
-            quantity_available=Decimal('25.000')
+            qty_on_hand=Decimal('25.000'),
+            qty_reserved=Decimal('0.000'),
+            qty_available=Decimal('25.000')
         )
 
         order_qty = Decimal('200.000')
@@ -696,11 +691,11 @@ class TestReplenishmentWorkflowSummary:
 
     def test_workflow_models_exist(self, db):
         """Verify all workflow models are accessible."""
-        from apps.inventory.models import InventoryItem, InventoryStock, InventoryTransaction
+        from apps.inventory.models import InventoryItem, StockBalance, StockLedger
         from apps.supplychain.models import Vendor, PurchaseRequisition, PurchaseOrder, Receipt
 
         assert InventoryItem._meta.model_name == 'inventoryitem'
-        assert InventoryStock._meta.model_name == 'inventorystock'
+        assert StockBalance._meta.model_name == 'stockbalance'
         assert Vendor._meta.model_name == 'vendor'
         assert PurchaseRequisition._meta.model_name == 'purchaserequisition'
         assert PurchaseOrder._meta.model_name == 'purchaseorder'

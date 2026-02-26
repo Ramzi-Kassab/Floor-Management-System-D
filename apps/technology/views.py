@@ -935,7 +935,7 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
         return BOM.objects.select_related("design", "created_by")
 
     def get_context_data(self, **kwargs):
-        from apps.inventory.models import InventoryStock
+        from apps.inventory.models import StockBalance
         from django.db.models import Sum
 
         context = super().get_context_data(**kwargs)
@@ -956,11 +956,11 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
 
             # Get total stock for this item (only if inventory_item exists)
             if item:
-                stock_data = InventoryStock.objects.filter(
+                stock_data = StockBalance.objects.filter(
                     item=item
                 ).aggregate(
-                    total_on_hand=Sum('quantity_on_hand'),
-                    total_available=Sum('quantity_available')
+                    total_on_hand=Sum('qty_on_hand'),
+                    total_available=Sum('qty_available')
                 )
                 on_hand = stock_data['total_on_hand'] or 0
                 available = stock_data['total_available'] or 0

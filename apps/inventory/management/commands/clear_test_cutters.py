@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.inventory.models import (
     InventoryItem, InventoryCategory, ItemVariant,
-    ItemAttributeValue, VariantStock, InventoryStock
+    ItemAttributeValue, VariantStock, StockBalance
 )
 
 
@@ -86,7 +86,7 @@ class Command(BaseCommand):
         # Count related records
         variant_count = ItemVariant.objects.filter(base_item_id__in=item_ids).count()
         attr_value_count = ItemAttributeValue.objects.filter(item_id__in=item_ids).count()
-        item_stock_count = InventoryStock.objects.filter(item_id__in=item_ids).count()
+        item_stock_count = StockBalance.objects.filter(item_id__in=item_ids).count()
 
         # Get variant IDs for variant stock
         variant_ids = list(ItemVariant.objects.filter(base_item_id__in=item_ids).values_list('id', flat=True))
@@ -136,9 +136,9 @@ class Command(BaseCommand):
             deleted_vstock = VariantStock.objects.filter(variant_id__in=variant_ids).delete()[0]
             self.stdout.write(f"  Deleted {deleted_vstock} variant stock records")
 
-            # 2. Delete item stock
-            deleted_istock = InventoryStock.objects.filter(item_id__in=item_ids).delete()[0]
-            self.stdout.write(f"  Deleted {deleted_istock} item stock records")
+            # 2. Delete stock balances
+            deleted_istock = StockBalance.objects.filter(item_id__in=item_ids).delete()[0]
+            self.stdout.write(f"  Deleted {deleted_istock} stock balance records")
 
             # 3. Delete variants (will cascade delete variant stock if any missed)
             deleted_variants = ItemVariant.objects.filter(base_item_id__in=item_ids).delete()[0]

@@ -14,8 +14,6 @@ from .models import (
     InventoryCategory,
     InventoryItem,
     InventoryLocation,
-    InventoryStock,
-    InventoryTransaction,
     ItemBitSpec,
     ItemCutterSpec,
     ItemIdentifier,
@@ -50,9 +48,6 @@ from .models import (
     QualityStatusChange,
     # Phase 6: Reservations
     StockReservation,
-    # Phase 7: BOM
-    BillOfMaterial,
-    BOMLine,
     # Phase 8: Cycle Count
     CycleCountPlan,
     CycleCountSession,
@@ -272,75 +267,8 @@ class InventoryItemForm(forms.ModelForm):
         return cleaned_data
 
 
-class InventoryStockForm(forms.ModelForm):
-    """Form for inventory stock records."""
 
-    class Meta:
-        model = InventoryStock
-        fields = ["item", "location", "quantity_on_hand", "quantity_reserved", "lot_number", "serial_number", "expiry_date"]
-        widgets = {
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "location": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "quantity_on_hand": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "quantity_reserved": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "lot_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "serial_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "expiry_date": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
-        }
-
-
-class InventoryTransactionForm(forms.ModelForm):
-    """Form for inventory transactions."""
-
-    class Meta:
-        model = InventoryTransaction
-        fields = [
-            "transaction_type",
-            "item",
-            "from_location",
-            "to_location",
-            "quantity",
-            "unit",
-            "unit_cost",
-            "lot_number",
-            "serial_number",
-            "reference_number",
-            "reason",
-            "notes",
-        ]
-        widgets = {
-            "transaction_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "item": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "from_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "to_location": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "unit": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "unit_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.0001"}),
-            "lot_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "serial_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "reference_number": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "reason": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
-        }
-
-    def clean(self):
-        cleaned_data = super().clean()
-        transaction_type = cleaned_data.get("transaction_type")
-        from_location = cleaned_data.get("from_location")
-        to_location = cleaned_data.get("to_location")
-
-        if transaction_type == "TRANSFER" and (not from_location or not to_location):
-            raise forms.ValidationError("Transfer transactions require both from and to locations.")
-
-        if transaction_type == "ISSUE" and not from_location:
-            raise forms.ValidationError("Issue transactions require a from location.")
-
-        if transaction_type == "RECEIPT" and not to_location:
-            raise forms.ValidationError("Receipt transactions require a to location.")
-
-        return cleaned_data
-
-
+# NOTE: InventoryStockForm and InventoryTransactionForm removed (deprecated models)
 class StockAdjustmentForm(forms.Form):
     """Simple form for stock adjustments."""
 
@@ -1018,75 +946,8 @@ class StockReservationForm(forms.ModelForm):
 # =============================================================================
 
 
-class BillOfMaterialForm(forms.ModelForm):
-    """Form for Bill of Material header."""
 
-    class Meta:
-        model = BillOfMaterial
-        fields = [
-            "bom_code",
-            "name",
-            "parent_item",
-            "version",
-            "bom_type",
-            "status",
-            "effective_from",
-            "effective_to",
-            "base_quantity",
-            "labor_cost",
-            "overhead_cost",
-            "notes",
-        ]
-        widgets = {
-            "bom_code": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "BOM-001"}),
-            "name": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "BOM Name"}),
-            "parent_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "version": forms.TextInput(attrs={"class": TAILWIND_INPUT, "placeholder": "1.0"}),
-            "bom_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "status": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "effective_from": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
-            "effective_to": forms.DateInput(attrs={"class": TAILWIND_INPUT, "type": "date"}),
-            "base_quantity": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "labor_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
-            "overhead_cost": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01"}),
-            "notes": forms.Textarea(attrs={"class": TAILWIND_TEXTAREA, "rows": 3}),
-        }
-
-
-class BOMLineForm(forms.ModelForm):
-    """Form for BOM line items (components)."""
-
-    class Meta:
-        model = BOMLine
-        fields = [
-            "line_number",
-            "component_item",
-            "component_type",
-            "quantity_per",
-            "uom",
-            "is_optional",
-            "scrap_percent",
-            "notes",
-        ]
-        widgets = {
-            "line_number": forms.NumberInput(attrs={"class": TAILWIND_INPUT}),
-            "component_item": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "component_type": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "quantity_per": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.001"}),
-            "uom": forms.Select(attrs={"class": TAILWIND_SELECT}),
-            "is_optional": forms.CheckboxInput(attrs={"class": TAILWIND_CHECKBOX}),
-            "scrap_percent": forms.NumberInput(attrs={"class": TAILWIND_INPUT, "step": "0.01", "placeholder": "%"}),
-            "notes": forms.TextInput(attrs={"class": TAILWIND_INPUT}),
-        }
-
-
-BOMLineFormSet = inlineformset_factory(
-    BillOfMaterial,
-    BOMLine,
-    form=BOMLineForm,
-    extra=3,
-    can_delete=True,
-)
+# NOTE: BillOfMaterialForm, BOMLineForm, BOMLineFormSet removed (dead code — active BOM in technology app)
 
 
 # =============================================================================

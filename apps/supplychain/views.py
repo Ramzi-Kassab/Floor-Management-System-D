@@ -928,7 +928,7 @@ class GRNConfirmView(LoginRequiredMixin, View):
     """Confirm a goods receipt - updates inventory and PO quantities."""
 
     def post(self, request, pk):
-        from apps.inventory.models import InventoryTransaction, Stock, InventoryLocation
+        from apps.inventory.models import StockLedger, StockBalance, InventoryLocation
 
         receipt = get_object_or_404(
             Receipt.objects.select_related("purchase_order", "vendor"),
@@ -957,27 +957,27 @@ class GRNConfirmView(LoginRequiredMixin, View):
             if po_line.inventory_item and default_location:
                 item = po_line.inventory_item
 
-                # Create inventory transaction
-                InventoryTransaction.objects.create(
+                # Create stock ledger entry (immutable ledger — source of truth)
+                StockLedger.objects.create(
                     item=item,
-                    transaction_type=InventoryTransaction.TransactionType.RECEIPT,
-                    quantity=line.quantity_accepted,
-                    to_location=default_location,
+                    transaction_type=StockLedger.TransactionType.RECEIPT,
+                    qty_delta=line.quantity_accepted,
+                    location=default_location,
                     reference_type="Receipt",
-                    reference_id=str(receipt.pk),
-                    notes=f"GRN {receipt.receipt_number} - PO {receipt.purchase_order.po_number}"
+                    reference_id=f"RECEIPT-{receipt.pk}-LINE-{line.pk}",
+                    notes=f"GRN {receipt.receipt_number} - PO {receipt.purchase_order.po_number}",
+                    created_by=request.user,
                 )
 
-                # Update or create stock record
-                stock, created = Stock.objects.get_or_create(
+                # Update or create stock balance (cached aggregate)
+                balance, created = StockBalance.objects.get_or_create(
                     item=item,
                     location=default_location,
-                    defaults={"quantity_on_hand": Decimal("0")}
+                    defaults={"qty_on_hand": Decimal("0")}
                 )
-                stock.quantity_on_hand += line.quantity_accepted
-                stock.quantity_available = float(stock.quantity_on_hand) - float(stock.quantity_reserved)
-                stock.last_movement_date = timezone.now()
-                stock.save()
+                balance.qty_on_hand += line.quantity_accepted
+                balance.qty_available = balance.qty_on_hand - balance.qty_reserved
+                balance.save()
 
             # Mark line as passed inspection
             line.inspection_status = 'PASSED'

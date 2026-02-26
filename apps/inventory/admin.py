@@ -5,8 +5,6 @@ from .models import (
     InventoryCategory,
     InventoryItem,
     InventoryLocation,
-    InventoryStock,
-    InventoryTransaction,
     # Phase 0: Foundation
     Party,
     ConditionType,
@@ -37,9 +35,6 @@ from .models import (
     QualityStatusChange,
     # Phase 6: Reservations
     StockReservation,
-    # Phase 7: BOM
-    BillOfMaterial,
-    BOMLine,
     # Phase 8: Cycle Count
     CycleCountPlan,
     CycleCountSession,
@@ -73,18 +68,8 @@ class InventoryItemAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at", "updated_at"]
 
 
-@admin.register(InventoryStock)
-class InventoryStockAdmin(admin.ModelAdmin):
-    list_display = ["item", "location", "quantity_on_hand", "quantity_reserved", "quantity_available"]
-    list_filter = ["location__warehouse"]
-    search_fields = ["item__code", "item__name"]
 
-
-@admin.register(InventoryTransaction)
-class InventoryTransactionAdmin(admin.ModelAdmin):
-    list_display = ["transaction_number", "transaction_type", "item", "quantity", "transaction_date"]
-    list_filter = ["transaction_type", "link_type"]
-    search_fields = ["transaction_number", "item__code"]
+# NOTE: InventoryStock and InventoryTransaction admin removed (deprecated models)
 
 
 # =============================================================================
@@ -340,30 +325,8 @@ class StockReservationAdmin(admin.ModelAdmin):
     readonly_fields = ["reservation_number", "created_at", "updated_at"]
 
 
-# =============================================================================
-# PHASE 7: BOM
-# =============================================================================
 
-class BOMLineInline(admin.TabularInline):
-    model = BOMLine
-    extra = 1
-    readonly_fields = ["extended_cost"]
-
-
-@admin.register(BillOfMaterial)
-class BillOfMaterialAdmin(admin.ModelAdmin):
-    list_display = ["bom_code", "parent_item", "version", "bom_type", "status", "material_cost", "total_cost"]
-    list_filter = ["status", "bom_type"]
-    search_fields = ["bom_code", "parent_item__code", "name"]
-    inlines = [BOMLineInline]
-    readonly_fields = ["material_cost", "total_cost", "created_at", "updated_at"]
-    actions = ["recalculate_costs"]
-
-    @admin.action(description="Recalculate costs")
-    def recalculate_costs(self, request, queryset):
-        for bom in queryset:
-            bom.recalculate_costs()
-        self.message_user(request, f"Recalculated costs for {queryset.count()} BOMs")
+# NOTE: BillOfMaterial/BOMLine admin removed (dead code — active BOM system is in technology app)
 
 
 # =============================================================================
