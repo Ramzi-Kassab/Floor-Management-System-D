@@ -1329,8 +1329,10 @@ class InventoryItem(models.Model):
 
     @property
     def total_stock(self):
-        """Total stock across all locations (base item only)."""
-        return self.stock_records.aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
+        """Total stock across all locations (sum of all variant stocks)."""
+        return VariantStock.objects.filter(
+            variant__base_item=self
+        ).aggregate(total=models.Sum("quantity_on_hand"))["total"] or 0
 
     @property
     def cost_per_base_unit(self):

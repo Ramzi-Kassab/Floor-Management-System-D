@@ -46,6 +46,7 @@ from .models import (
     ItemRelationship,
     ItemSupplier,
     ItemVariant,
+    StockLedger,
     UnitOfMeasure,
     VariantCase,
     VariantStock,
@@ -460,7 +461,7 @@ class ItemListView(LoginRequiredMixin, ListView):
                 queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
             )
         ).annotate(
-            current_stock=Sum("stock_records__quantity_on_hand")
+            current_stock=Sum("variants__stock_records__quantity_on_hand")
         )
 
         # Filter by category (supports both ID and code)
@@ -603,7 +604,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         context["total_items"] = all_items.count()
         context["active_items"] = all_items.filter(is_active=True).count()
         context["low_stock_count"] = all_items.annotate(
-            stock=Sum("stock_records__quantity_on_hand")
+            stock=Sum("variants__stock_records__quantity_on_hand")
         ).filter(stock__lte=F("min_stock"), min_stock__gt=0).count()
 
         return context
@@ -624,11 +625,15 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         item = self.object
         context["page_title"] = f"{item.code} - {item.name}"
 
-        # Stock by location
-        context["stock_by_location"] = item.stock_records.select_related("location", "location__warehouse")
+        # Stock by location (via VariantStock — aggregated per location)
+        context["stock_by_location"] = VariantStock.objects.filter(
+            variant__base_item=item
+        ).select_related("location", "location__warehouse", "variant__variant_case")
 
-        # Recent transactions
-        context["recent_transactions"] = item.transactions.select_related("created_by", "from_location", "to_location").order_by(
+        # Recent transactions (via StockLedger — replaces deprecated InventoryTransaction)
+        context["recent_transactions"] = StockLedger.objects.filter(
+            item=item
+        ).select_related("created_by", "location").order_by(
             "-transaction_date"
         )[:10]
 
@@ -1153,17 +1158,15 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
         except:
             pass
 
-        # Check stock records
-        if hasattr(item, 'stock_records'):
-            stock_count = item.stock_records.count()
-            if stock_count > 0:
-                usage['stock_records'] = stock_count
+        # Check stock records (via VariantStock through variants)
+        stock_count = VariantStock.objects.filter(variant__base_item=item).count()
+        if stock_count > 0:
+            usage['stock_records'] = stock_count
 
-        # Check transactions
-        if hasattr(item, 'transactions'):
-            trans_count = item.transactions.count()
-            if trans_count > 0:
-                usage['transactions'] = trans_count
+        # Check ledger entries (replaces deprecated InventoryTransaction)
+        ledger_count = StockLedger.objects.filter(item=item).count()
+        if ledger_count > 0:
+            usage['ledger_entries'] = ledger_count
 
         # Check variants
         if hasattr(item, 'variants'):
