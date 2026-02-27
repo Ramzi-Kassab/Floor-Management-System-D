@@ -570,7 +570,7 @@ class SalvageItemListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = SalvageItem.objects.select_related('work_order', 'drill_bit', 'disposed_by')
+        queryset = SalvageItem.objects.select_related('work_order', 'drill_bit', 'created_by')
 
         search = self.request.GET.get('q')
         if search:

@@ -6217,8 +6217,8 @@ class MovementHistoryReportView(LoginRequiredMixin, View):
         queryset = StockLedger.objects.select_related(
             "item", "location", "location__warehouse", "lot", "created_by"
         ).filter(
-            transaction_date__date__gte=date_from,
-            transaction_date__date__lte=date_to
+            transaction_date__gte=date_from,
+            transaction_date__lte=date_to
         ).order_by("-transaction_date")
 
         if warehouse_id:

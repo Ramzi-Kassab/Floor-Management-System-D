@@ -1572,7 +1572,7 @@ class FieldDrillStringRunListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = FieldDrillStringRun.objects.select_related(
-            "site_visit", "drill_bit", "service_site"
+            "drill_bit", "service_site"
         )
 
         search = self.request.GET.get("q")
@@ -1604,7 +1604,7 @@ class FieldDrillStringRunDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return FieldDrillStringRun.objects.select_related(
-            "site_visit", "drill_bit", "service_site"
+            "drill_bit", "service_site"
         ).prefetch_related("field_run_data")
 
     def get_context_data(self, **kwargs):

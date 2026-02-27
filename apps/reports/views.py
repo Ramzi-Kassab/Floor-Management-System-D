@@ -389,8 +389,8 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         # Inspection stats
         context["inspection_stats"] = {
             "total": Inspection.objects.count(),
-            "passed": Inspection.objects.filter(result="PASS").count(),
-            "failed": Inspection.objects.filter(result="FAIL").count(),
+            "passed": Inspection.objects.filter(status="PASSED").count(),
+            "failed": Inspection.objects.filter(status="FAILED").count(),
         }
 
         return context
