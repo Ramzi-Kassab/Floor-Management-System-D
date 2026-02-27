@@ -272,7 +272,7 @@ class NonConformanceListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = NonConformance.objects.select_related(
-            'detected_by', 'responsible_person', 'verified_by'
+            'reported_by', 'responsible_person', 'verified_by'
         )
 
         search = self.request.GET.get('q')
