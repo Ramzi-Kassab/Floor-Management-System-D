@@ -101,6 +101,7 @@ urlpatterns = [
     # Cutter Evaluation Matrix
     path("<int:wo_pk>/cutter-evaluation/create/", views_jobcard.CutterEvaluationCreateView.as_view(), name="cutter_evaluation_create"),
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/", views_jobcard.CutterEvaluationEditView.as_view(), name="cutter_evaluation_edit"),
+    path("<int:wo_pk>/cutter-evaluation/<int:pk>/mark-complete/", views_jobcard.api_evaluation_mark_complete, name="cutter_evaluation_mark_complete"),
 
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),

@@ -10,17 +10,20 @@ Enhanced views for Job Card functionality including:
 - Instruction Rules management
 """
 
+import json as _json
 from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Q, Count, Sum, F, Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView, TemplateView, View
 )
@@ -280,6 +283,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
                     'type_label': step.get_evaluation_type_display(),
                     'evaluation': eval_obj,
                     'exists': eval_obj is not None,
+                    'entry_count': len(eval_obj.entries.all()) if eval_obj else 0,
                     'help_text': step.condition_description if step.is_conditional else '',
                     'is_na': False,
                     'is_required': step.is_required,
@@ -315,6 +319,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
                         'type_label': type_label,
                         'evaluation': eval_obj,
                         'exists': eval_obj is not None,
+                        'entry_count': len(eval_obj.entries.all()) if eval_obj else 0,
                         'help_text': help_text,
                         'is_na': not show_by_default and eval_obj is None,
                         'is_required': True,
@@ -328,6 +333,15 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         context['is_new_bit'] = is_new_bit
         context['is_ur'] = is_ur
         context['is_aramco'] = is_aramco
+
+        # Evaluation progress summary
+        total_evals = len([e for e in evaluations if not e.get('is_na')])
+        complete_evals = len([e for e in evaluations if e.get('exists') and e['evaluation'].is_complete])
+        context['eval_progress'] = {
+            'total': total_evals,
+            'complete': complete_evals,
+            'percent': round(complete_evals * 100 / total_evals) if total_evals > 0 else 0,
+        }
 
         # Router sheet entries
         context["router_entries"] = wo.router_entries.order_by('step_number')
@@ -701,10 +715,10 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
         context['source_choices'] = CutterEvaluationEntry.CutterSource.choices
 
         # Saved cutters details (from previous save or BOM data)
-        context['saved_cutters_details'] = matrix.cutters_details or []
+        # Use json.dumps for safe JS embedding (not Python repr)
+        context['saved_cutters_details'] = _json.dumps(matrix.cutters_details or [])
 
         # BOM lines for pre-populating cutters details (if no saved data)
-        import json as _json
         bom_lines_json = []
         active_bom = None
         if wo.bom:
@@ -728,6 +742,10 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
                     'remarks': '',
                 })
         context['bom_lines_json'] = _json.dumps(bom_lines_json)
+
+        # Dynamic row range for cutters details table
+        num_detail_rows = max(10, len(bom_lines_json), len(matrix.cutters_details or []))
+        context['cutter_detail_row_range'] = range(1, num_detail_rows + 1)
 
         # Cutter state history: all prior evaluations for this WO
         prior_evals = wo.cutter_evaluations.exclude(pk=matrix.pk).order_by(
@@ -778,31 +796,48 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
 
         content_type = request.content_type or ''
         if 'application/json' in content_type:
-            import json
-            data = json.loads(request.body)
+            data = _json.loads(request.body)
             entries_data = data.get('entries', [])
             remarks = data.get('remarks', '')
             decision = data.get('decision', '')
             cutters_details = data.get('cutters_details', None)
+            mark_complete = data.get('mark_complete', None)
 
-            # Clear existing entries and re-create
-            matrix.entries.all().delete()
-            for e in entries_data:
-                CutterEvaluationEntry.objects.create(
-                    matrix=matrix,
-                    blade_number=e['blade'],
-                    cutter_position=e['position'],
-                    action=e.get('action', ''),
-                )
+            with transaction.atomic():
+                # Clear existing entries and re-create
+                matrix.entries.all().delete()
+                for e in entries_data:
+                    CutterEvaluationEntry.objects.create(
+                        matrix=matrix,
+                        blade_number=e['blade'],
+                        cutter_position=e['position'],
+                        action=e.get('action', ''),
+                    )
 
-            # Update matrix fields
-            matrix.general_remark = remarks
-            matrix.decision = decision
-            if cutters_details is not None:
-                matrix.cutters_details = cutters_details
-            matrix.save(update_fields=['general_remark', 'decision', 'cutters_details', 'updated_at'])
+                # Update matrix fields
+                update_fields = ['general_remark', 'decision', 'cutters_details', 'updated_at']
+                matrix.general_remark = remarks
+                matrix.decision = decision
+                if cutters_details is not None:
+                    matrix.cutters_details = cutters_details
 
-            return JsonResponse({'success': True, 'count': len(entries_data)})
+                # Mark complete / reopen support
+                if mark_complete is True:
+                    matrix.is_complete = True
+                    matrix.qc_by = request.user
+                    matrix.qc_at = timezone.now()
+                    update_fields.extend(['is_complete', 'qc_by', 'qc_at'])
+                elif mark_complete is False:
+                    matrix.is_complete = False
+                    update_fields.append('is_complete')
+
+                matrix.save(update_fields=update_fields)
+
+            return JsonResponse({
+                'success': True,
+                'count': len(entries_data),
+                'is_complete': matrix.is_complete,
+            })
 
         # Legacy single-cell POST
         blade = int(request.POST.get('blade'))
@@ -827,6 +862,34 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
             'entry_id': entry.pk,
             'action': entry.get_action_display(),
         })
+
+
+@login_required
+@require_POST
+def api_evaluation_mark_complete(request, wo_pk, pk):
+    """Toggle is_complete on a CutterEvaluationMatrix. Sets qc_by/qc_at on first completion."""
+    matrix = get_object_or_404(CutterEvaluationMatrix, pk=pk, work_order_id=wo_pk)
+    data = _json.loads(request.body) if request.body else {}
+    mark_complete = data.get('mark_complete', True)
+
+    with transaction.atomic():
+        matrix.is_complete = bool(mark_complete)
+        update_fields = ['is_complete', 'updated_at']
+        if mark_complete and not matrix.qc_by:
+            matrix.qc_by = request.user
+            matrix.qc_at = timezone.now()
+            update_fields.extend(['qc_by', 'qc_at'])
+        elif not mark_complete:
+            # Reopen — keep qc_by/qc_at as audit trail
+            pass
+        matrix.save(update_fields=update_fields)
+
+    return JsonResponse({
+        'success': True,
+        'is_complete': matrix.is_complete,
+        'qc_by': str(matrix.qc_by) if matrix.qc_by else None,
+        'qc_at': matrix.qc_at.isoformat() if matrix.qc_at else None,
+    })
 
 
 # =============================================================================
