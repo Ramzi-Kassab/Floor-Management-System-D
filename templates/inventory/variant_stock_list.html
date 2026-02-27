@@ -111,10 +111,14 @@
                 {% for stock in variant_stocks %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td class="px-6 py-4">
+                        {% if stock.variant and stock.variant.item and stock.variant.item.pk %}
                         <a href="{% url 'inventory:item_detail' stock.variant.item.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                             {{ stock.variant.item.code }}
                         </a>
                         <span class="text-gray-500 ml-2 text-xs">{{ stock.variant.item.name|truncatewords:3 }}</span>
+                        {% else %}
+                        <span class="text-gray-400">—</span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4">
                         <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">

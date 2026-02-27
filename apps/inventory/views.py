@@ -6146,7 +6146,8 @@ class StockValuationReportView(LoginRequiredMixin, View):
         from django.shortcuts import render
         from django.db.models import Sum, F, Value, DecimalField
         from django.db.models.functions import Coalesce
-        from .models import StockLedger, Warehouse
+        from .models import StockLedger
+        from apps.sales.models import Warehouse
 
         # Get filters
         warehouse_id = request.GET.get("warehouse")
@@ -6191,7 +6192,8 @@ class MovementHistoryReportView(LoginRequiredMixin, View):
 
     def get(self, request):
         from django.shortcuts import render
-        from .models import StockLedger, Warehouse
+        from .models import StockLedger
+        from apps.sales.models import Warehouse
         from datetime import datetime, timedelta
 
         # Get filters
@@ -6251,7 +6253,7 @@ class LowStockReportView(LoginRequiredMixin, View):
 
     def get(self, request):
         from django.shortcuts import render
-        from .models import Warehouse
+        from apps.sales.models import Warehouse
 
         # Get filters
         warehouse_id = request.GET.get("warehouse")

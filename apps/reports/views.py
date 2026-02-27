@@ -382,7 +382,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
             "critical": qs.filter(severity="CRITICAL").count(),
             "closed_this_month": qs.filter(
                 status="CLOSED",
-                closed_date__month=timezone.now().month,
+                closed_at__month=timezone.now().month,
             ).count(),
         }
 
@@ -406,7 +406,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("description", "Description"),
                 ("reported_by.username", "Reported By"),
                 ("created_at", "Created"),
-                ("closed_date", "Closed Date"),
+                ("closed_at", "Closed Date"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "quality_report", "NCRs")
         return super().get(request, *args, **kwargs)

@@ -587,7 +587,7 @@ class SalvageItemListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by('-salvaged_date')
+        return queryset.order_by('-salvage_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -811,17 +811,17 @@ class RepairBOMListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by')
+        queryset = RepairBOM.objects.select_related('work_order', 'master_bom', 'approved_by')
 
         search = self.request.GET.get('q')
         if search:
-            queryset = queryset.filter(drill_bit__serial_number__icontains=search)
+            queryset = queryset.filter(work_order__drill_bit__serial_number__icontains=search)
 
         status = self.request.GET.get('status')
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by('-prepared_date')
+        return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -836,7 +836,7 @@ class RepairBOMDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "bom"
 
     def get_queryset(self):
-        return RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by').prefetch_related('lines__inventory_item')
+        return RepairBOM.objects.select_related('work_order', 'master_bom', 'approved_by').prefetch_related('lines__inventory_item')
 
 
 class RepairBOMCreateView(LoginRequiredMixin, CreateView):
