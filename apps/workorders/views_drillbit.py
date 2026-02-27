@@ -32,7 +32,7 @@ from django.views.generic import (
     View,
 )
 
-from .models import BitEvent, DrillBit, Location, WorkOrder
+from .models import BitEvent, BOMPendingRequest, DrillBit, Location, WorkOrder
 from .forms import DrillBitUpdateForm
 
 # Import Customer model for First Event Wizard
@@ -363,6 +363,28 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         )
 
         messages.success(request, f'Drill bit "{bit.serial_number}" is now tracked at {location.name}.')
+
+        # Auto-create BOM pending request for MANUFACTURE bits without BOM
+        if (
+            event_type == 'received'
+            and bit.account
+            and bit.account.workflow_type in ('MANUFACTURE', 'BOTH')
+            and not bit.bom
+            and not bit.brazing_bom
+            and not bit.system_bom
+        ):
+            existing = BOMPendingRequest.objects.filter(
+                drill_bit=bit,
+                status=BOMPendingRequest.RequestStatus.OPEN,
+            ).exists()
+            if not existing:
+                BOMPendingRequest.objects.create(
+                    drill_bit=bit,
+                    requested_by=request.user,
+                    notes="Auto-created: BOM not assigned at registration.",
+                )
+                messages.info(request, "BOM not assigned. Added to tech team queue.")
+
         return redirect('workorders:drillbit_detail', pk=bit.pk)
 
 

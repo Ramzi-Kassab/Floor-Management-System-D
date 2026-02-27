@@ -504,7 +504,7 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
         ).prefetch_related(
-            "work_orders", "evaluations", "bit_events", "repair_history",
+            "work_orders", "evaluations", "bit_events",
             "receiving_inspections", "receiving_inspections__inspected_by",
             "design__special_technologies",
         )
@@ -524,9 +524,6 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
 
         # Work orders
         context["work_orders"] = bit.work_orders.order_by('-created_at')
-
-        # Repair history
-        context["repairs"] = bit.repair_history.order_by('-repair_number')
 
         # Evaluations
         context["evaluations"] = bit.evaluations.order_by('-evaluation_date')

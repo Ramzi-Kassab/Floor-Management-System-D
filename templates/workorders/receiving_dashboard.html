@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Receiving Dock — Dashboard{% endblock %}
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <i data-lucide="package-check" class="w-7 h-7 text-teal-500"></i>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Receiving Dock</h1>
+    </div>
+    <a href="{% url 'workorders:backload_batch_create' %}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+        <i data-lucide="plus" class="w-4 h-4"></i> New Batch
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    {# ── Panel 1: Incoming Batches ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="truck" class="w-5 h-5 text-teal-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Incoming Batches</h2>
+                {% if incoming_batches_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300">{{ incoming_batches_count }}</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'workorders:backload_batch_list' %}" class="text-sm text-teal-600 hover:text-teal-800 dark:text-teal-400">View all &rarr;</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for batch in incoming_batches %}
+            <a href="{% url 'workorders:backload_batch_detail' batch.pk %}"
+               class="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ batch.batch_number }}</span>
+                        <span class="ml-2 px-2 py-0.5 text-xs rounded-full
+                            {% if batch.status == 'PENDING' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
+                            {% elif batch.status == 'ARRIVED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
+                            {% elif batch.status == 'PROCESSING' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
+                            {% endif %}">{{ batch.get_status_display }}</span>
+                    </div>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ batch.received_count }}/{{ batch.item_count }}</span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ batch.account }} &middot; {{ batch.created_at|date:"M d" }}
+                    {% if batch.batch_reference %}&middot; {{ batch.batch_reference|truncatechars:30 }}{% endif %}
+                </div>
+            </a>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No incoming batches</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Panel 2: Recently Received ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-5 h-5 text-green-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Recently Received</h2>
+                {% if recent_events_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">{{ recent_events_count }}</span>
+                {% endif %}
+            </div>
+            <span class="text-xs text-gray-400">Last 7 days</span>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700 max-h-80 overflow-y-auto">
+            {% for event in recent_events %}
+            <div class="px-5 py-3">
+                <div class="flex items-center justify-between">
+                    <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ event.bit.serial_number }}</span>
+                    <span class="px-2 py-0.5 text-xs rounded-full
+                        {% if event.event_type == 'BACKLOADED' %}bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300
+                        {% else %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300{% endif %}">
+                        {{ event.get_event_type_display }}
+                    </span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {% if event.bit.account %}{{ event.bit.account }} &middot; {% endif %}{{ event.event_date|date:"M d, Y" }}
+                </div>
+            </div>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No recent receipts</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Panel 3: Pending Receiving Inspections ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="clipboard-check" class="w-5 h-5 text-blue-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Pending Inspections</h2>
+                {% if pending_inspections_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">{{ pending_inspections_count }}</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'workorders:receiving_inspection_list' %}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">View all &rarr;</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for insp in pending_inspections %}
+            <a href="{% url 'workorders:receiving_inspection_edit' bit_pk=insp.drill_bit.pk pk=insp.pk %}"
+               class="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                <div class="flex items-center justify-between">
+                    <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ insp.drill_bit.serial_number }}</span>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">Pending</span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {% if insp.drill_bit.design %}{{ insp.drill_bit.design }}{% endif %}
+                    {% if insp.drill_bit.design.size %} &middot; {{ insp.drill_bit.design.size }}{% endif %}
+                    &middot; {{ insp.created_at|date:"M d" }}
+                </div>
+            </a>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No pending inspections</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Panel 4: BOM Pending Queue ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">BOM Pending</h2>
+                {% if bom_pending_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">{{ bom_pending_count }}</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'workorders:bom_pending_list' %}" class="text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400">View all &rarr;</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for req in bom_pending %}
+            <div class="px-5 py-3">
+                <div class="flex items-center justify-between">
+                    <a href="{% url 'workorders:drillbit_edit' req.drill_bit.pk %}"
+                       class="font-mono text-sm font-semibold text-gray-900 dark:text-white hover:text-teal-600">
+                        {{ req.drill_bit.serial_number }}
+                    </a>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">No BOM</span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {% if req.drill_bit.design %}{{ req.drill_bit.design }}{% endif %}
+                    &middot; Requested by {{ req.requested_by }}
+                    &middot; {{ req.created_at|date:"M d" }}
+                </div>
+            </div>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No pending BOM requests</div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

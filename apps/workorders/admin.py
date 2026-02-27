@@ -38,6 +38,10 @@ from .models import (
     ReceivingInspection,
     # Production Planning
     ProductionPlanEntry,
+    # Receiving Dock
+    BackloadBatch,
+    BackloadItem,
+    BOMPendingRequest,
 )
 
 
@@ -390,3 +394,44 @@ class ProductionPlanEntryAdmin(admin.ModelAdmin):
             entry.create_work_order(user=request.user)
             created += 1
         self.message_user(request, f"Created {created} work orders.")
+
+
+# =============================================================================
+# RECEIVING DOCK — Backload Batches + BOM Pending
+# =============================================================================
+
+class BackloadItemInline(admin.TabularInline):
+    model = BackloadItem
+    extra = 0
+    fields = [
+        "serial_number", "match_status", "status", "drill_bit",
+        "received_date", "received_by",
+    ]
+    readonly_fields = ["match_status", "received_date", "received_by"]
+    raw_id_fields = ["drill_bit"]
+
+
+@admin.register(BackloadBatch)
+class BackloadBatchAdmin(admin.ModelAdmin):
+    list_display = [
+        "batch_number", "account", "status", "item_count",
+        "received_count", "expected_date", "created_at",
+    ]
+    list_filter = ["status", "account"]
+    search_fields = ["batch_number", "batch_reference"]
+    readonly_fields = ["batch_number", "item_count", "received_count", "created_at", "updated_at"]
+    raw_id_fields = ["customer", "created_by"]
+    date_hierarchy = "created_at"
+    inlines = [BackloadItemInline]
+
+
+@admin.register(BOMPendingRequest)
+class BOMPendingRequestAdmin(admin.ModelAdmin):
+    list_display = [
+        "drill_bit", "status", "requested_by", "assigned_by",
+        "resolved_at", "created_at",
+    ]
+    list_filter = ["status"]
+    search_fields = ["drill_bit__serial_number"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["drill_bit", "requested_by", "assigned_by"]

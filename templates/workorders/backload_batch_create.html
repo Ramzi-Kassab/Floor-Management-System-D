@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}New Backload Batch{% endblock %}
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <i data-lucide="plus-circle" class="w-7 h-7 text-teal-500"></i>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">New Backload Batch</h1>
+    </div>
+    <a href="{% url 'workorders:backload_batch_list' %}"
+       class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Batches
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+<form method="post" class="max-w-3xl">
+    {% csrf_token %}
+
+    <div class="space-y-6">
+        {# ── Section 1: Batch Header ── #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                <i data-lucide="file-text" class="w-5 h-5 text-teal-500"></i>
+                Batch Information
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {# Account #}
+                <div>
+                    <label for="id_account" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Account <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.account }}
+                    {% if form.account.errors %}
+                    <p class="mt-1 text-xs text-red-600">{{ form.account.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {# Expected Date #}
+                <div>
+                    <label for="id_expected_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Expected Arrival Date
+                    </label>
+                    {{ form.expected_date }}
+                    {% if form.expected_date.errors %}
+                    <p class="mt-1 text-xs text-red-600">{{ form.expected_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {# Batch Reference — full width #}
+                <div class="md:col-span-2">
+                    <label for="id_batch_reference" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Batch Reference
+                    </label>
+                    {{ form.batch_reference }}
+                    <p class="mt-1 text-xs text-gray-400">Email reference, backload paper number, etc.</p>
+                    {% if form.batch_reference.errors %}
+                    <p class="mt-1 text-xs text-red-600">{{ form.batch_reference.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {# Notes — full width #}
+                <div class="md:col-span-2">
+                    <label for="id_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Notes
+                    </label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                    <p class="mt-1 text-xs text-red-600">{{ form.notes.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# ── Section 2: Serial Numbers ── #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                <i data-lucide="list" class="w-5 h-5 text-teal-500"></i>
+                Serial Numbers
+            </h2>
+            <div>
+                <label for="id_serial_numbers_bulk" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Paste serial numbers <span class="text-red-500">*</span>
+                </label>
+                {{ form.serial_numbers_bulk }}
+                <p class="mt-2 text-xs text-gray-400">
+                    One serial number per line. The system will auto-match each serial to existing drill bit records.
+                    Unmatched serials can be registered as new bits on the batch detail page.
+                </p>
+                {% if form.serial_numbers_bulk.errors %}
+                <p class="mt-1 text-xs text-red-600">{{ form.serial_numbers_bulk.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div id="serialPreview" class="mt-3 hidden">
+                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <i data-lucide="info" class="w-4 h-4 text-teal-500"></i>
+                    <span id="serialCount">0</span> serial numbers entered
+                </div>
+            </div>
+        </div>
+
+        {# ── Submit ── #}
+        <div class="flex items-center gap-3">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 px-6 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium">
+                <i data-lucide="check" class="w-4 h-4"></i> Create Batch
+            </button>
+            <a href="{% url 'workorders:backload_batch_list' %}"
+               class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
+                Cancel
+            </a>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('id_serial_numbers_bulk');
+    const preview = document.getElementById('serialPreview');
+    const countEl = document.getElementById('serialCount');
+
+    if (textarea) {
+        textarea.addEventListener('input', function() {
+            const lines = this.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length > 0) {
+                preview.classList.remove('hidden');
+                countEl.textContent = lines.length;
+            } else {
+                preview.classList.add('hidden');
+            }
+        });
+        // Fire on load in case of form re-render
+        textarea.dispatchEvent(new Event('input'));
+    }
+});
+</script>
+{% endblock %}

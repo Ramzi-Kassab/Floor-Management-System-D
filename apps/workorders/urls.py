@@ -8,10 +8,27 @@ from django.urls import path
 from . import views
 from . import views_jobcard
 from . import views_drillbit
+from . import views_receiving
 
 app_name = "workorders"
 
 urlpatterns = [
+    # ========================================================================
+    # RECEIVING DOCK
+    # ========================================================================
+    path("receiving/", views_receiving.ReceivingDockDashboardView.as_view(), name="receiving_dashboard"),
+    path("receiving/batches/", views_receiving.BackloadBatchListView.as_view(), name="backload_batch_list"),
+    path("receiving/batches/create/", views_receiving.BackloadBatchCreateView.as_view(), name="backload_batch_create"),
+    path("receiving/batches/<int:pk>/", views_receiving.BackloadBatchDetailView.as_view(), name="backload_batch_detail"),
+    path("receiving/batches/<int:pk>/confirm-item/", views_receiving.api_batch_confirm_arrival, name="api_batch_confirm_item"),
+    path("receiving/batches/<int:pk>/confirm-all/", views_receiving.api_batch_confirm_all, name="api_batch_confirm_all"),
+    path("receiving/batches/<int:pk>/register-new/", views_receiving.api_batch_register_new_bit, name="api_batch_register_new"),
+    path("receiving/batches/<int:pk>/rematch/", views_receiving.api_batch_rematch, name="api_batch_rematch"),
+    path("receiving/inspections/", views_receiving.ReceivingInspectionListView.as_view(), name="receiving_inspection_list"),
+    path("receiving/bom-pending/", views_receiving.BOMPendingListView.as_view(), name="bom_pending_list"),
+    path("receiving/api/bom-request/", views_receiving.api_create_bom_request, name="api_create_bom_request"),
+    path("receiving/api/bom-request/<int:pk>/resolve/", views_receiving.api_resolve_bom_request, name="api_resolve_bom_request"),
+
     # ========================================================================
     # JOB CARD ENHANCED VIEWS
     # ========================================================================

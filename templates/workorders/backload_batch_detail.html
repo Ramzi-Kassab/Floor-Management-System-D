@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Batch {{ batch.batch_number }}{% endblock %}
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <i data-lucide="package" class="w-7 h-7 text-teal-500"></i>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white font-mono">{{ batch.batch_number }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ batch.account }} &middot; {{ batch.created_at|date:"M d, Y" }}</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="px-3 py-1 text-sm rounded-full font-medium
+            {% if batch.status == 'PENDING' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
+            {% elif batch.status == 'ARRIVED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
+            {% elif batch.status == 'PROCESSING' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
+            {% elif batch.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+            {% endif %}">
+            {{ batch.get_status_display }}
+        </span>
+        <a href="{% url 'workorders:backload_batch_list' %}"
+           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Batches
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div x-data="batchDetail()" class="space-y-6">
+
+    {# ── Header Card ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.batch_reference|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expected Date</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.expected_date|date:"M d, Y"|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created By</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.created_by|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.notes|default:"-"|truncatechars:60 }}</p>
+            </div>
+        </div>
+
+        {# Progress bar #}
+        <div class="mt-4">
+            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span>Progress</span>
+                <span x-text="receivedCount + '/' + totalCount"></span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div class="bg-teal-500 h-2.5 rounded-full transition-all duration-300"
+                     :style="'width:' + (totalCount > 0 ? (receivedCount/totalCount*100) : 0) + '%'"></div>
+            </div>
+        </div>
+
+        {# Summary badges #}
+        <div class="mt-3 flex flex-wrap gap-2">
+            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                {{ matched_count }} Matched
+            </span>
+            {% if unmatched_count %}
+            <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                {{ unmatched_count }} Not Found
+            </span>
+            {% endif %}
+            {% if new_registered_count %}
+            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                {{ new_registered_count }} New Registered
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Bulk Actions ── #}
+    <div class="flex items-center gap-3">
+        <button @click="confirmAll()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition"
+                :disabled="loading">
+            <i data-lucide="check-check" class="w-4 h-4"></i> Confirm All Arrived
+        </button>
+        <button @click="rematchAll()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                :disabled="loading">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Match Serials
+        </button>
+        <span x-show="flashMsg" x-transition
+              class="text-sm font-medium"
+              :class="flashOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+              x-text="flashMsg"></span>
+    </div>
+
+    {# ── Items Table ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Serial Number</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Match</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Design / Size</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Lifecycle</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for item in items %}
+                    <tr id="item-row-{{ item.pk }}" class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                        <td class="px-4 py-3 text-xs text-gray-400">{{ forloop.counter }}</td>
+                        <td class="px-4 py-3">
+                            <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ item.serial_number }}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span id="match-badge-{{ item.pk }}" class="px-2 py-0.5 text-xs rounded-full
+                                {% if item.match_status == 'MATCHED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+                                {% elif item.match_status == 'UNMATCHED' %}bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300
+                                {% elif item.match_status == 'NEW_REGISTERED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
+                                {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400
+                                {% endif %}">
+                                {{ item.get_match_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span id="status-badge-{{ item.pk }}" class="px-2 py-0.5 text-xs rounded-full
+                                {% if item.status == 'EXPECTED' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
+                                {% elif item.status == 'RECEIVED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+                                {% elif item.status == 'EVALUATED' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
+                                {% elif item.status == 'COMPLETED' %}bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300
+                                {% endif %}">
+                                {{ item.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {% if item.drill_bit %}
+                                {% if item.drill_bit.design %}{{ item.drill_bit.design }}{% endif %}
+                                {% if item.drill_bit.design.size %} &middot; {{ item.drill_bit.design.size }}{% endif %}
+                            {% else %}
+                                <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {% if item.drill_bit %}
+                                {{ item.drill_bit.get_lifecycle_status_display }}
+                                {% if not item.drill_bit.bom %}
+                                    <span class="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned">No BOM</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                {# Confirm Arrival #}
+                                {% if item.status == 'EXPECTED' and item.drill_bit %}
+                                <button @click="confirmItem({{ item.pk }})"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50 transition"
+                                        :disabled="loading"
+                                        title="Confirm arrival">
+                                    <i data-lucide="check" class="w-3 h-3"></i> Confirm
+                                </button>
+                                {% endif %}
+
+                                {# Register Bit (for unmatched) #}
+                                {% if item.match_status == 'UNMATCHED' %}
+                                <button @click="registerBit({{ item.pk }})"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition"
+                                        :disabled="loading"
+                                        title="Register as new drill bit">
+                                    <i data-lucide="plus" class="w-3 h-3"></i> Register
+                                </button>
+                                {% endif %}
+
+                                {# Create WO link (for received bits) #}
+                                {% if item.status == 'RECEIVED' and item.drill_bit %}
+                                <a href="{% url 'workorders:workorder_create' %}?serial={{ item.serial_number }}"
+                                   class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 rounded hover:bg-orange-100 dark:hover:bg-orange-900/50 transition"
+                                   title="Create work order">
+                                    <i data-lucide="file-plus" class="w-3 h-3"></i> WO
+                                </a>
+                                {% endif %}
+
+                                {# View Bit #}
+                                {% if item.drill_bit %}
+                                <a href="{% url 'workorders:drillbit_detail_enhanced' item.drill_bit.pk %}"
+                                   class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition"
+                                   title="View drill bit">
+                                    <i data-lucide="external-link" class="w-3 h-3"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
+                            No items in this batch.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function batchDetail() {
+    return {
+        loading: false,
+        flashMsg: '',
+        flashOk: true,
+        totalCount: {{ batch.item_count }},
+        receivedCount: {{ batch.received_count }},
+
+        flash(msg, ok) {
+            this.flashMsg = msg;
+            this.flashOk = ok;
+            setTimeout(() => this.flashMsg = '', 4000);
+        },
+
+        async postJson(url, body) {
+            this.loading = true;
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                            || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                    },
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Error');
+                return data;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async confirmItem(itemId) {
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_confirm_item' batch.pk %}", { item_id: itemId });
+                this.receivedCount = data.batch_received_count;
+                this.flash('Item confirmed!', true);
+                // Reload to update badges
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        async confirmAll() {
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_confirm_all' batch.pk %}", {});
+                this.receivedCount = data.batch_received_count;
+                this.flash(data.confirmed + ' items confirmed!', true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        async registerBit(itemId) {
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_register_new' batch.pk %}", { item_id: itemId });
+                this.flash('Bit registered: ' + data.serial_number, true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        async rematchAll() {
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_rematch' batch.pk %}", {});
+                this.flash(data.rematched + ' re-matched, ' + data.still_unmatched + ' still unmatched', true);
+                if (data.rematched > 0) setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

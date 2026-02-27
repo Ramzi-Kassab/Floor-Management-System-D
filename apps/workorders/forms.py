@@ -8,7 +8,7 @@ Form definitions for work order and drill bit management.
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import DrillBit, WorkOrder
+from .models import DrillBit, WorkOrder, BackloadBatch
 
 
 class WorkOrderForm(forms.ModelForm):
@@ -1473,3 +1473,61 @@ class DrillBitStartRepairForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
     )
+
+
+# =============================================================================
+# BACKLOAD BATCH FORM
+# =============================================================================
+
+_BL_INPUT = 'mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500'
+
+class BackloadBatchForm(forms.ModelForm):
+    """Form for creating a backload batch with bulk serial entry."""
+
+    serial_numbers_bulk = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': _BL_INPUT,
+            'rows': 8,
+            'placeholder': 'Paste serial numbers here — one per line',
+        }),
+        help_text="Enter one serial number per line. They will be auto-matched to existing drill bits.",
+        required=True,
+    )
+
+    class Meta:
+        model = BackloadBatch
+        fields = ['account', 'batch_reference', 'expected_date', 'notes']
+        widgets = {
+            'account': forms.Select(attrs={'class': _BL_INPUT}),
+            'batch_reference': forms.TextInput(attrs={
+                'class': _BL_INPUT,
+                'placeholder': 'Email ref, backload paper #',
+            }),
+            'expected_date': forms.DateInput(attrs={
+                'class': _BL_INPUT,
+                'type': 'date',
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': _BL_INPUT,
+                'rows': 3,
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter to REPAIR + BOTH accounts only
+        from apps.sales.models import Account
+        self.fields['account'].queryset = Account.objects.filter(
+            workflow_type__in=['REPAIR', 'BOTH'],
+            is_active=True,
+        ).order_by('sort_order', 'name')
+
+    def get_serial_list(self):
+        """Parse serial numbers from bulk textarea."""
+        raw = self.cleaned_data.get('serial_numbers_bulk', '')
+        serials = []
+        for line in raw.strip().splitlines():
+            sn = line.strip()
+            if sn:
+                serials.append(sn)
+        return serials

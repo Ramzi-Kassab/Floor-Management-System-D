@@ -2908,3 +2908,258 @@ class EvaluationRouteStep(models.Model):
         req = "Required" if self.is_required else "Optional"
         return f"{self.route.name} - Step {self.order}: {self.get_evaluation_type_display()} ({req})"
 
+
+# ═══════════════════════════════════════════════════════════════════
+# RECEIVING DOCK — Backload Batches + BOM Pending
+# ═══════════════════════════════════════════════════════════════════
+
+class BackloadBatch(models.Model):
+    """
+    Groups repair bits arriving together. Created from email notification.
+    Ops pastes serial numbers, system auto-matches to existing DrillBit records.
+    """
+
+    class BatchStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ARRIVED = "ARRIVED", "Arrived"
+        PROCESSING = "PROCESSING", "Processing"
+        COMPLETED = "COMPLETED", "Completed"
+
+    batch_number = models.CharField(max_length=30, unique=True, editable=False)
+    batch_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text="Email reference, backload paper number, etc."
+    )
+    account = models.ForeignKey(
+        "sales.Account", on_delete=models.PROTECT,
+        related_name="backload_batches",
+        help_text="Repair account (LSTK, ARAMCO, etc.)"
+    )
+    customer = models.ForeignKey(
+        "sales.Customer", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_batches",
+        help_text="Auto-filled from account.customer"
+    )
+    expected_date = models.DateField(
+        null=True, blank=True,
+        help_text="When bits are expected to arrive"
+    )
+    received_date = models.DateField(
+        null=True, blank=True,
+        help_text="When batch physically arrived"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Total items in batch (auto from items.count())"
+    )
+    received_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How many confirmed arrived"
+    )
+    status = models.CharField(
+        max_length=20, choices=BatchStatus.choices,
+        default=BatchStatus.PENDING
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name="created_backload_batches"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "backload_batches"
+        verbose_name = "Backload Batch"
+        verbose_name_plural = "Backload Batches"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.batch_number} ({self.account})"
+
+    def save(self, *args, **kwargs):
+        if not self.batch_number:
+            self.batch_number = self.generate_batch_number()
+        # Auto-fill customer from account
+        if self.account_id and not self.customer_id:
+            try:
+                self.customer = self.account.customer
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_batch_number():
+        """Generate BL-YYYY-NNN using NumberSequence."""
+        from apps.organization.models import NumberSequence
+        from django.utils import timezone
+
+        year = timezone.now().year
+        seq_code = f"BACKLOAD-{year}"
+        seq, _ = NumberSequence.objects.select_for_update().get_or_create(
+            code=seq_code,
+            defaults={
+                "name": f"Backload Batch {year}",
+                "prefix": f"BL-{year}-",
+                "padding": 3,
+                "increment_by": 1,
+            }
+        )
+        return seq.get_next_number()
+
+    def update_counts(self):
+        """Recalculate item_count and received_count from items."""
+        self.item_count = self.items.count()
+        self.received_count = self.items.filter(
+            status__in=[
+                BackloadItem.ItemStatus.RECEIVED,
+                BackloadItem.ItemStatus.EVALUATED,
+                BackloadItem.ItemStatus.COMPLETED,
+            ]
+        ).count()
+        self.save(update_fields=["item_count", "received_count", "updated_at"])
+
+    def auto_update_status(self):
+        """Auto-transition batch status based on items."""
+        if self.item_count == 0:
+            return
+        if self.received_count == 0:
+            new_status = self.BatchStatus.PENDING
+        elif self.received_count < self.item_count:
+            new_status = self.BatchStatus.PROCESSING
+        else:
+            # All received — check if all completed
+            completed = self.items.filter(
+                status=BackloadItem.ItemStatus.COMPLETED
+            ).count()
+            if completed == self.item_count:
+                new_status = self.BatchStatus.COMPLETED
+            else:
+                new_status = self.BatchStatus.PROCESSING
+
+        if self.status != new_status:
+            self.status = new_status
+            self.save(update_fields=["status", "updated_at"])
+
+
+class BackloadItem(models.Model):
+    """
+    Individual bit entry in a backload batch.
+    Serial number pasted from email/paper, auto-matched to existing DrillBit.
+    """
+
+    class ItemStatus(models.TextChoices):
+        EXPECTED = "EXPECTED", "Expected"
+        RECEIVED = "RECEIVED", "Received"
+        EVALUATED = "EVALUATED", "Evaluated"
+        COMPLETED = "COMPLETED", "Completed"
+
+    class MatchStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        MATCHED = "MATCHED", "Matched"
+        UNMATCHED = "UNMATCHED", "Not Found"
+        NEW_REGISTERED = "NEW_REGISTERED", "New Registered"
+
+    batch = models.ForeignKey(
+        BackloadBatch, on_delete=models.CASCADE,
+        related_name="items"
+    )
+    serial_number = models.CharField(max_length=50)
+    drill_bit = models.ForeignKey(
+        "DrillBit", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    status = models.CharField(
+        max_length=20, choices=ItemStatus.choices,
+        default=ItemStatus.EXPECTED
+    )
+    match_status = models.CharField(
+        max_length=20, choices=MatchStatus.choices,
+        default=MatchStatus.PENDING
+    )
+    received_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this specific bit was confirmed arrived"
+    )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="received_backload_items"
+    )
+    work_order = models.ForeignKey(
+        "WorkOrder", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    bit_event = models.ForeignKey(
+        "BitEvent", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    notes = models.TextField(blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "backload_items"
+        verbose_name = "Backload Item"
+        verbose_name_plural = "Backload Items"
+        ordering = ["sort_order", "id"]
+        unique_together = [("batch", "serial_number")]
+
+    def __str__(self):
+        return f"{self.serial_number} ({self.batch.batch_number})"
+
+    def attempt_match(self):
+        """Try to match serial_number to an existing DrillBit."""
+        try:
+            bit = DrillBit.objects.get(serial_number=self.serial_number)
+            self.drill_bit = bit
+            self.match_status = self.MatchStatus.MATCHED
+        except DrillBit.DoesNotExist:
+            self.drill_bit = None
+            self.match_status = self.MatchStatus.UNMATCHED
+        except DrillBit.MultipleObjectsReturned:
+            # Edge case — take first match
+            bit = DrillBit.objects.filter(serial_number=self.serial_number).first()
+            self.drill_bit = bit
+            self.match_status = self.MatchStatus.MATCHED
+        self.save(update_fields=["drill_bit", "match_status"])
+
+
+class BOMPendingRequest(models.Model):
+    """
+    Request for tech team to assign BOM to a drill bit.
+    Auto-created when a new bit is registered without a BOM.
+    """
+
+    class RequestStatus(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        ASSIGNED = "ASSIGNED", "BOM Assigned"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    drill_bit = models.ForeignKey(
+        "DrillBit", on_delete=models.CASCADE,
+        related_name="bom_pending_requests"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name="bom_requests_created"
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="bom_requests_resolved"
+    )
+    status = models.CharField(
+        max_length=20, choices=RequestStatus.choices,
+        default=RequestStatus.OPEN
+    )
+    notes = models.TextField(blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "bom_pending_requests"
+        verbose_name = "BOM Pending Request"
+        verbose_name_plural = "BOM Pending Requests"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"BOM Request: {self.drill_bit.serial_number} ({self.get_status_display()})"
+
