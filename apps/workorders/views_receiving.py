@@ -27,6 +27,7 @@ from .models import (
     BitEvent,
     BOMPendingRequest,
     DrillBit,
+    Location,
     ReceivingInspection,
 )
 from .forms import BackloadBatchForm
@@ -231,11 +232,15 @@ def api_batch_confirm_arrival(request, pk):
     bit = item.drill_bit
     now = timezone.now()
 
+    # Use Receiving Area as default location for backload events
+    receiving_loc = Location.objects.filter(location_type=Location.LocationType.RECEIVING).first()
+
     # 1. Create BitEvent(BACKLOADED)
     event = BitEvent.objects.create(
         bit=bit,
         event_type=BitEvent.EventType.BACKLOADED,
-        event_date=now.date(),
+        event_date=now,
+        location=receiving_loc,
         notes=f"Backload batch {batch.batch_number}",
         performed_by=request.user,
     )
@@ -289,12 +294,16 @@ def api_batch_confirm_all(request, pk):
     now = timezone.now()
     confirmed = 0
 
+    # Use Receiving Area as default location for backload events
+    receiving_loc = Location.objects.filter(location_type=Location.LocationType.RECEIVING).first()
+
     for item in pending_items:
         bit = item.drill_bit
         event = BitEvent.objects.create(
             bit=bit,
             event_type=BitEvent.EventType.BACKLOADED,
-            event_date=now.date(),
+            event_date=now,
+            location=receiving_loc,
             notes=f"Backload batch {batch.batch_number} (bulk confirm)",
             performed_by=request.user,
         )
