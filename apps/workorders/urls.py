@@ -103,6 +103,14 @@ urlpatterns = [
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/", views_jobcard.CutterEvaluationEditView.as_view(), name="cutter_evaluation_edit"),
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/mark-complete/", views_jobcard.api_evaluation_mark_complete, name="cutter_evaluation_mark_complete"),
 
+    # Evaluation Auto-Create (standalone per-type URL)
+    path("<int:wo_pk>/evaluation/<str:type_code>/", views_jobcard.EvaluationAutoCreateView.as_view(), name="evaluation_auto"),
+
+    # Receiving Inspection (linked to drill bit)
+    path("drill-bits/<int:bit_pk>/receiving-inspection/create/", views_jobcard.ReceivingInspectionCreateView.as_view(), name="receiving_inspection_create"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/", views_jobcard.ReceivingInspectionEditView.as_view(), name="receiving_inspection_edit"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/mark-complete/", views_jobcard.api_receiving_inspection_complete, name="receiving_inspection_mark_complete"),
+
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),
     path("<int:wo_pk>/router-sheet/<int:step_number>/scan/", views_jobcard.router_step_scan, name="router_step_scan"),

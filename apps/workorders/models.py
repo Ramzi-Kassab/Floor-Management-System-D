@@ -1760,6 +1760,148 @@ class CutterEvaluationEntry(models.Model):
         return f"Blade {self.blade_number}, Pos {self.cutter_position}: {self.get_action_display()}"
 
 
+class ReceivingInspection(models.Model):
+    """
+    FC Bit Receiving Inspection per QAS/005-1.
+    Linked to DrillBit (happens before WO exists).
+    Optional WO FK set when WO is created later.
+    """
+    class InspectionResult(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected"
+        CONDITIONAL = "CONDITIONAL", "Conditional Accept"
+
+    # Core links
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, related_name="receiving_inspections"
+    )
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="receiving_inspections"
+    )
+
+    # Header
+    inspection_date = models.DateField(null=True, blank=True)
+    po_number = models.CharField(max_length=50, blank=True)
+    client_name = models.CharField(max_length=100, blank=True)
+
+    # ── Visual Inspection Checklist (9 items, each OK/NOT_OK/NA) ──
+    CHECKLIST_CHOICES = [("OK", "OK"), ("NOT_OK", "Not OK"), ("NA", "N/A")]
+    vi_pin_connection = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Pin Connection"
+    )
+    vi_bit_body = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Bit Body"
+    )
+    vi_bit_breaker = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Bit Breaker"
+    )
+    vi_blades = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Blades"
+    )
+    vi_nozzles = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Nozzles"
+    )
+    vi_junk_slot = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Junk Slot"
+    )
+    vi_gauge_pads = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Gauge Pads"
+    )
+    vi_bit_face = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Bit Face"
+    )
+    vi_general = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="General Condition"
+    )
+
+    # ── Cutter Condition Counts ──
+    cutters_total = models.IntegerField(default=0, verbose_name="Total Cutters")
+    cutters_chipped = models.IntegerField(default=0, verbose_name="Chipped")
+    cutters_broken = models.IntegerField(default=0, verbose_name="Broken")
+    cutters_worn = models.IntegerField(default=0, verbose_name="Worn")
+    cutters_missing = models.IntegerField(default=0, verbose_name="Missing")
+
+    # ── Measurements ──
+    tfa = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="TFA", help_text="Total Flow Area"
+    )
+    gauge_reading_1 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 1"
+    )
+    gauge_reading_2 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 2"
+    )
+    gauge_reading_3 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 3"
+    )
+
+    # ── Decision ──
+    result = models.CharField(
+        max_length=12, choices=InspectionResult.choices,
+        default=InspectionResult.PENDING, verbose_name="Inspection Result"
+    )
+    remarks = models.TextField(blank=True)
+
+    # ── Signatures ──
+    inspected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="receiving_inspections_performed"
+    )
+    qc_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="receiving_inspections_approved"
+    )
+    qc_approved_at = models.DateTimeField(null=True, blank=True)
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "receiving_inspections"
+        ordering = ["-inspection_date", "-created_at"]
+        verbose_name = "Receiving Inspection"
+        verbose_name_plural = "Receiving Inspections"
+
+    def __str__(self):
+        return f"RI-{self.drill_bit.serial_number} ({self.get_result_display()})"
+
+    @property
+    def cutters_good(self):
+        """Cutters in good condition = total - (chipped + broken + worn + missing)."""
+        return max(0, self.cutters_total - self.cutters_chipped - self.cutters_broken - self.cutters_worn - self.cutters_missing)
+
+    @property
+    def checklist_items(self):
+        """Return list of (label, field_name, value) tuples for template iteration."""
+        return [
+            ("Pin Connection", "vi_pin_connection", self.vi_pin_connection),
+            ("Bit Body", "vi_bit_body", self.vi_bit_body),
+            ("Bit Breaker", "vi_bit_breaker", self.vi_bit_breaker),
+            ("Blades", "vi_blades", self.vi_blades),
+            ("Nozzles", "vi_nozzles", self.vi_nozzles),
+            ("Junk Slot", "vi_junk_slot", self.vi_junk_slot),
+            ("Gauge Pads", "vi_gauge_pads", self.vi_gauge_pads),
+            ("Bit Face", "vi_bit_face", self.vi_bit_face),
+            ("General Condition", "vi_general", self.vi_general),
+        ]
+
+
 class InstructionRule(models.Model):
     """
     Rule-based instruction system.

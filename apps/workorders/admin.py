@@ -35,6 +35,7 @@ from .models import (
     APIThreadInspection,
     InstructionRule,
     InstructionRuleCondition,
+    ReceivingInspection,
     # Production Planning
     ProductionPlanEntry,
 )
@@ -286,6 +287,15 @@ class CutterEvaluationMatrixAdmin(admin.ModelAdmin):
     list_filter = ["evaluation_type"]
     list_select_related = ["work_order", "evaluated_by"]
     inlines = [CutterEvaluationEntryInline]
+
+
+@admin.register(ReceivingInspection)
+class ReceivingInspectionAdmin(admin.ModelAdmin):
+    list_display = ["drill_bit", "inspection_date", "result", "is_complete", "inspected_by"]
+    list_filter = ["result", "is_complete"]
+    list_select_related = ["drill_bit", "inspected_by", "work_order"]
+    search_fields = ["drill_bit__serial_number", "po_number"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 # =============================================================================

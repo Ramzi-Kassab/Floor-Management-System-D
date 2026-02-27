@@ -30,7 +30,7 @@ from django.views.generic import (
 
 from .models import (
     WorkOrder, DrillBit, BitEvent, Location,
-    CutterEvaluationMatrix, CutterEvaluationEntry,
+    CutterEvaluationMatrix, CutterEvaluationEntry, ReceivingInspection,
     RouterSheetEntry, EvaluationChecklist,
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
@@ -343,6 +343,14 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
             'percent': round(complete_evals * 100 / total_evals) if total_evals > 0 else 0,
         }
 
+        # Receiving inspection (from drill bit, if linked)
+        if wo.drill_bit_id:
+            context['receiving_inspection'] = ReceivingInspection.objects.filter(
+                drill_bit_id=wo.drill_bit_id
+            ).select_related('inspected_by').first()
+        else:
+            context['receiving_inspection'] = None
+
         # Router sheet entries
         context["router_entries"] = wo.router_entries.order_by('step_number')
 
@@ -497,6 +505,7 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             "system_bom", "system_bom__smi_type",
         ).prefetch_related(
             "work_orders", "evaluations", "bit_events", "repair_history",
+            "receiving_inspections", "receiving_inspections__inspected_by",
             "design__special_technologies",
         )
 
@@ -521,6 +530,9 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
 
         # Evaluations
         context["evaluations"] = bit.evaluations.order_by('-evaluation_date')
+
+        # Receiving Inspections
+        context["receiving_inspections"] = bit.receiving_inspections.order_by('-inspection_date')
 
         # ── BOM source_data for inline display ──
         active_bom = bit.brazing_bom or bit.bom or bit.system_bom
@@ -2531,3 +2543,149 @@ def api_get_evaluation_types(request):
         'success': True,
         'evaluation_types': types
     })
+
+
+# =============================================================================
+# RECEIVING INSPECTION (QAS/005-1) — Linked to DrillBit
+# =============================================================================
+
+class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Receiving Inspection for a drill bit."""
+    model = ReceivingInspection
+    template_name = "workorders/receiving_inspection_form.html"
+
+    def get_form_class(self):
+        from .forms import ReceivingInspectionForm
+        return ReceivingInspectionForm
+
+    def get_drill_bit(self):
+        return get_object_or_404(DrillBit, pk=self.kwargs['bit_pk'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['drill_bit'] = self.get_drill_bit()
+        context['page_title'] = f"New Receiving Inspection — {context['drill_bit'].serial_number}"
+        context['is_new'] = True
+        # Provide default checklist items for template (all NA for new)
+        context['checklist_items'] = [
+            ("Pin Connection", "vi_pin_connection", "NA"),
+            ("Bit Body", "vi_bit_body", "NA"),
+            ("Bit Breaker", "vi_bit_breaker", "NA"),
+            ("Blades", "vi_blades", "NA"),
+            ("Nozzles", "vi_nozzles", "NA"),
+            ("Junk Slot", "vi_junk_slot", "NA"),
+            ("Gauge Pads", "vi_gauge_pads", "NA"),
+            ("Bit Face", "vi_bit_face", "NA"),
+            ("General Condition", "vi_general", "NA"),
+        ]
+        return context
+
+    def form_valid(self, form):
+        form.instance.drill_bit = self.get_drill_bit()
+        form.instance.inspected_by = self.request.user
+        if not form.instance.inspection_date:
+            form.instance.inspection_date = timezone.now().date()
+        response = super().form_valid(form)
+        messages.success(self.request, "Receiving inspection created.")
+        return response
+
+    def get_success_url(self):
+        return reverse('workorders:receiving_inspection_edit',
+                        kwargs={'bit_pk': self.kwargs['bit_pk'], 'pk': self.object.pk})
+
+
+class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
+    """Edit an existing Receiving Inspection."""
+    model = ReceivingInspection
+    template_name = "workorders/receiving_inspection_form.html"
+
+    def get_form_class(self):
+        from .forms import ReceivingInspectionForm
+        return ReceivingInspectionForm
+
+    def get_queryset(self):
+        return ReceivingInspection.objects.select_related(
+            'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+            'work_order', 'inspected_by', 'qc_approved_by'
+        ).filter(drill_bit__pk=self.kwargs['bit_pk'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['drill_bit'] = self.object.drill_bit
+        context['page_title'] = f"Receiving Inspection — {self.object.drill_bit.serial_number}"
+        context['is_new'] = False
+        context['checklist_items'] = self.object.checklist_items
+        return context
+
+    def form_valid(self, form):
+        # Check if "mark_complete" was submitted
+        mark_complete = self.request.POST.get('mark_complete')
+        if mark_complete == 'true' and not form.instance.is_complete:
+            form.instance.is_complete = True
+            form.instance.qc_approved_by = self.request.user
+            form.instance.qc_approved_at = timezone.now()
+            messages.success(self.request, "Receiving inspection marked as complete.")
+        elif mark_complete == 'false' and form.instance.is_complete:
+            form.instance.is_complete = False
+            form.instance.qc_approved_by = None
+            form.instance.qc_approved_at = None
+            messages.success(self.request, "Receiving inspection reopened.")
+        else:
+            messages.success(self.request, "Receiving inspection saved.")
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('workorders:receiving_inspection_edit',
+                        kwargs={'bit_pk': self.kwargs['bit_pk'], 'pk': self.object.pk})
+
+
+@login_required
+@require_POST
+def api_receiving_inspection_complete(request, bit_pk, pk):
+    """Toggle is_complete on a ReceivingInspection. POST-only."""
+    inspection = get_object_or_404(ReceivingInspection, pk=pk, drill_bit__pk=bit_pk)
+
+    if inspection.is_complete:
+        # Reopen
+        inspection.is_complete = False
+        inspection.qc_approved_by = None
+        inspection.qc_approved_at = None
+        inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        return JsonResponse({'success': True, 'is_complete': False, 'message': 'Inspection reopened.'})
+    else:
+        # Complete
+        inspection.is_complete = True
+        inspection.qc_approved_by = request.user
+        inspection.qc_approved_at = timezone.now()
+        inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        return JsonResponse({'success': True, 'is_complete': True, 'message': 'Inspection marked complete.'})
+
+
+# =============================================================================
+# EVALUATION AUTO-CREATE (Standalone per-type URLs)
+# =============================================================================
+
+class EvaluationAutoCreateView(LoginRequiredMixin, View):
+    """
+    GET /workorders/<wo_pk>/evaluation/<type_code>/
+    Auto-creates CutterEvaluationMatrix for the given type if not exists,
+    then redirects to the matrix editor.
+    """
+    def get(self, request, wo_pk, type_code):
+        wo = get_object_or_404(WorkOrder, pk=wo_pk)
+        # Validate type_code
+        valid_codes = [c[0] for c in CutterEvaluationMatrix.EvaluationType.choices]
+        if type_code not in valid_codes:
+            messages.error(request, f"Invalid evaluation type: {type_code}")
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+        matrix, created = CutterEvaluationMatrix.objects.get_or_create(
+            work_order=wo,
+            evaluation_type=type_code,
+            evaluation_number=1,
+            defaults={'evaluated_by': request.user}
+        )
+        if created:
+            messages.info(request, f"Created new {matrix.get_evaluation_type_display()}")
+        return redirect('workorders:cutter_evaluation_edit', wo_pk=wo.pk, pk=matrix.pk)

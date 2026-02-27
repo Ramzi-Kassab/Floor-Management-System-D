@@ -1020,7 +1020,7 @@ class WorkOrderCostForm(forms.ModelForm):
 
 from .models import (
     Location, InstructionRule, InstructionRuleCondition,
-    CutterEvaluationMatrix, CutterEvaluationEntry,
+    CutterEvaluationMatrix, CutterEvaluationEntry, ReceivingInspection,
     RouterSheetEntry, EvaluationChecklist, LPTReport, APIThreadInspection
 )
 
@@ -1151,6 +1151,63 @@ class CutterEvaluationMatrixForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['general_remark'].required = False
+
+
+class ReceivingInspectionForm(forms.ModelForm):
+    """Form for ReceivingInspection — FC Bit Receiving Inspection per QAS/005-1."""
+
+    class Meta:
+        model = ReceivingInspection
+        fields = [
+            'inspection_date', 'po_number', 'client_name',
+            # Visual inspection checklist
+            'vi_pin_connection', 'vi_bit_body', 'vi_bit_breaker', 'vi_blades',
+            'vi_nozzles', 'vi_junk_slot', 'vi_gauge_pads', 'vi_bit_face', 'vi_general',
+            # Cutter condition
+            'cutters_total', 'cutters_chipped', 'cutters_broken', 'cutters_worn', 'cutters_missing',
+            # Measurements
+            'tfa', 'gauge_reading_1', 'gauge_reading_2', 'gauge_reading_3',
+            # Decision
+            'result', 'remarks',
+        ]
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={
+                'type': 'date', 'class': INPUT_CLASS,
+            }),
+            'po_number': forms.TextInput(attrs={
+                'class': INPUT_CLASS, 'placeholder': 'Purchase order number',
+            }),
+            'client_name': forms.TextInput(attrs={
+                'class': INPUT_CLASS, 'placeholder': 'Client / customer name',
+            }),
+            # Visual checklist — radio buttons rendered in template, use hidden select as fallback
+            'vi_pin_connection': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_body': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_breaker': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_blades': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_nozzles': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_junk_slot': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_gauge_pads': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_face': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_general': forms.Select(attrs={'class': SELECT_CLASS}),
+            # Cutter counts
+            'cutters_total': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_chipped': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_broken': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_worn': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_missing': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            # Measurements
+            'tfa': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_1': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_2': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_3': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            # Decision
+            'result': forms.Select(attrs={'class': SELECT_CLASS}),
+            'remarks': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS, 'rows': 3,
+                'placeholder': 'Inspection remarks, conditions noted, etc.',
+            }),
+        }
 
 
 class RouterSheetEntryForm(forms.ModelForm):

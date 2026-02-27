@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            QAS/005-1 — FC Bit Receiving Inspection
+        </p>
+    </div>
+    <div class="flex items-center gap-3">
+        {% if not is_new and object.is_complete %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <i data-lucide="check-circle" class="w-4 h-4"></i> Complete
+            </span>
+        {% endif %}
+        <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
+           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Drill Bit
+        </a>
+    </div>
+</div>
+{% endblock page_header %}
+
+{% block content %}
+<form method="post" id="inspectionForm">
+{% csrf_token %}
+
+<!-- ── SECTION 1: Header Info ── -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <i data-lucide="clipboard-list" class="w-5 h-5 inline text-blue-500"></i> Inspection Details
+    </h2>
+
+    <!-- Drill Bit Info (read-only) -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+        <div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
+            <span class="font-semibold text-gray-900 dark:text-white">{{ drill_bit.serial_number }}</span>
+        </div>
+        <div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 block">Bit Type</span>
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.get_bit_type_display }}</span>
+        </div>
+        <div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 block">Design</span>
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.mat_number|default:"—" }}</span>
+        </div>
+        <div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 block">Size</span>
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.size|default:"—" }}</span>
+        </div>
+    </div>
+
+    <!-- Editable header fields -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspection Date</label>
+            {{ form.inspection_date }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PO Number</label>
+            {{ form.po_number }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Name</label>
+            {{ form.client_name }}
+        </div>
+    </div>
+</div>
+
+<!-- ── SECTION 2: Visual Inspection Checklist ── -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <i data-lucide="eye" class="w-5 h-5 inline text-amber-500"></i> Visual Inspection Checklist
+    </h2>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                    <th class="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400 w-1/3">Item</th>
+                    <th class="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400 w-1/5">OK</th>
+                    <th class="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400 w-1/5">Not OK</th>
+                    <th class="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400 w-1/5">N/A</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for label, field_name, current_value in checklist_items %}
+                <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="py-2.5 px-3 font-medium text-gray-700 dark:text-gray-300">{{ label }}</td>
+                    <td class="text-center py-2.5 px-3">
+                        <input type="radio" name="{{ field_name }}" value="OK"
+                               {% if current_value == "OK" %}checked{% endif %}
+                               class="text-green-600 focus:ring-green-500 dark:bg-gray-700">
+                    </td>
+                    <td class="text-center py-2.5 px-3">
+                        <input type="radio" name="{{ field_name }}" value="NOT_OK"
+                               {% if current_value == "NOT_OK" %}checked{% endif %}
+                               class="text-red-600 focus:ring-red-500 dark:bg-gray-700">
+                    </td>
+                    <td class="text-center py-2.5 px-3">
+                        <input type="radio" name="{{ field_name }}" value="NA"
+                               {% if current_value == "NA" %}checked{% endif %}
+                               class="text-gray-400 focus:ring-gray-500 dark:bg-gray-700">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── SECTION 3: Cutter Condition ── -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <i data-lucide="diamond" class="w-5 h-5 inline text-purple-500"></i> Cutter Condition
+    </h2>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Cutters</label>
+            {{ form.cutters_total }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chipped</label>
+            {{ form.cutters_chipped }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Broken</label>
+            {{ form.cutters_broken }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Worn</label>
+            {{ form.cutters_worn }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Missing</label>
+            {{ form.cutters_missing }}
+        </div>
+    </div>
+
+    <!-- Calculated summary -->
+    <div class="mt-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded text-sm text-gray-600 dark:text-gray-400" id="cutterSummary">
+        Good condition: <span id="cuttersGood" class="font-semibold text-green-600 dark:text-green-400">—</span>
+    </div>
+</div>
+
+<!-- ── SECTION 4: Measurements ── -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <i data-lucide="ruler" class="w-5 h-5 inline text-teal-500"></i> Measurements
+    </h2>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">TFA (Total Flow Area)</label>
+            {{ form.tfa }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gauge Reading 1</label>
+            {{ form.gauge_reading_1 }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gauge Reading 2</label>
+            {{ form.gauge_reading_2 }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gauge Reading 3</label>
+            {{ form.gauge_reading_3 }}
+        </div>
+    </div>
+</div>
+
+<!-- ── SECTION 5: Decision ── -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-4">
+    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <i data-lucide="check-square" class="w-5 h-5 inline text-green-500"></i> Inspection Decision
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
+            {{ form.result }}
+        </div>
+        <div>
+            {% if not is_new and object.inspected_by %}
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspector</label>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
+                {% if object.qc_approved_by %}
+                    <br>
+                    <span class="text-green-600 dark:text-green-400">
+                        QC: {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
+                        ({{ object.qc_approved_at|date:"M d, Y H:i" }})
+                    </span>
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
+        {{ form.remarks }}
+    </div>
+</div>
+
+<!-- ── ACTION BUTTONS ── -->
+<div class="flex items-center justify-between py-4">
+    <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
+       class="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+        Cancel
+    </a>
+
+    <div class="flex items-center gap-3">
+        <!-- Save Draft -->
+        <button type="submit" name="action" value="save"
+                class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 text-sm font-medium transition">
+            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+            {% if is_new %}Create{% else %}Save{% endif %}
+        </button>
+
+        {% if not is_new %}
+            {% if object.is_complete %}
+                <!-- Reopen -->
+                <button type="submit" name="mark_complete" value="false"
+                        class="px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 text-sm font-medium transition"
+                        onclick="return confirm('Reopen this inspection?')">
+                    <i data-lucide="unlock" class="w-4 h-4 inline mr-1"></i> Reopen
+                </button>
+            {% else %}
+                <!-- Save & Complete -->
+                <button type="submit" name="mark_complete" value="true"
+                        class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 text-sm font-medium transition"
+                        onclick="return confirm('Mark this inspection as complete? QC approval will be recorded.')">
+                    <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
+                </button>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+</form>
+
+{% if form.errors %}
+<div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+    <h3 class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Please correct the following errors:</h3>
+    <ul class="list-disc pl-5 text-sm text-red-700 dark:text-red-400">
+        {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+// Auto-calculate cutters in good condition
+function updateCutterSummary() {
+    const total = parseInt(document.querySelector('[name="cutters_total"]')?.value || 0);
+    const chipped = parseInt(document.querySelector('[name="cutters_chipped"]')?.value || 0);
+    const broken = parseInt(document.querySelector('[name="cutters_broken"]')?.value || 0);
+    const worn = parseInt(document.querySelector('[name="cutters_worn"]')?.value || 0);
+    const missing = parseInt(document.querySelector('[name="cutters_missing"]')?.value || 0);
+    const good = Math.max(0, total - chipped - broken - worn - missing);
+    const el = document.getElementById('cuttersGood');
+    if (el) el.textContent = good;
+}
+
+// Bind to cutter count inputs
+document.querySelectorAll('[name^="cutters_"]').forEach(input => {
+    input.addEventListener('input', updateCutterSummary);
+});
+
+// Initial calculation
+updateCutterSummary();
+
+// Reinitialize Lucide icons
+if (typeof lucide !== 'undefined') lucide.createIcons();
+</script>
+{% endblock extra_js %}
+
+{% block extra_css %}
+<style>
+    /* Print styles */
+    @media print {
+        nav, .sidebar, header, footer, .no-print { display: none !important; }
+        body { background: white !important; }
+        .bg-white, .dark\:bg-gray-800 { background: white !important; border: 1px solid #ddd !important; }
+        button[type="submit"], a[href] { display: none !important; }
+        input[type="radio"]:checked::after { content: "\2713"; font-weight: bold; }
+    }
+</style>
+{% endblock extra_css %}
