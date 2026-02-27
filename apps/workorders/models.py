@@ -3047,6 +3047,28 @@ class BackloadBatch(models.Model):
             self.save(update_fields=["status", "updated_at"])
 
 
+class BackloadBatchAttachment(models.Model):
+    """File attachment for a backload batch (one-to-many)."""
+    batch = models.ForeignKey(
+        BackloadBatch, on_delete=models.CASCADE, related_name="attachments"
+    )
+    file = models.FileField(upload_to="backload_references/%Y/%m/")
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(default=0, help_text="Size in bytes")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "backload_batch_attachments"
+        ordering = ["uploaded_at"]
+
+    def __str__(self):
+        return self.original_filename
+
+
 class BackloadItem(models.Model):
     """
     Individual bit entry in a backload batch.

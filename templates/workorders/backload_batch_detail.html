@@ -49,43 +49,63 @@
             </div>
         </div>
 
-        {# ── Attachment ── #}
-        {% if batch.reference_file %}
+        {# ── Attachments ── #}
         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attachment</span>
-            <div class="mt-1.5 inline-flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                {% with ext=batch.reference_file.name|lower %}
-                {% if '.pdf' in ext %}
-                    <i data-lucide="file-text" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
-                {% elif '.msg' in ext or '.eml' in ext %}
-                    <i data-lucide="mail" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
-                {% elif '.xlsx' in ext or '.xls' in ext or '.csv' in ext %}
-                    <i data-lucide="sheet" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
-                {% elif '.doc' in ext or '.docx' in ext %}
-                    <i data-lucide="file-text" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
-                {% elif '.jpg' in ext or '.jpeg' in ext or '.png' in ext or '.gif' in ext or '.webp' in ext or '.bmp' in ext or '.tiff' in ext %}
-                    <i data-lucide="image" class="w-5 h-5 text-purple-500 flex-shrink-0"></i>
-                {% elif '.zip' in ext or '.rar' in ext or '.7z' in ext %}
-                    <i data-lucide="archive" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
-                {% else %}
-                    <i data-lucide="paperclip" class="w-5 h-5 text-gray-500 flex-shrink-0"></i>
-                {% endif %}
-                {% endwith %}
-                <div class="flex flex-col">
-                    <a href="{{ batch.reference_file.url }}" target="_blank"
-                       class="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline truncate max-w-xs"
-                       title="{{ batch.reference_file.name }}">
-                        {{ batch.reference_file.name|cut:"backload_references/" }}
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                    Attachments
+                    <span x-text="'(' + attachmentCount + ')'" class="text-gray-400"></span>
+                </span>
+                <label class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/50 cursor-pointer transition">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Files
+                    <input type="file" multiple
+                           accept=".msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip"
+                           class="hidden" @change="uploadFiles($event)">
+                </label>
+            </div>
+            {# Existing attachments list #}
+            <div id="attachment-list" class="space-y-1.5">
+                {% for att in attachments %}
+                <div id="att-{{ att.pk }}" class="inline-flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 mr-2 mb-1">
+                    {% with ext=att.original_filename|lower %}
+                    {% if '.pdf' in ext %}
+                        <i data-lucide="file-text" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                    {% elif '.msg' in ext or '.eml' in ext %}
+                        <i data-lucide="mail" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+                    {% elif '.xlsx' in ext or '.xls' in ext or '.csv' in ext %}
+                        <i data-lucide="sheet" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
+                    {% elif '.doc' in ext or '.docx' in ext %}
+                        <i data-lucide="file-text" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
+                    {% elif '.jpg' in ext or '.jpeg' in ext or '.png' in ext or '.gif' in ext or '.webp' in ext or '.bmp' in ext or '.tiff' in ext %}
+                        <i data-lucide="image" class="w-5 h-5 text-purple-500 flex-shrink-0"></i>
+                    {% elif '.zip' in ext or '.rar' in ext or '.7z' in ext %}
+                        <i data-lucide="archive" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
+                    {% else %}
+                        <i data-lucide="paperclip" class="w-5 h-5 text-gray-500 flex-shrink-0"></i>
+                    {% endif %}
+                    {% endwith %}
+                    <div class="flex flex-col">
+                        <a href="{{ att.file.url }}" target="_blank"
+                           class="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline truncate max-w-xs"
+                           title="{{ att.original_filename }}">
+                            {{ att.original_filename }}
+                        </a>
+                        <span class="text-[10px] text-gray-400">{{ att.file_size|filesizeformat }}</span>
+                    </div>
+                    <a href="{{ att.file.url }}" download
+                       class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition" title="Download">
+                        <i data-lucide="download" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                     </a>
-                    <span class="text-[10px] text-gray-400">{{ batch.reference_file.size|filesizeformat }}</span>
+                    <button type="button" @click="deleteAttachment({{ att.pk }})"
+                            class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition" title="Delete">
+                        <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i>
+                    </button>
                 </div>
-                <a href="{{ batch.reference_file.url }}" download
-                   class="ml-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition" title="Download">
-                    <i data-lucide="download" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
-                </a>
+                {% empty %}
+                <p id="no-attachments-msg" class="text-sm text-gray-400 dark:text-gray-500 italic">No attachments</p>
+                {% endfor %}
             </div>
         </div>
-        {% endif %}
 
         {# Progress bar #}
         <div class="mt-4">
@@ -260,6 +280,12 @@ function batchDetail() {
         flashOk: true,
         totalCount: {{ batch.item_count }},
         receivedCount: {{ batch.received_count }},
+        attachmentCount: {{ attachments|length }},
+
+        _csrfToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        },
 
         flash(msg, ok) {
             this.flashMsg = msg;
@@ -274,14 +300,82 @@ function batchDetail() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value
-                            || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                        'X-CSRFToken': this._csrfToken(),
                     },
                     body: JSON.stringify(body),
                 });
                 const data = await r.json();
                 if (!data.ok) throw new Error(data.error || 'Error');
                 return data;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── Attachment: Upload files from detail page ──
+        async uploadFiles(event) {
+            const input = event.target;
+            if (!input.files || input.files.length === 0) return;
+
+            const maxSize = 25 * 1024 * 1024;  // 25 MB
+            const fd = new FormData();
+            let count = 0;
+            for (const f of input.files) {
+                if (f.size > maxSize) {
+                    this.flash(f.name + ' is too large (max 25 MB)', false);
+                    continue;
+                }
+                fd.append('files', f);
+                count++;
+            }
+            if (count === 0) { input.value = ''; return; }
+
+            this.loading = true;
+            try {
+                const r = await fetch("{% url 'workorders:api_batch_upload_attachment' batch.pk %}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': this._csrfToken() },
+                    body: fd,
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Upload failed');
+                this.attachmentCount += data.count;
+                this.flash(data.count + ' file(s) uploaded', true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            } finally {
+                this.loading = false;
+                input.value = '';
+            }
+        },
+
+        // ── Attachment: Delete ──
+        async deleteAttachment(attId) {
+            if (!confirm('Remove this attachment?')) return;
+            this.loading = true;
+            try {
+                const r = await fetch("{% url 'workorders:api_batch_delete_attachment' batch.pk 0 %}".replace('/0/', '/' + attId + '/'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this._csrfToken(),
+                    },
+                    body: '{}',
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Delete failed');
+                // Remove the element from DOM
+                const el = document.getElementById('att-' + attId);
+                if (el) el.remove();
+                this.attachmentCount--;
+                if (this.attachmentCount <= 0) {
+                    const list = document.getElementById('attachment-list');
+                    if (list) list.innerHTML = '<p class="text-sm text-gray-400 dark:text-gray-500 italic">No attachments</p>';
+                }
+                this.flash('Attachment deleted', true);
+            } catch (e) {
+                this.flash(e.message, false);
             } finally {
                 this.loading = false;
             }

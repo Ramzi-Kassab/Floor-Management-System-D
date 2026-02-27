@@ -55,36 +55,52 @@
                     <p class="mt-1 text-xs text-red-600">{{ form.batch_reference.errors.0 }}</p>
                     {% endif %}
                 </div>
-                {# Reference File Upload — full width #}
-                <div class="md:col-span-2" x-data="fileUpload()">
+                {# ── Multi-File Upload — full width ── #}
+                <div class="md:col-span-2" x-data="multiFileUpload()">
                     <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         <i data-lucide="paperclip" class="w-4 h-4 inline text-gray-400"></i>
-                        Reference Attachment
+                        Attachments
                     </span>
                     <label class="relative mt-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-teal-400 dark:hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-900/10 transition">
-                        {# Invisible file input covering the full label area #}
-                        <input type="file" name="reference_file" id="id_reference_file"
+                        {# Hidden multi-file input #}
+                        <input type="file" name="attachments" id="id_attachments" multiple
                                accept=".msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip"
                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                               @change="onFileChange($event)">
-                        {# Placeholder text (no file selected) #}
-                        <div x-show="!fileName" class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 pointer-events-none">
+                               @change="onFilesSelected($event)">
+                        {# Placeholder text (no files selected) #}
+                        <div x-show="files.length === 0" class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 pointer-events-none">
                             <i data-lucide="upload-cloud" class="w-5 h-5"></i>
-                            <span>Choose file or drag &amp; drop</span>
+                            <span>Choose files or drag &amp; drop</span>
                         </div>
-                        {# Selected file preview #}
-                        <div x-show="fileName" x-cloak class="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-400 font-medium pointer-events-none">
-                            <i data-lucide="file-check" class="w-5 h-5"></i>
-                            <span x-text="fileName"></span>
-                            <span class="text-xs text-gray-400" x-text="fileSize"></span>
+                        {# Summary when files are selected #}
+                        <div x-show="files.length > 0" x-cloak class="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-400 font-medium pointer-events-none">
+                            <i data-lucide="files" class="w-5 h-5"></i>
+                            <span x-text="files.length + ' file' + (files.length > 1 ? 's' : '') + ' selected'"></span>
+                            <span class="text-xs text-gray-400" x-text="'(' + totalSize + ')'"></span>
                         </div>
                     </label>
                     <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
-                        Outlook email (.msg, .eml), PDF, Excel (.xlsx), Word (.docx), images (.jpg, .png), or ZIP — max 25 MB
+                        Outlook email (.msg, .eml), PDF, Excel (.xlsx), Word (.docx), images (.jpg, .png), or ZIP — max 25 MB each, up to 10 files
                     </p>
-                    {% if form.reference_file.errors %}
-                    <p class="mt-1 text-xs text-red-600">{{ form.reference_file.errors.0 }}</p>
-                    {% endif %}
+
+                    {# File list with remove buttons #}
+                    <div x-show="files.length > 0" x-cloak class="mt-3 space-y-1.5">
+                        <template x-for="(file, idx) in files" :key="idx">
+                            <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                <i data-lucide="file" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
+                                <span class="text-sm text-gray-700 dark:text-gray-300 truncate flex-1" x-text="file.name"></span>
+                                <span class="text-xs text-gray-400 flex-shrink-0" x-text="file.sizeText"></span>
+                                <template x-if="file.tooLarge">
+                                    <span class="text-xs text-red-500 font-medium flex-shrink-0">Too large!</span>
+                                </template>
+                                <button type="button" @click="removeFile(idx)"
+                                        class="ml-1 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+                                        title="Remove">
+                                    <i data-lucide="x" class="w-3.5 h-3.5 text-red-400"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
                 </div>
                 {# Notes — full width #}
                 <div class="md:col-span-2">
@@ -143,29 +159,70 @@
 {% endblock %}
 {% block extra_js %}
 <script>
-// ── File upload Alpine component (v3 compatible) ──
-function fileUpload() {
+// ── Multi-file upload Alpine component ──
+function multiFileUpload() {
     return {
-        fileName: '',
-        fileSize: '',
-        onFileChange(event) {
+        files: [],       // Array of {name, size, sizeText, tooLarge}
+        totalSize: '',
+        _dataTransfer: null,  // DataTransfer object to sync with file input
+
+        onFilesSelected(event) {
             const input = event.target;
-            if (input.files && input.files[0]) {
-                const f = input.files[0];
-                const sizeMB = (f.size / (1024 * 1024)).toFixed(1);
-                this.fileName = f.name;
-                this.fileSize = '(' + (sizeMB >= 1 ? sizeMB + ' MB' : Math.round(f.size / 1024) + ' KB') + ')';
-                if (f.size > 25 * 1024 * 1024) {
-                    alert('File is larger than 25 MB. Please choose a smaller file.');
-                    input.value = '';
-                    this.fileName = '';
-                    this.fileSize = '';
+            if (!input.files || input.files.length === 0) return;
+
+            const maxSize = 25 * 1024 * 1024;  // 25 MB
+            const maxFiles = 10;
+
+            // Add new files to existing list (no duplicates by name+size)
+            for (const f of input.files) {
+                if (this.files.length >= maxFiles) {
+                    alert('Maximum 10 files allowed.');
+                    break;
                 }
-            } else {
-                this.fileName = '';
-                this.fileSize = '';
+                // Skip duplicates
+                const isDup = this.files.some(
+                    existing => existing.name === f.name && existing.size === f.size
+                );
+                if (isDup) continue;
+
+                const sizeMB = (f.size / (1024 * 1024)).toFixed(1);
+                const sizeText = sizeMB >= 1 ? sizeMB + ' MB' : Math.round(f.size / 1024) + ' KB';
+                this.files.push({
+                    name: f.name,
+                    size: f.size,
+                    sizeText: sizeText,
+                    tooLarge: f.size > maxSize,
+                    _file: f,  // Keep reference to actual File object
+                });
             }
-        }
+
+            this._syncInput();
+            this._updateTotalSize();
+        },
+
+        removeFile(idx) {
+            this.files.splice(idx, 1);
+            this._syncInput();
+            this._updateTotalSize();
+        },
+
+        _syncInput() {
+            // Rebuild the file input's FileList via DataTransfer
+            const dt = new DataTransfer();
+            for (const f of this.files) {
+                if (!f.tooLarge) {
+                    dt.items.add(f._file);
+                }
+            }
+            const input = document.getElementById('id_attachments');
+            if (input) input.files = dt.files;
+        },
+
+        _updateTotalSize() {
+            const total = this.files.reduce((sum, f) => sum + (f.tooLarge ? 0 : f.size), 0);
+            const mb = (total / (1024 * 1024)).toFixed(1);
+            this.totalSize = mb >= 1 ? mb + ' MB' : Math.round(total / 1024) + ' KB';
+        },
     };
 }
 

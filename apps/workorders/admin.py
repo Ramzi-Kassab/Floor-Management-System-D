@@ -40,6 +40,7 @@ from .models import (
     ProductionPlanEntry,
     # Receiving Dock
     BackloadBatch,
+    BackloadBatchAttachment,
     BackloadItem,
     BOMPendingRequest,
 )
@@ -400,6 +401,13 @@ class ProductionPlanEntryAdmin(admin.ModelAdmin):
 # RECEIVING DOCK — Backload Batches + BOM Pending
 # =============================================================================
 
+class BackloadBatchAttachmentInline(admin.TabularInline):
+    model = BackloadBatchAttachment
+    extra = 0
+    fields = ["file", "original_filename", "file_size", "uploaded_by", "uploaded_at"]
+    readonly_fields = ["original_filename", "file_size", "uploaded_by", "uploaded_at"]
+
+
 class BackloadItemInline(admin.TabularInline):
     model = BackloadItem
     extra = 0
@@ -422,7 +430,7 @@ class BackloadBatchAdmin(admin.ModelAdmin):
     readonly_fields = ["batch_number", "item_count", "received_count", "created_at", "updated_at"]
     raw_id_fields = ["customer", "created_by"]
     date_hierarchy = "created_at"
-    inlines = [BackloadItemInline]
+    inlines = [BackloadBatchAttachmentInline, BackloadItemInline]
 
 
 @admin.register(BOMPendingRequest)

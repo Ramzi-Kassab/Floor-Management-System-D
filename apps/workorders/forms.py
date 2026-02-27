@@ -1496,15 +1496,12 @@ class BackloadBatchForm(forms.ModelForm):
 
     class Meta:
         model = BackloadBatch
-        fields = ['account', 'batch_reference', 'reference_file', 'expected_date', 'notes']
+        fields = ['account', 'batch_reference', 'expected_date', 'notes']
         widgets = {
             'account': forms.Select(attrs={'class': _BL_INPUT}),
             'batch_reference': forms.TextInput(attrs={
                 'class': _BL_INPUT,
                 'placeholder': 'Email ref, backload paper #',
-            }),
-            'reference_file': forms.FileInput(attrs={
-                'accept': '.msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip',
             }),
             'expected_date': forms.DateInput(attrs={
                 'class': _BL_INPUT,
@@ -1526,16 +1523,6 @@ class BackloadBatchForm(forms.ModelForm):
         ).order_by('sort_order', 'name')
 
     # -- Validation --
-
-    def clean_reference_file(self):
-        f = self.cleaned_data.get('reference_file')
-        if f:
-            max_size = 25 * 1024 * 1024  # 25 MB
-            if f.size > max_size:
-                raise ValidationError(
-                    f"File too large ({f.size / (1024*1024):.1f} MB). Maximum is 25 MB."
-                )
-        return f
 
     def clean_serial_numbers_bulk(self):
         """Validate and clean serial numbers: digits only, 6 or 8 characters."""

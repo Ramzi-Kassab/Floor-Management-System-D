@@ -22,6 +22,7 @@ from django.views.generic import CreateView, DetailView, ListView, TemplateView
 
 from .models import (
     BackloadBatch,
+    BackloadBatchAttachment,
     BackloadItem,
     BitEvent,
     BOMPendingRequest,
@@ -141,6 +142,18 @@ class BackloadBatchCreateView(LoginRequiredMixin, CreateView):
         batch.created_by = self.request.user
         batch.save()
 
+        # Handle multiple file uploads
+        max_file_size = 25 * 1024 * 1024  # 25 MB per file
+        for f in self.request.FILES.getlist("attachments"):
+            if f.size <= max_file_size:
+                BackloadBatchAttachment.objects.create(
+                    batch=batch,
+                    file=f,
+                    original_filename=f.name,
+                    file_size=f.size,
+                    uploaded_by=self.request.user,
+                )
+
         # Show serial cleanup warnings (skipped lines) if any
         if hasattr(form, '_serial_warnings') and form._serial_warnings:
             for w in form._serial_warnings:
@@ -177,7 +190,9 @@ class BackloadBatchDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "batch"
 
     def get_queryset(self):
-        return BackloadBatch.objects.select_related("account", "customer", "created_by")
+        return BackloadBatch.objects.select_related(
+            "account", "customer", "created_by"
+        ).prefetch_related("attachments")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -186,6 +201,7 @@ class BackloadBatchDetailView(LoginRequiredMixin, DetailView):
             "received_by", "work_order", "bit_event",
         ).order_by("sort_order", "id")
         ctx["items"] = items
+        ctx["attachments"] = self.object.attachments.all()
         ctx["matched_count"] = items.filter(match_status=BackloadItem.MatchStatus.MATCHED).count()
         ctx["unmatched_count"] = items.filter(match_status=BackloadItem.MatchStatus.UNMATCHED).count()
         ctx["new_registered_count"] = items.filter(match_status=BackloadItem.MatchStatus.NEW_REGISTERED).count()
@@ -364,6 +380,45 @@ def api_batch_rematch(request, pk):
         "rematched": rematched,
         "still_unmatched": unmatched.count() - rematched,
     })
+
+
+@login_required
+@require_POST
+def api_batch_upload_attachment(request, pk):
+    """Upload one or more files to an existing batch (from detail page)."""
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    max_file_size = 25 * 1024 * 1024  # 25 MB per file
+    uploaded = []
+    for f in request.FILES.getlist("files"):
+        if f.size > max_file_size:
+            continue
+        att = BackloadBatchAttachment.objects.create(
+            batch=batch,
+            file=f,
+            original_filename=f.name,
+            file_size=f.size,
+            uploaded_by=request.user,
+        )
+        uploaded.append({
+            "id": att.pk,
+            "name": att.original_filename,
+            "size": att.file_size,
+            "url": att.file.url,
+        })
+    return JsonResponse({"ok": True, "uploaded": uploaded, "count": len(uploaded)})
+
+
+@login_required
+@require_POST
+def api_batch_delete_attachment(request, pk, att_pk):
+    """Delete an attachment from a batch."""
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    att = get_object_or_404(BackloadBatchAttachment, pk=att_pk, batch=batch)
+    # Delete the file from storage too
+    if att.file:
+        att.file.delete(save=False)
+    att.delete()
+    return JsonResponse({"ok": True})
 
 
 # =============================================================================
