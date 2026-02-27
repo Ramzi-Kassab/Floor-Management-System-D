@@ -341,13 +341,20 @@ def api_batch_register_new_bit(request, pk):
     if item.match_status != BackloadItem.MatchStatus.UNMATCHED:
         return JsonResponse({"ok": False, "error": "Item is not unmatched."}, status=400)
 
-    # Create a new DrillBit
+    # Determine bit category from serial number length (8-digit = FC, 6-digit = RC)
+    sn = item.serial_number.strip()
+    bit_category = DrillBit.BitCategory.RC if len(sn) == 6 else DrillBit.BitCategory.FC
+
+    # Create a new DrillBit (size=0 as placeholder — updated later from design)
     bit = DrillBit.objects.create(
-        serial_number=item.serial_number,
+        serial_number=sn,
+        bit_type=bit_category,
         account=batch.account,
         status=DrillBit.Status.NEW,
         lifecycle_status=DrillBit.LifecycleStatus.NEW,
         physical_status=DrillBit.PhysicalStatus.AT_ARDT,
+        size=0,
+        created_by=request.user,
     )
 
     item.drill_bit = bit
