@@ -346,7 +346,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = NCR.objects.select_related("work_order", "inspection", "reported_by").order_by("-created_at")
+        qs = NCR.objects.select_related("work_order", "inspection", "detected_by").order_by("-created_at")
 
         # Date range
         date_from = self.request.GET.get("date_from")
@@ -404,7 +404,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("severity", "Severity"),
                 ("status", "Status"),
                 ("description", "Description"),
-                ("reported_by.username", "Reported By"),
+                ("detected_by.username", "Detected By"),
                 ("created_at", "Created"),
                 ("closed_at", "Closed Date"),
             ]
