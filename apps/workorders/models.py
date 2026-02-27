@@ -2960,6 +2960,11 @@ class BackloadBatch(models.Model):
         max_length=20, choices=BatchStatus.choices,
         default=BatchStatus.PENDING
     )
+    reference_file = models.FileField(
+        upload_to="backload_references/%Y/%m/",
+        blank=True, null=True,
+        help_text="Attachment: email (.msg/.eml), PDF, Excel, image, etc."
+    )
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,

@@ -141,6 +141,11 @@ class BackloadBatchCreateView(LoginRequiredMixin, CreateView):
         batch.created_by = self.request.user
         batch.save()
 
+        # Show serial cleanup warnings (skipped lines) if any
+        if hasattr(form, '_serial_warnings') and form._serial_warnings:
+            for w in form._serial_warnings:
+                messages.warning(self.request, f"Skipped: {w}")
+
         # Parse serials and create items
         serials = form.get_serial_list()
         for i, sn in enumerate(serials):

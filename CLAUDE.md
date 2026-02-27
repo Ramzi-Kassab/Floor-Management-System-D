@@ -1574,6 +1574,18 @@ Items noted for future enhancement. These are not bugs — they are improvements
 7. Sync worktree ↔ D3
 8. Commit + push to GitHub
 
+### Recent Enhancements (Feb 27, 2026) — Receiving Dock System
+- **Receiving Dock Module**: Complete new module for two drill bit intake flows — REPAIR (backload batches) and MANUFACTURE (register → inspection → inventory).
+- **3 New Models** (migration 0022): `BackloadBatch` (batch tracking with auto-generated `BL-YYYY-NNN` numbers, account FK, status flow PENDING→ARRIVED→PROCESSING→COMPLETED), `BackloadItem` (per-serial tracking with match_status PENDING/MATCHED/UNMATCHED/NEW_REGISTERED, auto-matching via `attempt_match()`), `BOMPendingRequest` (queue for manufacture bits without BOM, status OPEN/ASSIGNED/CANCELLED).
+- **Reference File Upload** (migration 0023): `BackloadBatch.reference_file` FileField for attaching source documents. Accepts Outlook emails (.msg/.eml), PDF, Excel, Word, images, ZIP — max 25 MB. Drag-and-drop styled upload with Alpine.js file preview (name + size). Batch detail page shows file with type-specific icon (mail icon for .msg/.eml, red for PDF, green for Excel, purple for images, etc.) and download button.
+- **Serial Number Validation**: `BackloadBatchForm.clean_serial_numbers_bulk()` strips non-digit characters, validates length (6 digits for RC, 8 for FC), removes duplicates, and shows per-line warnings for skipped entries. Only pure digits stored.
+- **6 New Templates**: `receiving_dashboard.html` (4-panel overview: incoming batches, recently received, pending inspections, BOM pending), `backload_batch_list.html` (filters by status/account/search, pagination), `backload_batch_create.html` (account select, date, reference text + file upload, serial textarea with live counter), `backload_batch_detail.html` (Alpine.js interactive: progress bar, item table with Confirm/Register/WO/View actions, AJAX operations), `bom_pending_list.html` (filter by status, AJAX resolve), `receiving_inspection_list.html` (pending/complete filter).
+- **5 JSON API Endpoints**: `api_batch_confirm_item` (creates BitEvent BACKLOADED, updates bit status/backload_count), `api_batch_confirm_all` (bulk confirm), `api_batch_register_new` (creates DrillBit for unmatched serial), `api_batch_rematch` (re-attempts matching), `api_resolve_bom_request`.
+- **Sidebar**: New "Receiving" section with teal theme (`package-check` icon) between Field and Production sections. 4 links: Dashboard, Backload Batches, Inspections, BOM Pending.
+- **BOM Auto-Request Integration**: `DrillBitFirstEventView.post()` auto-creates `BOMPendingRequest` when a manufacture bit (account.workflow_type in MANUFACTURE/BOTH) is registered via "Received" event without any BOM assigned.
+- **Key URLs**: `/work-orders/receiving/` (dashboard), `/work-orders/receiving/batches/` (list), `/work-orders/receiving/batches/create/` (create), `/work-orders/receiving/batches/<pk>/` (detail), `/work-orders/receiving/bom-pending/` (BOM queue), `/work-orders/receiving/inspections/` (inspection list).
+- **Key Files**: `apps/workorders/views_receiving.py` (all views + APIs), `apps/workorders/forms.py` (BackloadBatchForm with file upload + serial validation), 6 templates in `templates/workorders/`.
+
 ---
 
 ## Need Help?

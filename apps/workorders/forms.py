@@ -1496,12 +1496,16 @@ class BackloadBatchForm(forms.ModelForm):
 
     class Meta:
         model = BackloadBatch
-        fields = ['account', 'batch_reference', 'expected_date', 'notes']
+        fields = ['account', 'batch_reference', 'reference_file', 'expected_date', 'notes']
         widgets = {
             'account': forms.Select(attrs={'class': _BL_INPUT}),
             'batch_reference': forms.TextInput(attrs={
                 'class': _BL_INPUT,
                 'placeholder': 'Email ref, backload paper #',
+            }),
+            'reference_file': forms.ClearableFileInput(attrs={
+                'class': _BL_INPUT,
+                'accept': '.msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip',
             }),
             'expected_date': forms.DateInput(attrs={
                 'class': _BL_INPUT,
@@ -1522,12 +1526,51 @@ class BackloadBatchForm(forms.ModelForm):
             is_active=True,
         ).order_by('sort_order', 'name')
 
-    def get_serial_list(self):
-        """Parse serial numbers from bulk textarea."""
+    # -- Validation --
+
+    def clean_reference_file(self):
+        f = self.cleaned_data.get('reference_file')
+        if f:
+            max_size = 25 * 1024 * 1024  # 25 MB
+            if f.size > max_size:
+                raise ValidationError(
+                    f"File too large ({f.size / (1024*1024):.1f} MB). Maximum is 25 MB."
+                )
+        return f
+
+    def clean_serial_numbers_bulk(self):
+        """Validate and clean serial numbers: digits only, 6 or 8 characters."""
         raw = self.cleaned_data.get('serial_numbers_bulk', '')
-        serials = []
-        for line in raw.strip().splitlines():
+        cleaned = []
+        errors = []
+        for i, line in enumerate(raw.strip().splitlines(), start=1):
             sn = line.strip()
-            if sn:
-                serials.append(sn)
-        return serials
+            if not sn:
+                continue
+            # Strip non-digit characters (spaces, dashes, etc.)
+            digits = ''.join(c for c in sn if c.isdigit())
+            if not digits:
+                errors.append(f"Line {i}: '{sn}' — no digits found")
+                continue
+            if len(digits) not in (6, 8):
+                errors.append(
+                    f"Line {i}: '{sn}' → {digits} ({len(digits)} digits, must be 6 or 8)"
+                )
+                continue
+            if digits in cleaned:
+                errors.append(f"Line {i}: '{digits}' — duplicate")
+                continue
+            cleaned.append(digits)
+        if errors and not cleaned:
+            raise ValidationError(
+                "No valid serial numbers found:\n" + "\n".join(errors)
+            )
+        if errors:
+            # Store warnings for display but don't block submission
+            self._serial_warnings = errors
+        return '\n'.join(cleaned)
+
+    def get_serial_list(self):
+        """Return the cleaned, validated serial numbers."""
+        raw = self.cleaned_data.get('serial_numbers_bulk', '')
+        return [sn for sn in raw.strip().splitlines() if sn.strip()]

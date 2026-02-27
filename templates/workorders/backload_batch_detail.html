@@ -49,6 +49,44 @@
             </div>
         </div>
 
+        {# ── Attachment ── #}
+        {% if batch.reference_file %}
+        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attachment</span>
+            <div class="mt-1.5 inline-flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                {% with ext=batch.reference_file.name|lower %}
+                {% if '.pdf' in ext %}
+                    <i data-lucide="file-text" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                {% elif '.msg' in ext or '.eml' in ext %}
+                    <i data-lucide="mail" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+                {% elif '.xlsx' in ext or '.xls' in ext or '.csv' in ext %}
+                    <i data-lucide="sheet" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
+                {% elif '.doc' in ext or '.docx' in ext %}
+                    <i data-lucide="file-text" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
+                {% elif '.jpg' in ext or '.jpeg' in ext or '.png' in ext or '.gif' in ext or '.webp' in ext or '.bmp' in ext or '.tiff' in ext %}
+                    <i data-lucide="image" class="w-5 h-5 text-purple-500 flex-shrink-0"></i>
+                {% elif '.zip' in ext or '.rar' in ext or '.7z' in ext %}
+                    <i data-lucide="archive" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
+                {% else %}
+                    <i data-lucide="paperclip" class="w-5 h-5 text-gray-500 flex-shrink-0"></i>
+                {% endif %}
+                {% endwith %}
+                <div class="flex flex-col">
+                    <a href="{{ batch.reference_file.url }}" target="_blank"
+                       class="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline truncate max-w-xs"
+                       title="{{ batch.reference_file.name }}">
+                        {{ batch.reference_file.name|cut:"backload_references/" }}
+                    </a>
+                    <span class="text-[10px] text-gray-400">{{ batch.reference_file.size|filesizeformat }}</span>
+                </div>
+                <a href="{{ batch.reference_file.url }}" download
+                   class="ml-2 p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition" title="Download">
+                    <i data-lucide="download" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         {# Progress bar #}
         <div class="mt-4">
             <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
