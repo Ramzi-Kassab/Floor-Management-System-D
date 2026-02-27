@@ -1503,8 +1503,7 @@ class BackloadBatchForm(forms.ModelForm):
                 'class': _BL_INPUT,
                 'placeholder': 'Email ref, backload paper #',
             }),
-            'reference_file': forms.ClearableFileInput(attrs={
-                'class': _BL_INPUT,
+            'reference_file': forms.FileInput(attrs={
                 'accept': '.msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip',
             }),
             'expected_date': forms.DateInput(attrs={

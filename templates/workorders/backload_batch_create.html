@@ -56,25 +56,29 @@
                     {% endif %}
                 </div>
                 {# Reference File Upload — full width #}
-                <div class="md:col-span-2" x-data="{ fileName: '', fileSize: '' }">
-                    <label for="id_reference_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <div class="md:col-span-2" x-data="fileUpload()">
+                    <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         <i data-lucide="paperclip" class="w-4 h-4 inline text-gray-400"></i>
                         Reference Attachment
+                    </span>
+                    <label class="relative mt-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-teal-400 dark:hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-900/10 transition">
+                        {# Invisible file input covering the full label area #}
+                        <input type="file" name="reference_file" id="id_reference_file"
+                               accept=".msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                               @change="onFileChange($event)">
+                        {# Placeholder text (no file selected) #}
+                        <div x-show="!fileName" class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 pointer-events-none">
+                            <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                            <span>Choose file or drag &amp; drop</span>
+                        </div>
+                        {# Selected file preview #}
+                        <div x-show="fileName" x-cloak class="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-400 font-medium pointer-events-none">
+                            <i data-lucide="file-check" class="w-5 h-5"></i>
+                            <span x-text="fileName"></span>
+                            <span class="text-xs text-gray-400" x-text="fileSize"></span>
+                        </div>
                     </label>
-                    <div class="mt-1 flex items-center gap-3">
-                        <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-teal-400 dark:hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-900/10 transition">
-                            {{ form.reference_file }}
-                            <div x-show="!fileName" class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 pointer-events-none">
-                                <i data-lucide="upload-cloud" class="w-5 h-5"></i>
-                                <span>Choose file or drag & drop</span>
-                            </div>
-                            <div x-show="fileName" x-cloak class="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-400 font-medium pointer-events-none">
-                                <i data-lucide="file-check" class="w-5 h-5"></i>
-                                <span x-text="fileName"></span>
-                                <span class="text-xs text-gray-400" x-text="fileSize"></span>
-                            </div>
-                        </label>
-                    </div>
                     <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
                         Outlook email (.msg, .eml), PDF, Excel (.xlsx), Word (.docx), images (.jpg, .png), or ZIP — max 25 MB
                     </p>
@@ -139,8 +143,34 @@
 {% endblock %}
 {% block extra_js %}
 <script>
+// ── File upload Alpine component (v3 compatible) ──
+function fileUpload() {
+    return {
+        fileName: '',
+        fileSize: '',
+        onFileChange(event) {
+            const input = event.target;
+            if (input.files && input.files[0]) {
+                const f = input.files[0];
+                const sizeMB = (f.size / (1024 * 1024)).toFixed(1);
+                this.fileName = f.name;
+                this.fileSize = '(' + (sizeMB >= 1 ? sizeMB + ' MB' : Math.round(f.size / 1024) + ' KB') + ')';
+                if (f.size > 25 * 1024 * 1024) {
+                    alert('File is larger than 25 MB. Please choose a smaller file.');
+                    input.value = '';
+                    this.fileName = '';
+                    this.fileSize = '';
+                }
+            } else {
+                this.fileName = '';
+                this.fileSize = '';
+            }
+        }
+    };
+}
+
+// ── Serial number counter ──
 document.addEventListener('DOMContentLoaded', function() {
-    // ── Serial number counter ──
     const textarea = document.getElementById('id_serial_numbers_bulk');
     const preview = document.getElementById('serialPreview');
     const countEl = document.getElementById('serialCount');
@@ -156,39 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         textarea.dispatchEvent(new Event('input'));
-    }
-
-    // ── File upload preview ──
-    const fileInput = document.getElementById('id_reference_file');
-    if (fileInput) {
-        const wrapper = fileInput.closest('[x-data]');
-        fileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                const f = this.files[0];
-                const sizeMB = (f.size / (1024 * 1024)).toFixed(1);
-                const sizeStr = sizeMB >= 1 ? sizeMB + ' MB' : Math.round(f.size / 1024) + ' KB';
-                wrapper.__x.$data.fileName = f.name;
-                wrapper.__x.$data.fileSize = '(' + sizeStr + ')';
-                // Warn if > 25 MB
-                if (f.size > 25 * 1024 * 1024) {
-                    alert('File is larger than 25 MB. Please choose a smaller file.');
-                    this.value = '';
-                    wrapper.__x.$data.fileName = '';
-                    wrapper.__x.$data.fileSize = '';
-                }
-            } else {
-                wrapper.__x.$data.fileName = '';
-                wrapper.__x.$data.fileSize = '';
-            }
-        });
-        // Style the native input to be invisible (Alpine label wraps it)
-        fileInput.style.position = 'absolute';
-        fileInput.style.opacity = '0';
-        fileInput.style.width = '100%';
-        fileInput.style.height = '100%';
-        fileInput.style.top = '0';
-        fileInput.style.left = '0';
-        fileInput.style.cursor = 'pointer';
     }
 });
 </script>
