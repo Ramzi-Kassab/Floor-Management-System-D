@@ -415,6 +415,7 @@ class DrillBitCreateForm(forms.ModelForm):
             "serial_number",
             "design",
             "bom",
+            "level",
         ]
         widgets = {
             "serial_number": forms.TextInput(attrs={
@@ -430,6 +431,7 @@ class DrillBitCreateForm(forms.ModelForm):
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 "id": "id_bom",
             }),
+            "level": forms.HiddenInput(attrs={"id": "id_level"}),
         }
         labels = {
             "serial_number": "Serial Number",
@@ -503,8 +505,8 @@ class DrillBitCreateForm(forms.ModelForm):
         instance = super().save(commit=False)
         # Sync fields from Design/BOM
         instance.sync_from_design()
-        instance.status = DrillBit.Status.RECEIVING
-        instance.condition = DrillBit.Condition.COMPONENTS
+        # Smart initial status based on design/BOM presence
+        instance.determine_initial_status()
         instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
         instance.derive_ownership()
         if commit:
@@ -1518,6 +1520,10 @@ class BackloadBatchForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['batch_type'].required = True
+        # Default expected_date to today if not set
+        if not self.initial.get('expected_date') and not self.data.get('expected_date'):
+            from django.utils import timezone
+            self.initial['expected_date'] = timezone.now().date().isoformat()
 
     # -- Validation --
 

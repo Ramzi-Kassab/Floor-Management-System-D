@@ -125,10 +125,30 @@ def _create_and_process_items(batch, serials, user):
                 performed_by=user,
             )
 
+            # Status/condition based on level:
+            #   L5          → RECEIVING + FINISHED_GOOD
+            #   L3/L4       → RECEIVING + COMPONENTS
+            #   No level    → repair bit, original BACKLOADED logic
+            if bit.level == '5':
+                batch_status = DrillBit.Status.RECEIVING
+                batch_condition = DrillBit.Condition.FINISHED_GOOD
+            elif bit.level in ('3', '4'):
+                batch_status = DrillBit.Status.RECEIVING
+                batch_condition = DrillBit.Condition.COMPONENTS
+            else:
+                # Repair bit — no level set
+                batch_status = None
+                if batch.batch_type == BackloadBatch.BatchType.NEW:
+                    batch_condition = DrillBit.Condition.NOT_USED
+                else:
+                    batch_condition = DrillBit.Condition.USED
+
             if is_new:
-                # New/unregistered bit — set UNREGISTERED status
-                bit.status = DrillBit.Status.UNREGISTERED
-                bit.condition = DrillBit.Condition.COMPONENTS
+                bit.condition = batch_condition
+                if batch_status:
+                    bit.status = batch_status
+                else:
+                    bit.determine_initial_status()
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
                 bit.last_backload_date = now.date()
                 bit.derive_ownership()
@@ -137,10 +157,9 @@ def _create_and_process_items(batch, serials, user):
                     "physical_status", "last_backload_date",
                 ])
             else:
-                # Known bit returning — full BACKLOADED treatment
                 bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-                bit.status = DrillBit.Status.BACKLOADED
-                bit.condition = DrillBit.Condition.USED
+                bit.status = batch_status or DrillBit.Status.BACKLOADED
+                bit.condition = batch_condition
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
                 bit.backload_count = (bit.backload_count or 0) + 1
                 bit.last_backload_date = now.date()
@@ -152,8 +171,11 @@ def _create_and_process_items(batch, serials, user):
                 ])
                 matched += 1
 
-            # Update BackloadItem to RECEIVED
-            item.status = BackloadItem.ItemStatus.RECEIVED
+            # Set item status: UNREGISTERED if bit has no design, else ARRIVED
+            if bit.status == DrillBit.Status.UNREGISTERED:
+                item.status = BackloadItem.ItemStatus.UNREGISTERED
+            else:
+                item.status = BackloadItem.ItemStatus.ARRIVED
             item.received_date = now
             item.received_by = user
             item.bit_event = event
@@ -225,9 +247,29 @@ def _auto_process_single_item(item, user, batch):
             performed_by=user,
         )
 
+        # Status/condition based on level:
+        #   L5          → RECEIVING + FINISHED_GOOD
+        #   L3/L4       → RECEIVING + COMPONENTS
+        #   No level    → repair bit, original BACKLOADED logic
+        if bit.level == '5':
+            batch_status = DrillBit.Status.RECEIVING
+            batch_condition = DrillBit.Condition.FINISHED_GOOD
+        elif bit.level in ('3', '4'):
+            batch_status = DrillBit.Status.RECEIVING
+            batch_condition = DrillBit.Condition.COMPONENTS
+        else:
+            batch_status = None
+            if batch.batch_type == BackloadBatch.BatchType.NEW:
+                batch_condition = DrillBit.Condition.NOT_USED
+            else:
+                batch_condition = DrillBit.Condition.USED
+
         if is_new:
-            bit.status = DrillBit.Status.UNREGISTERED
-            bit.condition = DrillBit.Condition.COMPONENTS
+            bit.condition = batch_condition
+            if batch_status:
+                bit.status = batch_status
+            else:
+                bit.determine_initial_status()
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.last_backload_date = now.date()
             bit.derive_ownership()
@@ -237,8 +279,8 @@ def _auto_process_single_item(item, user, batch):
             ])
         else:
             bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-            bit.status = DrillBit.Status.BACKLOADED
-            bit.condition = DrillBit.Condition.USED
+            bit.status = batch_status or DrillBit.Status.BACKLOADED
+            bit.condition = batch_condition
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.backload_count = (bit.backload_count or 0) + 1
             bit.last_backload_date = now.date()
@@ -250,7 +292,11 @@ def _auto_process_single_item(item, user, batch):
             ])
             matched = 1
 
-        item.status = BackloadItem.ItemStatus.RECEIVED
+        # Set item status: UNREGISTERED if bit has no design, else ARRIVED
+        if bit.status == DrillBit.Status.UNREGISTERED:
+            item.status = BackloadItem.ItemStatus.UNREGISTERED
+        else:
+            item.status = BackloadItem.ItemStatus.ARRIVED
         item.received_date = now
         item.received_by = user
         item.bit_event = event
@@ -287,7 +333,6 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
         # Panel 1: Incoming batches (not completed)
         incoming_batches = BackloadBatch.objects.filter(
             status__in=[
-                BackloadBatch.BatchStatus.PENDING,
                 BackloadBatch.BatchStatus.ARRIVED,
                 BackloadBatch.BatchStatus.PROCESSING,
             ]
@@ -321,7 +366,6 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
         pending_registration = BackloadItem.objects.filter(
             match_status=BackloadItem.MatchStatus.UNMATCHED,
             batch__status__in=[
-                BackloadBatch.BatchStatus.PENDING,
                 BackloadBatch.BatchStatus.ARRIVED,
                 BackloadBatch.BatchStatus.PROCESSING,
             ],
@@ -342,7 +386,6 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             "pending_registration_count": BackloadItem.objects.filter(
                 match_status=BackloadItem.MatchStatus.UNMATCHED,
                 batch__status__in=[
-                    BackloadBatch.BatchStatus.PENDING,
                     BackloadBatch.BatchStatus.ARRIVED,
                     BackloadBatch.BatchStatus.PROCESSING,
                 ],

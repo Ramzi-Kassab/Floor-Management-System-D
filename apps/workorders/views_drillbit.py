@@ -338,11 +338,33 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         bit = get_object_or_404(DrillBit, pk=self.kwargs['pk'])
         context['bit'] = bit
-        context['locations'] = Location.objects.filter(is_active=True).order_by('name')
+
+        # Filtered location lists for each option
+        # "Received at ARDT" — warehouse, receiving, WIP areas
+        context['received_locations'] = Location.objects.filter(
+            is_active=True,
+            location_type__in=[
+                Location.LocationType.WAREHOUSE,
+                Location.LocationType.RECEIVING,
+                Location.LocationType.WIP,
+            ]
+        ).order_by('name')
+
+        # "Customer Intake" — receiving, evaluation, backload areas
+        context['intake_locations'] = Location.objects.filter(
+            is_active=True,
+            location_type__in=[
+                Location.LocationType.RECEIVING,
+                Location.LocationType.EVALUATION,
+                Location.LocationType.WAREHOUSE,
+            ]
+        ).order_by('name')
+
         if Customer:
             context['customers'] = Customer.objects.filter(is_active=True).order_by('name') if hasattr(Customer, 'is_active') else Customer.objects.all().order_by('name')
         else:
             context['customers'] = []
+
         # Default USA location for "In Production" option (Woodlands, Texas)
         context['usa_location'] = Location.objects.filter(
             location_type=Location.LocationType.USA, is_active=True
@@ -374,12 +396,17 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
 
         location = get_object_or_404(Location, pk=location_id)
 
+        # All newly registered bits start as COMPONENTS.
+        # FINISHED_GOOD is only set after manufacturing is complete.
+        # Having a BOM (L5) does NOT change this — it's part of identity, not condition.
+        smart_condition = DrillBit.Condition.COMPONENTS
+
         # Update bit fields based on event type
         if event_type == 'received':
             # ARDT received new bit
             bit.bit_location = location
             bit.status = DrillBit.Status.RECEIVING
-            bit.condition = DrillBit.Condition.COMPONENTS
+            bit.condition = smart_condition
             bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.accounting_status = DrillBit.AccountingStatus.ARDT_OWNED
@@ -404,7 +431,7 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         elif event_type == 'in_production':
             # Bit exists but still in production (no physical location at ARDT)
             bit.status = DrillBit.Status.IN_PRODUCTION
-            bit.condition = DrillBit.Condition.COMPONENTS
+            bit.condition = smart_condition
             bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
             # No physical location yet, but we need one for the event
             # Use the selected location as "pending delivery to"
@@ -1148,7 +1175,7 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
         if key == "serial":
             return bit.serial_number
         elif key == "level":
-            return f"L{bit.design.order_level}" if bit.design and bit.design.order_level else ""
+            return f"L{bit.level}" if bit.level else ""
         elif key == "type":
             return bit.get_bit_type_display()
         elif key == "design":

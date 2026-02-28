@@ -244,6 +244,12 @@ class DrillBit(models.Model):
         verbose_name="System BOM",
         help_text="L5 System BOM - client-facing (fixed MAT#)"
     )
+    # Order level: L3/L4 from design, L5 when BOM is assigned
+    level = models.CharField(
+        max_length=5, blank=True,
+        help_text="Order level: 3=Design only, 4=Design welded, 5=With BOM/cutters"
+    )
+
     size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")
     iadc_code = models.CharField(max_length=20, blank=True)
 
@@ -372,11 +378,17 @@ class DrillBit(models.Model):
                 self.iadc_code = self.design.iadc_code
             if hasattr(self.design, 'product_type') and self.design.product_type:
                 self.product_type = self.design.product_type
+            # Level: from design (L3/L4) — only if not already set by user
+            # User may have explicitly set L5, so don't overwrite that
+            if not self.level and self.design.order_level:
+                self.level = self.design.order_level
 
-        if self.bom:
-            # Sync MAT number from BOM
-            if self.bom.code:
-                self.mat_number = self.bom.code
+        # Sync MAT number from BOM if present
+        has_bom = self.bom_id or self.brazing_bom_id or self.system_bom_id
+        if has_bom and self.bom and self.bom.code:
+            self.mat_number = self.bom.code
+        elif self.bom and self.bom.code:
+            self.mat_number = self.bom.code
 
     # Account code → Ownership mapping
     ACCOUNT_OWNERSHIP_MAP = {
@@ -392,6 +404,27 @@ class DrillBit(models.Model):
         'L4': Ownership.MANUFACTURE,
         'ARDT': Ownership.ARDT,
     }
+
+    def determine_initial_status(self):
+        """
+        Determine the correct initial status based on design/BOM presence.
+
+        Business rules:
+          - No design                        → UNREGISTERED
+          - Has design (L3/L4), with or
+            without BOM (L5)                 → ORDERED, condition=COMPONENTS
+
+        Note: Having a BOM does NOT make a bit FINISHED_GOOD or IN_STOCK.
+        FINISHED_GOOD is only set after manufacturing is complete.
+        L5 (BOM) is tracked as part of the bit's identity but does not
+        change the initial condition.
+        """
+        if self.design_id:
+            self.status = self.Status.ORDERED
+            self.condition = self.Condition.COMPONENTS
+        else:
+            self.status = self.Status.UNREGISTERED
+            # condition stays as-is (caller sets it, e.g. NOT_USED from batch)
 
     def derive_ownership(self):
         """Derive ownership from account + is_trial flag. Call before save when account changes."""
@@ -2993,7 +3026,6 @@ class BackloadBatch(models.Model):
     """
 
     class BatchStatus(models.TextChoices):
-        PENDING = "PENDING", "Pending"
         ARRIVED = "ARRIVED", "Arrived"
         PROCESSING = "PROCESSING", "Processing"
         COMPLETED = "COMPLETED", "Completed"
@@ -3041,7 +3073,7 @@ class BackloadBatch(models.Model):
     )
     status = models.CharField(
         max_length=20, choices=BatchStatus.choices,
-        default=BatchStatus.PENDING
+        default=BatchStatus.ARRIVED
     )
     reference_file = models.FileField(
         upload_to="backload_references/%Y/%m/",
@@ -3100,31 +3132,36 @@ class BackloadBatch(models.Model):
         """Recalculate item_count and received_count from items."""
         self.item_count = self.items.count()
         self.received_count = self.items.filter(
-            status__in=[
-                BackloadItem.ItemStatus.RECEIVED,
-                BackloadItem.ItemStatus.EVALUATED,
-                BackloadItem.ItemStatus.COMPLETED,
-            ]
+            status=BackloadItem.ItemStatus.RECEIVED,
         ).count()
         self.save(update_fields=["item_count", "received_count", "updated_at"])
 
     def auto_update_status(self):
-        """Auto-transition batch status based on items."""
+        """Auto-transition batch status based on items.
+
+        Batch-level status flow:
+          ARRIVED → batch just created, no inspections started
+          PROCESSING → at least one item is being inspected or received
+          COMPLETED → all items received
+        """
         if self.item_count == 0:
             return
-        if self.received_count == 0:
-            new_status = self.BatchStatus.PENDING
-        elif self.received_count < self.item_count:
+
+        # Count items that have moved beyond ARRIVED/UNREGISTERED
+        active_count = self.items.filter(
+            status__in=[
+                BackloadItem.ItemStatus.PROCESSING,
+                BackloadItem.ItemStatus.RECEIVED,
+                BackloadItem.ItemStatus.HOLD,
+            ]
+        ).count()
+
+        if self.received_count >= self.item_count:
+            new_status = self.BatchStatus.COMPLETED
+        elif active_count > 0:
             new_status = self.BatchStatus.PROCESSING
         else:
-            # All received — check if all completed
-            completed = self.items.filter(
-                status=BackloadItem.ItemStatus.COMPLETED
-            ).count()
-            if completed == self.item_count:
-                new_status = self.BatchStatus.COMPLETED
-            else:
-                new_status = self.BatchStatus.PROCESSING
+            new_status = self.BatchStatus.ARRIVED
 
         if self.status != new_status:
             self.status = new_status
@@ -3160,10 +3197,11 @@ class BackloadItem(models.Model):
     """
 
     class ItemStatus(models.TextChoices):
-        EXPECTED = "EXPECTED", "Expected"
+        ARRIVED = "ARRIVED", "Arrived"
+        UNREGISTERED = "UNREGISTERED", "Unregistered"
+        PROCESSING = "PROCESSING", "Processing"
         RECEIVED = "RECEIVED", "Received"
-        EVALUATED = "EVALUATED", "Evaluated"
-        COMPLETED = "COMPLETED", "Completed"
+        HOLD = "HOLD", "Hold"
 
     class MatchStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
@@ -3182,7 +3220,7 @@ class BackloadItem(models.Model):
     )
     status = models.CharField(
         max_length=20, choices=ItemStatus.choices,
-        default=ItemStatus.EXPECTED
+        default=ItemStatus.ARRIVED
     )
     match_status = models.CharField(
         max_length=20, choices=MatchStatus.choices,

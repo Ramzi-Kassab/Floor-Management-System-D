@@ -18,8 +18,7 @@
     </div>
     <div class="flex items-center gap-3">
         <span class="px-3 py-1 text-sm rounded-full font-medium
-            {% if batch.status == 'PENDING' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
-            {% elif batch.status == 'ARRIVED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
+            {% if batch.status == 'ARRIVED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
             {% elif batch.status == 'PROCESSING' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
             {% elif batch.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
             {% endif %}">
@@ -246,47 +245,46 @@
                         {# Status badges #}
                         <td class="px-4 py-3">
                             <div class="flex flex-wrap items-center gap-1.5">
-                                {% if item.match_status == 'MATCHED' and item.status == 'RECEIVED' %}
-                                    {# Matched + Received — green badge with timestamp #}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Received
+                                {% if item.status == 'ARRIVED' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                        <i data-lucide="package" class="w-3 h-3"></i> Arrived
                                     </span>
-                                    {% if item.received_date %}
-                                    <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
-                                    {% endif %}
-                                    {# No BOM sub-badge #}
-                                    {% if item.drill_bit and not item.drill_bit.bom and not item.drill_bit.brazing_bom and not item.drill_bit.system_bom %}
-                                    <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned — request raised">
-                                        No BOM
-                                    </span>
-                                    {% endif %}
 
-                                {% elif item.match_status == 'NEW_REGISTERED' and item.status == 'RECEIVED' %}
-                                    {# Newly registered + Received — orange unregistered badge #}
+                                {% elif item.status == 'UNREGISTERED' %}
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">
                                         <i data-lucide="alert-circle" class="w-3 h-3"></i> Unregistered
                                     </span>
-                                    {% if item.received_date %}
-                                    <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
-                                    {% endif %}
 
-                                {% elif item.match_status == 'UNMATCHED' %}
-                                    {# Unmatched — amber badge #}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                                        <i data-lucide="clock" class="w-3 h-3"></i> Pending Registration
+                                {% elif item.status == 'PROCESSING' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                        <i data-lucide="loader" class="w-3 h-3"></i> Processing
                                     </span>
 
-                                {% elif item.match_status == 'MATCHED' and item.status == 'EXPECTED' %}
-                                    {# Matched but not yet received (shouldn't happen with auto-process, but safety) #}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
-                                        <i data-lucide="alert-circle" class="w-3 h-3"></i> Matched
+                                {% elif item.status == 'RECEIVED' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Received
+                                    </span>
+
+                                {% elif item.status == 'HOLD' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                                        <i data-lucide="pause-circle" class="w-3 h-3"></i> Hold
                                     </span>
 
                                 {% else %}
-                                    {# Fallback #}
                                     <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
                                         {{ item.get_status_display }}
                                     </span>
+                                {% endif %}
+
+                                {% if item.received_date %}
+                                <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
+                                {% endif %}
+
+                                {# No BOM sub-badge #}
+                                {% if item.drill_bit and not item.drill_bit.bom and not item.drill_bit.brazing_bom and not item.drill_bit.system_bom %}
+                                <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned — request raised">
+                                    No BOM
+                                </span>
                                 {% endif %}
                             </div>
                         </td>

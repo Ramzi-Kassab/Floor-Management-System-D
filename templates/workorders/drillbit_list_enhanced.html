@@ -487,8 +487,8 @@
                         <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="text-blue-600 hover:underline font-medium font-mono">{{ bit.serial_number }}</a>
                     </td>
                     <!-- Level -->
-                    <td x-show="columns.level" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.order_level|default:'' }}">
-                        {% if bit.design.order_level %}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">L{{ bit.design.order_level }}</span>{% else %}--{% endif %}
+                    <td x-show="columns.level" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.level|default:'' }}">
+                        {% if bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bit.level == '3' %}bg-blue-100 text-blue-800{% elif bit.level == '4' %}bg-green-100 text-green-800{% elif bit.level == '5' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">L{{ bit.level }}</span>{% else %}--{% endif %}
                     </td>
                     <!-- FC/RC -->
                     <td x-show="columns.type" class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
