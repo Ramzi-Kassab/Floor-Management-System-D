@@ -8,7 +8,9 @@ Two flows:
 """
 
 import json
+import re
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -31,6 +33,226 @@ from .models import (
     ReceivingInspection,
 )
 from .forms import BackloadBatchForm
+
+
+# =============================================================================
+# SHARED HELPERS (used by batch create + add-items + replace-serial APIs)
+# =============================================================================
+
+def _parse_serials(raw_text):
+    """Parse raw serial text into validated list + errors.
+
+    Returns (cleaned_list, error_list).
+    Strips non-digit characters, validates 6 or 8 digit length, deduplicates.
+    """
+    cleaned = []
+    errors = []
+    seen = set()
+    for line in raw_text.strip().split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        digits = re.sub(r'\D', '', line)
+        if not digits:
+            errors.append(f"'{line}': no digits found")
+            continue
+        if len(digits) not in (6, 8):
+            errors.append(f"'{digits}': must be 6 or 8 digits")
+            continue
+        if digits in seen:
+            errors.append(f"'{digits}': duplicate")
+            continue
+        seen.add(digits)
+        cleaned.append(digits)
+    return cleaned, errors
+
+
+def _create_and_process_items(batch, serials, user):
+    """Create BackloadItems, match, and auto-process. Returns result counts.
+
+    Auto-processing:
+      - MATCHED items: existing DrillBit updated with BACKLOADED status
+      - UNMATCHED items: new DrillBit auto-created, then processed same way
+      - Creates BitEvent(BACKLOADED) for all items
+      - Updates DrillBit status fields
+      - Raises BOMPendingRequest if no BOM assigned
+    """
+    now = timezone.now()
+    receiving_loc = Location.objects.filter(
+        location_type=Location.LocationType.RECEIVING
+    ).first()
+
+    start_order = batch.items.count()
+    matched = 0
+    new_registered = 0
+    bom_pending = 0
+
+    for i, sn in enumerate(serials):
+        item = BackloadItem(batch=batch, serial_number=sn, sort_order=start_order + i)
+        item.save()
+        item.attempt_match()
+
+        # If unmatched, auto-register as a new DrillBit
+        if item.match_status == BackloadItem.MatchStatus.UNMATCHED:
+            bit_type = DrillBit.BitCategory.FC if len(sn) == 8 else DrillBit.BitCategory.RC
+            new_bit = DrillBit(
+                serial_number=sn,
+                bit_type=bit_type,
+                size=Decimal("0"),
+                status=DrillBit.Status.UNREGISTERED,
+                account=batch.account,
+                customer=batch.customer,
+            )
+            new_bit.save()
+            item.drill_bit = new_bit
+            item.match_status = BackloadItem.MatchStatus.NEW_REGISTERED
+            item.save(update_fields=["drill_bit", "match_status"])
+            new_registered += 1
+
+        # Now process all items that have a drill_bit
+        if item.drill_bit:
+            bit = item.drill_bit
+            is_new = item.match_status == BackloadItem.MatchStatus.NEW_REGISTERED
+
+            # Create BitEvent — BACKLOADED for known bits, RECEIVED for new
+            event_type = BitEvent.EventType.RECEIVED if is_new else BitEvent.EventType.BACKLOADED
+            event = BitEvent.objects.create(
+                bit=bit,
+                event_type=event_type,
+                event_date=now,
+                location=receiving_loc,
+                notes=f"Backload batch {batch.batch_number}",
+                performed_by=user,
+            )
+
+            if is_new:
+                # New/unregistered bit — set UNREGISTERED status
+                bit.status = DrillBit.Status.UNREGISTERED
+                bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+                bit.last_backload_date = now.date()
+                bit.save(update_fields=["status", "physical_status", "last_backload_date"])
+            else:
+                # Known bit returning — full BACKLOADED/RETURNED treatment
+                bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
+                bit.status = DrillBit.Status.RETURNED
+                bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+                bit.backload_count = (bit.backload_count or 0) + 1
+                bit.last_backload_date = now.date()
+                bit.save(update_fields=[
+                    "lifecycle_status", "status", "physical_status",
+                    "backload_count", "last_backload_date",
+                ])
+                matched += 1
+
+            # Update BackloadItem to RECEIVED
+            item.status = BackloadItem.ItemStatus.RECEIVED
+            item.received_date = now
+            item.received_by = user
+            item.bit_event = event
+            item.save(update_fields=["status", "received_date", "received_by", "bit_event"])
+
+            # Auto-raise BOM pending if bit has no BOM
+            if not bit.bom and not bit.brazing_bom and not bit.system_bom:
+                if not BOMPendingRequest.objects.filter(
+                    drill_bit=bit,
+                    status=BOMPendingRequest.RequestStatus.OPEN,
+                ).exists():
+                    BOMPendingRequest.objects.create(
+                        drill_bit=bit,
+                        requested_by=user,
+                        notes=f"Auto: No BOM at receiving (batch {batch.batch_number}).",
+                    )
+                    bom_pending += 1
+
+    batch.update_counts()
+    batch.auto_update_status()
+
+    return {"matched": matched, "new_registered": new_registered, "bom_pending": bom_pending}
+
+
+def _auto_process_single_item(item, user, batch):
+    """Auto-process a single BackloadItem after match/register. Returns result counts.
+
+    If item is UNMATCHED, auto-registers a new DrillBit first.
+    """
+    now = timezone.now()
+    receiving_loc = Location.objects.filter(
+        location_type=Location.LocationType.RECEIVING
+    ).first()
+
+    matched = 0
+    new_registered = 0
+    bom_pending = 0
+
+    # Auto-register unmatched items
+    if item.match_status == BackloadItem.MatchStatus.UNMATCHED:
+        sn = item.serial_number
+        bit_type = DrillBit.BitCategory.FC if len(sn) == 8 else DrillBit.BitCategory.RC
+        new_bit = DrillBit(
+            serial_number=sn,
+            bit_type=bit_type,
+            size=Decimal("0"),
+            status=DrillBit.Status.UNREGISTERED,
+            account=batch.account,
+            customer=batch.customer,
+        )
+        new_bit.save()
+        item.drill_bit = new_bit
+        item.match_status = BackloadItem.MatchStatus.NEW_REGISTERED
+        item.save(update_fields=["drill_bit", "match_status"])
+        new_registered = 1
+
+    # Process all items with a drill_bit
+    if item.drill_bit:
+        bit = item.drill_bit
+        is_new = item.match_status == BackloadItem.MatchStatus.NEW_REGISTERED
+
+        event_type = BitEvent.EventType.RECEIVED if is_new else BitEvent.EventType.BACKLOADED
+        event = BitEvent.objects.create(
+            bit=bit,
+            event_type=event_type,
+            event_date=now,
+            location=receiving_loc,
+            notes=f"Backload batch {batch.batch_number}",
+            performed_by=user,
+        )
+
+        if is_new:
+            bit.status = DrillBit.Status.UNREGISTERED
+            bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.last_backload_date = now.date()
+            bit.save(update_fields=["status", "physical_status", "last_backload_date"])
+        else:
+            bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
+            bit.status = DrillBit.Status.RETURNED
+            bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.backload_count = (bit.backload_count or 0) + 1
+            bit.last_backload_date = now.date()
+            bit.save(update_fields=[
+                "lifecycle_status", "status", "physical_status",
+                "backload_count", "last_backload_date",
+            ])
+            matched = 1
+
+        item.status = BackloadItem.ItemStatus.RECEIVED
+        item.received_date = now
+        item.received_by = user
+        item.bit_event = event
+        item.save(update_fields=["status", "received_date", "received_by", "bit_event"])
+
+        if not bit.bom and not bit.brazing_bom and not bit.system_bom:
+            if not BOMPendingRequest.objects.filter(
+                drill_bit=bit,
+                status=BOMPendingRequest.RequestStatus.OPEN,
+            ).exists():
+                BOMPendingRequest.objects.create(
+                    drill_bit=bit,
+                    requested_by=user,
+                    notes=f"Auto: No BOM at receiving (batch {batch.batch_number}).",
+                )
+                bom_pending = 1
+
+    return {"matched": matched, "new_registered": new_registered, "bom_pending": bom_pending}
 
 
 # =============================================================================
@@ -79,6 +301,18 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             "requested_by",
         ).order_by("-created_at")[:10]
 
+        # Panel 5: Pending registration (UNMATCHED items in active batches)
+        pending_registration = BackloadItem.objects.filter(
+            match_status=BackloadItem.MatchStatus.UNMATCHED,
+            batch__status__in=[
+                BackloadBatch.BatchStatus.PENDING,
+                BackloadBatch.BatchStatus.ARRIVED,
+                BackloadBatch.BatchStatus.PROCESSING,
+            ],
+        ).select_related(
+            "batch",
+        ).order_by("-batch__created_at", "sort_order")[:15]
+
         ctx.update({
             "incoming_batches": incoming_batches,
             "incoming_batches_count": incoming_batches.count(),
@@ -88,6 +322,15 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             "pending_inspections_count": pending_inspections.count(),
             "bom_pending": bom_pending,
             "bom_pending_count": bom_pending.count(),
+            "pending_registration": pending_registration,
+            "pending_registration_count": BackloadItem.objects.filter(
+                match_status=BackloadItem.MatchStatus.UNMATCHED,
+                batch__status__in=[
+                    BackloadBatch.BatchStatus.PENDING,
+                    BackloadBatch.BatchStatus.ARRIVED,
+                    BackloadBatch.BatchStatus.PROCESSING,
+                ],
+            ).count(),
         })
         return ctx
 
@@ -108,9 +351,9 @@ class BackloadBatchListView(LoginRequiredMixin, ListView):
         status = self.request.GET.get("status")
         if status:
             qs = qs.filter(status=status)
-        account = self.request.GET.get("account")
-        if account:
-            qs = qs.filter(account_id=account)
+        batch_type = self.request.GET.get("batch_type")
+        if batch_type:
+            qs = qs.filter(batch_type=batch_type)
         q = self.request.GET.get("q")
         if q:
             qs = qs.filter(
@@ -121,19 +364,20 @@ class BackloadBatchListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        from apps.sales.models import Account
-        ctx["accounts"] = Account.objects.filter(
-            workflow_type__in=["REPAIR", "BOTH"], is_active=True
-        ).order_by("sort_order", "name")
         ctx["status_choices"] = BackloadBatch.BatchStatus.choices
+        ctx["type_choices"] = BackloadBatch.BatchType.choices
         ctx["current_status"] = self.request.GET.get("status", "")
-        ctx["current_account"] = self.request.GET.get("account", "")
+        ctx["current_type"] = self.request.GET.get("batch_type", "")
         ctx["current_q"] = self.request.GET.get("q", "")
         return ctx
 
 
 class BackloadBatchCreateView(LoginRequiredMixin, CreateView):
-    """Create a new backload batch with bulk serial entry."""
+    """
+    Create a new backload batch with bulk serial entry.
+    Creating a batch = physically receiving the bits.
+    Auto-processes: match → confirm → raise BOM requests.
+    """
     model = BackloadBatch
     form_class = BackloadBatchForm
     template_name = "workorders/backload_batch_create.html"
@@ -160,32 +404,36 @@ class BackloadBatchCreateView(LoginRequiredMixin, CreateView):
             for w in form._serial_warnings:
                 messages.warning(self.request, f"Skipped: {w}")
 
-        # Parse serials and create items
+        # ── Create items, match, and auto-process (shared helper) ──
         serials = form.get_serial_list()
-        for i, sn in enumerate(serials):
-            item = BackloadItem(
-                batch=batch,
-                serial_number=sn,
-                sort_order=i,
-            )
-            item.save()
-            item.attempt_match()
+        results = _create_and_process_items(batch, serials, self.request.user)
 
-        # Update counts
-        batch.update_counts()
+        # ── Update batch received date ──
+        batch.received_date = timezone.now().date()
+        batch.save(update_fields=["received_date"])
 
-        matched = batch.items.filter(match_status=BackloadItem.MatchStatus.MATCHED).count()
-        unmatched = batch.items.filter(match_status=BackloadItem.MatchStatus.UNMATCHED).count()
-        messages.success(
-            self.request,
-            f"Batch {batch.batch_number} created with {len(serials)} serials. "
-            f"{matched} matched, {unmatched} not found."
-        )
+        # ── Build success message ──
+        matched_count = results["matched"]
+        new_count = results["new_registered"]
+        bom_pending_count = results["bom_pending"]
+        total_received = matched_count + new_count
+        msg = f"Batch {batch.batch_number}: {total_received} received"
+        if matched_count and new_count:
+            msg += f" ({matched_count} matched, {new_count} new)"
+        elif new_count:
+            msg += f" ({new_count} new)"
+        msg += "."
+        if bom_pending_count:
+            msg += f" {bom_pending_count} BOM request(s) raised."
+        messages.success(self.request, msg)
+
         return redirect("workorders:backload_batch_detail", pk=batch.pk)
 
 
 class BackloadBatchDetailView(LoginRequiredMixin, DetailView):
-    """Detail view showing batch items with actions."""
+    """Informational detail view — no action buttons.
+    Shows receiving status, clickable serials for matched items, status badges.
+    """
     model = BackloadBatch
     template_name = "workorders/backload_batch_detail.html"
     context_object_name = "batch"
@@ -199,184 +447,26 @@ class BackloadBatchDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         items = self.object.items.select_related(
             "drill_bit", "drill_bit__design", "drill_bit__design__size",
+            "drill_bit__bom", "drill_bit__brazing_bom", "drill_bit__system_bom",
+            "drill_bit__account",
             "received_by", "work_order", "bit_event",
         ).order_by("sort_order", "id")
         ctx["items"] = items
         ctx["attachments"] = self.object.attachments.all()
-        ctx["matched_count"] = items.filter(match_status=BackloadItem.MatchStatus.MATCHED).count()
+        ctx["matched_count"] = items.filter(
+            match_status__in=[BackloadItem.MatchStatus.MATCHED, BackloadItem.MatchStatus.NEW_REGISTERED]
+        ).count()
         ctx["unmatched_count"] = items.filter(match_status=BackloadItem.MatchStatus.UNMATCHED).count()
-        ctx["new_registered_count"] = items.filter(match_status=BackloadItem.MatchStatus.NEW_REGISTERED).count()
-        ctx["received_count"] = items.exclude(status=BackloadItem.ItemStatus.EXPECTED).count()
+        ctx["received_count"] = items.filter(status=BackloadItem.ItemStatus.RECEIVED).count()
+        ctx["total_count"] = items.count()
         return ctx
 
 
 # =============================================================================
 # BACKLOAD BATCH API ENDPOINTS
+# NOTE: confirm-item, confirm-all, register-new removed (Feb 2026)
+#       — auto-processed on batch creation in BackloadBatchCreateView.form_valid()
 # =============================================================================
-
-@login_required
-@require_POST
-def api_batch_confirm_arrival(request, pk):
-    """Confirm arrival of a single item in a batch."""
-    batch = get_object_or_404(BackloadBatch, pk=pk)
-    data = json.loads(request.body) if request.content_type == "application/json" else request.POST
-    item_id = data.get("item_id")
-    item = get_object_or_404(BackloadItem, pk=item_id, batch=batch)
-
-    if item.status != BackloadItem.ItemStatus.EXPECTED:
-        return JsonResponse({"ok": False, "error": "Item already received."}, status=400)
-
-    if not item.drill_bit:
-        return JsonResponse({"ok": False, "error": "No drill bit matched. Register first."}, status=400)
-
-    bit = item.drill_bit
-    now = timezone.now()
-
-    # Use Receiving Area as default location for backload events
-    receiving_loc = Location.objects.filter(location_type=Location.LocationType.RECEIVING).first()
-
-    # 1. Create BitEvent(BACKLOADED)
-    event = BitEvent.objects.create(
-        bit=bit,
-        event_type=BitEvent.EventType.BACKLOADED,
-        event_date=now,
-        location=receiving_loc,
-        notes=f"Backload batch {batch.batch_number}",
-        performed_by=request.user,
-    )
-
-    # 2. Update DrillBit
-    bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-    bit.status = DrillBit.Status.RETURNED
-    bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
-    bit.backload_count = (bit.backload_count or 0) + 1
-    bit.last_backload_date = now.date()
-    bit.save(update_fields=[
-        "lifecycle_status", "status", "physical_status",
-        "backload_count", "last_backload_date",
-    ])
-
-    # 3. Update BackloadItem
-    item.status = BackloadItem.ItemStatus.RECEIVED
-    item.received_date = now
-    item.received_by = request.user
-    item.bit_event = event
-    item.save(update_fields=["status", "received_date", "received_by", "bit_event"])
-
-    # 4. Update batch counts + auto-status
-    batch.update_counts()
-    batch.auto_update_status()
-
-    # Set received_date on batch if first arrival
-    if not batch.received_date:
-        batch.received_date = now.date()
-        batch.save(update_fields=["received_date"])
-
-    return JsonResponse({
-        "ok": True,
-        "item_status": item.get_status_display(),
-        "batch_received_count": batch.received_count,
-        "batch_status": batch.get_status_display(),
-    })
-
-
-@login_required
-@require_POST
-def api_batch_confirm_all(request, pk):
-    """Confirm arrival of ALL matched, unconfirmed items in a batch."""
-    batch = get_object_or_404(BackloadBatch, pk=pk)
-    pending_items = batch.items.filter(
-        status=BackloadItem.ItemStatus.EXPECTED,
-        match_status=BackloadItem.MatchStatus.MATCHED,
-        drill_bit__isnull=False,
-    )
-
-    now = timezone.now()
-    confirmed = 0
-
-    # Use Receiving Area as default location for backload events
-    receiving_loc = Location.objects.filter(location_type=Location.LocationType.RECEIVING).first()
-
-    for item in pending_items:
-        bit = item.drill_bit
-        event = BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.BACKLOADED,
-            event_date=now,
-            location=receiving_loc,
-            notes=f"Backload batch {batch.batch_number} (bulk confirm)",
-            performed_by=request.user,
-        )
-        bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-        bit.status = DrillBit.Status.RETURNED
-        bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
-        bit.backload_count = (bit.backload_count or 0) + 1
-        bit.last_backload_date = now.date()
-        bit.save(update_fields=[
-            "lifecycle_status", "status", "physical_status",
-            "backload_count", "last_backload_date",
-        ])
-
-        item.status = BackloadItem.ItemStatus.RECEIVED
-        item.received_date = now
-        item.received_by = request.user
-        item.bit_event = event
-        item.save(update_fields=["status", "received_date", "received_by", "bit_event"])
-        confirmed += 1
-
-    batch.update_counts()
-    batch.auto_update_status()
-    if not batch.received_date:
-        batch.received_date = now.date()
-        batch.save(update_fields=["received_date"])
-
-    return JsonResponse({
-        "ok": True,
-        "confirmed": confirmed,
-        "batch_received_count": batch.received_count,
-        "batch_status": batch.get_status_display(),
-    })
-
-
-@login_required
-@require_POST
-def api_batch_register_new_bit(request, pk):
-    """Register a new DrillBit for an unmatched serial in the batch."""
-    batch = get_object_or_404(BackloadBatch, pk=pk)
-    data = json.loads(request.body) if request.content_type == "application/json" else request.POST
-    item_id = data.get("item_id")
-    item = get_object_or_404(BackloadItem, pk=item_id, batch=batch)
-
-    if item.match_status != BackloadItem.MatchStatus.UNMATCHED:
-        return JsonResponse({"ok": False, "error": "Item is not unmatched."}, status=400)
-
-    # Determine bit category from serial number length (8-digit = FC, 6-digit = RC)
-    sn = item.serial_number.strip()
-    bit_category = DrillBit.BitCategory.RC if len(sn) == 6 else DrillBit.BitCategory.FC
-
-    # Create a new DrillBit (size=0 as placeholder — updated later from design)
-    bit = DrillBit.objects.create(
-        serial_number=sn,
-        bit_type=bit_category,
-        account=batch.account,
-        status=DrillBit.Status.NEW,
-        lifecycle_status=DrillBit.LifecycleStatus.NEW,
-        physical_status=DrillBit.PhysicalStatus.AT_ARDT,
-        size=0,
-        created_by=request.user,
-    )
-
-    item.drill_bit = bit
-    item.match_status = BackloadItem.MatchStatus.NEW_REGISTERED
-    item.save(update_fields=["drill_bit", "match_status"])
-
-    return JsonResponse({
-        "ok": True,
-        "drill_bit_id": bit.pk,
-        "serial_number": bit.serial_number,
-        "match_status": item.get_match_status_display(),
-    })
-
 
 @login_required
 @require_POST
@@ -395,6 +485,75 @@ def api_batch_rematch(request, pk):
         "ok": True,
         "rematched": rematched,
         "still_unmatched": unmatched.count() - rematched,
+    })
+
+
+@login_required
+@require_POST
+def api_batch_remove_item(request, pk):
+    """Remove a serial number from a batch (undo a mistaken entry).
+
+    Reverses any side-effects:
+      - Deletes the BitEvent if one was auto-created
+      - Resets DrillBit lifecycle/status fields that were set on receiving
+      - Cancels any BOMPendingRequest that was auto-raised for this item
+      - Updates batch counts
+    """
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    data = json.loads(request.body) if request.content_type == "application/json" else request.POST
+    item_id = data.get("item_id")
+    item = get_object_or_404(BackloadItem, pk=item_id, batch=batch)
+
+    serial = item.serial_number
+    bit = item.drill_bit
+    reversed_event = False
+
+    # 1. Reverse BitEvent if one was created during auto-confirm
+    if item.bit_event:
+        event = item.bit_event
+        item.bit_event = None
+        item.save(update_fields=["bit_event"])
+        event.delete()
+        reversed_event = True
+
+    # 2. Reset DrillBit status if it was modified by receiving
+    if bit and reversed_event:
+        # Decrement backload_count (don't go below 0)
+        bit.backload_count = max((bit.backload_count or 0) - 1, 0)
+        # Only reset lifecycle/status if this was the most recent event
+        # (i.e. the bit is still in BACKLOADED state)
+        if bit.lifecycle_status == DrillBit.LifecycleStatus.BACKLOADED:
+            # Check if there are other remaining BACKLOADED events
+            other_backloads = BitEvent.objects.filter(
+                bit=bit,
+                event_type=BitEvent.EventType.BACKLOADED,
+            ).exists()
+            if not other_backloads:
+                # No other backload events — reset to the bit's state before receiving
+                bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
+                bit.status = DrillBit.Status.NEW
+        bit.save(update_fields=[
+            "lifecycle_status", "status", "backload_count",
+        ])
+
+    # 3. Cancel any BOMPendingRequest that was auto-raised for this bit
+    if bit:
+        BOMPendingRequest.objects.filter(
+            drill_bit=bit,
+            status=BOMPendingRequest.RequestStatus.OPEN,
+        ).update(status=BOMPendingRequest.RequestStatus.CANCELLED)
+
+    # 4. Delete the BackloadItem
+    item.delete()
+
+    # 5. Update batch counts + auto-status
+    batch.update_counts()
+    batch.auto_update_status()
+
+    return JsonResponse({
+        "ok": True,
+        "serial": serial,
+        "reversed_event": reversed_event,
     })
 
 
@@ -435,6 +594,187 @@ def api_batch_delete_attachment(request, pk, att_pk):
         att.file.delete(save=False)
     att.delete()
     return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def api_batch_add_items(request, pk):
+    """Add more serials to an existing batch (bits missed during creation).
+
+    Expects JSON body: {"serials": "one\\nper\\nline"}
+    Validates, deduplicates against existing batch items, creates + auto-processes.
+    """
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    data = json.loads(request.body)
+    raw_serials = data.get("serials", "")
+
+    # Parse and validate
+    cleaned, errors = _parse_serials(raw_serials)
+
+    # Check for duplicates against existing batch items
+    existing = set(batch.items.values_list("serial_number", flat=True))
+    dupes = [s for s in cleaned if s in existing]
+    new_serials = [s for s in cleaned if s not in existing]
+
+    if not new_serials:
+        return JsonResponse({
+            "ok": False,
+            "error": "No new serials to add." + (
+                f" ({len(dupes)} duplicate(s) skipped.)" if dupes else ""
+            ) + (
+                f" ({len(errors)} invalid.)" if errors else ""
+            ),
+        })
+
+    # Create items + auto-process (shared helper)
+    results = _create_and_process_items(batch, new_serials, request.user)
+
+    return JsonResponse({
+        "ok": True,
+        "added": len(new_serials),
+        "matched": results["matched"],
+        "new_registered": results["new_registered"],
+        "duplicates": dupes,
+        "errors": errors,
+        "bom_requests": results["bom_pending"],
+    })
+
+
+@login_required
+@require_POST
+def api_batch_edit_serial(request, pk):
+    """Update a serial number (rename) — keeps all history.
+
+    Changes the serial on both BackloadItem and DrillBit.
+    Since all other models reference DrillBit via FK, the rename
+    cascades automatically to WOs, BitEvents, evaluations, etc.
+    """
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    data = json.loads(request.body)
+    item_id = data.get("item_id")
+    new_serial = data.get("new_serial", "").strip()
+
+    item = get_object_or_404(BackloadItem, pk=item_id, batch=batch)
+    old_serial = item.serial_number
+
+    # Validate new serial (digits only, 6 or 8 chars)
+    digits = re.sub(r'\D', '', new_serial)
+    if len(digits) not in (6, 8):
+        return JsonResponse({"ok": False, "error": "Serial must be 6 or 8 digits"})
+    new_serial = digits
+
+    # Same serial — no-op
+    if new_serial == old_serial:
+        return JsonResponse({"ok": True, "old_serial": old_serial, "new_serial": new_serial})
+
+    # Check new serial doesn't already exist in this batch
+    if batch.items.filter(serial_number=new_serial).exclude(pk=item.pk).exists():
+        return JsonResponse({"ok": False, "error": "Serial already in this batch"})
+
+    # Check if new serial matches a DIFFERENT existing DrillBit
+    existing_bit = DrillBit.objects.filter(serial_number=new_serial).first()
+    if existing_bit and item.drill_bit and existing_bit.pk != item.drill_bit.pk:
+        return JsonResponse({"ok": False, "error": f"Serial {new_serial} already registered to a different drill bit"})
+
+    # Update BackloadItem serial
+    item.serial_number = new_serial
+    item.save(update_fields=["serial_number"])
+
+    # Update DrillBit serial if one exists
+    if item.drill_bit:
+        item.drill_bit.serial_number = new_serial
+        item.drill_bit.save(update_fields=["serial_number"])
+
+        # Also update any OTHER BackloadItems that reference this drill_bit
+        # (e.g. the same bit appearing in a different batch)
+        BackloadItem.objects.filter(
+            drill_bit=item.drill_bit
+        ).exclude(pk=item.pk).update(serial_number=new_serial)
+
+    return JsonResponse({"ok": True, "old_serial": old_serial, "new_serial": new_serial})
+
+
+@login_required
+@require_POST
+def api_batch_replace_serial(request, pk):
+    """Replace a serial (clean slate) — removes old item + DrillBit, creates fresh item.
+
+    This is the nuclear option: deletes the old BackloadItem and its DrillBit
+    (if the DrillBit has no WorkOrders), then creates a new item with the correct serial.
+    """
+    batch = get_object_or_404(BackloadBatch, pk=pk)
+    data = json.loads(request.body)
+    item_id = data.get("item_id")
+    new_serial = data.get("new_serial", "").strip()
+
+    item = get_object_or_404(BackloadItem, pk=item_id, batch=batch)
+    old_serial = item.serial_number
+    bit = item.drill_bit
+
+    # Validate new serial
+    digits = re.sub(r'\D', '', new_serial)
+    if len(digits) not in (6, 8):
+        return JsonResponse({"ok": False, "error": "Serial must be 6 or 8 digits"})
+    new_serial = digits
+
+    # Collect impact summary for the response
+    impact = {"events_deleted": 0, "wo_orphaned": 0, "inspections_deleted": 0}
+
+    if bit:
+        # Count what will be affected
+        impact["events_deleted"] = bit.bit_events.count()
+        impact["wo_orphaned"] = bit.work_orders.count()
+        impact["inspections_deleted"] = bit.receiving_inspections.count()
+
+        # Detach BitEvent from item first
+        if item.bit_event:
+            item.bit_event = None
+            item.save(update_fields=["bit_event"])
+
+        # Cancel BOM requests for this bit
+        BOMPendingRequest.objects.filter(
+            drill_bit=bit,
+            status=BOMPendingRequest.RequestStatus.OPEN,
+        ).update(status=BOMPendingRequest.RequestStatus.CANCELLED)
+
+        # If bit has WorkOrders → just detach (WOs survive, lose bit reference via SET_NULL)
+        # If bit has no WOs → safe to delete (CASCADE removes BitEvents, Inspections, etc.)
+        has_work_orders = bit.work_orders.exists()
+        if not has_work_orders:
+            # Detach item from bit before deleting bit (avoid FK issues)
+            item.drill_bit = None
+            item.save(update_fields=["drill_bit"])
+            bit.delete()
+        else:
+            item.drill_bit = None
+            item.save(update_fields=["drill_bit"])
+
+    # Delete the old BackloadItem
+    item.delete()
+
+    # Create fresh item with new serial
+    new_item = BackloadItem(
+        batch=batch,
+        serial_number=new_serial,
+        sort_order=batch.items.count(),
+    )
+    new_item.save()
+    new_item.attempt_match()
+
+    # Auto-process if matched
+    _auto_process_single_item(new_item, request.user, batch)
+
+    # Update batch counts
+    batch.update_counts()
+    batch.auto_update_status()
+
+    return JsonResponse({
+        "ok": True,
+        "old_serial": old_serial,
+        "new_serial": new_serial,
+        "impact": impact,
+        "new_status": new_item.get_match_status_display(),
+    })
 
 
 # =============================================================================

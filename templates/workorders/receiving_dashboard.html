@@ -8,7 +8,7 @@
     </div>
     <a href="{% url 'workorders:backload_batch_create' %}"
        class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
-        <i data-lucide="plus" class="w-4 h-4"></i> New Batch
+        <i data-lucide="plus" class="w-4 h-4"></i> Receive Bits
     </a>
 </div>
 {% endblock %}
@@ -43,7 +43,12 @@
                     <span class="text-sm text-gray-500 dark:text-gray-400">{{ batch.received_count }}/{{ batch.item_count }}</span>
                 </div>
                 <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ batch.account }} &middot; {{ batch.created_at|date:"M d" }}
+                    {% if batch.batch_type == 'REPAIR' %}
+                    <span class="inline-flex items-center gap-0.5"><i data-lucide="wrench" class="w-3 h-3"></i> Repair</span>
+                    {% elif batch.batch_type == 'NEW' %}
+                    <span class="inline-flex items-center gap-0.5"><i data-lucide="sparkles" class="w-3 h-3"></i> New</span>
+                    {% else %}{{ batch.get_batch_type_display }}{% endif %}
+                    &middot; {{ batch.created_at|date:"M d" }}
                     {% if batch.batch_reference %}&middot; {{ batch.batch_reference|truncatechars:30 }}{% endif %}
                 </div>
             </a>
@@ -150,6 +155,45 @@
             <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No pending BOM requests</div>
             {% endfor %}
         </div>
+    </div>
+
+    {# ── Panel 5: Pending Registration (unmatched serials) ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-orange-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Pending Registration</h2>
+                {% if pending_registration_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">{{ pending_registration_count }}</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'workorders:drillbit_create' %}" class="text-sm text-orange-600 hover:text-orange-800 dark:text-orange-400">Register bit &rarr;</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700 max-h-80 overflow-y-auto">
+            {% for item in pending_registration %}
+            <div class="px-5 py-3">
+                <div class="flex items-center justify-between">
+                    <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ item.serial_number }}</span>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">Unmatched</span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Batch {{ item.batch.batch_number }}
+                    {% if item.batch.batch_type == 'REPAIR' %}&middot; Repair{% elif item.batch.batch_type == 'NEW' %}&middot; New{% endif %}
+                    &middot; {{ item.batch.created_at|date:"M d" }}
+                </div>
+            </div>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-green-300 dark:text-green-600"></i>
+                All received bits are registered
+            </div>
+            {% endfor %}
+        </div>
+        {% if pending_registration_count > 15 %}
+        <div class="px-5 py-2 border-t border-gray-200 dark:border-gray-700 text-center">
+            <span class="text-xs text-gray-400">Showing 15 of {{ pending_registration_count }} &mdash; register bits to clear</span>
+        </div>
+        {% endif %}
     </div>
 
 </div>

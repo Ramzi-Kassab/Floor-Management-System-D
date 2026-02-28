@@ -5,39 +5,34 @@
 
 {% block extra_css %}
 <style>
-    /* CRITICAL: Prevent main content from extending under sidebar */
+    /* CRITICAL: Lock the outer page — only the table wrapper scrolls */
     main {
-        overflow-x: hidden !important;
+        overflow: hidden !important;
         min-width: 0 !important;
     }
     main > div {
-        overflow-x: hidden !important;
+        overflow: hidden !important;
         max-width: 100% !important;
     }
 
-    /* Page container */
+    /* Page container — always flex column to pin scrollbar in viewport */
     .drillbit-page-container {
         width: 100%;
         max-width: 100%;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
 
     /* Header section - never scrolls horizontally */
     .drillbit-header-section {
         width: 100%;
         max-width: 100%;
-    }
-
-    /* Freeze mode - fills viewport, table gets independent scroll */
-    .drillbit-page-container.freeze-mode {
-        display: flex;
-        flex-direction: column;
-        height: calc(100vh - 140px);
-    }
-    .freeze-mode .drillbit-header-section {
         flex-shrink: 0;
     }
-    .freeze-mode .drillbit-table-section {
+
+    /* Table section fills remaining space */
+    .drillbit-table-section {
         flex: 1;
         min-height: 0;
         overflow: hidden;
@@ -46,11 +41,9 @@
     /* Table wrapper - element with horizontal scroll */
     .drillbit-table-wrapper {
         width: 100%;
-        overflow-x: auto;
-        overflow-y: auto;
-    }
-    .freeze-mode .drillbit-table-wrapper {
         height: 100%;
+        overflow-x: scroll;
+        overflow-y: auto;
     }
 
     /* Sticky table header (always on in freeze mode) */
@@ -140,15 +133,17 @@
         <a href="{% url 'workorders:drillbit_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
             <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Register Bit
         </a>
-        <a href="{% url 'workorders:drillbit_export_excel' %}" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+        <button type="button" onclick="openExportDialog()" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
             <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>Export Excel
-        </a>
+        </button>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="drillbit-page-container" id="drillbitPageContainer">
+<div class="drillbit-page-container" id="drillbitPageContainer"
+     x-data="drillBitPage()" x-init="init()"
+     :class="{'freeze-mode': freezePanes, 'full-page-mode': fullPageView, 'no-wrap-mode': !textWrap}">
 
 <!-- HEADER SECTION -->
 <div class="drillbit-header-section">
@@ -210,17 +205,115 @@
 
             <!-- View Toggle Buttons -->
             <div class="flex gap-2 flex-wrap">
+                <!-- Column Visibility Dropdown -->
+                <div class="relative">
+                    <button type="button" @click="showColumnMenu = !showColumnMenu"
+                            class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-1 text-sm">
+                        <i data-lucide="columns" class="w-4 h-4"></i>
+                        <span>Cols</span>
+                    </button>
+                    <!-- Column Visibility Panel -->
+                    <div x-show="showColumnMenu" @click.away="showColumnMenu = false" x-transition
+                         class="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-[70vh] overflow-y-auto">
+                        <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500">Column Visibility</span>
+                            <div class="flex gap-2">
+                                <button type="button" @click="resetToDefaults()" class="text-xs text-blue-600 hover:text-blue-800">Reset</button>
+                                <button type="button" @click="showAllColumns()" class="text-xs text-blue-600 hover:text-blue-800">Show All</button>
+                            </div>
+                        </div>
+
+                        <!-- Core Group -->
+                        <p class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 mt-2">Core</p>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.type" @change="savePreferences()" class="rounded text-blue-600"> FC/RC
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.customer" @change="savePreferences()" class="rounded text-blue-600"> Customer
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.location" @change="savePreferences()" class="rounded text-blue-600"> Location
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.status" @change="savePreferences()" class="rounded text-blue-600"> Status
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.lifecycle" @change="savePreferences()" class="rounded text-blue-600"> Lifecycle
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.created" @change="savePreferences()" class="rounded text-blue-600"> Registered
+                        </label>
+
+                        <!-- Design Group -->
+                        <p class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 mt-3">Design</p>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.level" @change="savePreferences()" class="rounded text-blue-600"> Level
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.design" @change="savePreferences()" class="rounded text-blue-600"> Design MAT
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.refmat" @change="savePreferences()" class="rounded text-blue-600"> Ref Design MAT
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.hdbs" @change="savePreferences()" class="rounded text-blue-600"> HDBS Type
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.smi" @change="savePreferences()" class="rounded text-blue-600"> SMI Type
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.size" @change="savePreferences()" class="rounded text-blue-600"> Size
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.connection" @change="savePreferences()" class="rounded text-blue-600"> Connection
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.iadc" @change="savePreferences()" class="rounded text-blue-600"> IADC
+                        </label>
+
+                        <!-- BOM Group -->
+                        <p class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 mt-3">BOM</p>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.systembom" @change="savePreferences()" class="rounded text-blue-600"> System MAT
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.brazingbom" @change="savePreferences()" class="rounded text-blue-600"> Brazing BOM
+                        </label>
+
+                        <!-- Spec Group -->
+                        <p class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 mt-3">Spec</p>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.breaker" @change="savePreferences()" class="rounded text-blue-600"> Breaker Slot
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.specialtech" @change="savePreferences()" class="rounded text-blue-600"> Special Tech
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.application" @change="savePreferences()" class="rounded text-blue-600"> Application
+                        </label>
+                    </div>
+                </div>
+
                 <!-- Freeze Panes Toggle -->
-                <button type="button" onclick="toggleFreezePanes()" id="freezeBtn"
-                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                <button type="button" @click="toggleFreezePanes()"
+                        :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
                     <i data-lucide="lock" class="w-4 h-4"></i>
-                    <span id="freezeBtnText">Freeze</span>
+                    <span x-text="freezePanes ? 'Unfreeze' : 'Freeze'"></span>
                 </button>
                 <!-- Full Page View Toggle -->
-                <button type="button" onclick="toggleFullPageView()" id="fullPageBtn"
-                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                <button type="button" @click="toggleFullPageView()"
+                        :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
                     <i data-lucide="maximize-2" class="w-4 h-4"></i>
-                    <span id="fullPageBtnText">Full</span>
+                    <span x-text="fullPageView ? 'Exit' : 'Full'"></span>
+                </button>
+                <!-- Text Wrap Toggle -->
+                <button type="button" @click="textWrap = !textWrap; savePreferences()"
+                        :class="textWrap ? 'bg-violet-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="wrap-text" class="w-4 h-4"></i>
+                    <span>Wrap</span>
                 </button>
             </div>
 
@@ -268,107 +361,103 @@
         <table class="w-full text-xs" id="drillBitTable">
             <thead>
                 <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <!-- Identity -->
+                    <!-- Serial # (always visible, sticky) -->
                     <th class="px-3 py-2 font-medium sticky-col bg-gray-50 dark:bg-gray-700/50" data-column="serial">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'serial')">
                             <span>Serial #</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="level">
+                    <th x-show="columns.level" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="level">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'level')">
                             <span>Level</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium" data-column="type">
+                    <th x-show="columns.type" class="px-3 py-2 font-medium" data-column="type">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'type')">
                             <span>FC/RC</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <!-- Design Section (Blue) -->
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="design">
+                    <th x-show="columns.design" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="design">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'design')">
                             <span>Design MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="refmat">
+                    <th x-show="columns.refmat" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="refmat">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'refmat')">
                             <span>Ref Design MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <!-- BOM Section (Green) -->
-                    <th class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="systembom">
+                    <th x-show="columns.systembom" class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="systembom">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'systembom')">
                             <span>System MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="brazingbom">
+                    <th x-show="columns.brazingbom" class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="brazingbom">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'brazingbom')">
                             <span>Brazing BOM</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <!-- Design Details (Blue) -->
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="hdbs">
+                    <th x-show="columns.hdbs" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="hdbs">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'hdbs')">
                             <span>HDBS Type</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="smi">
+                    <th x-show="columns.smi" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="smi">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'smi')">
                             <span>SMI Type</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="size">
+                    <th x-show="columns.size" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="size">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'size')">
                             <span>Size</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="connection">
+                    <th x-show="columns.connection" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="connection">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'connection')">
                             <span>Connection</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="iadc">
+                    <th x-show="columns.iadc" class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="iadc">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'iadc')">
                             <span>IADC</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="breaker">
+                    <th x-show="columns.breaker" class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="breaker">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'breaker')">
                             <span>Breaker Slot</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="specialtech">
+                    <th x-show="columns.specialtech" class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="specialtech">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'specialtech')">
                             <span>Special Tech</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="application">
+                    <th x-show="columns.application" class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="application">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'application')">
                             <span>Application</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <!-- Status Section -->
-                    <th class="px-3 py-2 font-medium" data-column="customer">
+                    <th x-show="columns.customer" class="px-3 py-2 font-medium" data-column="customer">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'customer')">
                             <span>Customer</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium" data-column="location">
+                    <th x-show="columns.location" class="px-3 py-2 font-medium" data-column="location">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'location')">
                             <span>Location</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium" data-column="status">
+                    <th x-show="columns.status" class="px-3 py-2 font-medium" data-column="status">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'status')">
                             <span>Status</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium" data-column="lifecycle">
+                    <th x-show="columns.lifecycle" class="px-3 py-2 font-medium" data-column="lifecycle">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'lifecycle')">
                             <span>Lifecycle</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
-                    <th class="px-3 py-2 font-medium bg-yellow-50 dark:bg-yellow-900/20" data-column="created">
+                    <th x-show="columns.created" class="px-3 py-2 font-medium bg-yellow-50 dark:bg-yellow-900/20" data-column="created">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'created')">
                             <span>Registered</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
@@ -378,25 +467,25 @@
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for bit in drill_bits %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 data-row">
-                    <!-- Serial # (sticky) -->
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 data-row" data-pk="{{ bit.pk }}">
+                    <!-- Serial # (always visible, sticky) -->
                     <td class="px-3 py-2 sticky-col bg-white dark:bg-gray-800" data-value="{{ bit.serial_number }}">
                         <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="text-blue-600 hover:underline font-medium font-mono">{{ bit.serial_number }}</a>
                     </td>
                     <!-- Level -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.order_level|default:'' }}">
+                    <td x-show="columns.level" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.order_level|default:'' }}">
                         {% if bit.design.order_level %}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">L{{ bit.design.order_level }}</span>{% else %}--{% endif %}
                     </td>
                     <!-- FC/RC -->
-                    <td class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
+                    <td x-show="columns.type" class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
                     <!-- Design MAT -->
-                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.mat_no|default:'' }}">
+                    <td x-show="columns.design" class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.mat_no|default:'' }}">
                         {% if bit.design %}<a href="{% url 'technology:design_detail' bit.design.pk %}" class="text-blue-600 hover:underline">{{ bit.design.mat_no }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
                     </td>
                     <!-- Ref Design MAT -->
-                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.ref_mat_no|default:'' }}">{{ bit.design.ref_mat_no|default:"--" }}</td>
+                    <td x-show="columns.refmat" class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.ref_mat_no|default:'' }}">{{ bit.design.ref_mat_no|default:"--" }}</td>
                     <!-- System MAT# -->
-                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.bom.system_mat_no bit.system_bom.code '' %}">
+                    <td x-show="columns.systembom" class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.bom.system_mat_no bit.system_bom.code '' %}">
                         {% if bit.brazing_bom.system_mat_no %}
                             <span title="System MAT from Brazing BOM">{{ bit.brazing_bom.system_mat_no }}</span>
                         {% elif bit.bom.system_mat_no %}
@@ -408,7 +497,7 @@
                         {% endif %}
                     </td>
                     <!-- Brazing BOM -->
-                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.code bit.bom.code '' %}">
+                    <td x-show="columns.brazingbom" class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.code bit.bom.code '' %}">
                         {% if bit.brazing_bom %}
                             <a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.brazing_bom.name }}">{{ bit.brazing_bom.code }}</a>
                         {% elif bit.bom %}
@@ -418,27 +507,27 @@
                         {% endif %}
                     </td>
                     <!-- HDBS Type -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.hdbs_type|default:'' }}">{{ bit.design.hdbs_type|default:"--" }}</td>
-                    <!-- SMI Type (from BOM FK, fallback to design CharField) -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
+                    <td x-show="columns.hdbs" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.hdbs_type|default:'' }}">{{ bit.design.hdbs_type|default:"--" }}</td>
+                    <!-- SMI Type -->
+                    <td x-show="columns.smi" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
                     <!-- Size -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.size.size_display|default:'' }}">{{ bit.design.size.size_display|default:"--" }}</td>
+                    <td x-show="columns.size" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.size.size_display|default:'' }}">{{ bit.design.size.size_display|default:"--" }}</td>
                     <!-- Connection -->
-                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.connection_ref.mat_no|default:'' }}">{{ bit.design.connection_ref.mat_no|default:"--" }}</td>
+                    <td x-show="columns.connection" class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.connection_ref.mat_no|default:'' }}">{{ bit.design.connection_ref.mat_no|default:"--" }}</td>
                     <!-- IADC -->
-                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.iadc_code_ref.code|default:'' }}">{{ bit.design.iadc_code_ref.code|default:"--" }}</td>
+                    <td x-show="columns.iadc" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.iadc_code_ref.code|default:'' }}">{{ bit.design.iadc_code_ref.code|default:"--" }}</td>
                     <!-- Breaker Slot -->
-                    <td class="px-3 py-2 font-mono bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.breaker_slot.mat_no|default:'' }}">{{ bit.design.breaker_slot.mat_no|default:"--" }}</td>
+                    <td x-show="columns.breaker" class="px-3 py-2 font-mono bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.breaker_slot.mat_no|default:'' }}">{{ bit.design.breaker_slot.mat_no|default:"--" }}</td>
                     <!-- Special Technologies -->
-                    <td class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{% for tech in bit.design.special_technologies.all %}{{ tech.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% endfor %}">
+                    <td x-show="columns.specialtech" class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{% for tech in bit.design.special_technologies.all %}{{ tech.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% endfor %}">
                         {% for tech in bit.design.special_technologies.all %}
                             <span class="inline-block px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs mr-0.5 mb-0.5">{{ tech.code }}</span>
                         {% empty %}
                             <span class="text-gray-400">--</span>
                         {% endfor %}
                     </td>
-                    <!-- Application (merged: application + formation) -->
-                    <td class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.application_ref.name|default:'' }}{% if bit.design.formation_type_ref %} / {{ bit.design.formation_type_ref.name }}{% endif %}">
+                    <!-- Application -->
+                    <td x-show="columns.application" class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.application_ref.name|default:'' }}{% if bit.design.formation_type_ref %} / {{ bit.design.formation_type_ref.name }}{% endif %}">
                         {% if bit.design.application_ref or bit.design.formation_type_ref %}
                             {% if bit.design.application_ref %}{{ bit.design.application_ref.name }}{% endif %}
                             {% if bit.design.application_ref and bit.design.formation_type_ref %} / {% endif %}
@@ -448,22 +537,23 @@
                         {% endif %}
                     </td>
                     <!-- Customer -->
-                    <td class="px-3 py-2 text-gray-600" data-value="{{ bit.customer.name|default:'' }}">{{ bit.customer.name|default:"--"|truncatechars:15 }}</td>
+                    <td x-show="columns.customer" class="px-3 py-2 text-gray-600" data-value="{{ bit.customer.name|default:'' }}">{{ bit.customer.name|default:"--"|truncatechars:15 }}</td>
                     <!-- Location -->
-                    <td class="px-3 py-2 text-gray-600" data-value="{{ bit.bit_location.name|default:'' }}">{{ bit.bit_location.name|default:"--" }}</td>
+                    <td x-show="columns.location" class="px-3 py-2 text-gray-600" data-value="{{ bit.bit_location.name|default:'' }}">{{ bit.bit_location.name|default:"--" }}</td>
                     <!-- Status -->
-                    <td class="px-3 py-2" data-value="{{ bit.get_status_display }}">
+                    <td x-show="columns.status" class="px-3 py-2" data-value="{{ bit.get_status_display }}">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                            {% if bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
+                            {% if bit.status == 'UNREGISTERED' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300
+                            {% elif bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
                             {% elif bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800
                             {% elif bit.status == 'SCRAPPED' %}bg-red-100 text-red-800
                             {% else %}bg-gray-100 text-gray-800{% endif %}">{{ bit.get_status_display }}</span>
                     </td>
                     <!-- Lifecycle -->
-                    <td class="px-3 py-2" data-value="{{ bit.get_lifecycle_status_display|default:'' }}">{{ bit.get_lifecycle_status_display|default:"--" }}</td>
+                    <td x-show="columns.lifecycle" class="px-3 py-2" data-value="{{ bit.get_lifecycle_status_display|default:'' }}">{{ bit.get_lifecycle_status_display|default:"--" }}</td>
                     <!-- Registered -->
-                    <td class="px-3 py-2 text-gray-500 bg-yellow-50/50 dark:bg-yellow-900/10" data-value="{{ bit.created_at|date:'Y-m-d' }}">{{ bit.created_at|date:"M d, Y" }}</td>
-                    <!-- Actions -->
+                    <td x-show="columns.created" class="px-3 py-2 text-gray-500 bg-yellow-50/50 dark:bg-yellow-900/10" data-value="{{ bit.created_at|date:'Y-m-d' }}">{{ bit.created_at|date:"M d, Y" }}</td>
+                    <!-- Actions (always visible) -->
                     <td class="px-3 py-2 text-right">
                         <div class="flex items-center justify-end space-x-1">
                             <button onclick="addToPlan('{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}')"
@@ -496,68 +586,196 @@
 
 </div><!-- End drillbit-page-container -->
 
+<!-- Export Dialog Modal -->
+<div id="exportDialog" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-white">Export Drill Bits to Excel</h2>
+            <button onclick="closeExportDialog()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="p-6 space-y-4">
+            <!-- Columns Option -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>
+                    Columns to Export
+                </label>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="exportColumns" value="visible" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                        <span class="text-sm text-gray-700 dark:text-gray-200">
+                            <strong>Visible columns only</strong>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block">Export only the columns currently shown in the table</span>
+                        </span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="exportColumns" value="all"
+                               class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                        <span class="text-sm text-gray-700 dark:text-gray-200">
+                            <strong>All columns</strong>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all available columns including hidden ones</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Records Option -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <i data-lucide="rows-4" class="w-4 h-4 inline mr-1"></i>
+                    Records to Export
+                </label>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="exportRecords" value="all" checked
+                               class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                        <span class="text-sm text-gray-700 dark:text-gray-200">
+                            <strong>All records</strong>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all drill bits from the database</span>
+                        </span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="exportRecords" value="filtered"
+                               class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                        <span class="text-sm text-gray-700 dark:text-gray-200">
+                            <strong>Filtered/visible rows only</strong>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block" id="filteredCountText">Export only rows currently visible after filters</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700">
+            <button onclick="closeExportDialog()" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                Cancel
+            </button>
+            <button onclick="executeExport()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Export Now
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
-// View mode state
-let freezePanes = false;
-let fullPageView = false;
+// ─── Default Column Visibility ─────────────────────────────────────────────
+const defaultColumns = {
+    level: true,
+    type: true,
+    design: true,
+    refmat: false,
+    systembom: false,
+    brazingbom: false,
+    hdbs: true,
+    smi: false,
+    size: true,
+    connection: false,
+    iadc: false,
+    breaker: false,
+    specialtech: false,
+    application: false,
+    customer: true,
+    location: true,
+    status: true,
+    lifecycle: true,
+    created: true,
+};
 
-function toggleFreezePanes() {
-    freezePanes = !freezePanes;
-    const container = document.getElementById('drillbitPageContainer');
-    const btn = document.getElementById('freezeBtn');
-    const btnText = document.getElementById('freezeBtnText');
+// ─── Alpine.js Component ────────────────────────────────────────────────────
+function drillBitPage() {
+    return {
+        columns: { ...defaultColumns },
+        freezePanes: false,
+        fullPageView: false,
+        textWrap: false,
+        showColumnMenu: false,
 
-    if (freezePanes) {
-        container.classList.add('freeze-mode');
-        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
-        btn.classList.add('bg-blue-600', 'text-white');
-        btnText.textContent = 'Unfreeze';
-    } else {
-        container.classList.remove('freeze-mode');
-        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
-        btn.classList.remove('bg-blue-600', 'text-white');
-        btnText.textContent = 'Freeze';
-    }
-    localStorage.setItem('drillbitFreezePanes', freezePanes);
+        init() {
+            this.loadPreferences();
+            this.$nextTick(() => {
+                fitContainerToViewport();
+                initColumnFilterData();
+            });
+        },
+
+        loadPreferences() {
+            const saved = localStorage.getItem('drillBitListPrefs');
+            if (saved) {
+                try {
+                    const prefs = JSON.parse(saved);
+                    if (prefs.columns) this.columns = { ...defaultColumns, ...prefs.columns };
+                    if (prefs.freezePanes !== undefined) this.freezePanes = prefs.freezePanes;
+                    if (prefs.fullPageView !== undefined) {
+                        this.fullPageView = prefs.fullPageView;
+                        if (this.fullPageView) {
+                            const ph = document.getElementById('pageHeader');
+                            if (ph) ph.style.display = 'none';
+                        }
+                    }
+                    if (prefs.textWrap !== undefined) this.textWrap = prefs.textWrap;
+                } catch (e) {
+                    console.error('Failed to load drillBitListPrefs:', e);
+                }
+            }
+        },
+
+        savePreferences() {
+            localStorage.setItem('drillBitListPrefs', JSON.stringify({
+                columns: this.columns,
+                freezePanes: this.freezePanes,
+                fullPageView: this.fullPageView,
+                textWrap: this.textWrap,
+            }));
+        },
+
+        toggleFreezePanes() {
+            this.freezePanes = !this.freezePanes;
+            this.savePreferences();
+        },
+
+        toggleFullPageView() {
+            this.fullPageView = !this.fullPageView;
+            const ph = document.getElementById('pageHeader');
+            if (ph) ph.style.display = this.fullPageView ? 'none' : '';
+            this.savePreferences();
+            this.$nextTick(() => fitContainerToViewport());
+        },
+
+        resetToDefaults() {
+            this.columns = { ...defaultColumns };
+            this.savePreferences();
+        },
+
+        showAllColumns() {
+            Object.keys(this.columns).forEach(k => this.columns[k] = true);
+            this.savePreferences();
+        },
+    };
 }
 
-function toggleFullPageView() {
-    fullPageView = !fullPageView;
-    const container = document.getElementById('drillbitPageContainer');
-    const btn = document.getElementById('fullPageBtn');
-    const btnText = document.getElementById('fullPageBtnText');
-    const pageHeader = document.getElementById('pageHeader');
-
-    if (fullPageView) {
-        container.classList.add('full-page-mode');
-        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
-        btn.classList.add('bg-emerald-600', 'text-white');
-        btnText.textContent = 'Exit';
-        if (pageHeader) pageHeader.style.display = 'none';
-    } else {
-        container.classList.remove('full-page-mode');
-        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
-        btn.classList.remove('bg-emerald-600', 'text-white');
-        btnText.textContent = 'Full';
-        if (pageHeader) pageHeader.style.display = '';
-    }
-    localStorage.setItem('drillbitFullPageView', fullPageView);
+// ─── Pin container to viewport (horizontal scrollbar always visible) ───────
+function fitContainerToViewport() {
+    const c = document.querySelector('.drillbit-page-container');
+    if (!c) return;
+    const top = c.getBoundingClientRect().top;
+    c.style.height = (window.innerHeight - top) + 'px';
 }
+window.addEventListener('resize', fitContainerToViewport);
 
-// Restore preferences on load
-document.addEventListener('DOMContentLoaded', function() {
-    const savedFreeze = localStorage.getItem('drillbitFreezePanes');
-    const savedFullPage = localStorage.getItem('drillbitFullPageView');
-    if (savedFreeze === 'true') toggleFreezePanes();
-    if (savedFullPage === 'true') toggleFullPageView();
-});
-
-// Column filter state
+// ─── Column Filter State (global — not Alpine) ────────────────────────────
 let currentColumn = null;
 let columnFilters = {};
 let allColumnValues = {};
 
-document.addEventListener('DOMContentLoaded', function() {
+function initColumnFilterData() {
     const rows = document.querySelectorAll('#drillBitTable tbody tr.data-row');
     const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
     headers.forEach(th => { allColumnValues[th.dataset.column] = new Set(); });
@@ -572,7 +790,7 @@ document.addEventListener('DOMContentLoaded', function() {
     Object.keys(allColumnValues).forEach(col => {
         allColumnValues[col] = Array.from(allColumnValues[col]).sort();
     });
-});
+}
 
 function toggleColumnMenu(event, column) {
     event.stopPropagation();
@@ -589,7 +807,6 @@ function toggleColumnMenu(event, column) {
     const colIndex = Array.from(headers).findIndex(h => h.dataset.column === column);
 
     rows.forEach(row => {
-        // Skip hidden rows (filtered out by other columns)
         if (row.style.display === 'none') return;
         const td = row.querySelectorAll('td[data-value]')[colIndex];
         if (td) {
@@ -611,7 +828,6 @@ function toggleColumnMenu(event, column) {
     menu.style.top = `${rect.bottom + 5}px`;
     menu.classList.remove('hidden');
     document.getElementById('columnFilterSearch').value = '';
-    // Store current visible values for applyColumnFilter
     window.currentVisibleValues = values;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -693,10 +909,8 @@ function sortColumn(dir) {
     const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
     const colIndex = Array.from(headers).findIndex(h => h.dataset.column === currentColumn);
     if (colIndex < 0) return;
-
     const tbody = document.querySelector('#drillBitTable tbody');
     const rows = Array.from(tbody.querySelectorAll('tr.data-row'));
-
     rows.sort((a, b) => {
         const tdA = a.querySelectorAll('td[data-value]')[colIndex];
         const tdB = b.querySelectorAll('td[data-value]')[colIndex];
@@ -705,7 +919,6 @@ function sortColumn(dir) {
         let cmp = va.localeCompare(vb, undefined, {numeric: true});
         return dir === 'desc' ? -cmp : cmp;
     });
-
     rows.forEach(row => tbody.appendChild(row));
     closeColumnMenu();
 }
@@ -726,43 +939,97 @@ document.addEventListener('click', function(e) {
     if (!menu.contains(e.target) && !e.target.closest('.column-header')) closeColumnMenu();
 });
 
-// Prevent scroll/wheel inside menu from bubbling (which could cause unexpected closures)
-document.getElementById('columnMenu').addEventListener('scroll', (e) => {
-    e.stopPropagation();
-}, true);
-
-document.getElementById('columnMenu').addEventListener('wheel', (e) => {
-    e.stopPropagation();
-}, false);
-
+document.getElementById('columnMenu').addEventListener('scroll', (e) => { e.stopPropagation(); }, true);
+document.getElementById('columnMenu').addEventListener('wheel', (e) => { e.stopPropagation(); }, false);
 window.addEventListener('resize', () => closeColumnMenu());
 
-// Add to Plan function
+// ─── Export Dialog ──────────────────────────────────────────────────────────
+function openExportDialog() {
+    const dialog = document.getElementById('exportDialog');
+    dialog.classList.remove('hidden');
+
+    // Update filtered count info
+    const table = document.getElementById('drillBitTable');
+    if (table) {
+        const visibleRows = table.querySelectorAll('tbody tr.data-row:not([style*="display: none"])').length;
+        const totalRows = table.querySelectorAll('tbody tr.data-row').length;
+        const filteredText = document.getElementById('filteredCountText');
+        if (visibleRows < totalRows) {
+            filteredText.textContent = `Export ${visibleRows} of ${totalRows} rows currently visible`;
+        } else {
+            filteredText.textContent = `Export only rows currently visible after filters`;
+        }
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeExportDialog() {
+    document.getElementById('exportDialog').classList.add('hidden');
+}
+
+function executeExport() {
+    const columnsOption = document.querySelector('input[name="exportColumns"]:checked').value;
+    const recordsOption = document.querySelector('input[name="exportRecords"]:checked').value;
+
+    // Get visible columns from Alpine state
+    let visibleColumns = [];
+    if (columnsOption === 'visible') {
+        const container = document.getElementById('drillbitPageContainer');
+        if (container && container._x_dataStack) {
+            const alpineData = container._x_dataStack[0];
+            if (alpineData && alpineData.columns) {
+                visibleColumns = Object.entries(alpineData.columns)
+                    .filter(([key, visible]) => visible)
+                    .map(([key]) => key);
+            }
+        }
+        // Always include serial
+        if (!visibleColumns.includes('serial')) visibleColumns.unshift('serial');
+    }
+
+    // Get visible row PKs if filtering
+    let bitIds = [];
+    if (recordsOption === 'filtered') {
+        const table = document.getElementById('drillBitTable');
+        if (table) {
+            table.querySelectorAll('tbody tr.data-row:not([style*="display: none"])').forEach(row => {
+                if (row.dataset.pk) bitIds.push(row.dataset.pk);
+            });
+        }
+    }
+
+    // Build export URL
+    const params = new URLSearchParams();
+    params.set('columns', columnsOption);
+    params.set('records', recordsOption);
+    if (visibleColumns.length > 0) params.set('visible_cols', visibleColumns.join(','));
+    if (bitIds.length > 0) params.set('bit_ids', bitIds.join(','));
+
+    // Preserve current page filters
+    const currentParams = new URLSearchParams(window.location.search);
+    ['status', 'lifecycle', 'bit_type', 'search'].forEach(key => {
+        if (currentParams.has(key)) params.set(key, currentParams.get(key));
+    });
+
+    window.location.href = '{% url "workorders:drillbit_export_excel" %}?' + params.toString();
+    closeExportDialog();
+}
+
+// ─── Add to Plan ────────────────────────────────────────────────────────────
 async function addToPlan(serialNumber, accountCode) {
     if (!confirm(`Add drill bit ${serialNumber} to production plan?`)) return;
-
     try {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
                          document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-
         const response = await fetch('{% url "workorders:api_add_to_plan" %}', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify({
-                serial_number: serialNumber,
-                account: accountCode,
-                priority: 'NORMAL',
-                planned_date: '',
-                intended_wo_type: '',
-                notes: ''
+                serial_number: serialNumber, account: accountCode,
+                priority: 'NORMAL', planned_date: '', intended_wo_type: '', notes: ''
             })
         });
-
         const data = await response.json();
-
         if (data.success) {
             alert(`Added ${serialNumber} to production plan!\n\nGo to Production Planner to review and create Work Orders.`);
         } else {

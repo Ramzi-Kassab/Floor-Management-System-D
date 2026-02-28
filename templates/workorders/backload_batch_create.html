@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}New Backload Batch{% endblock %}
+{% block title %}Receive Bits{% endblock %}
 {% block page_header %}
 <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
         <i data-lucide="plus-circle" class="w-7 h-7 text-teal-500"></i>
-        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">New Backload Batch</h1>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Receive Bits</h1>
     </div>
     <a href="{% url 'workorders:backload_batch_list' %}"
        class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
@@ -17,6 +17,56 @@
     {% csrf_token %}
 
     <div class="space-y-6">
+        {# ── Section 0: Batch Type (Radio Cards) ── #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                <i data-lucide="tag" class="w-5 h-5 text-teal-500"></i>
+                Batch Type <span class="text-red-500 text-sm">*</span>
+            </h2>
+            {% if form.batch_type.errors %}
+            <p class="mb-3 text-xs text-red-600">{{ form.batch_type.errors.0 }}</p>
+            {% endif %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" x-data="{ batchType: '{{ form.batch_type.value|default:"" }}' }">
+                {# REPAIR Card #}
+                <label class="relative flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all"
+                       :class="batchType === 'REPAIR'
+                         ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-900/20 ring-1 ring-amber-400'
+                         : 'border-gray-200 dark:border-gray-600 hover:border-amber-300 dark:hover:border-amber-600'">
+                    <input type="radio" name="batch_type" value="REPAIR"
+                           x-model="batchType"
+                           class="mt-1 text-amber-600 focus:ring-amber-500 dark:bg-gray-700">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="wrench" class="w-5 h-5 text-amber-500"></i>
+                            <span class="font-semibold text-gray-800 dark:text-white">Repair Bits (Backload)</span>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            Bits returning for repair from the field
+                        </p>
+                    </div>
+                </label>
+
+                {# NEW Card #}
+                <label class="relative flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all"
+                       :class="batchType === 'NEW'
+                         ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20 ring-1 ring-emerald-400'
+                         : 'border-gray-200 dark:border-gray-600 hover:border-emerald-300 dark:hover:border-emerald-600'">
+                    <input type="radio" name="batch_type" value="NEW"
+                           x-model="batchType"
+                           class="mt-1 text-emerald-600 focus:ring-emerald-500 dark:bg-gray-700">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-emerald-500"></i>
+                            <span class="font-semibold text-gray-800 dark:text-white">New Bits (Received)</span>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            New bits arriving for the first time
+                        </p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
         {# ── Section 1: Batch Header ── #}
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
@@ -24,16 +74,6 @@
                 Batch Information
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {# Account #}
-                <div>
-                    <label for="id_account" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Account <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.account }}
-                    {% if form.account.errors %}
-                    <p class="mt-1 text-xs text-red-600">{{ form.account.errors.0 }}</p>
-                    {% endif %}
-                </div>
                 {# Expected Date #}
                 <div>
                     <label for="id_expected_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -44,8 +84,8 @@
                     <p class="mt-1 text-xs text-red-600">{{ form.expected_date.errors.0 }}</p>
                     {% endif %}
                 </div>
-                {# Batch Reference — full width #}
-                <div class="md:col-span-2">
+                {# Batch Reference #}
+                <div>
                     <label for="id_batch_reference" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Batch Reference
                     </label>
@@ -127,8 +167,8 @@
                 </label>
                 {{ form.serial_numbers_bulk }}
                 <p class="mt-2 text-xs text-gray-400">
-                    One serial number per line. The system will auto-match each serial to existing drill bit records.
-                    Unmatched serials can be registered as new bits on the batch detail page.
+                    One serial number per line. Adding serials here means these bits are physically received.
+                    The system auto-matches each serial, confirms matched bits, and raises requests for unmatched ones.
                 </p>
                 {% if form.serial_numbers_bulk.errors %}
                 <p class="mt-1 text-xs text-red-600">{{ form.serial_numbers_bulk.errors.0 }}</p>
@@ -146,7 +186,7 @@
         <div class="flex items-center gap-3">
             <button type="submit"
                     class="inline-flex items-center gap-2 px-6 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium">
-                <i data-lucide="check" class="w-4 h-4"></i> Create Batch
+                <i data-lucide="package-check" class="w-4 h-4"></i> Receive Bits
             </button>
             <a href="{% url 'workorders:backload_batch_list' %}"
                class="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
@@ -162,24 +202,22 @@
 // ── Multi-file upload Alpine component ──
 function multiFileUpload() {
     return {
-        files: [],       // Array of {name, size, sizeText, tooLarge}
+        files: [],
         totalSize: '',
-        _dataTransfer: null,  // DataTransfer object to sync with file input
+        _dataTransfer: null,
 
         onFilesSelected(event) {
             const input = event.target;
             if (!input.files || input.files.length === 0) return;
 
-            const maxSize = 25 * 1024 * 1024;  // 25 MB
+            const maxSize = 25 * 1024 * 1024;
             const maxFiles = 10;
 
-            // Add new files to existing list (no duplicates by name+size)
             for (const f of input.files) {
                 if (this.files.length >= maxFiles) {
                     alert('Maximum 10 files allowed.');
                     break;
                 }
-                // Skip duplicates
                 const isDup = this.files.some(
                     existing => existing.name === f.name && existing.size === f.size
                 );
@@ -192,7 +230,7 @@ function multiFileUpload() {
                     size: f.size,
                     sizeText: sizeText,
                     tooLarge: f.size > maxSize,
-                    _file: f,  // Keep reference to actual File object
+                    _file: f,
                 });
             }
 
@@ -207,7 +245,6 @@ function multiFileUpload() {
         },
 
         _syncInput() {
-            // Rebuild the file input's FileList via DataTransfer
             const dt = new DataTransfer();
             for (const f of this.files) {
                 if (!f.tooLarge) {

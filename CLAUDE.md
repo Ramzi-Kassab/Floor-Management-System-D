@@ -1586,6 +1586,22 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Key URLs**: `/work-orders/receiving/` (dashboard), `/work-orders/receiving/batches/` (list), `/work-orders/receiving/batches/create/` (create), `/work-orders/receiving/batches/<pk>/` (detail), `/work-orders/receiving/bom-pending/` (BOM queue), `/work-orders/receiving/inspections/` (inspection list).
 - **Key Files**: `apps/workorders/views_receiving.py` (all views + APIs), `apps/workorders/forms.py` (BackloadBatchForm with file upload + serial validation), 6 templates in `templates/workorders/`.
 
+### Recent Enhancements (Feb 28, 2026) — Receiving Dock Fixes + Drill Bit List Enhancements
+- **Backload Batch Error Correction**: Batch detail page now supports correcting errors after creation — add/remove serial numbers, change account, edit metadata. New API endpoints: `api_batch_add_serials`, `api_batch_remove_item`, `api_batch_update_account`. UI: Alpine.js "Add Serials" panel (expandable textarea with live counter), per-item delete buttons (with confirmation), account change dropdown.
+- **Backload Batch Type Field**: New `batch_type` field (REPAIR/MANUFACTURE) on `BackloadBatch` model with auto-detection from account's `workflow_type`. Migration 0025. Create form shows batch type selector alongside account.
+- **UNREGISTERED DrillBit Status**: New `UNREGISTERED` status added to `DrillBit.Status` choices — used for bits auto-created from backload batches that have no design assigned. Previously these showed as "New" which was confusing since "New" implies a properly registered bit. Migration 0026.
+  - `views_receiving.py`: All auto-create paths (`_create_and_process_items`, `_auto_process_single_item`, `api_batch_register_new`) now set `status=DrillBit.Status.UNREGISTERED`.
+  - Template badges: Orange badge (`bg-orange-100 text-orange-800`) for UNREGISTERED in both `drillbit_list_enhanced.html` and `drillbit_detail_enhanced.html`.
+  - Data fix: 7 existing bits with no design and status NEW were updated to UNREGISTERED.
+- **Drill Bit List — Alpine.js Column Visibility**: Converted `drillbit_list_enhanced.html` from vanilla JavaScript to Alpine.js component pattern (matching cutter inventory). `x-data="drillBitPage()"` component with 19 toggleable columns via `x-show="columns.KEY"` on all `<th>` and `<td>` elements. Column groups: Core (serial, type, customer, location, status, lifecycle, created), Design (level, design, refmat, hdbs, smi, size, connection, iadc), BOM (systembom, brazingbom), Spec (breaker, specialtech, application). Serial # and Actions columns always visible.
+- **Drill Bit List — Columns Dropdown**: "Columns" button in toolbar opens grouped checkboxes dropdown with "Show All" and "Reset to Defaults" buttons. Each checkbox bound to `x-model="columns.KEY"` with auto-save to localStorage.
+- **Drill Bit List — Saved Views (localStorage)**: All column visibility, freeze panes, full page view, and text wrap preferences saved to `localStorage` key `drillBitListPrefs`. Auto-loaded on page init, auto-saved on every toggle.
+- **Drill Bit List — Text Wrap Toggle**: New toolbar button toggles `whitespace-nowrap` / `whitespace-normal` on table cells for better readability of long values.
+- **Drill Bit List — Export to Excel Dialog**: Export button opens modal with radio options: "Visible columns only" / "All columns" and "All records" / "Filtered/visible rows only". `executeExport()` reads Alpine state for visible columns and collects row PKs from `data-pk` attributes, builds URL params, triggers download.
+- **DrillBitExportExcelView Enhanced**: Backend rewritten with `ALL_COLUMNS` class attribute (20 column definitions matching template `data-column` keys), `_get_cell_value()` method for each column, support for `columns`/`records`/`visible_cols`/`bit_ids` query params. Rich `select_related` and `prefetch_related` for performance. Row number column. Styled Excel output with blue headers, frozen panes, and auto-width columns.
+- **Column Default Visibility**: `level:true, type:true, design:true, refmat:false, systembom:false, brazingbom:false, hdbs:true, smi:false, size:true, connection:false, iadc:false, breaker:false, specialtech:false, application:false, customer:true, location:true, status:true, lifecycle:true, created:true`.
+- **Column Filters Compatibility**: Existing Excel-style column filters (sort, filter values, search) kept as global JavaScript functions — work correctly with Alpine.js `x-show` because hidden elements remain in DOM (indices unchanged).
+
 ---
 
 ## Need Help?

@@ -92,6 +92,7 @@ class DrillBit(models.Model):
         RC = "RC", "Roller Cone"
 
     class Status(models.TextChoices):
+        UNREGISTERED = "UNREGISTERED", "Unregistered"
         NEW = "NEW", "New"
         IN_STOCK = "IN_STOCK", "In Stock"
         ASSIGNED = "ASSIGNED", "Assigned to WO"
@@ -2915,8 +2916,9 @@ class EvaluationRouteStep(models.Model):
 
 class BackloadBatch(models.Model):
     """
-    Groups repair bits arriving together. Created from email notification.
-    Ops pastes serial numbers, system auto-matches to existing DrillBit records.
+    Physical receiving of drill bits. Creating a batch = receiving the bits.
+    Ops pastes serial numbers, system auto-matches to existing DrillBit records,
+    auto-confirms matched items, and auto-raises BOM/registration requests.
     """
 
     class BatchStatus(models.TextChoices):
@@ -2925,15 +2927,25 @@ class BackloadBatch(models.Model):
         PROCESSING = "PROCESSING", "Processing"
         COMPLETED = "COMPLETED", "Completed"
 
+    class BatchType(models.TextChoices):
+        REPAIR = "REPAIR", "Repair Bits (Backload)"
+        NEW = "NEW", "New Bits (Received)"
+
     batch_number = models.CharField(max_length=30, unique=True, editable=False)
+    batch_type = models.CharField(
+        max_length=10, choices=BatchType.choices,
+        default=BatchType.REPAIR,
+        help_text="Classify bits — mixing NEW and REPAIR not allowed"
+    )
     batch_reference = models.CharField(
         max_length=100, blank=True,
         help_text="Email reference, backload paper number, etc."
     )
     account = models.ForeignKey(
-        "sales.Account", on_delete=models.PROTECT,
+        "sales.Account", on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name="backload_batches",
-        help_text="Repair account (LSTK, ARAMCO, etc.)"
+        help_text="Auto-populated from matched drill bits"
     )
     customer = models.ForeignKey(
         "sales.Customer", on_delete=models.SET_NULL,
@@ -2980,12 +2992,13 @@ class BackloadBatch(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.batch_number} ({self.account})"
+        label = self.get_batch_type_display() if self.batch_type else "Batch"
+        return f"{self.batch_number} ({label})"
 
     def save(self, *args, **kwargs):
         if not self.batch_number:
             self.batch_number = self.generate_batch_number()
-        # Auto-fill customer from account
+        # Auto-fill customer from account (if account set)
         if self.account_id and not self.customer_id:
             try:
                 self.customer = self.account.customer
@@ -3085,7 +3098,7 @@ class BackloadItem(models.Model):
         PENDING = "PENDING", "Pending"
         MATCHED = "MATCHED", "Matched"
         UNMATCHED = "UNMATCHED", "Not Found"
-        NEW_REGISTERED = "NEW_REGISTERED", "New Registered"
+        NEW_REGISTERED = "NEW_REGISTERED", "Unregistered"
 
     batch = models.ForeignKey(
         BackloadBatch, on_delete=models.CASCADE,

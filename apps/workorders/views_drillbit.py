@@ -32,7 +32,7 @@ from django.views.generic import (
     View,
 )
 
-from .models import BitEvent, BOMPendingRequest, DrillBit, Location, WorkOrder
+from .models import BackloadItem, BitEvent, BOMPendingRequest, DrillBit, Location, WorkOrder
 from .forms import DrillBitUpdateForm
 
 # Import Customer model for First Event Wizard
@@ -254,6 +254,64 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
             self.request,
             f'Drill bit "{self.object.serial_number}" registered for design {design_info}{bom_info}.',
         )
+
+        # ── Auto-link: Check for UNMATCHED backload items with this serial ──
+        unmatched = BackloadItem.objects.filter(
+            serial_number=self.object.serial_number,
+            match_status=BackloadItem.MatchStatus.UNMATCHED,
+        ).select_related("batch")
+
+        if unmatched.exists():
+            now = timezone.now()
+            receiving_loc = Location.objects.filter(
+                location_type=Location.LocationType.RECEIVING
+            ).first()
+
+            linked_batches = []
+            for item in unmatched:
+                item.drill_bit = self.object
+                item.match_status = BackloadItem.MatchStatus.NEW_REGISTERED
+                item.status = BackloadItem.ItemStatus.RECEIVED
+                item.received_date = now
+                item.received_by = self.request.user
+
+                # Create backloaded event
+                event = BitEvent.objects.create(
+                    bit=self.object,
+                    event_type=BitEvent.EventType.BACKLOADED,
+                    event_date=now,
+                    location=receiving_loc,
+                    notes=f"Auto-confirmed from batch {item.batch.batch_number}",
+                    performed_by=self.request.user,
+                )
+                item.bit_event = event
+                item.save(update_fields=[
+                    "drill_bit", "match_status", "status",
+                    "received_date", "received_by", "bit_event",
+                ])
+
+                # Update batch counts
+                item.batch.update_counts()
+                item.batch.auto_update_status()
+                linked_batches.append(item.batch.batch_number)
+
+            # Update bit status
+            self.object.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
+            self.object.status = DrillBit.Status.RETURNED
+            self.object.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            self.object.backload_count = (self.object.backload_count or 0) + 1
+            self.object.last_backload_date = now.date()
+            self.object.save(update_fields=[
+                "lifecycle_status", "status", "physical_status",
+                "backload_count", "last_backload_date",
+            ])
+
+            batch_list = ", ".join(linked_batches)
+            messages.info(
+                self.request,
+                f"Also confirmed in backload batch(es): {batch_list}.",
+            )
+
         return response
 
     def get_success_url(self):
@@ -1037,38 +1095,177 @@ class BitEventListView(LoginRequiredMixin, ListView):
 
 class DrillBitExportExcelView(LoginRequiredMixin, View):
     """
-    Export drill bits to Excel.
+    Export drill bits to Excel with column/record selection.
+
+    Query params:
+      columns: 'visible' | 'all'
+      records: 'filtered' | 'all'
+      visible_cols: CSV of column keys (when columns=visible)
+      bit_ids: CSV of bit PKs (when records=filtered)
+      status, lifecycle, bit_type, search: standard filters
     """
+
+    # All available columns (key matches template data-column attributes)
+    ALL_COLUMNS = [
+        {"key": "serial", "name": "Serial Number"},
+        {"key": "level", "name": "Level"},
+        {"key": "type", "name": "FC/RC"},
+        {"key": "design", "name": "Design MAT"},
+        {"key": "refmat", "name": "Ref Design MAT"},
+        {"key": "systembom", "name": "System MAT"},
+        {"key": "brazingbom", "name": "Brazing BOM"},
+        {"key": "hdbs", "name": "HDBS Type"},
+        {"key": "smi", "name": "SMI Type"},
+        {"key": "size", "name": "Size"},
+        {"key": "connection", "name": "Connection"},
+        {"key": "iadc", "name": "IADC"},
+        {"key": "breaker", "name": "Breaker Slot"},
+        {"key": "specialtech", "name": "Special Tech"},
+        {"key": "application", "name": "Application"},
+        {"key": "customer", "name": "Customer"},
+        {"key": "location", "name": "Location"},
+        {"key": "status", "name": "Status"},
+        {"key": "lifecycle", "name": "Lifecycle"},
+        {"key": "created", "name": "Registered"},
+    ]
+
+    def _get_cell_value(self, bit, key):
+        """Return the export value for a given column key."""
+        if key == "serial":
+            return bit.serial_number
+        elif key == "level":
+            return f"L{bit.design.order_level}" if bit.design and bit.design.order_level else ""
+        elif key == "type":
+            return bit.get_bit_type_display()
+        elif key == "design":
+            return bit.design.mat_no if bit.design else ""
+        elif key == "refmat":
+            return bit.design.ref_mat_no if bit.design and bit.design.ref_mat_no else ""
+        elif key == "systembom":
+            if bit.brazing_bom and bit.brazing_bom.system_mat_no:
+                return bit.brazing_bom.system_mat_no
+            elif bit.bom and bit.bom.system_mat_no:
+                return bit.bom.system_mat_no
+            elif bit.system_bom:
+                return bit.system_bom.code
+            return ""
+        elif key == "brazingbom":
+            if bit.brazing_bom:
+                return bit.brazing_bom.code
+            elif bit.bom:
+                return bit.bom.code
+            return ""
+        elif key == "hdbs":
+            return bit.design.hdbs_type if bit.design and bit.design.hdbs_type else ""
+        elif key == "smi":
+            for bom_ref in [bit.brazing_bom, bit.system_bom, bit.bom]:
+                if bom_ref and hasattr(bom_ref, "smi_type") and bom_ref.smi_type:
+                    return bom_ref.smi_type.smi_name
+            return bit.design.smi_type if bit.design and bit.design.smi_type else ""
+        elif key == "size":
+            return bit.design.size.size_display if bit.design and bit.design.size else ""
+        elif key == "connection":
+            return bit.design.connection_ref.mat_no if bit.design and bit.design.connection_ref else ""
+        elif key == "iadc":
+            return bit.design.iadc_code_ref.code if bit.design and bit.design.iadc_code_ref else ""
+        elif key == "breaker":
+            return bit.design.breaker_slot.mat_no if bit.design and bit.design.breaker_slot else ""
+        elif key == "specialtech":
+            if bit.design:
+                techs = bit.design.special_technologies.all()
+                return ", ".join(t.code for t in techs) if techs else ""
+            return ""
+        elif key == "application":
+            parts = []
+            if bit.design:
+                if bit.design.application_ref:
+                    parts.append(bit.design.application_ref.name)
+                if bit.design.formation_type_ref:
+                    parts.append(bit.design.formation_type_ref.name)
+            return " / ".join(parts) if parts else ""
+        elif key == "customer":
+            return bit.customer.name if bit.customer else ""
+        elif key == "location":
+            return bit.bit_location.name if bit.bit_location else ""
+        elif key == "status":
+            return bit.get_status_display()
+        elif key == "lifecycle":
+            return bit.get_lifecycle_status_display()
+        elif key == "created":
+            return bit.created_at.strftime("%Y-%m-%d") if bit.created_at else ""
+        return ""
 
     def get(self, request, *args, **kwargs):
         if not HAS_OPENPYXL:
             messages.error(request, "Excel export requires openpyxl. Please install it.")
             return redirect("workorders:drillbit_list_enhanced")
 
-        # Get queryset with same filters as list view
+        # ── Determine which columns to export ──
+        columns_option = request.GET.get("columns", "all")
+        if columns_option == "visible":
+            visible_cols = request.GET.get("visible_cols", "")
+            visible_keys = [c.strip() for c in visible_cols.split(",") if c.strip()]
+            if visible_keys:
+                export_columns = [c for c in self.ALL_COLUMNS if c["key"] in visible_keys]
+            else:
+                export_columns = list(self.ALL_COLUMNS)
+        else:
+            export_columns = list(self.ALL_COLUMNS)
+
+        # Ensure serial is always first
+        serial_col = {"key": "serial", "name": "Serial Number"}
+        if not any(c["key"] == "serial" for c in export_columns):
+            export_columns.insert(0, serial_col)
+
+        # ── Determine which records to export ──
+        records_option = request.GET.get("records", "all")
+
+        # Build queryset with rich select_related
         queryset = DrillBit.objects.select_related(
-            "design", "customer", "rig", "bit_location", "bit_size_ref", "product_type"
+            "design", "design__size", "design__connection_ref",
+            "design__iadc_code_ref", "design__breaker_slot",
+            "design__application_ref", "design__formation_type_ref",
+            "customer", "rig", "bit_location",
+            "brazing_bom", "brazing_bom__smi_type",
+            "system_bom", "system_bom__smi_type",
+            "bom", "bom__smi_type",
+        ).prefetch_related(
+            "design__special_technologies",
         ).order_by("-created_at")
 
-        # Apply filters from request
-        status = request.GET.get("status")
-        if status:
-            queryset = queryset.filter(status=status)
+        if records_option == "filtered":
+            bit_ids = request.GET.get("bit_ids", "")
+            id_list = [int(x) for x in bit_ids.split(",") if x.strip().isdigit()]
+            if id_list:
+                queryset = queryset.filter(pk__in=id_list)
 
-        lifecycle = request.GET.get("lifecycle")
-        if lifecycle:
-            queryset = queryset.filter(lifecycle_status=lifecycle)
+        # Apply standard filters (from list page URL params)
+        status_filter = request.GET.get("status")
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
 
-        bit_type = request.GET.get("bit_type")
-        if bit_type:
-            queryset = queryset.filter(bit_type=bit_type)
+        lifecycle_filter = request.GET.get("lifecycle")
+        if lifecycle_filter:
+            queryset = queryset.filter(lifecycle_status=lifecycle_filter)
 
-        # Create workbook
+        bit_type_filter = request.GET.get("bit_type")
+        if bit_type_filter:
+            queryset = queryset.filter(bit_type=bit_type_filter)
+
+        search = request.GET.get("search")
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(serial_number__icontains=search)
+                | Q(design__mat_no__icontains=search)
+                | Q(design__hdbs_type__icontains=search)
+            )
+
+        # ── Create workbook ──
         wb = Workbook()
         ws = wb.active
         ws.title = "Drill Bits"
 
-        # Styles
         header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
         thin_border = Border(
@@ -1078,61 +1275,37 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
             bottom=Side(style="thin"),
         )
 
-        # Headers
-        headers = [
-            "Serial Number",
-            "Type",
-            "Size",
-            "MAT Number",
-            "Status",
-            "Lifecycle",
-            "Physical Status",
-            "Location",
-            "Customer",
-            "Rig",
-            "Design",
-            "Received Date",
-            "Deployments",
-            "Repairs",
-            "Original Cost",
-            "Total Repair Cost",
-            "Book Value",
-        ]
+        # Row number column
+        cell = ws.cell(row=1, column=1, value="#")
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal="center")
 
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=header)
+        # Write headers
+        for col_idx, col_def in enumerate(export_columns, 2):
+            cell = ws.cell(row=1, column=col_idx, value=col_def["name"])
             cell.fill = header_fill
             cell.font = header_font
             cell.border = thin_border
             cell.alignment = Alignment(horizontal="center")
 
-        # Data
+        # Write data rows
         for row_num, bit in enumerate(queryset, 2):
-            ws.cell(row=row_num, column=1, value=bit.serial_number)
-            ws.cell(row=row_num, column=2, value=bit.get_bit_type_display())
-            ws.cell(row=row_num, column=3, value=float(bit.size) if bit.size else "")
-            ws.cell(row=row_num, column=4, value=bit.mat_number)
-            ws.cell(row=row_num, column=5, value=bit.get_status_display())
-            ws.cell(row=row_num, column=6, value=bit.get_lifecycle_status_display())
-            ws.cell(row=row_num, column=7, value=bit.get_physical_status_display())
-            ws.cell(row=row_num, column=8, value=bit.bit_location.name if bit.bit_location else "")
-            ws.cell(row=row_num, column=9, value=bit.customer.name if bit.customer else "")
-            ws.cell(row=row_num, column=10, value=bit.rig.name if bit.rig else "")
-            ws.cell(row=row_num, column=11, value=bit.design.mat_no if bit.design else "")
-            ws.cell(row=row_num, column=12, value=bit.received_date.isoformat() if bit.received_date else "")
-            ws.cell(row=row_num, column=13, value=bit.deployment_count)
-            ws.cell(row=row_num, column=14, value=bit.repair_count)
-            ws.cell(row=row_num, column=15, value=float(bit.original_cost))
-            ws.cell(row=row_num, column=16, value=float(bit.total_repair_cost))
-            ws.cell(row=row_num, column=17, value=float(bit.current_book_value))
+            # Row number
+            cell = ws.cell(row=row_num, column=1, value=row_num - 1)
+            cell.border = thin_border
 
-            # Apply borders
-            for col in range(1, len(headers) + 1):
-                ws.cell(row=row_num, column=col).border = thin_border
+            for col_idx, col_def in enumerate(export_columns, 2):
+                value = self._get_cell_value(bit, col_def["key"])
+                cell = ws.cell(row=row_num, column=col_idx, value=value)
+                cell.border = thin_border
 
-        # Auto-width columns
-        for col in range(1, len(headers) + 1):
+        # Auto-width
+        total_cols = len(export_columns) + 1
+        for col in range(1, total_cols + 1):
             ws.column_dimensions[get_column_letter(col)].width = 15
+        ws.column_dimensions["A"].width = 6  # Row number column
 
         # Freeze header row
         ws.freeze_panes = "A2"

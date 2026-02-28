@@ -6,7 +6,14 @@
         <i data-lucide="package" class="w-7 h-7 text-teal-500"></i>
         <div>
             <h1 class="text-2xl font-bold text-gray-800 dark:text-white font-mono">{{ batch.batch_number }}</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ batch.account }} &middot; {{ batch.created_at|date:"M d, Y" }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {% if batch.batch_type == 'REPAIR' %}
+                    <span class="inline-flex items-center gap-1"><i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-500"></i> Repair Bits</span>
+                {% elif batch.batch_type == 'NEW' %}
+                    <span class="inline-flex items-center gap-1"><i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-500"></i> New Bits</span>
+                {% endif %}
+                &middot; {{ batch.created_at|date:"M d, Y" }}
+            </p>
         </div>
     </div>
     <div class="flex items-center gap-3">
@@ -111,49 +118,77 @@
         {# Progress bar #}
         <div class="mt-4">
             <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                <span>Progress</span>
-                <span x-text="receivedCount + '/' + totalCount"></span>
+                <span>Received</span>
+                <span>{{ received_count }}/{{ total_count }}</span>
             </div>
             <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                 <div class="bg-teal-500 h-2.5 rounded-full transition-all duration-300"
-                     :style="'width:' + (totalCount > 0 ? (receivedCount/totalCount*100) : 0) + '%'"></div>
+                     style="width: {% if total_count %}{% widthratio received_count total_count 100 %}{% else %}0{% endif %}%"></div>
             </div>
         </div>
 
         {# Summary badges #}
         <div class="mt-3 flex flex-wrap gap-2">
+            {% if received_count %}
             <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                {{ matched_count }} Matched
-            </span>
-            {% if unmatched_count %}
-            <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                {{ unmatched_count }} Not Found
+                <i data-lucide="check-circle" class="w-3 h-3 inline"></i> {{ received_count }} Received
             </span>
             {% endif %}
-            {% if new_registered_count %}
-            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                {{ new_registered_count }} New Registered
+            {% if unmatched_count %}
+            <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                <i data-lucide="clock" class="w-3 h-3 inline"></i> {{ unmatched_count }} Pending Registration
             </span>
             {% endif %}
         </div>
     </div>
 
-    {# ── Bulk Actions ── #}
-    <div class="flex items-center gap-3">
-        <button @click="confirmAll()"
-                class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition"
-                :disabled="loading">
-            <i data-lucide="check-check" class="w-4 h-4"></i> Confirm All Arrived
-        </button>
+    {# ── Toolbar ── #}
+    <div class="flex items-center gap-3 flex-wrap">
+        {% if unmatched_count %}
         <button @click="rematchAll()"
                 class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                 :disabled="loading">
-            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Match Serials
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Match Unmatched
+        </button>
+        {% endif %}
+        <button @click="showAddSerials = !showAddSerials"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition"
+                :class="showAddSerials ? 'bg-teal-600 text-white hover:bg-teal-700' : 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/50'"
+                :disabled="loading">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add Serials
         </button>
         <span x-show="flashMsg" x-transition
               class="text-sm font-medium"
               :class="flashOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
               x-text="flashMsg"></span>
+    </div>
+
+    {# ── Add Serials Collapsible ── #}
+    <div x-show="showAddSerials" x-transition x-cloak
+         class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-teal-200 dark:border-teal-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+            <i data-lucide="list-plus" class="w-4 h-4 inline text-teal-500"></i>
+            Add More Serials to Batch
+        </h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Enter serial numbers (one per line). Duplicates within this batch will be skipped.
+        </p>
+        <textarea x-model="newSerials" rows="4"
+                  class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-white font-mono px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="One serial per line&#10;e.g.&#10;12345678&#10;87654321"></textarea>
+        <div class="flex items-center gap-3 mt-3">
+            <button @click="addSerials()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition disabled:opacity-50"
+                    :disabled="loading || !newSerials.trim()">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span x-text="loading ? 'Adding...' : 'Add to Batch'"></span>
+            </button>
+            <button @click="showAddSerials = false; newSerials = ''"
+                    class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                Cancel
+            </button>
+            <span x-show="addSerialsResult" x-transition class="text-xs text-gray-500 dark:text-gray-400" x-html="addSerialsResult"></span>
+        </div>
     </div>
 
     {# ── Items Table ── #}
@@ -164,109 +199,192 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Serial Number</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Match</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Design / Size</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Lifecycle</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Account</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th class="px-4 py-3 w-10"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                     {% for item in items %}
-                    <tr id="item-row-{{ item.pk }}" class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                    <tr class="group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                         <td class="px-4 py-3 text-xs text-gray-400">{{ forloop.counter }}</td>
+
+                        {# Serial Number — clickable if matched, plain text if unmatched #}
                         <td class="px-4 py-3">
-                            <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ item.serial_number }}</span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <span id="match-badge-{{ item.pk }}" class="px-2 py-0.5 text-xs rounded-full
-                                {% if item.match_status == 'MATCHED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
-                                {% elif item.match_status == 'UNMATCHED' %}bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300
-                                {% elif item.match_status == 'NEW_REGISTERED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
-                                {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400
-                                {% endif %}">
-                                {{ item.get_match_status_display }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <span id="status-badge-{{ item.pk }}" class="px-2 py-0.5 text-xs rounded-full
-                                {% if item.status == 'EXPECTED' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
-                                {% elif item.status == 'RECEIVED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
-                                {% elif item.status == 'EVALUATED' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
-                                {% elif item.status == 'COMPLETED' %}bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300
-                                {% endif %}">
-                                {{ item.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                             {% if item.drill_bit %}
-                                {% if item.drill_bit.design %}{{ item.drill_bit.design }}{% endif %}
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' item.drill_bit.pk %}?from=batch&batch_pk={{ batch.pk }}"
+                               class="font-mono text-sm font-semibold text-teal-700 dark:text-teal-400 hover:underline">
+                                {{ item.serial_number }}
+                            </a>
+                            {% else %}
+                            <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ item.serial_number }}</span>
+                            {% endif %}
+                        </td>
+
+                        {# Design / Size #}
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {% if item.drill_bit and item.drill_bit.design %}
+                                {{ item.drill_bit.design }}
                                 {% if item.drill_bit.design.size %} &middot; {{ item.drill_bit.design.size }}{% endif %}
                             {% else %}
                                 <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
                             {% endif %}
                         </td>
+
+                        {# Account #}
                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                            {% if item.drill_bit %}
-                                {{ item.drill_bit.get_lifecycle_status_display }}
-                                {% if not item.drill_bit.bom %}
-                                    <span class="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned">No BOM</span>
-                                {% endif %}
+                            {% if item.drill_bit and item.drill_bit.account %}
+                                <span class="px-1.5 py-0.5 text-xs rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                    {{ item.drill_bit.account.name }}
+                                </span>
                             {% else %}
                                 <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-3 text-right">
-                            <div class="flex items-center justify-end gap-1.5">
-                                {# Confirm Arrival #}
-                                {% if item.status == 'EXPECTED' and item.drill_bit %}
-                                <button @click="confirmItem({{ item.pk }})"
-                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50 transition"
+
+                        {# Status badges #}
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                {% if item.match_status == 'MATCHED' and item.status == 'RECEIVED' %}
+                                    {# Matched + Received — green badge with timestamp #}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Received
+                                    </span>
+                                    {% if item.received_date %}
+                                    <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
+                                    {% endif %}
+                                    {# No BOM sub-badge #}
+                                    {% if item.drill_bit and not item.drill_bit.bom and not item.drill_bit.brazing_bom and not item.drill_bit.system_bom %}
+                                    <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned — request raised">
+                                        No BOM
+                                    </span>
+                                    {% endif %}
+
+                                {% elif item.match_status == 'NEW_REGISTERED' and item.status == 'RECEIVED' %}
+                                    {# Newly registered + Received — blue-green badge #}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Received (New)
+                                    </span>
+                                    {% if item.received_date %}
+                                    <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
+                                    {% endif %}
+
+                                {% elif item.match_status == 'UNMATCHED' %}
+                                    {# Unmatched — amber badge #}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                        <i data-lucide="clock" class="w-3 h-3"></i> Pending Registration
+                                    </span>
+
+                                {% elif item.match_status == 'MATCHED' and item.status == 'EXPECTED' %}
+                                    {# Matched but not yet received (shouldn't happen with auto-process, but safety) #}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
+                                        <i data-lucide="alert-circle" class="w-3 h-3"></i> Matched
+                                    </span>
+
+                                {% else %}
+                                    {# Fallback #}
+                                    <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                        {{ item.get_status_display }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        {# Edit + Remove buttons #}
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                <button type="button"
+                                        @click="openEditModal({{ item.pk }}, '{{ item.serial_number }}')"
+                                        class="p-1.5 rounded text-gray-300 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition"
                                         :disabled="loading"
-                                        title="Confirm arrival">
-                                    <i data-lucide="check" class="w-3 h-3"></i> Confirm
+                                        title="Edit serial number">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
                                 </button>
-                                {% endif %}
-
-                                {# Register Bit (for unmatched) #}
-                                {% if item.match_status == 'UNMATCHED' %}
-                                <button @click="registerBit({{ item.pk }})"
-                                        class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition"
+                                <button type="button"
+                                        @click="removeItem({{ item.pk }}, '{{ item.serial_number }}')"
+                                        class="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
                                         :disabled="loading"
-                                        title="Register as new drill bit">
-                                    <i data-lucide="plus" class="w-3 h-3"></i> Register
+                                        title="Remove from batch">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
-                                {% endif %}
-
-                                {# Create WO link (for received bits) #}
-                                {% if item.status == 'RECEIVED' and item.drill_bit %}
-                                <a href="{% url 'workorders:create' %}?serial={{ item.serial_number }}"
-                                   class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 rounded hover:bg-orange-100 dark:hover:bg-orange-900/50 transition"
-                                   title="Create work order">
-                                    <i data-lucide="file-plus" class="w-3 h-3"></i> WO
-                                </a>
-                                {% endif %}
-
-                                {# View Bit #}
-                                {% if item.drill_bit %}
-                                <a href="{% url 'workorders:drillbit_detail_enhanced' item.drill_bit.pk %}"
-                                   class="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition"
-                                   title="View drill bit">
-                                    <i data-lucide="external-link" class="w-3 h-3"></i>
-                                </a>
-                                {% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-4 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
+                        <td colspan="6" class="px-4 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
                             No items in this batch.
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    {# ── Edit Serial Modal ── #}
+    <div x-show="editModal.show" x-transition.opacity x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+         @keydown.escape.window="editModal.show = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+             @click.outside="editModal.show = false">
+            {# Modal Header #}
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                    <i data-lucide="pencil" class="w-5 h-5 text-teal-500"></i>
+                    Edit Serial Number
+                </h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Current serial: <strong class="font-mono text-gray-800 dark:text-white" x-text="editModal.oldSerial"></strong>
+                </p>
+            </div>
+
+            {# Modal Body #}
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Serial Number</label>
+                    <input type="text" x-model="editModal.newSerial"
+                           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-mono text-gray-800 dark:text-white px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                           placeholder="Enter new serial number"
+                           @keydown.enter.prevent="editSerialKeep()">
+                </div>
+
+                <div x-show="editModal.error" x-transition
+                     class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p class="text-sm text-red-600 dark:text-red-400" x-text="editModal.error"></p>
+                </div>
+
+                {# Two action buttons #}
+                <div class="space-y-2">
+                    <button @click="editSerialKeep()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition disabled:opacity-50"
+                            :disabled="editModal.loading || !editModal.newSerial.trim()">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        <span x-text="editModal.loading ? 'Updating...' : 'Update Serial (keep all history)'"></span>
+                    </button>
+
+                    <button @click="editSerialClean()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition disabled:opacity-50"
+                            :disabled="editModal.loading || !editModal.newSerial.trim()">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span x-text="editModal.loading ? 'Replacing...' : 'Remove &amp; Re-add (clean slate)'"></span>
+                    </button>
+                </div>
+
+                <p class="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                    <strong>Keep history</strong> renames the serial on the drill bit and all linked records.
+                    <strong>Clean slate</strong> removes the old entry and creates a fresh one with the new serial.
+                </p>
+            </div>
+
+            {# Modal Footer #}
+            <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-end">
+                <button @click="editModal.show = false"
+                        class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                    Cancel
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -279,9 +397,22 @@ function batchDetail() {
         loading: false,
         flashMsg: '',
         flashOk: true,
-        totalCount: {{ batch.item_count }},
-        receivedCount: {{ batch.received_count }},
         attachmentCount: {{ attachments|length }},
+
+        // Add Serials state
+        showAddSerials: false,
+        newSerials: '',
+        addSerialsResult: '',
+
+        // Edit Serial modal state
+        editModal: {
+            show: false,
+            itemId: null,
+            oldSerial: '',
+            newSerial: '',
+            error: '',
+            loading: false,
+        },
 
         _csrfToken() {
             return document.querySelector('[name=csrfmiddlewaretoken]')?.value
@@ -313,7 +444,7 @@ function batchDetail() {
             }
         },
 
-        // ── Attachment: Upload files from detail page ──
+        // ── Attachment: Upload files ──
         async uploadFiles(event) {
             const input = event.target;
             if (!input.files || input.files.length === 0) return;
@@ -366,7 +497,6 @@ function batchDetail() {
                 });
                 const data = await r.json();
                 if (!data.ok) throw new Error(data.error || 'Delete failed');
-                // Remove the element from DOM
                 const el = document.getElementById('att-' + attId);
                 if (el) el.remove();
                 this.attachmentCount--;
@@ -382,39 +512,7 @@ function batchDetail() {
             }
         },
 
-        async confirmItem(itemId) {
-            try {
-                const data = await this.postJson("{% url 'workorders:api_batch_confirm_item' batch.pk %}", { item_id: itemId });
-                this.receivedCount = data.batch_received_count;
-                this.flash('Item confirmed!', true);
-                // Reload to update badges
-                setTimeout(() => location.reload(), 800);
-            } catch (e) {
-                this.flash(e.message, false);
-            }
-        },
-
-        async confirmAll() {
-            try {
-                const data = await this.postJson("{% url 'workorders:api_batch_confirm_all' batch.pk %}", {});
-                this.receivedCount = data.batch_received_count;
-                this.flash(data.confirmed + ' items confirmed!', true);
-                setTimeout(() => location.reload(), 800);
-            } catch (e) {
-                this.flash(e.message, false);
-            }
-        },
-
-        async registerBit(itemId) {
-            try {
-                const data = await this.postJson("{% url 'workorders:api_batch_register_new' batch.pk %}", { item_id: itemId });
-                this.flash('Bit registered: ' + data.serial_number, true);
-                setTimeout(() => location.reload(), 800);
-            } catch (e) {
-                this.flash(e.message, false);
-            }
-        },
-
+        // ── Re-match unmatched serials ──
         async rematchAll() {
             try {
                 const data = await this.postJson("{% url 'workorders:api_batch_rematch' batch.pk %}", {});
@@ -422,6 +520,102 @@ function batchDetail() {
                 if (data.rematched > 0) setTimeout(() => location.reload(), 800);
             } catch (e) {
                 this.flash(e.message, false);
+            }
+        },
+
+        // ── Remove item from batch (undo mistaken serial) ──
+        async removeItem(itemId, serial) {
+            if (!confirm('Remove serial ' + serial + ' from this batch?\n\nThis will reverse the receiving event if one was created.')) return;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_remove_item' batch.pk %}", { item_id: itemId });
+                this.flash('Removed ' + data.serial, true);
+                setTimeout(() => location.reload(), 600);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        // ── Add more serials to batch ──
+        async addSerials() {
+            if (!this.newSerials.trim()) return;
+            this.addSerialsResult = '';
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_add_items' batch.pk %}", {
+                    serials: this.newSerials,
+                });
+                // Build result summary
+                let parts = [];
+                if (data.added > 0) parts.push('<span class="text-green-600 dark:text-green-400">' + data.added + ' added</span>');
+                if (data.matched > 0) parts.push(data.matched + ' matched');
+                if (data.new_registered > 0) parts.push(data.new_registered + ' unregistered (new)');
+                if (data.duplicates && data.duplicates.length) parts.push('<span class="text-amber-600">' + data.duplicates.length + ' skipped (already in batch)</span>');
+                if (data.errors && data.errors.length) parts.push('<span class="text-red-500">' + data.errors.length + ' invalid</span>');
+                this.addSerialsResult = parts.join(' &middot; ');
+
+                if (data.added > 0) {
+                    this.flash(data.added + ' serial(s) added to batch', true);
+                    this.newSerials = '';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.flash('No new serials added', false);
+                }
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        // ── Open edit serial modal ──
+        openEditModal(itemId, serial) {
+            this.editModal = {
+                show: true,
+                itemId: itemId,
+                oldSerial: serial,
+                newSerial: '',
+                error: '',
+                loading: false,
+            };
+        },
+
+        // ── Edit serial: keep all history (rename) ──
+        async editSerialKeep() {
+            const m = this.editModal;
+            if (!m.newSerial.trim()) return;
+            m.error = '';
+            m.loading = true;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_edit_serial' batch.pk %}", {
+                    item_id: m.itemId,
+                    new_serial: m.newSerial,
+                });
+                m.show = false;
+                this.flash('Serial updated: ' + data.old_serial + ' → ' + data.new_serial, true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                m.error = e.message;
+            } finally {
+                m.loading = false;
+            }
+        },
+
+        // ── Edit serial: remove & re-add (clean slate) ──
+        async editSerialClean() {
+            const m = this.editModal;
+            if (!m.newSerial.trim()) return;
+            if (!confirm('This will DELETE the old drill bit record (if it has no work orders) and all its events.\n\nA fresh item with the new serial will be created.\n\nContinue?')) return;
+            m.error = '';
+            m.loading = true;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_replace_serial' batch.pk %}", {
+                    item_id: m.itemId,
+                    new_serial: m.newSerial,
+                });
+                m.show = false;
+                this.flash('Replaced: ' + data.old_serial + ' → ' + data.new_serial, true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                m.error = e.message;
+            } finally {
+                m.loading = false;
             }
         },
     };

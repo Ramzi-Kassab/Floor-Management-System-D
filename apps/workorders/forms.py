@@ -1496,9 +1496,9 @@ class BackloadBatchForm(forms.ModelForm):
 
     class Meta:
         model = BackloadBatch
-        fields = ['account', 'batch_reference', 'expected_date', 'notes']
+        fields = ['batch_type', 'batch_reference', 'expected_date', 'notes']
         widgets = {
-            'account': forms.Select(attrs={'class': _BL_INPUT}),
+            'batch_type': forms.RadioSelect(),
             'batch_reference': forms.TextInput(attrs={
                 'class': _BL_INPUT,
                 'placeholder': 'Email ref, backload paper #',
@@ -1515,12 +1515,7 @@ class BackloadBatchForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filter to REPAIR + BOTH accounts only
-        from apps.sales.models import Account
-        self.fields['account'].queryset = Account.objects.filter(
-            workflow_type__in=['REPAIR', 'BOTH'],
-            is_active=True,
-        ).order_by('sort_order', 'name')
+        self.fields['batch_type'].required = True
 
     # -- Validation --
 

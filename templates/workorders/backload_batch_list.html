@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Backload Batches{% endblock %}
+{% block title %}Backload & Received Bits{% endblock %}
 {% block page_header %}
 <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
         <i data-lucide="truck" class="w-7 h-7 text-teal-500"></i>
-        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Backload Batches</h1>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Backload & Received Bits</h1>
     </div>
     <a href="{% url 'workorders:backload_batch_create' %}"
        class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
-        <i data-lucide="plus" class="w-4 h-4"></i> New Batch
+        <i data-lucide="plus" class="w-4 h-4"></i> Receive Bits
     </a>
 </div>
 {% endblock %}
@@ -29,12 +29,12 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Account</label>
-                <select name="account"
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                <select name="batch_type"
                         class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm py-1.5 px-2 focus:ring-teal-500 focus:border-teal-500">
                     <option value="">All</option>
-                    {% for acc in accounts %}
-                    <option value="{{ acc.pk }}" {% if current_account == acc.pk|stringformat:"d" %}selected{% endif %}>{{ acc.name }}</option>
+                    {% for value, label in type_choices %}
+                    <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -47,7 +47,7 @@
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition">
                 <i data-lucide="search" class="w-3.5 h-3.5"></i> Filter
             </button>
-            {% if current_status or current_account or current_q %}
+            {% if current_status or current_type or current_q %}
             <a href="{% url 'workorders:backload_batch_list' %}" class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Clear</a>
             {% endif %}
         </form>
@@ -59,7 +59,7 @@
             <thead class="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
                     <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Batch #</th>
-                    <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                     <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Items</th>
                     <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received</th>
@@ -78,9 +78,19 @@
                         </a>
                     </td>
                     <td class="px-5 py-3">
-                        <span class="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                            {{ batch.account }}
+                        {% if batch.batch_type == 'REPAIR' %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                            <i data-lucide="wrench" class="w-3 h-3"></i> Repair
                         </span>
+                        {% elif batch.batch_type == 'NEW' %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i> New
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                            {{ batch.get_batch_type_display|default:"—" }}
+                        </span>
+                        {% endif %}
                     </td>
                     <td class="px-5 py-3">
                         <span class="px-2 py-0.5 text-xs rounded-full
@@ -100,7 +110,7 @@
                 {% empty %}
                 <tr>
                     <td colspan="7" class="px-5 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
-                        No backload batches found.
+                        No batches found.
                     </td>
                 </tr>
                 {% endfor %}
@@ -116,13 +126,13 @@
         </div>
         <div class="flex gap-2">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_account %}&account={{ current_account }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
+            <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&batch_type={{ current_type }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
                class="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
                 Prev
             </a>
             {% endif %}
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_account %}&account={{ current_account }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
+            <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_type %}&batch_type={{ current_type }}{% endif %}{% if current_q %}&q={{ current_q }}{% endif %}"
                class="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
                 Next
             </a>
