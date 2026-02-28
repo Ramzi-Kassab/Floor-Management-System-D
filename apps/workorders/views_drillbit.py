@@ -297,12 +297,15 @@ class DrillBitCreateView(LoginRequiredMixin, CreateView):
 
             # Update bit status
             self.object.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-            self.object.status = DrillBit.Status.RETURNED
+            self.object.status = DrillBit.Status.BACKLOADED
+            self.object.condition = DrillBit.Condition.USED
             self.object.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             self.object.backload_count = (self.object.backload_count or 0) + 1
             self.object.last_backload_date = now.date()
+            self.object.derive_ownership()
             self.object.save(update_fields=[
-                "lifecycle_status", "status", "physical_status",
+                "lifecycle_status", "status", "condition", "ownership",
+                "physical_status",
                 "backload_count", "last_backload_date",
             ])
 
@@ -375,20 +378,24 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         if event_type == 'received':
             # ARDT received new bit
             bit.bit_location = location
-            bit.status = DrillBit.Status.IN_STOCK
+            bit.status = DrillBit.Status.RECEIVING
+            bit.condition = DrillBit.Condition.COMPONENTS
             bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.accounting_status = DrillBit.AccountingStatus.ARDT_OWNED
+            bit.derive_ownership()
             event_type_choice = BitEvent.EventType.RECEIVED
             event_notes = f"Received at {location.name}. {notes}".strip()
 
         elif event_type == 'customer_intake':
             # Customer brought bit for service
             bit.bit_location = location
-            bit.status = DrillBit.Status.RETURNED
+            bit.status = DrillBit.Status.IN_EVALUATION
+            bit.condition = DrillBit.Condition.USED
             bit.lifecycle_status = DrillBit.LifecycleStatus.EVALUATION
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.accounting_status = DrillBit.AccountingStatus.CUSTOMER_OWNED
+            bit.derive_ownership()
             if customer_id and Customer:
                 bit.customer = get_object_or_404(Customer, pk=customer_id)
             event_type_choice = BitEvent.EventType.BACKLOADED  # Using BACKLOADED for customer intake
@@ -397,10 +404,12 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
         elif event_type == 'in_production':
             # Bit exists but still in production (no physical location at ARDT)
             bit.status = DrillBit.Status.IN_PRODUCTION
+            bit.condition = DrillBit.Condition.COMPONENTS
             bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
             # No physical location yet, but we need one for the event
             # Use the selected location as "pending delivery to"
             bit.bit_location = location
+            bit.derive_ownership()
             event_type_choice = BitEvent.EventType.RECEIVED
             event_notes = f"Registered - In production, pending delivery to {location.name}. {notes}".strip()
 
@@ -657,6 +666,7 @@ class DrillBitShipView(LoginRequiredMixin, TemplateView):
             bit.bit_location = to_location
 
         bit.status = DrillBit.Status.DISPATCHED
+        # Condition stays as-is (Finished Good, Repaired, Rerun, Retrofitted)
         bit.physical_status = DrillBit.PhysicalStatus.IN_TRANSIT
         bit.lifecycle_status = DrillBit.LifecycleStatus.DEPLOYED
         bit.deployment_count += 1
@@ -774,7 +784,8 @@ class DrillBitReturnView(LoginRequiredMixin, TemplateView):
         if to_location:
             bit.bit_location = to_location
 
-        bit.status = DrillBit.Status.RETURNED
+        bit.status = DrillBit.Status.BACKLOADED
+        bit.condition = DrillBit.Condition.USED  # returned from field = used
         bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
         bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
         bit.backload_count += 1
@@ -830,6 +841,7 @@ class DrillBitScrapView(LoginRequiredMixin, TemplateView):
 
         # Update bit
         bit.status = DrillBit.Status.SCRAPPED
+        bit.condition = DrillBit.Condition.SCRAPPED
         bit.lifecycle_status = DrillBit.LifecycleStatus.SCRAP
         bit.scrap_date = timezone.now().date()
         if scrap_location:
@@ -889,7 +901,8 @@ class DrillBitStartRepairView(LoginRequiredMixin, TemplateView):
         )
 
         # Update bit
-        bit.status = DrillBit.Status.IN_PRODUCTION
+        bit.status = DrillBit.Status.IN_REPAIR
+        # Condition stays as-is (Used, Finished Good for defect repair, etc.)
         bit.lifecycle_status = DrillBit.LifecycleStatus.IN_REPAIR
         if location:
             bit.bit_location = location
@@ -1102,7 +1115,7 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
       records: 'filtered' | 'all'
       visible_cols: CSV of column keys (when columns=visible)
       bit_ids: CSV of bit PKs (when records=filtered)
-      status, lifecycle, bit_type, search: standard filters
+      status, condition, ownership, bit_type, search: standard filters
     """
 
     # All available columns (key matches template data-column attributes)
@@ -1125,7 +1138,8 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
         {"key": "customer", "name": "Customer"},
         {"key": "location", "name": "Location"},
         {"key": "status", "name": "Status"},
-        {"key": "lifecycle", "name": "Lifecycle"},
+        {"key": "condition", "name": "Condition"},
+        {"key": "ownership", "name": "Ownership"},
         {"key": "created", "name": "Registered"},
     ]
 
@@ -1189,8 +1203,10 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
             return bit.bit_location.name if bit.bit_location else ""
         elif key == "status":
             return bit.get_status_display()
-        elif key == "lifecycle":
-            return bit.get_lifecycle_status_display()
+        elif key == "condition":
+            return bit.get_condition_display()
+        elif key == "ownership":
+            return bit.get_ownership_display()
         elif key == "created":
             return bit.created_at.strftime("%Y-%m-%d") if bit.created_at else ""
         return ""
@@ -1244,9 +1260,13 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        lifecycle_filter = request.GET.get("lifecycle")
-        if lifecycle_filter:
-            queryset = queryset.filter(lifecycle_status=lifecycle_filter)
+        condition_filter = request.GET.get("condition")
+        if condition_filter:
+            queryset = queryset.filter(condition=condition_filter)
+
+        ownership_filter = request.GET.get("ownership")
+        if ownership_filter:
+            queryset = queryset.filter(ownership=ownership_filter)
 
         bit_type_filter = request.GET.get("bit_type")
         if bit_type_filter:

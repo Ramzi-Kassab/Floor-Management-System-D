@@ -441,17 +441,17 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        lifecycle = self.request.GET.get("lifecycle")
-        if lifecycle:
-            queryset = queryset.filter(lifecycle_status=lifecycle)
+        condition = self.request.GET.get("condition")
+        if condition:
+            queryset = queryset.filter(condition=condition)
+
+        ownership = self.request.GET.get("ownership")
+        if ownership:
+            queryset = queryset.filter(ownership=ownership)
 
         bit_type = self.request.GET.get("bit_type")
         if bit_type:
             queryset = queryset.filter(bit_type=bit_type)
-
-        physical = self.request.GET.get("physical")
-        if physical:
-            queryset = queryset.filter(physical_status=physical)
 
         search = self.request.GET.get("search")
         if search:
@@ -467,14 +467,14 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Drill Bits"
         context["status_choices"] = DrillBit.Status.choices
-        context["lifecycle_choices"] = DrillBit.LifecycleStatus.choices
+        context["condition_choices"] = DrillBit.Condition.choices
+        context["ownership_choices"] = DrillBit.Ownership.choices
         context["bit_type_choices"] = DrillBit.BitCategory.choices
-        context["physical_choices"] = DrillBit.PhysicalStatus.choices
 
         context["current_status"] = self.request.GET.get("status", "")
-        context["current_lifecycle"] = self.request.GET.get("lifecycle", "")
+        context["current_condition"] = self.request.GET.get("condition", "")
+        context["current_ownership"] = self.request.GET.get("ownership", "")
         context["current_bit_type"] = self.request.GET.get("bit_type", "")
-        context["current_physical"] = self.request.GET.get("physical", "")
         context["current_search"] = self.request.GET.get("search", "")
 
         paginate_by = self.get_paginate_by(None)

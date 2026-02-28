@@ -219,7 +219,15 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Status</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_lifecycle_status_display|default:drill_bit.get_status_display }}</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_status_display }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Condition</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_condition_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Ownership</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_ownership_display|default:"--" }}</p>
                 </div>
             </div>
         </div>
@@ -894,21 +902,39 @@
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 dark:text-gray-400">Status</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        {% if drill_bit.status == 'UNREGISTERED' %}bg-orange-100 text-orange-800{% elif drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {% if drill_bit.status == 'UNREGISTERED' %}bg-orange-100 text-orange-800
+                        {% elif drill_bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
+                        {% elif drill_bit.status == 'IN_PRODUCTION' or drill_bit.status == 'IN_REPAIR' %}bg-blue-100 text-blue-800
+                        {% elif drill_bit.status == 'DISPATCHED' or drill_bit.status == 'IN_FIELD' %}bg-indigo-100 text-indigo-800
+                        {% elif drill_bit.status == 'SCRAPPED' or drill_bit.status == 'DE_BRAZED' %}bg-red-100 text-red-800
+                        {% elif drill_bit.status == 'HOLD' %}bg-amber-100 text-amber-800
+                        {% elif drill_bit.status == 'BACKLOADED' %}bg-purple-100 text-purple-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
                         {{ drill_bit.get_status_display }}
                     </span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600 dark:text-gray-400">Lifecycle</span>
-                    <span class="text-gray-900 dark:text-white text-sm">{{ drill_bit.get_lifecycle_status_display|default:"--" }}</span>
+                    <span class="text-gray-600 dark:text-gray-400">Condition</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if drill_bit.condition == 'FINISHED_GOOD' %}bg-green-100 text-green-800
+                        {% elif drill_bit.condition == 'REPAIRED' %}bg-teal-100 text-teal-800
+                        {% elif drill_bit.condition == 'USED' %}bg-amber-100 text-amber-800
+                        {% elif drill_bit.condition == 'SCRAPPED' %}bg-red-100 text-red-800
+                        {% elif drill_bit.condition == 'DE_BRAZED' %}bg-rose-100 text-rose-800
+                        {% elif drill_bit.condition == 'SAVED_BODY' %}bg-violet-100 text-violet-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ drill_bit.get_condition_display|default:"--" }}
+                    </span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600 dark:text-gray-400">Physical</span>
+                    <span class="text-gray-600 dark:text-gray-400">Ownership</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        {% if drill_bit.physical_status == 'AT_RIG' %}bg-blue-100 text-blue-800
-                        {% elif drill_bit.physical_status == 'IN_SHOP' %}bg-purple-100 text-purple-800
+                        {% if drill_bit.ownership == 'RENTAL' %}bg-blue-100 text-blue-800
+                        {% elif drill_bit.ownership == 'CUSTOMER' %}bg-indigo-100 text-indigo-800
+                        {% elif drill_bit.ownership == 'MANUFACTURE' %}bg-emerald-100 text-emerald-800
+                        {% elif drill_bit.ownership == 'TRIAL' %}bg-pink-100 text-pink-800
                         {% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ drill_bit.get_physical_status_display|default:"--" }}
+                        {{ drill_bit.get_ownership_display|default:"--" }}
                     </span>
                 </div>
             </div>

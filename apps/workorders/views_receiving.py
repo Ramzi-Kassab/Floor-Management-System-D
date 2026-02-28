@@ -128,18 +128,26 @@ def _create_and_process_items(batch, serials, user):
             if is_new:
                 # New/unregistered bit — set UNREGISTERED status
                 bit.status = DrillBit.Status.UNREGISTERED
+                bit.condition = DrillBit.Condition.COMPONENTS
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
                 bit.last_backload_date = now.date()
-                bit.save(update_fields=["status", "physical_status", "last_backload_date"])
+                bit.derive_ownership()
+                bit.save(update_fields=[
+                    "status", "condition", "ownership",
+                    "physical_status", "last_backload_date",
+                ])
             else:
-                # Known bit returning — full BACKLOADED/RETURNED treatment
+                # Known bit returning — full BACKLOADED treatment
                 bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-                bit.status = DrillBit.Status.RETURNED
+                bit.status = DrillBit.Status.BACKLOADED
+                bit.condition = DrillBit.Condition.USED
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
                 bit.backload_count = (bit.backload_count or 0) + 1
                 bit.last_backload_date = now.date()
+                bit.derive_ownership()
                 bit.save(update_fields=[
-                    "lifecycle_status", "status", "physical_status",
+                    "lifecycle_status", "status", "condition", "ownership",
+                    "physical_status",
                     "backload_count", "last_backload_date",
                 ])
                 matched += 1
@@ -219,17 +227,25 @@ def _auto_process_single_item(item, user, batch):
 
         if is_new:
             bit.status = DrillBit.Status.UNREGISTERED
+            bit.condition = DrillBit.Condition.COMPONENTS
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.last_backload_date = now.date()
-            bit.save(update_fields=["status", "physical_status", "last_backload_date"])
+            bit.derive_ownership()
+            bit.save(update_fields=[
+                "status", "condition", "ownership",
+                "physical_status", "last_backload_date",
+            ])
         else:
             bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
-            bit.status = DrillBit.Status.RETURNED
+            bit.status = DrillBit.Status.BACKLOADED
+            bit.condition = DrillBit.Condition.USED
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
             bit.backload_count = (bit.backload_count or 0) + 1
             bit.last_backload_date = now.date()
+            bit.derive_ownership()
             bit.save(update_fields=[
-                "lifecycle_status", "status", "physical_status",
+                "lifecycle_status", "status", "condition", "ownership",
+                "physical_status",
                 "backload_count", "last_backload_date",
             ])
             matched = 1
@@ -531,9 +547,10 @@ def api_batch_remove_item(request, pk):
             if not other_backloads:
                 # No other backload events — reset to the bit's state before receiving
                 bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
-                bit.status = DrillBit.Status.NEW
+                bit.status = DrillBit.Status.RECEIVING
+                bit.condition = DrillBit.Condition.COMPONENTS
         bit.save(update_fields=[
-            "lifecycle_status", "status", "backload_count",
+            "lifecycle_status", "status", "condition", "backload_count",
         ])
 
     # 3. Cancel any BOMPendingRequest that was auto-raised for this bit

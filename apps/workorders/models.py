@@ -92,17 +92,45 @@ class DrillBit(models.Model):
         RC = "RC", "Roller Cone"
 
     class Status(models.TextChoices):
+        """Process status — where is this bit in the workflow?"""
+        ORDERED = "ORDERED", "Ordered"
+        IN_TRANSIT = "IN_TRANSIT", "In Transit"
         UNREGISTERED = "UNREGISTERED", "Unregistered"
-        NEW = "NEW", "New"
-        IN_STOCK = "IN_STOCK", "In Stock"
-        ASSIGNED = "ASSIGNED", "Assigned to WO"
+        RECEIVING = "RECEIVING", "Receiving"
+        IN_COMPONENTS = "IN_COMPONENTS", "In Components"
+        IN_EVALUATION = "IN_EVALUATION", "In Evaluation"
         IN_PRODUCTION = "IN_PRODUCTION", "In Production"
-        QC_PENDING = "QC_PENDING", "QC Pending"
-        READY = "READY", "Ready for Dispatch"
+        IN_REPAIR = "IN_REPAIR", "In Repair"
+        IN_STOCK = "IN_STOCK", "In Stock"
         DISPATCHED = "DISPATCHED", "Dispatched"
         IN_FIELD = "IN_FIELD", "In Field"
-        RETURNED = "RETURNED", "Returned"
+        BACKLOADED = "BACKLOADED", "Backloaded"
+        HOLD = "HOLD", "On Hold"
+        USA_REPAIR = "USA_REPAIR", "USA Repair"
+        DE_BRAZED = "DE_BRAZED", "De-Brazed"
+        SAVED_BODY = "SAVED_BODY", "Saved Body"
         SCRAPPED = "SCRAPPED", "Scrapped"
+
+    class Condition(models.TextChoices):
+        """What IS this bit right now?"""
+        COMPONENTS = "COMPONENTS", "Components"
+        FINISHED_GOOD = "FINISHED_GOOD", "Finished Good"
+        REPAIRED = "REPAIRED", "Repaired"
+        RERUN = "RERUN", "Rerun"
+        RETROFITTED = "RETROFITTED", "Retrofitted"
+        USED = "USED", "Used"
+        NOT_USED = "NOT_USED", "Not Used"
+        DE_BRAZED = "DE_BRAZED", "De-Brazed"
+        SAVED_BODY = "SAVED_BODY", "Saved Body"
+        SCRAPPED = "SCRAPPED", "Scrapped"
+
+    class Ownership(models.TextChoices):
+        """Commercial arrangement — who owns/controls this bit?"""
+        RENTAL = "RENTAL", "Rental"
+        CUSTOMER = "CUSTOMER", "Customer"
+        MANUFACTURE = "MANUFACTURE", "Manufacture"
+        TRIAL = "TRIAL", "Trial"
+        ARDT = "ARDT", "ARDT"
 
     serial_number = models.CharField(max_length=50, unique=True)
     # Note: Field kept as bit_type for backward compatibility, but uses BitCategory choices
@@ -136,7 +164,7 @@ class DrillBit(models.Model):
         help_text='Account this bit belongs to (LSTK, ARAMCO, UR, L3, L4, ARDT, etc.)'
     )
 
-    # Sprint 4: Physical and accounting status
+    # Sprint 4: Physical and accounting status (LEGACY — kept for backward compat)
     class PhysicalStatus(models.TextChoices):
         AT_ARDT = "AT_ARDT", "At ARDT Facility"
         AT_CUSTOMER = "AT_CUSTOMER", "At Customer Site"
@@ -158,6 +186,22 @@ class DrillBit(models.Model):
     accounting_status = models.CharField(
         max_length=20, choices=AccountingStatus.choices,
         default=AccountingStatus.ARDT_OWNED, blank=True
+    )
+
+    # === NEW 4-Column Model (Feb 2026) ===
+    condition = models.CharField(
+        max_length=20, choices=Condition.choices,
+        default=Condition.COMPONENTS, blank=True,
+        help_text="What IS this bit right now? (Finished Good, Used, Repaired, etc.)"
+    )
+    ownership = models.CharField(
+        max_length=20, choices=Ownership.choices,
+        default=Ownership.ARDT, blank=True,
+        help_text="Commercial arrangement (Rental, Customer, Manufacture, Trial, ARDT)"
+    )
+    is_trial = models.BooleanField(
+        default=False,
+        help_text="Trial/test bit — always ARDT-owned"
     )
 
     # Sprint 4: Repair tracking
@@ -204,7 +248,7 @@ class DrillBit(models.Model):
     iadc_code = models.CharField(max_length=20, blank=True)
 
     # Status
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.UNREGISTERED)
 
     # Location
     current_location = models.ForeignKey(
@@ -230,6 +274,7 @@ class DrillBit(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_bits")
 
     # Phase 2: Bit Tracking fields (from migration 0005)
+    # LEGACY — kept for data migration; new code uses `status` + `condition` instead
     class LifecycleStatus(models.TextChoices):
         NEW = "NEW", "New"
         DEPLOYED = "DEPLOYED", "Deployed"
@@ -247,7 +292,8 @@ class DrillBit(models.Model):
         max_length=20,
         choices=LifecycleStatus.choices,
         default=LifecycleStatus.NEW,
-        help_text="Phase 2 lifecycle tracking status"
+        blank=True,
+        help_text="LEGACY — use status + condition instead"
     )
     mat_number = models.CharField(max_length=20, blank=True, help_text="MAT number for inventory")
     received_date = models.DateField(null=True, blank=True, help_text="Date bit was received")
@@ -331,6 +377,31 @@ class DrillBit(models.Model):
             # Sync MAT number from BOM
             if self.bom.code:
                 self.mat_number = self.bom.code
+
+    # Account code → Ownership mapping
+    ACCOUNT_OWNERSHIP_MAP = {
+        'UR': Ownership.RENTAL,
+        'WFD': Ownership.RENTAL,
+        'ARAMCO': Ownership.CUSTOMER,
+        'LSTK': Ownership.CUSTOMER,
+        'RC-LSTK': Ownership.CUSTOMER,
+        'HALLIBURTON': Ownership.CUSTOMER,
+        'HAL_REGIONAL': Ownership.CUSTOMER,
+        'SUB': Ownership.CUSTOMER,
+        'L3': Ownership.MANUFACTURE,
+        'L4': Ownership.MANUFACTURE,
+        'ARDT': Ownership.ARDT,
+    }
+
+    def derive_ownership(self):
+        """Derive ownership from account + is_trial flag. Call before save when account changes."""
+        if self.is_trial:
+            self.ownership = self.Ownership.TRIAL
+        elif self.account_id:
+            account_code = self.account.code if hasattr(self.account, 'code') else ''
+            self.ownership = self.ACCOUNT_OWNERSHIP_MAP.get(account_code, self.Ownership.ARDT)
+        else:
+            self.ownership = self.Ownership.ARDT
 
     def save(self, *args, **kwargs):
         if not self.qr_code:

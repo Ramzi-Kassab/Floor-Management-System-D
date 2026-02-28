@@ -503,8 +503,10 @@ class DrillBitCreateForm(forms.ModelForm):
         instance = super().save(commit=False)
         # Sync fields from Design/BOM
         instance.sync_from_design()
-        instance.status = DrillBit.Status.NEW
+        instance.status = DrillBit.Status.RECEIVING
+        instance.condition = DrillBit.Condition.COMPONENTS
         instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
+        instance.derive_ownership()
         if commit:
             instance.save()
         return instance
