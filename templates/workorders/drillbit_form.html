@@ -90,6 +90,7 @@
 {% else %}
 <input type="hidden" name="bom" id="id_bom" value="">
 {% endif %}
+<input type="hidden" name="level" id="id_level" value="">
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Column: Table Selection -->
@@ -142,6 +143,7 @@
                                 <tr class="sel-row design-row"
                                     data-type="design"
                                     data-id="{{ design.pk }}"
+                                    data-level="L{{ design.order_level }}"
                                     data-mat="{{ design.mat_no|lower }}"
                                     data-hdbs="{{ design.hdbs_type|lower }}"
                                     data-size="{{ design.size.size_decimal|default:'' }}"
@@ -200,6 +202,7 @@
                                     data-type="bom"
                                     data-id="{{ bom.pk }}"
                                     data-design-id="{{ bom.design.pk }}"
+                                    data-level="L{{ bom.design.order_level }}"
                                     data-mat="{{ bom.design.mat_no|lower }}"
                                     data-hdbs="{{ bom.design.hdbs_type|lower }}"
                                     data-size="{{ bom.design.size.size_decimal|default:'' }}"
@@ -255,7 +258,19 @@
             <div id="selection-info" class="hidden">
                 <div class="space-y-3 mb-4">
                     <div id="sel-source-badge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
-                        From Design (Component)
+                        From Design
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Level:</span>
+                        <div class="flex items-center gap-1.5">
+                            <span id="sel-level-base" class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">--</span>
+                            <button type="button" id="sel-level-l5-btn"
+                                    onclick="toggleL5()"
+                                    class="hidden px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-gray-300 bg-white text-gray-500 hover:border-purple-400 hover:text-purple-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-purple-400 dark:hover:text-purple-300"
+                                    title="Click to mark as L5 (with cutters)">
+                                L5
+                            </button>
+                        </div>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Design MAT:</span>
@@ -336,8 +351,10 @@
                 <i data-lucide="info" class="w-4 h-4 mr-2"></i>How it works
             </h4>
             <ul class="text-xs text-blue-700 dark:text-blue-400 space-y-1.5 list-disc list-inside">
-                <li><strong>From Design</strong> = Component (no BOM yet, assign later)</li>
-                <li><strong>From BOM</strong> = Design auto-filled, BOM linked</li>
+                <li><strong>From Design</strong> = Register with design only (L3/L4), BOM can be added later</li>
+                <li><strong>From BOM</strong> = Register with design + BOM (cutter assignments)</li>
+                <li><strong>L5 toggle</strong> = Click "L5" button to explicitly mark the bit as L5</li>
+                <li>All registered bits start as <em>Ordered</em> with condition <em>Components</em></li>
                 {% if action == 'edit' %}
                 <li>Change the design or BOM by selecting a new row</li>
                 <li>Edit the serial number if needed, then Save</li>
@@ -380,6 +397,62 @@ function switchTab(tab) {
     applyAllFilters();
 }
 
+// ─── Level Badge & L5 Toggle ────────────────────────
+function setBaseLevelBadge(lvl) {
+    const el = document.getElementById('sel-level-base');
+    let cls = 'bg-gray-100 text-gray-800';
+    if (lvl === 'L3') cls = 'bg-blue-100 text-blue-800';
+    else if (lvl === 'L4') cls = 'bg-green-100 text-green-800';
+    el.className = 'px-1.5 py-0.5 rounded text-xs font-medium ' + cls;
+    el.textContent = lvl;
+}
+
+function resetL5Toggle() {
+    const btn = document.getElementById('sel-level-l5-btn');
+    btn.className = 'px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-gray-300 bg-white text-gray-500 hover:border-purple-400 hover:text-purple-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-purple-400 dark:hover:text-purple-300';
+    window._isL5 = false;
+}
+
+function toggleL5() {
+    const btn = document.getElementById('sel-level-l5-btn');
+    const baseEl = document.getElementById('sel-level-base');
+    const levelInput = document.getElementById('id_level');
+    const badge = document.getElementById('sel-source-badge');
+
+    if (window._isL5) {
+        // Turn OFF L5 — revert to design level
+        window._isL5 = false;
+        btn.className = 'px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-gray-300 bg-white text-gray-500 hover:border-purple-400 hover:text-purple-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-purple-400 dark:hover:text-purple-300';
+        btn.title = 'Click to mark as L5 (with cutters)';
+        // Restore base level styling
+        setBaseLevelBadge(window._designBaseLevel);
+        baseEl.classList.remove('opacity-50', 'line-through');
+        levelInput.value = window._designBaseLevel.replace('L', '');
+        // Update source badge back
+        if (currentTab === 'design') {
+            badge.textContent = 'From Design (' + window._designBaseLevel + ')';
+        } else {
+            badge.textContent = 'From BOM (' + window._designBaseLevel + ')';
+        }
+    } else {
+        // Turn ON L5
+        window._isL5 = true;
+        btn.className = 'px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-purple-500 bg-purple-100 text-purple-800 ring-1 ring-purple-300 dark:border-purple-400 dark:bg-purple-900/50 dark:text-purple-300';
+        btn.title = 'Click to remove L5 designation';
+        // Dim the base level
+        baseEl.classList.add('opacity-50', 'line-through');
+        levelInput.value = '5';
+        // Update source badge
+        if (currentTab === 'design') {
+            badge.textContent = 'From Design → L5';
+            badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300';
+        } else {
+            badge.textContent = 'From BOM → L5';
+            badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300';
+        }
+    }
+}
+
 // ─── Row Selection ──────────────────────────────────
 function selectRow(row) {
     // Deselect all rows in current tab
@@ -404,6 +477,21 @@ function selectRow(row) {
         return td ? (td.dataset.val || '') : '';
     }
 
+    // Get design-level from data attribute (always L3 or L4 from design)
+    const designLevel = row.dataset.level || '--';
+
+    // Store the design's base level for toggle reference
+    window._designBaseLevel = designLevel;
+    window._isL5 = false;
+
+    // Show the base level badge and the L5 toggle button
+    setBaseLevelBadge(designLevel);
+    // Show L5 toggle button (available for both design and BOM selections)
+    document.getElementById('sel-level-l5-btn').classList.remove('hidden');
+    resetL5Toggle();
+    // Set hidden level input to design level
+    document.getElementById('id_level').value = designLevel.replace('L', '');
+
     if (type === 'design') {
         const designId = row.dataset.id;
         document.getElementById('id_design').value = designId;
@@ -420,7 +508,7 @@ function selectRow(row) {
         document.getElementById('sel-size').textContent = cellVal('d_size') || '--';
         document.getElementById('sel-iadc').textContent = cellVal('d_iadc') || '--';
         document.getElementById('sel-bom-row').classList.add('hidden');
-        document.getElementById('sel-source-badge').textContent = 'From Design (Component)';
+        document.getElementById('sel-source-badge').textContent = 'From Design (' + designLevel + ')';
         document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
     } else {
         const bomId = row.dataset.id;
@@ -442,8 +530,8 @@ function selectRow(row) {
         document.getElementById('sel-bom-row').classList.remove('hidden');
         document.getElementById('sel-brazing').textContent = cellVal('b_brazing') || '--';
         document.getElementById('sel-system').textContent = cellVal('b_system') || '--';
-        document.getElementById('sel-source-badge').textContent = 'From BOM (Finished)';
-        document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
+        document.getElementById('sel-source-badge').textContent = 'From BOM (' + designLevel + ')';
+        document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300';
     }
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -461,6 +549,10 @@ function clearSelection() {
     if (bomField) bomField.value = '';
     if (brazingField) brazingField.value = '';
     if (systemField) systemField.value = '';
+    document.getElementById('id_level').value = '';
+    document.getElementById('sel-level-l5-btn').classList.add('hidden');
+    window._isL5 = false;
+    window._designBaseLevel = '--';
     document.getElementById('no-selection').classList.remove('hidden');
     document.getElementById('selection-info').classList.add('hidden');
 }
@@ -681,6 +773,14 @@ document.addEventListener('DOMContentLoaded', function() {
             selectRow(designRow);
             designRow.scrollIntoView({block: 'center', behavior: 'smooth'});
         }
+    }
+
+    // If bit's current level is L5, activate the L5 toggle
+    var preLevel = '{{ current_level|default:"" }}';
+    if (preLevel === '5') {
+        // selectRow() already ran above, which sets _designBaseLevel and shows L5 btn
+        // Now just click the L5 toggle to turn it ON
+        setTimeout(function() { toggleL5(); }, 100);
     }
     {% endif %}
 });

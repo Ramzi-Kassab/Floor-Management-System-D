@@ -561,67 +561,8 @@ class TestWorkOrderCostViews:
         assert response.status_code == 200
 
 
-# =============================================================================
-# STATUS TRANSITION LOG VIEW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestStatusTransitionLogViews:
-    """Tests for StatusTransitionLog views."""
-
-    def test_list_view_returns_200(self, authenticated_client):
-        """Test list view returns 200."""
-        url = reverse('workorders:statustransitionlog_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_list_view_requires_login(self, client):
-        """Test list view requires authentication."""
-        url = reverse('workorders:statustransitionlog_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-
-# =============================================================================
-# BIT REPAIR HISTORY VIEW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestBitRepairHistoryViews:
-    """Tests for BitRepairHistory views."""
-
-    def test_list_view_returns_200(self, authenticated_client):
-        """Test list view returns 200."""
-        url = reverse('workorders:bitrepairhistory_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_list_view_requires_login(self, client):
-        """Test list view requires authentication."""
-        url = reverse('workorders:bitrepairhistory_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-
-# =============================================================================
-# OPERATION EXECUTION VIEW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestOperationExecutionViews:
-    """Tests for OperationExecution views."""
-
-    def test_list_view_returns_200(self, authenticated_client):
-        """Test list view returns 200."""
-        url = reverse('workorders:operationexecution_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_list_view_requires_login(self, client):
-        """Test list view requires authentication."""
-        url = reverse('workorders:operationexecution_list')
-        response = client.get(url)
-        assert response.status_code == 302
+# NOTE: StatusTransitionLog, BitRepairHistory, OperationExecution view tests
+# REMOVED (Feb 2026) — models and views were dead code, never written to in production.
 
 
 # =============================================================================

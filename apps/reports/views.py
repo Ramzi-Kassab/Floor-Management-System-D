@@ -16,7 +16,7 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import ListView, TemplateView, View
 
-from apps.inventory.models import InventoryItem, InventoryStock, InventoryTransaction
+from apps.inventory.models import InventoryItem, StockBalance
 from apps.maintenance.models import Equipment, MaintenanceRequest, MaintenanceWorkOrder
 from apps.quality.models import Inspection, NCR
 from apps.supplychain.models import CAPA, PurchaseOrder, PurchaseRequisition, Receipt, Supplier, Vendor
@@ -152,7 +152,7 @@ class ReportsDashboardView(LoginRequiredMixin, TemplateView):
         context["stats"] = {
             "work_orders_this_month": WorkOrder.objects.filter(created_at__date__gte=month_start).count(),
             "active_work_orders": WorkOrder.objects.filter(status__in=["PLANNED", "IN_PROGRESS"]).count(),
-            "low_stock_items": InventoryStock.objects.filter(quantity_on_hand__lte=F("item__reorder_point")).count(),
+            "low_stock_items": StockBalance.objects.filter(qty_on_hand__lte=F("item__reorder_point")).count(),
             "open_ncrs": NCR.objects.filter(status__in=["OPEN", "IN_PROGRESS"]).count(),
             "pending_maintenance": MaintenanceRequest.objects.filter(status="PENDING").count(),
             "pending_pos": PurchaseOrder.objects.filter(status="PENDING").count(),
@@ -239,13 +239,13 @@ class WorkOrderReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
 class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
     """Inventory stock level report with Excel export."""
 
-    model = InventoryStock
+    model = StockBalance
     template_name = "reports/inventory_report.html"
     context_object_name = "stock_items"
     paginate_by = 50
 
     def get_queryset(self):
-        qs = InventoryStock.objects.select_related("item", "item__category", "location").order_by("item__name")
+        qs = StockBalance.objects.select_related("item", "item__category", "location").order_by("item__name")
 
         # Category filter
         category = self.request.GET.get("category")
@@ -260,7 +260,7 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         # Low stock filter
         low_stock = self.request.GET.get("low_stock")
         if low_stock == "true":
-            qs = qs.filter(quantity_on_hand__lte=F("item__reorder_point"))
+            qs = qs.filter(qty_on_hand__lte=F("item__reorder_point"))
 
         return qs
 
@@ -272,10 +272,10 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
         qs = self.get_queryset()
         context["summary"] = {
             "total_items": qs.count(),
-            "low_stock": qs.filter(quantity_on_hand__lte=F("item__reorder_point")).count(),
-            "out_of_stock": qs.filter(quantity_on_hand=0).count(),
+            "low_stock": qs.filter(qty_on_hand__lte=F("item__reorder_point")).count(),
+            "out_of_stock": qs.filter(qty_on_hand=0).count(),
             "total_value": qs.aggregate(
-                total=Sum(F("quantity_on_hand") * F("item__standard_cost"), default=0)
+                total=Sum(F("qty_on_hand") * F("item__standard_cost"), default=0)
             )["total"] or 0,
         }
 
@@ -288,9 +288,9 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("item.name", "Item Name"),
                 ("item.category.name", "Category"),
                 ("location.name", "Location"),
-                ("quantity_on_hand", "Qty On Hand"),
-                ("quantity_reserved", "Qty Reserved"),
-                ("quantity_available", "Qty Available"),
+                ("qty_on_hand", "Qty On Hand"),
+                ("qty_reserved", "Qty Reserved"),
+                ("qty_available", "Qty Available"),
                 ("item.reorder_point", "Reorder Point"),
                 ("item.standard_cost", "Unit Cost"),
             ]
@@ -301,21 +301,21 @@ class InventoryReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
 class LowStockAlertView(LoginRequiredMixin, ExcelExportMixin, ListView):
     """Low stock alert report."""
 
-    model = InventoryStock
+    model = StockBalance
     template_name = "reports/low_stock_alert.html"
     context_object_name = "alerts"
 
     def get_queryset(self):
         return (
-            InventoryStock.objects.filter(quantity_on_hand__lte=F("item__reorder_point"))
+            StockBalance.objects.filter(qty_on_hand__lte=F("item__reorder_point"))
             .select_related("item", "item__category", "location")
-            .order_by("quantity_on_hand")
+            .order_by("qty_on_hand")
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Low Stock Alerts"
-        context["critical_count"] = self.get_queryset().filter(quantity_on_hand=0).count()
+        context["critical_count"] = self.get_queryset().filter(qty_on_hand=0).count()
         return context
 
     def get(self, request, *args, **kwargs):
@@ -324,9 +324,9 @@ class LowStockAlertView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("item.code", "Item Code"),
                 ("item.name", "Item Name"),
                 ("location.name", "Location"),
-                ("quantity_on_hand", "Current Stock"),
+                ("qty_on_hand", "Current Stock"),
                 ("item.reorder_point", "Reorder Point"),
-                ("quantity_on_hand", "Shortage"),
+                ("qty_on_hand", "Shortage"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "low_stock_alerts", "Low Stock")
         return super().get(request, *args, **kwargs)
@@ -346,7 +346,7 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = NCR.objects.select_related("work_order", "inspection", "reported_by").order_by("-created_at")
+        qs = NCR.objects.select_related("work_order", "inspection", "detected_by").order_by("-created_at")
 
         # Date range
         date_from = self.request.GET.get("date_from")
@@ -382,15 +382,15 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
             "critical": qs.filter(severity="CRITICAL").count(),
             "closed_this_month": qs.filter(
                 status="CLOSED",
-                closed_date__month=timezone.now().month,
+                closed_at__month=timezone.now().month,
             ).count(),
         }
 
         # Inspection stats
         context["inspection_stats"] = {
             "total": Inspection.objects.count(),
-            "passed": Inspection.objects.filter(result="PASS").count(),
-            "failed": Inspection.objects.filter(result="FAIL").count(),
+            "passed": Inspection.objects.filter(status="PASSED").count(),
+            "failed": Inspection.objects.filter(status="FAILED").count(),
         }
 
         return context
@@ -404,9 +404,9 @@ class QualityReportView(LoginRequiredMixin, ExcelExportMixin, ListView):
                 ("severity", "Severity"),
                 ("status", "Status"),
                 ("description", "Description"),
-                ("reported_by.username", "Reported By"),
+                ("detected_by.username", "Detected By"),
                 ("created_at", "Created"),
-                ("closed_date", "Closed Date"),
+                ("closed_at", "Closed Date"),
             ]
             return self.export_to_excel(self.get_queryset(), columns, "quality_report", "NCRs")
         return super().get(request, *args, **kwargs)

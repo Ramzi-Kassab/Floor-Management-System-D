@@ -8,7 +8,7 @@ from django.test import Client
 from django.contrib.auth import get_user_model
 
 from apps.common.tests.base import BaseCRUDTest, BasePermissionTest
-from apps.inventory.models import InventoryCategory, InventoryItem, InventoryStock
+from apps.inventory.models import InventoryCategory, InventoryItem
 
 User = get_user_model()
 
@@ -123,68 +123,9 @@ class TestItemViews(BaseCRUDTest):
         assert response.status_code == 200
 
 
-# =============================================================================
-# TRANSACTION VIEWS
-# =============================================================================
-
-class TestTransactionViews:
-    """Tests for InventoryTransaction views."""
-
-    def test_transaction_list_requires_login(self, client):
-        """Test transaction list requires authentication."""
-        url = reverse('inventory:transaction_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_transaction_list_authenticated(self, authenticated_client, inventory_transaction):
-        """Test transaction list for authenticated users."""
-        url = reverse('inventory:transaction_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_transaction_detail(self, authenticated_client, inventory_transaction):
-        """Test transaction detail view."""
-        url = reverse('inventory:transaction_detail', kwargs={'pk': inventory_transaction.pk})
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_transaction_create_get(self, authenticated_client):
-        """Test transaction create form."""
-        url = reverse('inventory:transaction_create')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-
-# =============================================================================
-# STOCK VIEWS
-# =============================================================================
-
-class TestStockViews:
-    """Tests for InventoryStock views."""
-
-    def test_stock_list_requires_login(self, client):
-        """Test stock list requires authentication."""
-        url = reverse('inventory:stock_list')
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_stock_list_authenticated(self, authenticated_client, inventory_stock):
-        """Test stock list for authenticated users."""
-        url = reverse('inventory:stock_list')
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
-
-    def test_stock_adjust_requires_login(self, client, inventory_stock):
-        """Test stock adjust requires authentication."""
-        url = reverse('inventory:stock_adjust', kwargs={'pk': inventory_stock.pk})
-        response = client.get(url)
-        assert response.status_code == 302
-
-    def test_stock_adjust_get(self, authenticated_client, inventory_stock):
-        """Test stock adjust form."""
-        url = reverse('inventory:stock_adjust', kwargs={'pk': inventory_stock.pk})
-        response = authenticated_client.get(url)
-        assert response.status_code == 200
+# NOTE: TestTransactionViews and TestStockViews removed —
+# InventoryTransaction and InventoryStock views/URLs deprecated.
+# Use StockLedger and StockBalance instead.
 
 
 # =============================================================================

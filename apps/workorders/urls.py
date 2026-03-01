@@ -8,10 +8,31 @@ from django.urls import path
 from . import views
 from . import views_jobcard
 from . import views_drillbit
+from . import views_receiving
 
 app_name = "workorders"
 
 urlpatterns = [
+    # ========================================================================
+    # RECEIVING DOCK
+    # ========================================================================
+    path("receiving/", views_receiving.ReceivingDockDashboardView.as_view(), name="receiving_dashboard"),
+    path("receiving/batches/", views_receiving.BackloadBatchListView.as_view(), name="backload_batch_list"),
+    path("receiving/batches/create/", views_receiving.BackloadBatchCreateView.as_view(), name="backload_batch_create"),
+    path("receiving/batches/<int:pk>/", views_receiving.BackloadBatchDetailView.as_view(), name="backload_batch_detail"),
+    # NOTE: confirm-item, confirm-all, register-new removed (Feb 2026) — auto-processed on batch creation
+    path("receiving/batches/<int:pk>/rematch/", views_receiving.api_batch_rematch, name="api_batch_rematch"),
+    path("receiving/batches/<int:pk>/remove-item/", views_receiving.api_batch_remove_item, name="api_batch_remove_item"),
+    path("receiving/batches/<int:pk>/add-items/", views_receiving.api_batch_add_items, name="api_batch_add_items"),
+    path("receiving/batches/<int:pk>/edit-serial/", views_receiving.api_batch_edit_serial, name="api_batch_edit_serial"),
+    path("receiving/batches/<int:pk>/replace-serial/", views_receiving.api_batch_replace_serial, name="api_batch_replace_serial"),
+    path("receiving/batches/<int:pk>/upload-attachment/", views_receiving.api_batch_upload_attachment, name="api_batch_upload_attachment"),
+    path("receiving/batches/<int:pk>/delete-attachment/<int:att_pk>/", views_receiving.api_batch_delete_attachment, name="api_batch_delete_attachment"),
+    path("receiving/inspections/", views_receiving.ReceivingInspectionListView.as_view(), name="receiving_inspection_list"),
+    path("receiving/bom-pending/", views_receiving.BOMPendingListView.as_view(), name="bom_pending_list"),
+    path("receiving/api/bom-request/", views_receiving.api_create_bom_request, name="api_create_bom_request"),
+    path("receiving/api/bom-request/<int:pk>/resolve/", views_receiving.api_resolve_bom_request, name="api_resolve_bom_request"),
+
     # ========================================================================
     # JOB CARD ENHANCED VIEWS
     # ========================================================================
@@ -80,6 +101,9 @@ urlpatterns = [
     path("drill-bits/<int:pk>/scrap/", views_drillbit.DrillBitScrapView.as_view(), name="drillbit_scrap"),
     path("drill-bits/<int:pk>/start-repair/", views_drillbit.DrillBitStartRepairView.as_view(), name="drillbit_start_repair"),
 
+    # QR Labels (multi-size, supports ?bits=1,2,3)
+    path("drill-bits/qr-labels/", views_drillbit.DrillBitQRLabelsView.as_view(), name="drillbit_qr_labels"),
+
     # Excel Export
     path("drill-bits/export/excel/", views_drillbit.DrillBitExportExcelView.as_view(), name="drillbit_export_excel"),
 
@@ -101,6 +125,15 @@ urlpatterns = [
     # Cutter Evaluation Matrix
     path("<int:wo_pk>/cutter-evaluation/create/", views_jobcard.CutterEvaluationCreateView.as_view(), name="cutter_evaluation_create"),
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/", views_jobcard.CutterEvaluationEditView.as_view(), name="cutter_evaluation_edit"),
+    path("<int:wo_pk>/cutter-evaluation/<int:pk>/mark-complete/", views_jobcard.api_evaluation_mark_complete, name="cutter_evaluation_mark_complete"),
+
+    # Evaluation Auto-Create (standalone per-type URL)
+    path("<int:wo_pk>/evaluation/<str:type_code>/", views_jobcard.EvaluationAutoCreateView.as_view(), name="evaluation_auto"),
+
+    # Receiving Inspection (linked to drill bit)
+    path("drill-bits/<int:bit_pk>/receiving-inspection/create/", views_jobcard.ReceivingInspectionCreateView.as_view(), name="receiving_inspection_create"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/", views_jobcard.ReceivingInspectionEditView.as_view(), name="receiving_inspection_edit"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/mark-complete/", views_jobcard.api_receiving_inspection_complete, name="receiving_inspection_mark_complete"),
 
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),
@@ -184,8 +217,5 @@ urlpatterns = [
     path("costs/create/", views.WorkOrderCostCreateView.as_view(), name="workordercost_create"),
     path("costs/<int:pk>/edit/", views.WorkOrderCostUpdateView.as_view(), name="workordercost_update"),
     path("costs/<int:pk>/delete/", views.WorkOrderCostDeleteView.as_view(), name="workordercost_delete"),
-    # View-Only URLs (3 patterns)
-    path("status-logs/", views.StatusTransitionLogListView.as_view(), name="statustransitionlog_list"),
-    path("repair-history/", views.BitRepairHistoryListView.as_view(), name="bitrepairhistory_list"),
-    path("operation-executions/", views.OperationExecutionListView.as_view(), name="operationexecution_list"),
+    # NOTE: StatusTransitionLog, BitRepairHistory, OperationExecution URLs removed (Feb 2026)
 ]

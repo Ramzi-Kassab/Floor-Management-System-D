@@ -48,6 +48,9 @@
     <!-- Event Type Selection -->
     <form method="post" class="space-y-6">
         {% csrf_token %}
+        {# Hidden fields that get populated by JS before submit #}
+        <input type="hidden" name="location" id="main_location" value="">
+        <input type="hidden" name="notes" id="main_notes" value="">
 
         <!-- Option 1: Received at ARDT -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-2 border-transparent hover:border-green-500 cursor-pointer transition-all event-option" data-event="received">
@@ -65,16 +68,16 @@
                         <div class="grid grid-cols-1 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location <span class="text-red-500">*</span></label>
-                                <select name="location" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <select name="location_received" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="">Select location...</option>
-                                    {% for loc in locations %}
-                                    <option value="{{ loc.id }}" {% if default_received_location and loc.id == default_received_location.id %}selected{% endif %}>{{ loc.name }}</option>
+                                    {% for loc in received_locations %}
+                                    <option value="{{ loc.id }}" {% if default_received_location and loc.id == default_received_location.id %}selected{% endif %}>{{ loc.name }} ({{ loc.get_location_type_display }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                                <textarea name="notes" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
+                                <textarea name="notes_received" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Optional notes..."></textarea>
                             </div>
                         </div>
                     </div>
@@ -98,10 +101,10 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location <span class="text-red-500">*</span></label>
-                                <select name="location_intake" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white location-field">
+                                <select name="location_intake" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="">Select location...</option>
-                                    {% for loc in locations %}
-                                    <option value="{{ loc.id }}" {% if default_intake_location and loc.id == default_intake_location.id %}selected{% endif %}>{{ loc.name }}</option>
+                                    {% for loc in intake_locations %}
+                                    <option value="{{ loc.id }}" {% if default_intake_location and loc.id == default_intake_location.id %}selected{% endif %}>{{ loc.name }} ({{ loc.get_location_type_display }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -142,7 +145,7 @@
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Production Location</label>
                                 <div class="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300">
                                     <span class="font-medium">{{ usa_location.name|default:"Woodlands, Texas (USA)" }}</span>
-                                    <input type="hidden" name="location_production" value="{{ usa_location.id }}">
+                                    <input type="hidden" name="location_production" id="location_production" value="{{ usa_location.id }}">
                                 </div>
                                 <p class="mt-1 text-xs text-gray-500">Bit is being manufactured at Halliburton USA facility</p>
                             </div>
@@ -226,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Handle form submission - consolidate location fields
+    // Handle form submission — copy per-option fields to hidden main fields
     document.querySelector('form').addEventListener('submit', function(e) {
         const eventType = document.querySelector('input[name="event_type"]:checked');
         if (!eventType) {
@@ -235,24 +238,29 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Copy location value from specific field to main field
-        if (eventType.value === 'customer_intake') {
+        const mainLoc = document.getElementById('main_location');
+        const mainNotes = document.getElementById('main_notes');
+
+        if (eventType.value === 'received') {
+            const locField = document.querySelector('select[name="location_received"]');
+            if (locField) mainLoc.value = locField.value;
+            const notesField = document.querySelector('textarea[name="notes_received"]');
+            if (notesField) mainNotes.value = notesField.value;
+
+        } else if (eventType.value === 'customer_intake') {
             const locField = document.querySelector('select[name="location_intake"]');
-            const mainLoc = document.querySelector('select[name="location"]');
-            if (locField && mainLoc) mainLoc.value = locField.value;
-
+            if (locField) mainLoc.value = locField.value;
             const notesField = document.querySelector('textarea[name="notes_intake"]');
-            const mainNotes = document.querySelector('textarea[name="notes"]');
-            if (notesField && mainNotes) mainNotes.value = notesField.value;
-        } else if (eventType.value === 'in_production') {
-            const locField = document.querySelector('select[name="location_production"]');
-            const mainLoc = document.querySelector('select[name="location"]');
-            if (locField && mainLoc) mainLoc.value = locField.value;
+            if (notesField) mainNotes.value = notesField.value;
 
+        } else if (eventType.value === 'in_production') {
+            // Hidden input — use getElementById
+            const locField = document.getElementById('location_production');
+            if (locField) mainLoc.value = locField.value;
             const notesField = document.querySelector('textarea[name="notes_production"]');
-            const mainNotes = document.querySelector('textarea[name="notes"]');
-            if (notesField && mainNotes) mainNotes.value = notesField.value;
+            if (notesField) mainNotes.value = notesField.value;
         }
+        // 'skip' doesn't need location or notes
     });
 });
 </script>

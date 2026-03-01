@@ -130,22 +130,8 @@ class CutterMapDocument(models.Model):
         """Return edited data if exists, otherwise extracted data."""
         return self.edited_data or self.extracted_data
 
-    def sync_to_design(self):
-        """
-        Sync extracted/edited data to the linked Design model.
-        Creates or updates BOM lines and cutter layouts.
-        """
-        if not self.design:
-            return False
-
-        # TODO: Implement sync logic
-        # - Update Design fields from header
-        # - Create/update BOMLines from summary
-        # - Create/update DesignCutterLayout from blades
-
-        self.status = self.Status.SYNCED
-        self.save()
-        return True
+    # NOTE: sync_to_design() stub REMOVED (Feb 2026) — never implemented, never called.
+    # BOM creation is handled by api_sync_to_erp() in views.py.
 
 
 class CutterMapHistory(models.Model):

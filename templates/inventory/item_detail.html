@@ -33,9 +33,6 @@
         </div>
     </div>
     <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <a href="{% url 'inventory:transaction_create' %}?item={{ item.pk }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            <i data-lucide="arrow-left-right" class="w-4 h-4 mr-2"></i>Transaction
-        </a>
         <a href="{% url 'inventory:bulk_variant_create' item.pk %}" class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
             <i data-lucide="layers" class="w-4 h-4 mr-2"></i>Add Variants
         </a>
@@ -611,7 +608,6 @@
                     <i data-lucide="history" class="w-5 h-5 mr-2 text-cyan-500"></i>
                     Recent Transactions
                 </h2>
-                <a href="{% url 'inventory:transaction_list' %}?item={{ item.pk }}" class="text-sm text-blue-600 hover:underline">View All</a>
             </div>
             {% if recent_transactions %}
             <table class="w-full text-sm">
@@ -626,23 +622,23 @@
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     {% for trans in recent_transactions %}
                     <tr>
-                        <td class="px-6 py-4 text-gray-500">{{ trans.transaction_date|date:"M d, Y H:i" }}</td>
+                        <td class="px-6 py-4 text-gray-500">{{ trans.transaction_date|date:"M d, Y" }}</td>
                         <td class="px-6 py-4">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                {% if trans.transaction_type == 'RECEIPT' %}bg-green-100 text-green-800
-                                {% elif trans.transaction_type == 'ISSUE' %}bg-red-100 text-red-800
-                                {% elif trans.transaction_type == 'TRANSFER' %}bg-blue-100 text-blue-800
+                                {% if trans.transaction_type == 'RECEIPT' or trans.transaction_type == 'RETURN_IN' or trans.transaction_type == 'ADJ_IN' %}bg-green-100 text-green-800
+                                {% elif trans.transaction_type == 'ISSUE' or trans.transaction_type == 'ADJ_OUT' or trans.transaction_type == 'SCRAP' or trans.transaction_type == 'CONSUMPTION' %}bg-red-100 text-red-800
+                                {% elif trans.transaction_type == 'TRANSFER_IN' or trans.transaction_type == 'TRANSFER_OUT' %}bg-blue-100 text-blue-800
                                 {% else %}bg-gray-100 text-gray-800{% endif %}">
                                 {{ trans.get_transaction_type_display }}
                             </span>
                         </td>
                         <td class="px-6 py-4 text-right font-mono
-                            {% if trans.transaction_type == 'RECEIPT' %}text-green-600
-                            {% elif trans.transaction_type == 'ISSUE' %}text-red-600
+                            {% if trans.qty_delta > 0 %}text-green-600
+                            {% elif trans.qty_delta < 0 %}text-red-600
                             {% else %}text-gray-900{% endif %}">
-                            {% if trans.transaction_type == 'RECEIPT' %}+{% elif trans.transaction_type == 'ISSUE' %}-{% endif %}{{ trans.quantity }}
+                            {% if trans.qty_delta > 0 %}+{% endif %}{{ trans.qty_delta }}
                         </td>
-                        <td class="px-6 py-4 text-gray-500 font-mono text-xs">{{ trans.reference_number|default:trans.transaction_number }}</td>
+                        <td class="px-6 py-4 text-gray-500 font-mono text-xs">{{ trans.reference_id|default:trans.entry_number }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

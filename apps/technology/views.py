@@ -565,41 +565,65 @@ class DesignPocketsGridSaveView(LoginRequiredMixin, View):
     def get(self, request, pk):
         """Load grid data from database."""
         from .models import DesignPocket
+        from collections import defaultdict
 
         design = get_object_or_404(Design, pk=pk)
-        pockets = DesignPocket.objects.filter(design=design).select_related('pocket_config')
+        pockets = list(DesignPocket.objects.filter(design=design).select_related('pocket_config'))
 
-        grid_data = {}
-        for pocket in pockets:
-            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
-            grid_data[key] = pocket.pocket_config_id
+        if not pockets:
+            return JsonResponse({
+                'success': True,
+                'gridData': {},
+                'rowSeparators': [],
+                'locationData': {},
+                'engagementData': {}
+            })
 
-        # Calculate row separators from pocket data
+        # --- Row-aligned virtual column calculation ---
+        # Different blades have different cutter counts per row.
+        # We need to pad shorter blades so all R2 cutters appear after
+        # the R1 separator, all R3 after R2 separator, etc.
+
+        # Step 1: Find max cutters per row across ALL blades
+        blade_row_counts = defaultdict(int)
+        for p in pockets:
+            blade_row_counts[(p.blade_number, p.row_number)] += 1
+
+        all_blades = sorted(set(p.blade_number for p in pockets))
+        all_rows = sorted(set(p.row_number for p in pockets))
+
+        row_max = {}
+        for row in all_rows:
+            row_max[row] = max(
+                blade_row_counts.get((blade, row), 0)
+                for blade in all_blades
+            )
+
+        # Step 2: Calculate row start offsets (virtual column where each row begins)
+        row_start = {}
+        offset = 1
+        for row in all_rows:
+            row_start[row] = offset
+            offset += row_max[row]
+
+        # Step 3: Row separators — cumulative end of each row except last
         row_separators = []
-        if pockets.exists():
-            # Find where rows change
-            positions_by_row = {}
-            for pocket in pockets:
-                if pocket.row_number not in positions_by_row:
-                    positions_by_row[pocket.row_number] = []
-                positions_by_row[pocket.row_number].append(pocket.position_in_blade)
+        cumulative = 0
+        for row in all_rows[:-1]:
+            cumulative += row_max[row]
+            row_separators.append(cumulative)
 
-            # Find max position of each row as separator
-            for row_num in sorted(positions_by_row.keys())[:-1]:  # All but last row
-                max_pos = max(positions_by_row[row_num])
-                row_separators.append(max_pos)
-
-        # Also include location data
+        # Step 4: Build grid data using virtual columns
+        # Virtual column = row_start[row_number] + position_in_row - 1
+        grid_data = {}
         location_data = {}
-        for pocket in pockets:
-            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
-            if pocket.blade_location:
-                location_data[key] = pocket.blade_location
-
-        # Also include engagement data
         engagement_data = {}
         for pocket in pockets:
-            key = f"{pocket.blade_number}_{pocket.position_in_blade}"
+            vcol = row_start[pocket.row_number] + pocket.position_in_row - 1
+            key = f"{pocket.blade_number}_{vcol}"
+            grid_data[key] = pocket.pocket_config_id
+            if pocket.blade_location:
+                location_data[key] = pocket.blade_location
             if pocket.engagement_order:
                 engagement_data[key] = pocket.engagement_order
 
@@ -935,7 +959,7 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
         return BOM.objects.select_related("design", "created_by")
 
     def get_context_data(self, **kwargs):
-        from apps.inventory.models import InventoryStock
+        from apps.inventory.models import StockBalance
         from django.db.models import Sum
 
         context = super().get_context_data(**kwargs)
@@ -956,11 +980,11 @@ class BOMDetailView(LoginRequiredMixin, DetailView):
 
             # Get total stock for this item (only if inventory_item exists)
             if item:
-                stock_data = InventoryStock.objects.filter(
+                stock_data = StockBalance.objects.filter(
                     item=item
                 ).aggregate(
-                    total_on_hand=Sum('quantity_on_hand'),
-                    total_available=Sum('quantity_available')
+                    total_on_hand=Sum('qty_on_hand'),
+                    total_available=Sum('qty_available')
                 )
                 on_hand = stock_data['total_on_hand'] or 0
                 available = stock_data['total_available'] or 0
@@ -3721,7 +3745,7 @@ def api_boms_list(request):
     for b in boms:
         result.append({
             'id': b.pk,
-            'code': b.code or b.brazing_mat_no or b.system_mat_no or str(b),
+            'code': b.code or b.system_mat_no or str(b),
             'name': b.name or f"L5 ({b.get_status_display()})",
             'status': b.status,
         })

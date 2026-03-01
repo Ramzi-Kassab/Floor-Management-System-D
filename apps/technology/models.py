@@ -976,11 +976,35 @@ class Design(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_designs"
     )
 
+    # Status transition rules
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['ACTIVE', 'OBSOLETE'],
+        'ACTIVE': ['OBSOLETE'],
+        'OBSOLETE': [],  # terminal
+    }
+
     class Meta:
         db_table = "designs"
         ordering = ['category', 'series', 'hdbs_type']
         verbose_name = "Design"
         verbose_name_plural = "Designs"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = Design.objects.only('status').get(pk=self.pk)
+            except Design.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed transitions: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def __str__(self):
         if self.size:
@@ -1117,11 +1141,35 @@ class BOM(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_boms")
 
+    # Status transition rules
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['ACTIVE', 'OBSOLETE'],
+        'ACTIVE': ['OBSOLETE'],
+        'OBSOLETE': [],  # terminal
+    }
+
     class Meta:
         db_table = "boms"
         ordering = ["design", "code"]
         verbose_name = "Bill of Materials"
         verbose_name_plural = "Bills of Materials"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = BOM.objects.only('status').get(pk=self.pk)
+            except BOM.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change BOM status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed transitions: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -1583,7 +1631,7 @@ class DesignPocket(models.Model):
     )
     pocket_config = models.ForeignKey(
         DesignPocketConfig,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name='pockets',
         verbose_name='Pocket Configuration'
     )

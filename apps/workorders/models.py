@@ -21,7 +21,6 @@ Sprint 4 Additions:
 - repair_bom_lines - BOM line items
 - process_routes - Repair routing templates
 - process_route_operations - Operations within routes
-- operation_executions - Actual operation tracking
 - work_order_costs - Cost summary per work order
 """
 
@@ -93,16 +92,45 @@ class DrillBit(models.Model):
         RC = "RC", "Roller Cone"
 
     class Status(models.TextChoices):
-        NEW = "NEW", "New"
-        IN_STOCK = "IN_STOCK", "In Stock"
-        ASSIGNED = "ASSIGNED", "Assigned to WO"
+        """Process status — where is this bit in the workflow?"""
+        ORDERED = "ORDERED", "Ordered"
+        IN_TRANSIT = "IN_TRANSIT", "In Transit"
+        UNREGISTERED = "UNREGISTERED", "Unregistered"
+        RECEIVING = "RECEIVING", "Receiving"
+        IN_COMPONENTS = "IN_COMPONENTS", "In Components"
+        IN_EVALUATION = "IN_EVALUATION", "In Evaluation"
         IN_PRODUCTION = "IN_PRODUCTION", "In Production"
-        QC_PENDING = "QC_PENDING", "QC Pending"
-        READY = "READY", "Ready for Dispatch"
+        IN_REPAIR = "IN_REPAIR", "In Repair"
+        IN_STOCK = "IN_STOCK", "In Stock"
         DISPATCHED = "DISPATCHED", "Dispatched"
         IN_FIELD = "IN_FIELD", "In Field"
-        RETURNED = "RETURNED", "Returned"
+        BACKLOADED = "BACKLOADED", "Backloaded"
+        HOLD = "HOLD", "On Hold"
+        USA_REPAIR = "USA_REPAIR", "USA Repair"
+        DE_BRAZED = "DE_BRAZED", "De-Brazed"
+        SAVED_BODY = "SAVED_BODY", "Saved Body"
         SCRAPPED = "SCRAPPED", "Scrapped"
+
+    class Condition(models.TextChoices):
+        """What IS this bit right now?"""
+        COMPONENTS = "COMPONENTS", "Components"
+        FINISHED_GOOD = "FINISHED_GOOD", "Finished Good"
+        REPAIRED = "REPAIRED", "Repaired"
+        RERUN = "RERUN", "Rerun"
+        RETROFITTED = "RETROFITTED", "Retrofitted"
+        USED = "USED", "Used"
+        NOT_USED = "NOT_USED", "Not Used"
+        DE_BRAZED = "DE_BRAZED", "De-Brazed"
+        SAVED_BODY = "SAVED_BODY", "Saved Body"
+        SCRAPPED = "SCRAPPED", "Scrapped"
+
+    class Ownership(models.TextChoices):
+        """Commercial arrangement — who owns/controls this bit?"""
+        RENTAL = "RENTAL", "Rental"
+        CUSTOMER = "CUSTOMER", "Customer"
+        MANUFACTURE = "MANUFACTURE", "Manufacture"
+        TRIAL = "TRIAL", "Trial"
+        ARDT = "ARDT", "ARDT"
 
     serial_number = models.CharField(max_length=50, unique=True)
     # Note: Field kept as bit_type for backward compatibility, but uses BitCategory choices
@@ -136,7 +164,7 @@ class DrillBit(models.Model):
         help_text='Account this bit belongs to (LSTK, ARAMCO, UR, L3, L4, ARDT, etc.)'
     )
 
-    # Sprint 4: Physical and accounting status
+    # Sprint 4: Physical and accounting status (LEGACY — kept for backward compat)
     class PhysicalStatus(models.TextChoices):
         AT_ARDT = "AT_ARDT", "At ARDT Facility"
         AT_CUSTOMER = "AT_CUSTOMER", "At Customer Site"
@@ -158,6 +186,22 @@ class DrillBit(models.Model):
     accounting_status = models.CharField(
         max_length=20, choices=AccountingStatus.choices,
         default=AccountingStatus.ARDT_OWNED, blank=True
+    )
+
+    # === NEW 4-Column Model (Feb 2026) ===
+    condition = models.CharField(
+        max_length=20, choices=Condition.choices,
+        default=Condition.COMPONENTS, blank=True,
+        help_text="What IS this bit right now? (Finished Good, Used, Repaired, etc.)"
+    )
+    ownership = models.CharField(
+        max_length=20, choices=Ownership.choices,
+        default=Ownership.ARDT, blank=True,
+        help_text="Commercial arrangement (Rental, Customer, Manufacture, Trial, ARDT)"
+    )
+    is_trial = models.BooleanField(
+        default=False,
+        help_text="Trial/test bit — always ARDT-owned"
     )
 
     # Sprint 4: Repair tracking
@@ -200,11 +244,17 @@ class DrillBit(models.Model):
         verbose_name="System BOM",
         help_text="L5 System BOM - client-facing (fixed MAT#)"
     )
+    # Order level: L3/L4 from design, L5 when BOM is assigned
+    level = models.CharField(
+        max_length=5, blank=True,
+        help_text="Order level: 3=Design only, 4=Design welded, 5=With BOM/cutters"
+    )
+
     size = models.DecimalField(max_digits=6, decimal_places=3, help_text="Size in inches")
     iadc_code = models.CharField(max_length=20, blank=True)
 
     # Status
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.UNREGISTERED)
 
     # Location
     current_location = models.ForeignKey(
@@ -230,6 +280,7 @@ class DrillBit(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_bits")
 
     # Phase 2: Bit Tracking fields (from migration 0005)
+    # LEGACY — kept for data migration; new code uses `status` + `condition` instead
     class LifecycleStatus(models.TextChoices):
         NEW = "NEW", "New"
         DEPLOYED = "DEPLOYED", "Deployed"
@@ -247,7 +298,8 @@ class DrillBit(models.Model):
         max_length=20,
         choices=LifecycleStatus.choices,
         default=LifecycleStatus.NEW,
-        help_text="Phase 2 lifecycle tracking status"
+        blank=True,
+        help_text="LEGACY — use status + condition instead"
     )
     mat_number = models.CharField(max_length=20, blank=True, help_text="MAT number for inventory")
     received_date = models.DateField(null=True, blank=True, help_text="Date bit was received")
@@ -326,11 +378,63 @@ class DrillBit(models.Model):
                 self.iadc_code = self.design.iadc_code
             if hasattr(self.design, 'product_type') and self.design.product_type:
                 self.product_type = self.design.product_type
+            # Level: from design (L3/L4) — only if not already set by user
+            # User may have explicitly set L5, so don't overwrite that
+            if not self.level and self.design.order_level:
+                self.level = self.design.order_level
 
-        if self.bom:
-            # Sync MAT number from BOM
-            if self.bom.code:
-                self.mat_number = self.bom.code
+        # Sync MAT number from BOM if present
+        has_bom = self.bom_id or self.brazing_bom_id or self.system_bom_id
+        if has_bom and self.bom and self.bom.code:
+            self.mat_number = self.bom.code
+        elif self.bom and self.bom.code:
+            self.mat_number = self.bom.code
+
+    # Account code → Ownership mapping
+    ACCOUNT_OWNERSHIP_MAP = {
+        'UR': Ownership.RENTAL,
+        'WFD': Ownership.RENTAL,
+        'ARAMCO': Ownership.CUSTOMER,
+        'LSTK': Ownership.CUSTOMER,
+        'RC-LSTK': Ownership.CUSTOMER,
+        'HALLIBURTON': Ownership.CUSTOMER,
+        'HAL_REGIONAL': Ownership.CUSTOMER,
+        'SUB': Ownership.CUSTOMER,
+        'L3': Ownership.MANUFACTURE,
+        'L4': Ownership.MANUFACTURE,
+        'ARDT': Ownership.ARDT,
+    }
+
+    def determine_initial_status(self):
+        """
+        Determine the correct initial status based on design/BOM presence.
+
+        Business rules:
+          - No design                        → UNREGISTERED
+          - Has design (L3/L4), with or
+            without BOM (L5)                 → ORDERED, condition=COMPONENTS
+
+        Note: Having a BOM does NOT make a bit FINISHED_GOOD or IN_STOCK.
+        FINISHED_GOOD is only set after manufacturing is complete.
+        L5 (BOM) is tracked as part of the bit's identity but does not
+        change the initial condition.
+        """
+        if self.design_id:
+            self.status = self.Status.ORDERED
+            self.condition = self.Condition.COMPONENTS
+        else:
+            self.status = self.Status.UNREGISTERED
+            # condition stays as-is (caller sets it, e.g. NOT_USED from batch)
+
+    def derive_ownership(self):
+        """Derive ownership from account + is_trial flag. Call before save when account changes."""
+        if self.is_trial:
+            self.ownership = self.Ownership.TRIAL
+        elif self.account_id:
+            account_code = self.account.code if hasattr(self.account, 'code') else ''
+            self.ownership = self.ACCOUNT_OWNERSHIP_MAP.get(account_code, self.Ownership.ARDT)
+        else:
+            self.ownership = self.Ownership.ARDT
 
     def save(self, *args, **kwargs):
         if not self.qr_code:
@@ -755,6 +859,20 @@ class WorkOrder(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_work_orders"
     )
 
+    # Status transition rules — forward flow with hold/cancel branches
+    STATUS_TRANSITIONS = {
+        'DRAFT': ['PLANNED', 'RELEASED', 'CANCELLED'],
+        'PLANNED': ['RELEASED', 'ON_HOLD', 'CANCELLED'],
+        'RELEASED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
+        'IN_PROGRESS': ['QC_PENDING', 'ON_HOLD', 'CANCELLED'],
+        'ON_HOLD': ['PLANNED', 'RELEASED', 'IN_PROGRESS', 'CANCELLED'],
+        'QC_PENDING': ['QC_PASSED', 'QC_FAILED', 'ON_HOLD'],
+        'QC_FAILED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
+        'QC_PASSED': ['COMPLETED'],
+        'COMPLETED': [],  # terminal
+        'CANCELLED': [],  # terminal
+    }
+
     class Meta:
         db_table = "work_orders"
         ordering = ["-created_at"]
@@ -769,6 +887,23 @@ class WorkOrder(models.Model):
             models.Index(fields=["assigned_to", "status"], name="wo_assigned_status_idx"),
             models.Index(fields=["due_date"], name="wo_due_date_idx"),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.pk:
+            try:
+                original = WorkOrder.objects.only('status').get(pk=self.pk)
+            except WorkOrder.DoesNotExist:
+                return
+            if original.status != self.status:
+                allowed = self.STATUS_TRANSITIONS.get(original.status, [])
+                if self.status not in allowed:
+                    raise ValidationError({
+                        'status': f"Cannot change work order status from {original.get_status_display()} to "
+                                  f"{self.get_status_display()}. "
+                                  f"Allowed: {', '.join(allowed) or 'none (terminal state)'}."
+                    })
 
     def __str__(self):
         return f"{self.wo_number}"
@@ -1077,103 +1212,11 @@ class BitEvaluation(models.Model):
 # SPRINT 4: STATUS TRACKING & AUDIT
 # =============================================================================
 
-class StatusTransitionLog(models.Model):
-    """
-    Sprint 4: Audit trail for status changes on any model.
-    Uses GenericForeignKey to track status changes across DrillBit, WorkOrder, etc.
-    """
-    content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE,
-        related_name='status_transition_logs'
-    )
-    object_id = models.PositiveBigIntegerField()
-    content_object = GenericForeignKey("content_type", "object_id")
+# NOTE: StatusTransitionLog model REMOVED (Feb 2026) — never written to in production.
+# Utility functions log_status_transition() and get_status_history() also removed from utils.py.
 
-    from_status = models.CharField(max_length=30, blank=True)
-    to_status = models.CharField(max_length=30)
-    changed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, related_name="status_transitions"
-    )
-    changed_at = models.DateTimeField(auto_now_add=True)
-    reason = models.TextField(blank=True, help_text="Reason for status change")
-
-    class Meta:
-        db_table = "status_transition_logs"
-        ordering = ["-changed_at"]
-        verbose_name = "Status Transition Log"
-        verbose_name_plural = "Status Transition Logs"
-        indexes = [
-            models.Index(fields=["content_type", "object_id"]),
-            models.Index(fields=["changed_at"]),
-        ]
-
-    def __str__(self):
-        return f"{self.content_type.model} #{self.object_id}: {self.from_status} → {self.to_status}"
-
-
-class BitRepairHistory(models.Model):
-    """
-    Sprint 4: Complete repair history for a drill bit.
-    Tracks every repair performed, costs, and condition changes.
-    """
-    class RepairType(models.TextChoices):
-        REDRESS = "REDRESS", "Redress"
-        MAJOR_REPAIR = "MAJOR_REPAIR", "Major Repair"
-        MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair"
-        REBUILD = "REBUILD", "Rebuild"
-        REFURBISH = "REFURBISH", "Refurbish"
-
-    drill_bit = models.ForeignKey(
-        DrillBit, on_delete=models.CASCADE, related_name="repair_history"
-    )
-    work_order = models.ForeignKey(
-        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="bit_repair_records"
-    )
-
-    repair_number = models.IntegerField(help_text="Repair sequence number for this bit")
-    repair_date = models.DateField()
-    repair_type = models.CharField(max_length=20, choices=RepairType.choices)
-
-    # Work details
-    work_performed = models.TextField(blank=True)
-    parts_replaced = models.TextField(blank=True)
-
-    # Costs
-    labor_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    material_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-    overhead_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-
-    @property
-    def total_cost(self):
-        return self.labor_cost + self.material_cost + self.overhead_cost
-
-    # Condition
-    condition_before = models.CharField(max_length=50, blank=True)
-    condition_after = models.CharField(max_length=50, blank=True)
-
-    # Serial tracking for Aramco
-    serial_before = models.CharField(max_length=60, blank=True)
-    serial_after = models.CharField(max_length=60, blank=True)
-
-    # Audit
-    created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, related_name="created_repair_records"
-    )
-
-    class Meta:
-        db_table = "bit_repair_history"
-        ordering = ["drill_bit", "-repair_number"]
-        verbose_name = "Bit Repair History"
-        verbose_name_plural = "Bit Repair Histories"
-        unique_together = ["drill_bit", "repair_number"]
-
-    def __str__(self):
-        return f"{self.drill_bit.serial_number} - Repair #{self.repair_number}"
+# NOTE: BitRepairHistory model REMOVED (Feb 2026) — never written to in production.
+# DrillBit.repair_count tracks repairs; CutterEvaluationMatrix tracks evaluations.
 
 
 class SalvageItem(models.Model):
@@ -1580,67 +1623,8 @@ class ProcessRouteOperation(models.Model):
         return f"{self.route.route_number} Seq {self.sequence}: {self.operation_name}"
 
 
-class OperationExecution(models.Model):
-    """
-    Sprint 4: Actual execution of an operation on a work order.
-    """
-    class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending"
-        IN_PROGRESS = "IN_PROGRESS", "In Progress"
-        COMPLETED = "COMPLETED", "Completed"
-        SKIPPED = "SKIPPED", "Skipped"
-
-    work_order = models.ForeignKey(
-        WorkOrder, on_delete=models.CASCADE, related_name="operation_executions"
-    )
-    route_operation = models.ForeignKey(
-        ProcessRouteOperation, on_delete=models.PROTECT,
-        related_name="executions"
-    )
-    sequence = models.IntegerField()
-
-    # Status
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-
-    # Operator
-    operator = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="operation_executions"
-    )
-
-    # Time tracking
-    start_time = models.DateTimeField(null=True, blank=True)
-    end_time = models.DateTimeField(null=True, blank=True)
-    actual_hours = models.DecimalField(max_digits=6, decimal_places=2, default=0)
-
-    # Cost
-    labor_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0)
-
-    # QC
-    qc_performed = models.BooleanField(default=False)
-    qc_passed = models.BooleanField(null=True, blank=True)
-    qc_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="qc_operations"
-    )
-    qc_notes = models.TextField(blank=True)
-
-    # Notes
-    operator_notes = models.TextField(blank=True)
-    issues_encountered = models.TextField(blank=True)
-
-    class Meta:
-        db_table = "operation_executions"
-        ordering = ["work_order", "sequence"]
-        verbose_name = "Operation Execution"
-        verbose_name_plural = "Operation Executions"
-        indexes = [
-            models.Index(fields=["work_order", "status"]),
-            models.Index(fields=["status"]),
-        ]
-
-    def __str__(self):
-        return f"{self.work_order.wo_number} Op {self.sequence}: {self.status}"
+# NOTE: OperationExecution model REMOVED (Feb 2026) — never written to in production.
+# RouterSheetEntry is the active step-tracking system for work orders.
 
 
 class WorkOrderCost(models.Model):
@@ -1696,14 +1680,14 @@ class WorkOrderCost(models.Model):
 
     def recalculate(self):
         """Recalculate all costs from related records."""
-        # Labor from operation executions
         from django.db.models import Sum
-        labor_agg = self.work_order.operation_executions.aggregate(
-            hours=Sum("actual_hours"),
-            cost=Sum("labor_cost")
+        # NOTE: OperationExecution-based labor calculation removed (Feb 2026)
+        # Labor hours/cost should be tracked via WorkOrderTimeLog instead
+        labor_agg = self.work_order.time_logs.aggregate(
+            minutes=Sum("duration_minutes")
         )
-        self.actual_labor_hours = labor_agg["hours"] or 0
-        self.labor_cost = labor_agg["cost"] or 0
+        total_minutes = labor_agg["minutes"] or 0
+        self.actual_labor_hours = Decimal(str(total_minutes)) / Decimal("60")
 
         # Materials from repair BOMs
         material_agg = self.work_order.repair_boms.aggregate(
@@ -1879,6 +1863,174 @@ class CutterEvaluationEntry(models.Model):
 
     def __str__(self):
         return f"Blade {self.blade_number}, Pos {self.cutter_position}: {self.get_action_display()}"
+
+
+class ReceivingInspection(models.Model):
+    """
+    FC Bit Receiving Inspection per QAS/005-1.
+    Linked to DrillBit (happens before WO exists).
+    Optional WO FK set when WO is created later.
+    """
+    class InspectionResult(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected"
+        CONDITIONAL = "CONDITIONAL", "Conditional Accept"
+
+    # Core links
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, related_name="receiving_inspections"
+    )
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="receiving_inspections"
+    )
+
+    # Header
+    inspection_date = models.DateField(null=True, blank=True)
+    po_number = models.CharField(max_length=50, blank=True)
+    client_name = models.CharField(max_length=100, blank=True)
+
+    # ── Visual Inspection Checklist per QAS/005-1 (11 items, each OK/NOT_OK/NA) ──
+    CHECKLIST_CHOICES = [("OK", "OK"), ("NOT_OK", "Not OK"), ("NA", "N/A")]
+    vi_pin_connection = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="API Pin Connection"
+    )
+    vi_bit_body = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="No Body Damage"
+    )
+    vi_bit_breaker = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Breaker Slot"
+    )
+    vi_blades = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Cutters"
+    )
+    vi_nozzles = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Nozzle Threads"
+    )
+    vi_junk_slot = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Junk Slot"
+    )
+    vi_gauge_pads = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Bit Cleanliness"
+    )
+    vi_bit_face = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Ring Gage GO"
+    )
+    vi_general = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Ring Gage NO GO"
+    )
+    vi_nozzle_liner = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Nozzle Liner Fit"
+    )
+    vi_vendor_note = models.CharField(
+        max_length=6, choices=CHECKLIST_CHOICES, default="NA",
+        verbose_name="Q-Note from Vendor"
+    )
+    # ── Per-item remarks for checklist ──
+    checklist_remarks = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-item remarks and reason: {field_name: {reason: '', remarks: ''}}"
+    )
+
+    # ── Cutter Condition Counts ──
+    cutters_total = models.IntegerField(default=0, verbose_name="Total Cutters")
+    cutters_chipped = models.IntegerField(default=0, verbose_name="Chipped")
+    cutters_broken = models.IntegerField(default=0, verbose_name="Broken")
+    cutters_worn = models.IntegerField(default=0, verbose_name="Worn")
+    cutters_missing = models.IntegerField(default=0, verbose_name="Missing")
+
+    # ── Measurements ──
+    tfa = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="TFA", help_text="Total Flow Area"
+    )
+    gauge_reading_1 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 1"
+    )
+    gauge_reading_2 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 2"
+    )
+    gauge_reading_3 = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        verbose_name="Gauge Reading 3"
+    )
+
+    # ── Per-Pocket Cutter Evaluation (from BOM blade data) ──
+    cutter_evaluation_data = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-pocket cutter evaluation: {blade: {row: {position: {idx: {action, remarks}}}}}"
+    )
+    # ── Per-Pocket Condition Evaluation (from design pockets) ──
+    pocket_evaluation_data = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-pocket condition: {blade_pos: symbols_string} e.g. {'1_3': 'IPV', '2_5': 'TD'}"
+    )
+
+    # ── Decision ──
+    result = models.CharField(
+        max_length=12, choices=InspectionResult.choices,
+        default=InspectionResult.PENDING, verbose_name="Inspection Result"
+    )
+    remarks = models.TextField(blank=True)
+
+    # ── Signatures ──
+    inspected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="receiving_inspections_performed"
+    )
+    qc_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="receiving_inspections_approved"
+    )
+    qc_approved_at = models.DateTimeField(null=True, blank=True)
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "receiving_inspections"
+        ordering = ["-inspection_date", "-created_at"]
+        verbose_name = "Receiving Inspection"
+        verbose_name_plural = "Receiving Inspections"
+
+    def __str__(self):
+        return f"RI-{self.drill_bit.serial_number} ({self.get_result_display()})"
+
+    @property
+    def cutters_good(self):
+        """Cutters in good condition = total - (chipped + broken + worn + missing)."""
+        return max(0, self.cutters_total - self.cutters_chipped - self.cutters_broken - self.cutters_worn - self.cutters_missing)
+
+    @property
+    def checklist_items(self):
+        """Return list of (num, label, field_name, value) tuples per QAS/005-1."""
+        return [
+            (1, "Bit Cleanliness", "vi_gauge_pads", self.vi_gauge_pads),
+            (2, "Ring Gage GO", "vi_bit_face", self.vi_bit_face),
+            (3, "Ring Gage NO GO", "vi_general", self.vi_general),
+            (4, "Nozzle Threads", "vi_nozzles", self.vi_nozzles),
+            (5, "Breaker Slot", "vi_bit_breaker", self.vi_bit_breaker),
+            (6, "Junk Slot", "vi_junk_slot", self.vi_junk_slot),
+            (7, "API Pin Connection", "vi_pin_connection", self.vi_pin_connection),
+            (8, "Cutters", "vi_blades", self.vi_blades),
+            (9, "No Body Damage", "vi_bit_body", self.vi_bit_body),
+            (10, "Nozzle Liner Fit", "vi_nozzle_liner", self.vi_nozzle_liner),
+            (11, "Q-Note from Vendor", "vi_vendor_note", self.vi_vendor_note),
+        ]
 
 
 class InstructionRule(models.Model):
@@ -2230,15 +2382,11 @@ class APIThreadInspection(models.Model):
 class RouterSheetEntry(models.Model):
     """
     Individual step entry in a router sheet with QR-based time tracking.
-    Extends OperationExecution with additional Job Card specific fields.
     """
     work_order = models.ForeignKey(
         WorkOrder, on_delete=models.CASCADE, related_name="router_entries"
     )
-    operation_execution = models.OneToOneField(
-        OperationExecution, on_delete=models.CASCADE, null=True, blank=True,
-        related_name="router_entry"
-    )
+    # NOTE: operation_execution OneToOneField to OperationExecution REMOVED (Feb 2026)
 
     # Step info (can be standalone if no ProcessRoute assigned)
     step_number = models.IntegerField()
@@ -2890,4 +3038,303 @@ class EvaluationRouteStep(models.Model):
     def __str__(self):
         req = "Required" if self.is_required else "Optional"
         return f"{self.route.name} - Step {self.order}: {self.get_evaluation_type_display()} ({req})"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RECEIVING DOCK — Backload Batches + BOM Pending
+# ═══════════════════════════════════════════════════════════════════
+
+class BackloadBatch(models.Model):
+    """
+    Physical receiving of drill bits. Creating a batch = receiving the bits.
+    Ops pastes serial numbers, system auto-matches to existing DrillBit records,
+    auto-confirms matched items, and auto-raises BOM/registration requests.
+    """
+
+    class BatchStatus(models.TextChoices):
+        ARRIVED = "ARRIVED", "Arrived"
+        PROCESSING = "PROCESSING", "Processing"
+        COMPLETED = "COMPLETED", "Completed"
+
+    class BatchType(models.TextChoices):
+        REPAIR = "REPAIR", "Repair Bits (Backload)"
+        NEW = "NEW", "New Bits (Received)"
+
+    batch_number = models.CharField(max_length=30, unique=True, editable=False)
+    batch_type = models.CharField(
+        max_length=10, choices=BatchType.choices,
+        default=BatchType.REPAIR,
+        help_text="Classify bits — mixing NEW and REPAIR not allowed"
+    )
+    batch_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text="Email reference, backload paper number, etc."
+    )
+    account = models.ForeignKey(
+        "sales.Account", on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="backload_batches",
+        help_text="Auto-populated from matched drill bits"
+    )
+    customer = models.ForeignKey(
+        "sales.Customer", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_batches",
+        help_text="Auto-filled from account.customer"
+    )
+    expected_date = models.DateField(
+        null=True, blank=True,
+        help_text="When bits are expected to arrive"
+    )
+    received_date = models.DateField(
+        null=True, blank=True,
+        help_text="When batch physically arrived"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Total items in batch (auto from items.count())"
+    )
+    received_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How many confirmed arrived"
+    )
+    status = models.CharField(
+        max_length=20, choices=BatchStatus.choices,
+        default=BatchStatus.ARRIVED
+    )
+    reference_file = models.FileField(
+        upload_to="backload_references/%Y/%m/",
+        blank=True, null=True,
+        help_text="Attachment: email (.msg/.eml), PDF, Excel, image, etc."
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name="created_backload_batches"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "backload_batches"
+        verbose_name = "Backload Batch"
+        verbose_name_plural = "Backload Batches"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        label = self.get_batch_type_display() if self.batch_type else "Batch"
+        return f"{self.batch_number} ({label})"
+
+    def save(self, *args, **kwargs):
+        if not self.batch_number:
+            self.batch_number = self.generate_batch_number()
+        # Auto-fill customer from account (if account set)
+        if self.account_id and not self.customer_id:
+            try:
+                self.customer = self.account.customer
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_batch_number():
+        """Generate BL-YYYY-NNN using NumberSequence."""
+        from apps.organization.models import NumberSequence
+        from django.utils import timezone
+
+        year = timezone.now().year
+        seq_code = f"BACKLOAD-{year}"
+        seq, _ = NumberSequence.objects.select_for_update().get_or_create(
+            code=seq_code,
+            defaults={
+                "name": f"Backload Batch {year}",
+                "prefix": f"BL-{year}-",
+                "padding": 3,
+                "increment_by": 1,
+            }
+        )
+        return seq.get_next_number()
+
+    def update_counts(self):
+        """Recalculate item_count and received_count from items."""
+        self.item_count = self.items.count()
+        self.received_count = self.items.filter(
+            status=BackloadItem.ItemStatus.RECEIVED,
+        ).count()
+        self.save(update_fields=["item_count", "received_count", "updated_at"])
+
+    def auto_update_status(self):
+        """Auto-transition batch status based on items.
+
+        Batch-level status flow:
+          ARRIVED → batch just created, no inspections started
+          PROCESSING → at least one item is being inspected or received
+          COMPLETED → all items received
+        """
+        if self.item_count == 0:
+            return
+
+        # Count items that have moved beyond ARRIVED/UNREGISTERED
+        active_count = self.items.filter(
+            status__in=[
+                BackloadItem.ItemStatus.PROCESSING,
+                BackloadItem.ItemStatus.RECEIVED,
+                BackloadItem.ItemStatus.HOLD,
+            ]
+        ).count()
+
+        if self.received_count >= self.item_count:
+            new_status = self.BatchStatus.COMPLETED
+        elif active_count > 0:
+            new_status = self.BatchStatus.PROCESSING
+        else:
+            new_status = self.BatchStatus.ARRIVED
+
+        if self.status != new_status:
+            self.status = new_status
+            self.save(update_fields=["status", "updated_at"])
+
+
+class BackloadBatchAttachment(models.Model):
+    """File attachment for a backload batch (one-to-many)."""
+    batch = models.ForeignKey(
+        BackloadBatch, on_delete=models.CASCADE, related_name="attachments"
+    )
+    file = models.FileField(upload_to="backload_references/%Y/%m/")
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(default=0, help_text="Size in bytes")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "backload_batch_attachments"
+        ordering = ["uploaded_at"]
+
+    def __str__(self):
+        return self.original_filename
+
+
+class BackloadItem(models.Model):
+    """
+    Individual bit entry in a backload batch.
+    Serial number pasted from email/paper, auto-matched to existing DrillBit.
+    """
+
+    class ItemStatus(models.TextChoices):
+        ARRIVED = "ARRIVED", "Arrived"
+        UNREGISTERED = "UNREGISTERED", "Unregistered"
+        PROCESSING = "PROCESSING", "Processing"
+        RECEIVED = "RECEIVED", "Received"
+        HOLD = "HOLD", "Hold"
+
+    class MatchStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        MATCHED = "MATCHED", "Matched"
+        UNMATCHED = "UNMATCHED", "Not Found"
+        NEW_REGISTERED = "NEW_REGISTERED", "Unregistered"
+
+    batch = models.ForeignKey(
+        BackloadBatch, on_delete=models.CASCADE,
+        related_name="items"
+    )
+    serial_number = models.CharField(max_length=50)
+    drill_bit = models.ForeignKey(
+        "DrillBit", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    status = models.CharField(
+        max_length=20, choices=ItemStatus.choices,
+        default=ItemStatus.ARRIVED
+    )
+    match_status = models.CharField(
+        max_length=20, choices=MatchStatus.choices,
+        default=MatchStatus.PENDING
+    )
+    received_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this specific bit was confirmed arrived"
+    )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="received_backload_items"
+    )
+    work_order = models.ForeignKey(
+        "WorkOrder", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    bit_event = models.ForeignKey(
+        "BitEvent", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="backload_items"
+    )
+    notes = models.TextField(blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "backload_items"
+        verbose_name = "Backload Item"
+        verbose_name_plural = "Backload Items"
+        ordering = ["sort_order", "id"]
+        unique_together = [("batch", "serial_number")]
+
+    def __str__(self):
+        return f"{self.serial_number} ({self.batch.batch_number})"
+
+    def attempt_match(self):
+        """Try to match serial_number to an existing DrillBit."""
+        try:
+            bit = DrillBit.objects.get(serial_number=self.serial_number)
+            self.drill_bit = bit
+            self.match_status = self.MatchStatus.MATCHED
+        except DrillBit.DoesNotExist:
+            self.drill_bit = None
+            self.match_status = self.MatchStatus.UNMATCHED
+        except DrillBit.MultipleObjectsReturned:
+            # Edge case — take first match
+            bit = DrillBit.objects.filter(serial_number=self.serial_number).first()
+            self.drill_bit = bit
+            self.match_status = self.MatchStatus.MATCHED
+        self.save(update_fields=["drill_bit", "match_status"])
+
+
+class BOMPendingRequest(models.Model):
+    """
+    Request for tech team to assign BOM to a drill bit.
+    Auto-created when a new bit is registered without a BOM.
+    """
+
+    class RequestStatus(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        ASSIGNED = "ASSIGNED", "BOM Assigned"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    drill_bit = models.ForeignKey(
+        "DrillBit", on_delete=models.CASCADE,
+        related_name="bom_pending_requests"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name="bom_requests_created"
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="bom_requests_resolved"
+    )
+    status = models.CharField(
+        max_length=20, choices=RequestStatus.choices,
+        default=RequestStatus.OPEN
+    )
+    notes = models.TextField(blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "bom_pending_requests"
+        verbose_name = "BOM Pending Request"
+        verbose_name_plural = "BOM Pending Requests"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"BOM Request: {self.drill_bit.serial_number} ({self.get_status_display()})"
 

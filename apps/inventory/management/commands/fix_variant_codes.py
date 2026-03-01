@@ -2,9 +2,19 @@
 Management command to fix variant codes and migrate to new variant cases.
 
 Fixes:
-1. Updates ItemVariants pointing to old VariantCases (USED-RET, USED-EO, etc.)
-   to point to new ones (NEW-RET, NEW-ENO, etc.)
-2. Regenerates variant codes using the new convention
+1. Updates ItemVariants pointing to old/deprecated VariantCases
+   to point to current canonical ones.
+2. Regenerates variant codes using the new convention.
+
+Deprecated → Current mapping:
+  USED-RET  → NEW-RET   (Retrofit is NEW condition)
+  NEW-ENO   → NEW-EO    (Renamed)
+  USED-EO   → NEW-EO    (E&O is NEW condition)
+  USED-GRD  → GRD-EO    (Renamed)
+  USED-STD  → USED-RCL  (Renamed)
+  CLI-USED  → CLI-RCL   (Renamed)
+  NEW-CLI   → CLI-NEW   (Renamed — client-owned uses CLI- prefix)
+  USED-CLI  → CLI-RCL   (Renamed — client-owned reclaim)
 """
 
 from django.core.management.base import BaseCommand
@@ -17,12 +27,17 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Fixing variant codes...")
 
-        # Mapping of old variant case codes to new ones
+        # Mapping of old/deprecated variant case codes to current canonical ones
+        # NOTE: Must match seed_variant_cases.py and apps/inventory/constants.py
         case_mapping = {
             'USED-RET': 'NEW-RET',    # Retrofit is NEW condition
-            'USED-EO': 'NEW-ENO',     # E&O is NEW condition
-            'USED-RCL': 'USED-STD',   # Standard Reclaim
-            'CLI-RCL': 'CLI-USED',    # Client Used
+            'NEW-ENO': 'NEW-EO',      # Renamed (was typo in old code)
+            'USED-EO': 'NEW-EO',      # E&O is NEW condition
+            'USED-GRD': 'GRD-EO',     # Renamed to E&O Ground
+            'USED-STD': 'USED-RCL',   # Renamed to Used Reclaimed
+            'CLI-USED': 'CLI-RCL',    # Renamed to Client Reclaimed
+            'NEW-CLI': 'CLI-NEW',      # Client-owned uses CLI- prefix
+            'USED-CLI': 'CLI-RCL',     # Client reclaimed
         }
 
         # Get all variant cases
@@ -34,7 +49,6 @@ class Command(BaseCommand):
 
         for variant in ItemVariant.objects.select_related('base_item', 'variant_case', 'customer'):
             needs_save = False
-            old_code = variant.code
 
             # Check if variant case needs migration
             if variant.variant_case and variant.variant_case.code in case_mapping:

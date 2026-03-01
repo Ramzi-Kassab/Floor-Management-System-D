@@ -17,13 +17,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from apps.inventory.models import (
-            InventoryCategory, InventoryItem, InventoryLocation, InventoryStock,
+            InventoryCategory, InventoryItem, InventoryLocation,
             UnitOfMeasure, MaterialLot, Party, ConditionType, QualityStatus,
             OwnershipType, LocationType, AdjustmentReason,
             StockLedger, StockBalance, GoodsReceiptNote, GRNLine,
             StockIssue, StockIssueLine, StockTransfer, StockTransferLine,
             StockAdjustment, StockAdjustmentLine, Asset, AssetMovement,
-            BillOfMaterial, BOMLine, StockReservation,
+            StockReservation,
             CycleCountPlan, CycleCountSession, CycleCountLine,
         )
         from apps.sales.models import Warehouse
@@ -196,7 +196,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"    Created: {item.name}")
 
         # =====================================================
-        # 6. CREATE INVENTORY STOCK RECORDS
+        # 6. CREATE STOCK BALANCES
         # =====================================================
         self.stdout.write("  Creating stock records...")
         stock_data = [
@@ -216,20 +216,9 @@ class Command(BaseCommand):
             {"item": "SPARE-SEAL-01", "location": "WH-MAIN-A2", "qty": 180},
             {"item": "TOOL-GAGE-01", "location": "WH-PROD-01", "qty": 8},
         ]
-        for stock_rec in stock_data:
-            item = items.get(stock_rec["item"])
-            loc = locations.get(stock_rec["location"])
-            if item and loc:
-                stock, created = InventoryStock.objects.get_or_create(
-                    item=item, location=loc,
-                    defaults={
-                        "quantity_on_hand": Decimal(str(stock_rec["qty"])),
-                        "quantity_available": Decimal(str(stock_rec["qty"])),
-                    }
-                )
 
         # =====================================================
-        # 7. CREATE STOCK BALANCES (Ledger-based)
+        # 7. POPULATE STOCK BALANCES WITH DIMENSION DATA
         # =====================================================
         self.stdout.write("  Creating stock balances...")
         ardt_party = parties.get("ARDT")
@@ -477,43 +466,9 @@ class Command(BaseCommand):
             self.stdout.write("    Skipped assets - missing dimension types")
 
         # =====================================================
-        # 13. CREATE BILLS OF MATERIAL
+        # 13. BILLS OF MATERIAL (use technology.BOM — see seed_test_designs)
         # =====================================================
-        self.stdout.write("  Creating BOMs...")
-        fg_item = items.get("FG-BIT-812")
-        if fg_item:
-            bom, created = BillOfMaterial.objects.get_or_create(
-                bom_code="BOM-BIT812-001",
-                defaults={
-                    "name": "PDC Bit 8-1/2\" Standard BOM",
-                    "parent_item": fg_item,
-                    "version": "1.0",
-                    "status": "ACTIVE",
-                    "bom_type": "STD",
-                    "base_quantity": Decimal("1"),
-                    "uom": uoms.get("EA"),
-                    "created_by": admin_user,
-                }
-            )
-            if created:
-                components = [
-                    ("COMP-PDC-13MM", 48),
-                    ("COMP-PDC-16MM", 12),
-                    ("COMP-NOZZLE-01", 6),
-                    ("COMP-BEARING-01", 1),
-                    ("RM-TUNGSTEN-01", 15),
-                ]
-                for ln, (comp_code, qty) in enumerate(components, 1):
-                    comp = items.get(comp_code)
-                    if comp:
-                        BOMLine.objects.create(
-                            bom=bom,
-                            line_number=ln,
-                            component_item=comp,
-                            quantity_per=Decimal(str(qty)),
-                            uom=comp.uom or uoms.get("EA"),
-                        )
-                self.stdout.write(f"    Created: {bom.bom_code}")
+        self.stdout.write("  BOMs: Skipped (use technology.BOM via seed_test_designs command)")
 
         # =====================================================
         # 14. CREATE STOCK RESERVATIONS
@@ -568,14 +523,13 @@ class Command(BaseCommand):
         self.stdout.write(f"  Warehouses: {Warehouse.objects.count()}")
         self.stdout.write(f"  Locations: {InventoryLocation.objects.count()}")
         self.stdout.write(f"  Items: {InventoryItem.objects.count()}")
-        self.stdout.write(f"  Stock Records: {InventoryStock.objects.count()}")
         self.stdout.write(f"  Stock Balances: {StockBalance.objects.count()}")
         self.stdout.write(f"  GRNs: {GoodsReceiptNote.objects.count()}")
         self.stdout.write(f"  Stock Issues: {StockIssue.objects.count()}")
         self.stdout.write(f"  Transfers: {StockTransfer.objects.count()}")
         self.stdout.write(f"  Adjustments: {StockAdjustment.objects.count()}")
         self.stdout.write(f"  Assets: {Asset.objects.count()}")
-        self.stdout.write(f"  BOMs: {BillOfMaterial.objects.count()}")
+        self.stdout.write(f"  BOMs: (see technology.BOM)")
         self.stdout.write(f"  Reservations: {StockReservation.objects.count()}")
         self.stdout.write(f"  Cycle Count Plans: {CycleCountPlan.objects.count()}")
         self.stdout.write(self.style.SUCCESS("\nDone!"))

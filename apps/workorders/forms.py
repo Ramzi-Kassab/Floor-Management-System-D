@@ -8,7 +8,7 @@ Form definitions for work order and drill bit management.
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import DrillBit, WorkOrder
+from .models import DrillBit, WorkOrder, BackloadBatch
 
 
 class WorkOrderForm(forms.ModelForm):
@@ -173,6 +173,8 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit',
             'design',
             'bom',
+            'customer',
+            'from_location_text',
             'bit_received_date',
             'due_date',
             'description',
@@ -189,6 +191,8 @@ class WorkOrderCreateEnhancedForm(forms.ModelForm):
             'drill_bit': forms.HiddenInput(attrs={'id': 'id_drill_bit'}),
             'design': forms.HiddenInput(attrs={'id': 'id_design'}),
             'bom': forms.HiddenInput(attrs={'id': 'id_bom'}),
+            'customer': forms.HiddenInput(attrs={'id': 'id_customer'}),
+            'from_location_text': forms.HiddenInput(attrs={'id': 'id_from_location_text'}),
             'bit_received_date': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
                 'class': "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
@@ -411,6 +415,7 @@ class DrillBitCreateForm(forms.ModelForm):
             "serial_number",
             "design",
             "bom",
+            "level",
         ]
         widgets = {
             "serial_number": forms.TextInput(attrs={
@@ -426,6 +431,7 @@ class DrillBitCreateForm(forms.ModelForm):
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 "id": "id_bom",
             }),
+            "level": forms.HiddenInput(attrs={"id": "id_level"}),
         }
         labels = {
             "serial_number": "Serial Number",
@@ -467,48 +473,9 @@ class DrillBitCreateForm(forms.ModelForm):
                 raise forms.ValidationError("Serial number must be at least 4 characters.")
         return serial
 
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-
-        # Auto-populate bit_type from design if available
-        if instance.design:
-            # Set bit_type based on design category
-            if hasattr(instance.design, 'category') and instance.design.category:
-                if 'RC' in instance.design.category.upper() or 'ROLLER' in instance.design.category.upper():
-                    instance.bit_type = DrillBit.BitCategory.RC
-                else:
-                    instance.bit_type = DrillBit.BitCategory.FC
-
-            # Auto-populate size from design
-            if instance.design.size:
-                instance.size = instance.design.size.size_value if hasattr(instance.design.size, 'size_value') else 0
-
-        # Auto-populate brazing_bom / system_bom from legacy bom field
-        if instance.bom and not instance.brazing_bom and not instance.system_bom:
-            from apps.technology.models import BOM
-            if instance.bom.bom_type == BOM.BOMType.SYSTEM:
-                instance.system_bom = instance.bom
-            else:
-                # Default: treat as brazing BOM
-                instance.brazing_bom = instance.bom
-
-        # Set initial status
-        instance.status = DrillBit.Status.NEW
-        instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
-
-        if commit:
-            instance.save()
-        return instance
-        self.fields["bom"].queryset = BOM.objects.filter(
-            status="ACTIVE",
-            design__isnull=False
-        ).select_related("design", "design__size").order_by("design__mat_no", "code")
-        self.fields["bom"].required = False
-        self.fields["bom"].label_from_instance = lambda obj: f"{obj.code} ({obj.name or 'L5'})"
-
-        # Only active locations
-        self.fields["bit_location"].queryset = Location.objects.filter(is_active=True)
-        self.fields["bit_location"].required = True
+    # NOTE: Duplicate save() method and orphaned __init__ code REMOVED (Feb 2026).
+    # The first save() (with bit_type/bom auto-population) was unreachable because
+    # Python uses the LAST definition. The active save() is below (calls sync_from_design()).
 
     def clean_serial_number(self):
         serial_number = self.cleaned_data.get("serial_number")
@@ -538,8 +505,10 @@ class DrillBitCreateForm(forms.ModelForm):
         instance = super().save(commit=False)
         # Sync fields from Design/BOM
         instance.sync_from_design()
-        instance.status = DrillBit.Status.NEW
+        # Smart initial status based on design/BOM presence
+        instance.determine_initial_status()
         instance.lifecycle_status = DrillBit.LifecycleStatus.NEW
+        instance.derive_ownership()
         if commit:
             instance.save()
         return instance
@@ -567,6 +536,7 @@ class DrillBitUpdateForm(forms.ModelForm):
             "design",
             "brazing_bom",
             "system_bom",
+            "level",
         ]
         widgets = {
             "serial_number": forms.TextInput(attrs={
@@ -584,6 +554,7 @@ class DrillBitUpdateForm(forms.ModelForm):
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white",
                 "id": "id_system_bom",
             }),
+            "level": forms.HiddenInput(attrs={"id": "id_level"}),
         }
         labels = {
             "serial_number": "Serial Number",
@@ -625,6 +596,9 @@ class DrillBitUpdateForm(forms.ModelForm):
         self.fields["system_bom"].required = False
         self.fields["system_bom"].empty_label = "-- No System BOM --"
         self.fields["system_bom"].label_from_instance = lambda obj: f"📋 {obj.code}" + (f" → {obj.system_mat_no}" if obj.system_mat_no else "")
+
+        # Level — hidden input, managed by JS L5 toggle
+        self.fields["level"].required = False
 
     def clean_serial_number(self):
         serial = self.cleaned_data.get("serial_number", "").strip()
@@ -1055,7 +1029,7 @@ class WorkOrderCostForm(forms.ModelForm):
 
 from .models import (
     Location, InstructionRule, InstructionRuleCondition,
-    CutterEvaluationMatrix, CutterEvaluationEntry,
+    CutterEvaluationMatrix, CutterEvaluationEntry, ReceivingInspection,
     RouterSheetEntry, EvaluationChecklist, LPTReport, APIThreadInspection
 )
 
@@ -1186,6 +1160,66 @@ class CutterEvaluationMatrixForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['general_remark'].required = False
+
+
+class ReceivingInspectionForm(forms.ModelForm):
+    """Form for ReceivingInspection — FC Bit Receiving Inspection per QAS/005-1."""
+
+    class Meta:
+        model = ReceivingInspection
+        fields = [
+            'inspection_date', 'po_number', 'client_name',
+            # Visual inspection checklist (QAS/005-1 — 11 items)
+            'vi_pin_connection', 'vi_bit_body', 'vi_bit_breaker', 'vi_blades',
+            'vi_nozzles', 'vi_junk_slot', 'vi_gauge_pads', 'vi_bit_face', 'vi_general',
+            'vi_nozzle_liner', 'vi_vendor_note',
+            # Cutter condition
+            'cutters_total', 'cutters_chipped', 'cutters_broken', 'cutters_worn', 'cutters_missing',
+            # Measurements
+            'tfa', 'gauge_reading_1', 'gauge_reading_2', 'gauge_reading_3',
+            # Decision
+            'result', 'remarks',
+        ]
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={
+                'type': 'date', 'class': INPUT_CLASS,
+            }),
+            'po_number': forms.TextInput(attrs={
+                'class': INPUT_CLASS, 'placeholder': 'Purchase order number',
+            }),
+            'client_name': forms.TextInput(attrs={
+                'class': INPUT_CLASS, 'placeholder': 'Client / customer name',
+            }),
+            # Visual checklist — radio buttons rendered in template, use hidden select as fallback
+            'vi_pin_connection': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_body': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_breaker': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_blades': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_nozzles': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_junk_slot': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_gauge_pads': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_bit_face': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_general': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_nozzle_liner': forms.Select(attrs={'class': SELECT_CLASS}),
+            'vi_vendor_note': forms.Select(attrs={'class': SELECT_CLASS}),
+            # Cutter counts
+            'cutters_total': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_chipped': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_broken': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_worn': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            'cutters_missing': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
+            # Measurements
+            'tfa': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_1': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_2': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            'gauge_reading_3': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
+            # Decision
+            'result': forms.Select(attrs={'class': SELECT_CLASS}),
+            'remarks': forms.Textarea(attrs={
+                'class': TEXTAREA_CLASS, 'rows': 3,
+                'placeholder': 'Inspection remarks, conditions noted, etc.',
+            }),
+        }
 
 
 class RouterSheetEntryForm(forms.ModelForm):
@@ -1451,3 +1485,89 @@ class DrillBitStartRepairForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'class': TEXTAREA_CLASS, 'rows': 2})
     )
+
+
+# =============================================================================
+# BACKLOAD BATCH FORM
+# =============================================================================
+
+_BL_INPUT = 'mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500'
+
+class BackloadBatchForm(forms.ModelForm):
+    """Form for creating a backload batch with bulk serial entry."""
+
+    serial_numbers_bulk = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': _BL_INPUT,
+            'rows': 8,
+            'placeholder': 'Paste serial numbers here — one per line',
+        }),
+        help_text="Enter one serial number per line. They will be auto-matched to existing drill bits.",
+        required=True,
+    )
+
+    class Meta:
+        model = BackloadBatch
+        fields = ['batch_type', 'batch_reference', 'expected_date', 'notes']
+        widgets = {
+            'batch_type': forms.RadioSelect(),
+            'batch_reference': forms.TextInput(attrs={
+                'class': _BL_INPUT,
+                'placeholder': 'Email ref, backload paper #',
+            }),
+            'expected_date': forms.DateInput(attrs={
+                'class': _BL_INPUT,
+                'type': 'date',
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': _BL_INPUT,
+                'rows': 3,
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['batch_type'].required = True
+        # Default expected_date to today if not set
+        if not self.initial.get('expected_date') and not self.data.get('expected_date'):
+            from django.utils import timezone
+            self.initial['expected_date'] = timezone.now().date().isoformat()
+
+    # -- Validation --
+
+    def clean_serial_numbers_bulk(self):
+        """Validate and clean serial numbers: digits only, 6 or 8 characters."""
+        raw = self.cleaned_data.get('serial_numbers_bulk', '')
+        cleaned = []
+        errors = []
+        for i, line in enumerate(raw.strip().splitlines(), start=1):
+            sn = line.strip()
+            if not sn:
+                continue
+            # Strip non-digit characters (spaces, dashes, etc.)
+            digits = ''.join(c for c in sn if c.isdigit())
+            if not digits:
+                errors.append(f"Line {i}: '{sn}' — no digits found")
+                continue
+            if len(digits) not in (6, 8):
+                errors.append(
+                    f"Line {i}: '{sn}' → {digits} ({len(digits)} digits, must be 6 or 8)"
+                )
+                continue
+            if digits in cleaned:
+                errors.append(f"Line {i}: '{digits}' — duplicate")
+                continue
+            cleaned.append(digits)
+        if errors and not cleaned:
+            raise ValidationError(
+                "No valid serial numbers found:\n" + "\n".join(errors)
+            )
+        if errors:
+            # Store warnings for display but don't block submission
+            self._serial_warnings = errors
+        return '\n'.join(cleaned)
+
+    def get_serial_list(self):
+        """Return the cleaned, validated serial numbers."""
+        raw = self.cleaned_data.get('serial_numbers_bulk', '')
+        return [sn for sn in raw.strip().splitlines() if sn.strip()]

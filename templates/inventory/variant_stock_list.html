@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-gray-600 dark:text-gray-400">Stock levels by item variant (NEW, USED, REFURB, etc.)</p>
     </div>
-    <a href="{% url 'inventory:stock_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+    <a href="{% url 'inventory:variant_stock_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
         <i data-lucide="layers" class="w-4 h-4 mr-1"></i>Item Stock View
     </a>
 </div>
@@ -111,10 +111,14 @@
                 {% for stock in variant_stocks %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td class="px-6 py-4">
+                        {% if stock.variant and stock.variant.item and stock.variant.item.pk %}
                         <a href="{% url 'inventory:item_detail' stock.variant.item.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                             {{ stock.variant.item.code }}
                         </a>
                         <span class="text-gray-500 ml-2 text-xs">{{ stock.variant.item.name|truncatewords:3 }}</span>
+                        {% else %}
+                        <span class="text-gray-400">—</span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4">
                         <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">

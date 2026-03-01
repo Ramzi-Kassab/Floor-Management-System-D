@@ -554,7 +554,7 @@ from .forms import (
 from .models import (
     SalvageItem, RepairApprovalAuthority, RepairEvaluation,
     RepairBOM, ProcessRoute, WorkOrderCost,
-    StatusTransitionLog, BitRepairHistory, OperationExecution
+    # StatusTransitionLog, BitRepairHistory, OperationExecution removed (Feb 2026)
 )
 
 
@@ -570,7 +570,7 @@ class SalvageItemListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = SalvageItem.objects.select_related('work_order', 'drill_bit', 'disposed_by')
+        queryset = SalvageItem.objects.select_related('work_order', 'drill_bit', 'created_by')
 
         search = self.request.GET.get('q')
         if search:
@@ -587,7 +587,7 @@ class SalvageItemListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by('-salvaged_date')
+        return queryset.order_by('-salvage_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -811,17 +811,17 @@ class RepairBOMListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by')
+        queryset = RepairBOM.objects.select_related('work_order', 'master_bom', 'approved_by')
 
         search = self.request.GET.get('q')
         if search:
-            queryset = queryset.filter(drill_bit__serial_number__icontains=search)
+            queryset = queryset.filter(work_order__drill_bit__serial_number__icontains=search)
 
         status = self.request.GET.get('status')
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by('-prepared_date')
+        return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -836,7 +836,7 @@ class RepairBOMDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "bom"
 
     def get_queryset(self):
-        return RepairBOM.objects.select_related('drill_bit', 'repair_evaluation', 'prepared_by').prefetch_related('lines__inventory_item')
+        return RepairBOM.objects.select_related('work_order', 'master_bom', 'approved_by').prefetch_related('lines__inventory_item')
 
 
 class RepairBOMCreateView(LoginRequiredMixin, CreateView):
@@ -1034,99 +1034,7 @@ class WorkOrderCostDeleteView(LoginRequiredMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
-# ============================================================================
-# StatusTransitionLog Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class StatusTransitionLogListView(LoginRequiredMixin, ListView):
-    """List status transition logs (view-only)"""
-    model = StatusTransitionLog
-    template_name = "workorders/statustransitionlog_list.html"
-    context_object_name = "logs"
-    paginate_by = 50
-
-    def get_queryset(self):
-        queryset = StatusTransitionLog.objects.select_related('changed_by')
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(
-                Q(from_status__icontains=search) |
-                Q(to_status__icontains=search) |
-                Q(reason__icontains=search)
-            )
-
-        return queryset.order_by('-changed_at')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Status Transition Logs'
-        return context
-
-
-# ============================================================================
-# BitRepairHistory Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class BitRepairHistoryListView(LoginRequiredMixin, ListView):
-    """List bit repair history (view-only)"""
-    model = BitRepairHistory
-    template_name = "workorders/bitrepairhistory_list.html"
-    context_object_name = "repairs"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = BitRepairHistory.objects.select_related('drill_bit', 'quality_inspector')
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(
-                Q(drill_bit__serial_number__icontains=search) |
-                Q(work_performed__icontains=search)
-            )
-
-        repair_type = self.request.GET.get('repair_type')
-        if repair_type:
-            queryset = queryset.filter(repair_type=repair_type)
-
-        return queryset.order_by('-repair_date')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Bit Repair History'
-        return context
-
-
-# ============================================================================
-# OperationExecution Views (VIEW-ONLY - 1 view)
-# ============================================================================
-
-class OperationExecutionListView(LoginRequiredMixin, ListView):
-    """List operation executions (view-only)"""
-    model = OperationExecution
-    template_name = "workorders/operationexecution_list.html"
-    context_object_name = "executions"
-    paginate_by = 25
-
-    def get_queryset(self):
-        queryset = OperationExecution.objects.select_related(
-            'work_order', 'process_route_operation', 'operator'
-        )
-
-        search = self.request.GET.get('q')
-        if search:
-            queryset = queryset.filter(work_order__wo_number__icontains=search)
-
-        status = self.request.GET.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-
-        return queryset.order_by('-start_time')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Operation Executions'
-        return context
+# NOTE: StatusTransitionLog, BitRepairHistory, OperationExecution list views REMOVED (Feb 2026)
 
 
 @login_required
@@ -1238,12 +1146,24 @@ def api_drillbit_lookup(request):
         }
         bit_state = status_map.get(bit.status, bit.get_status_display() if hasattr(bit, "get_status_display") else "Unknown")
 
+    # --- inspection ---
+    from apps.workorders.models import ReceivingInspection
+    latest_insp = ReceivingInspection.objects.filter(drill_bit=bit).order_by("-created_at").first()
+    has_inspection = latest_insp is not None
+    inspection_url = ""
+    if latest_insp:
+        inspection_url = reverse("workorders:receiving_inspection_edit",
+                                 kwargs={"bit_pk": bit.pk, "pk": latest_insp.pk})
+
     return JsonResponse({
         "found": True,
+        "pk": bit.pk,
         "drill_bit_id": bit.pk,
         "serial_number": bit.serial_number,
         "size": size_val,
         "size_display": size_display,
+        "design": str(bit.design) if bit.design else "",
+        "hdbs": hdbs_type,
         "bit_type": bit_type,
         "bit_type_display": bit_type_display,
         "hdbs_type": hdbs_type,
@@ -1266,6 +1186,8 @@ def api_drillbit_lookup(request):
         "rerun_count_factory": rerun_count_factory,
         "rerun_count_field": rerun_count_field,
         "bit_state": bit_state,
+        "has_inspection": has_inspection,
+        "inspection_url": inspection_url,
     })
 
 

@@ -449,7 +449,7 @@ class Command(BaseCommand):
 
     def post_grn(self, grn, user):
         """Post a GRN to create stock ledger entries."""
-        from apps.inventory.models import StockLedger, InventoryStock
+        from apps.inventory.models import StockLedger, StockBalance
         from django.db.models import F
 
         self.stdout.write(f"\nPosting GRN: {grn.grn_number}...")
@@ -477,14 +477,14 @@ class Command(BaseCommand):
                     created_by=user,
                 )
 
-                # Update stock balance using raw update to avoid model save issues
-                stock, created = InventoryStock.objects.get_or_create(
+                # Update stock balance
+                balance, created = StockBalance.objects.get_or_create(
                     item=line.item,
                     location=line.location,
-                    defaults={'quantity_on_hand': 0}
+                    defaults={'qty_on_hand': 0}
                 )
-                InventoryStock.objects.filter(pk=stock.pk).update(
-                    quantity_on_hand=F('quantity_on_hand') + line.qty_received
+                StockBalance.objects.filter(pk=balance.pk).update(
+                    qty_on_hand=F('qty_on_hand') + line.qty_received
                 )
 
                 line.is_posted = True

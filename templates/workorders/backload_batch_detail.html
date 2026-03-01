@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+{% block title %}Batch {{ batch.batch_number }}{% endblock %}
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        <i data-lucide="package" class="w-7 h-7 text-teal-500"></i>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white font-mono">{{ batch.batch_number }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {% if batch.batch_type == 'REPAIR' %}
+                    <span class="inline-flex items-center gap-1"><i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-500"></i> Repair Bits</span>
+                {% elif batch.batch_type == 'NEW' %}
+                    <span class="inline-flex items-center gap-1"><i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-500"></i> New Bits</span>
+                {% endif %}
+                &middot; {{ batch.created_at|date:"M d, Y" }}
+            </p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="px-3 py-1 text-sm rounded-full font-medium
+            {% if batch.status == 'ARRIVED' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300
+            {% elif batch.status == 'PROCESSING' %}bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300
+            {% elif batch.status == 'COMPLETED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+            {% endif %}">
+            {{ batch.get_status_display }}
+        </span>
+        <a href="{% url 'workorders:backload_batch_list' %}"
+           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Batches
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div x-data="batchDetail()" class="space-y-6">
+    {% csrf_token %}
+
+    {# ── Header Card ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.batch_reference|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expected Date</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.expected_date|date:"M d, Y"|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created By</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.created_by|default:"-" }}</p>
+            </div>
+            <div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</span>
+                <p class="mt-1 text-sm text-gray-800 dark:text-white">{{ batch.notes|default:"-"|truncatechars:60 }}</p>
+            </div>
+        </div>
+
+        {# ── Attachments ── #}
+        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                    Attachments
+                    <span x-text="'(' + attachmentCount + ')'" class="text-gray-400"></span>
+                </span>
+                <label class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/50 cursor-pointer transition">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Files
+                    <input type="file" multiple
+                           accept=".msg,.eml,.pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.zip"
+                           class="hidden" @change="uploadFiles($event)">
+                </label>
+            </div>
+            {# Existing attachments list #}
+            <div id="attachment-list" class="space-y-1.5">
+                {% for att in attachments %}
+                <div id="att-{{ att.pk }}" class="inline-flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 mr-2 mb-1">
+                    {% with ext=att.original_filename|lower %}
+                    {% if '.pdf' in ext %}
+                        <i data-lucide="file-text" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                    {% elif '.msg' in ext or '.eml' in ext %}
+                        <i data-lucide="mail" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+                    {% elif '.xlsx' in ext or '.xls' in ext or '.csv' in ext %}
+                        <i data-lucide="sheet" class="w-5 h-5 text-green-600 flex-shrink-0"></i>
+                    {% elif '.doc' in ext or '.docx' in ext %}
+                        <i data-lucide="file-text" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
+                    {% elif '.jpg' in ext or '.jpeg' in ext or '.png' in ext or '.gif' in ext or '.webp' in ext or '.bmp' in ext or '.tiff' in ext %}
+                        <i data-lucide="image" class="w-5 h-5 text-purple-500 flex-shrink-0"></i>
+                    {% elif '.zip' in ext or '.rar' in ext or '.7z' in ext %}
+                        <i data-lucide="archive" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
+                    {% else %}
+                        <i data-lucide="paperclip" class="w-5 h-5 text-gray-500 flex-shrink-0"></i>
+                    {% endif %}
+                    {% endwith %}
+                    <div class="flex flex-col">
+                        <a href="{{ att.file.url }}" target="_blank"
+                           class="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline truncate max-w-xs"
+                           title="{{ att.original_filename }}">
+                            {{ att.original_filename }}
+                        </a>
+                        <span class="text-[10px] text-gray-400">{{ att.file_size|filesizeformat }}</span>
+                    </div>
+                    <a href="{{ att.file.url }}" download
+                       class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition" title="Download">
+                        <i data-lucide="download" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                    </a>
+                    <button type="button" @click="deleteAttachment({{ att.pk }})"
+                            class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition" title="Delete">
+                        <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i>
+                    </button>
+                </div>
+                {% empty %}
+                <p id="no-attachments-msg" class="text-sm text-gray-400 dark:text-gray-500 italic">No attachments</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Progress bar #}
+        <div class="mt-4">
+            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span>Received</span>
+                <span>{{ received_count }}/{{ total_count }}</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div class="bg-teal-500 h-2.5 rounded-full transition-all duration-300"
+                     style="width: {% if total_count %}{% widthratio received_count total_count 100 %}{% else %}0{% endif %}%"></div>
+            </div>
+        </div>
+
+        {# Summary badges #}
+        <div class="mt-3 flex flex-wrap gap-2">
+            {% if received_count %}
+            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                <i data-lucide="check-circle" class="w-3 h-3 inline"></i> {{ received_count }} Received
+            </span>
+            {% endif %}
+            {% if unmatched_count %}
+            <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                <i data-lucide="clock" class="w-3 h-3 inline"></i> {{ unmatched_count }} Pending Registration
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Toolbar ── #}
+    <div class="flex items-center gap-3 flex-wrap">
+        {% if unmatched_count %}
+        <button @click="rematchAll()"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                :disabled="loading">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Match Unmatched
+        </button>
+        {% endif %}
+        <button @click="showAddSerials = !showAddSerials"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition"
+                :class="showAddSerials ? 'bg-teal-600 text-white hover:bg-teal-700' : 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/50'"
+                :disabled="loading">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add Serials
+        </button>
+        <span x-show="flashMsg" x-transition
+              class="text-sm font-medium"
+              :class="flashOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+              x-text="flashMsg"></span>
+    </div>
+
+    {# ── Add Serials Collapsible ── #}
+    <div x-show="showAddSerials" x-transition x-cloak
+         class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-teal-200 dark:border-teal-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+            <i data-lucide="list-plus" class="w-4 h-4 inline text-teal-500"></i>
+            Add More Serials to Batch
+        </h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Enter serial numbers (one per line). Duplicates within this batch will be skipped.
+        </p>
+        <textarea x-model="newSerials" rows="4"
+                  class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-white font-mono px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="One serial per line&#10;e.g.&#10;12345678&#10;87654321"></textarea>
+        <div class="flex items-center gap-3 mt-3">
+            <button @click="addSerials()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition disabled:opacity-50"
+                    :disabled="loading || !newSerials.trim()">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span x-text="loading ? 'Adding...' : 'Add to Batch'"></span>
+            </button>
+            <button @click="showAddSerials = false; newSerials = ''"
+                    class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                Cancel
+            </button>
+            <span x-show="addSerialsResult" x-transition class="text-xs text-gray-500 dark:text-gray-400" x-html="addSerialsResult"></span>
+        </div>
+    </div>
+
+    {# ── Items Table ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {# Toolbar with bulk QR print #}
+        <div class="px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ items|length }} item{{ items|length|pluralize }}
+            </span>
+            <button type="button" onclick="printAllQR()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/50 transition"
+                    title="Print QR labels for all bits in this batch">
+                <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Print QR Labels
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Serial Number</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Design / Size</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Account</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th class="px-4 py-3 w-10"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for item in items %}
+                    <tr class="group hover:bg-gray-50 dark:hover:bg-gray-700/30 transition"
+                        {% if item.drill_bit %}data-bit-pk="{{ item.drill_bit.pk }}"{% endif %}>
+                        <td class="px-4 py-3 text-xs text-gray-400">{{ forloop.counter }}</td>
+
+                        {# Serial Number — clickable if matched, plain text if unmatched #}
+                        <td class="px-4 py-3">
+                            {% if item.drill_bit %}
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' item.drill_bit.pk %}?from=batch&batch_pk={{ batch.pk }}"
+                               class="font-mono text-sm font-semibold text-teal-700 dark:text-teal-400 hover:underline">
+                                {{ item.serial_number }}
+                            </a>
+                            {% else %}
+                            <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ item.serial_number }}</span>
+                            {% endif %}
+                        </td>
+
+                        {# Design / Size #}
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {% if item.drill_bit and item.drill_bit.design %}
+                                {{ item.drill_bit.design }}
+                                {% if item.drill_bit.design.size %} &middot; {{ item.drill_bit.design.size }}{% endif %}
+                            {% else %}
+                                <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
+                            {% endif %}
+                        </td>
+
+                        {# Account #}
+                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {% if item.drill_bit and item.drill_bit.account %}
+                                <span class="px-1.5 py-0.5 text-xs rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                    {{ item.drill_bit.account.name }}
+                                </span>
+                            {% else %}
+                                <span class="text-gray-300 dark:text-gray-600">&mdash;</span>
+                            {% endif %}
+                        </td>
+
+                        {# Status badges #}
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                {% if item.status == 'ARRIVED' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                        <i data-lucide="package" class="w-3 h-3"></i> Arrived
+                                    </span>
+
+                                {% elif item.status == 'UNREGISTERED' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">
+                                        <i data-lucide="alert-circle" class="w-3 h-3"></i> Unregistered
+                                    </span>
+
+                                {% elif item.status == 'PROCESSING' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                                        <i data-lucide="loader" class="w-3 h-3"></i> Processing
+                                    </span>
+
+                                {% elif item.status == 'RECEIVED' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Received
+                                    </span>
+
+                                {% elif item.status == 'HOLD' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                                        <i data-lucide="pause-circle" class="w-3 h-3"></i> Hold
+                                    </span>
+
+                                {% else %}
+                                    <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                                        {{ item.get_status_display }}
+                                    </span>
+                                {% endif %}
+
+                                {% if item.received_date %}
+                                <span class="text-[10px] text-gray-400">{{ item.received_date|date:"M d, H:i" }}</span>
+                                {% endif %}
+
+                                {# No BOM sub-badge #}
+                                {% if item.drill_bit and not item.drill_bit.bom and not item.drill_bit.brazing_bom and not item.drill_bit.system_bom %}
+                                <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" title="No BOM assigned — request raised">
+                                    No BOM
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        {# Edit + Remove buttons #}
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                <button type="button"
+                                        @click="openEditModal({{ item.pk }}, '{{ item.serial_number }}')"
+                                        class="p-1.5 rounded text-gray-300 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition"
+                                        :disabled="loading"
+                                        title="Edit serial number">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button type="button"
+                                        @click="removeItem({{ item.pk }}, '{{ item.serial_number }}')"
+                                        class="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                                        :disabled="loading"
+                                        title="Remove from batch">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-12 text-center text-sm text-gray-400 dark:text-gray-500">
+                            No items in this batch.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ── Edit Serial Modal ── #}
+    <div x-show="editModal.show" x-transition.opacity x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+         @keydown.escape.window="editModal.show = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+             @click.outside="editModal.show = false">
+            {# Modal Header #}
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                    <i data-lucide="pencil" class="w-5 h-5 text-teal-500"></i>
+                    Edit Serial Number
+                </h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Current serial: <strong class="font-mono text-gray-800 dark:text-white" x-text="editModal.oldSerial"></strong>
+                </p>
+            </div>
+
+            {# Modal Body #}
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Serial Number</label>
+                    <input type="text" x-model="editModal.newSerial"
+                           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-mono text-gray-800 dark:text-white px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                           placeholder="Enter new serial number"
+                           @keydown.enter.prevent="editSerialKeep()">
+                </div>
+
+                <div x-show="editModal.error" x-transition
+                     class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p class="text-sm text-red-600 dark:text-red-400" x-text="editModal.error"></p>
+                </div>
+
+                {# Two action buttons #}
+                <div class="space-y-2">
+                    <button @click="editSerialKeep()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition disabled:opacity-50"
+                            :disabled="editModal.loading || !editModal.newSerial.trim()">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        <span x-text="editModal.loading ? 'Updating...' : 'Update Serial (keep all history)'"></span>
+                    </button>
+
+                    <button @click="editSerialClean()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition disabled:opacity-50"
+                            :disabled="editModal.loading || !editModal.newSerial.trim()">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span x-text="editModal.loading ? 'Replacing...' : 'Remove &amp; Re-add (clean slate)'"></span>
+                    </button>
+                </div>
+
+                <p class="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                    <strong>Keep history</strong> renames the serial on the drill bit and all linked records.
+                    <strong>Clean slate</strong> removes the old entry and creates a fresh one with the new serial.
+                </p>
+            </div>
+
+            {# Modal Footer #}
+            <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-end">
+                <button @click="editModal.show = false"
+                        class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function batchDetail() {
+    return {
+        loading: false,
+        flashMsg: '',
+        flashOk: true,
+        attachmentCount: {{ attachments|length }},
+
+        // Add Serials state
+        showAddSerials: false,
+        newSerials: '',
+        addSerialsResult: '',
+
+        // Edit Serial modal state
+        editModal: {
+            show: false,
+            itemId: null,
+            oldSerial: '',
+            newSerial: '',
+            error: '',
+            loading: false,
+        },
+
+        _csrfToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        },
+
+        flash(msg, ok) {
+            this.flashMsg = msg;
+            this.flashOk = ok;
+            setTimeout(() => this.flashMsg = '', 4000);
+        },
+
+        async postJson(url, body) {
+            this.loading = true;
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this._csrfToken(),
+                    },
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Error');
+                return data;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── Attachment: Upload files ──
+        async uploadFiles(event) {
+            const input = event.target;
+            if (!input.files || input.files.length === 0) return;
+
+            const maxSize = 25 * 1024 * 1024;  // 25 MB
+            const fd = new FormData();
+            let count = 0;
+            for (const f of input.files) {
+                if (f.size > maxSize) {
+                    this.flash(f.name + ' is too large (max 25 MB)', false);
+                    continue;
+                }
+                fd.append('files', f);
+                count++;
+            }
+            if (count === 0) { input.value = ''; return; }
+
+            this.loading = true;
+            try {
+                const r = await fetch("{% url 'workorders:api_batch_upload_attachment' batch.pk %}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': this._csrfToken() },
+                    body: fd,
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Upload failed');
+                this.attachmentCount += data.count;
+                this.flash(data.count + ' file(s) uploaded', true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            } finally {
+                this.loading = false;
+                input.value = '';
+            }
+        },
+
+        // ── Attachment: Delete ──
+        async deleteAttachment(attId) {
+            if (!confirm('Remove this attachment?')) return;
+            this.loading = true;
+            try {
+                const r = await fetch("{% url 'workorders:api_batch_delete_attachment' batch.pk 0 %}".replace('/0/', '/' + attId + '/'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this._csrfToken(),
+                    },
+                    body: '{}',
+                });
+                const data = await r.json();
+                if (!data.ok) throw new Error(data.error || 'Delete failed');
+                const el = document.getElementById('att-' + attId);
+                if (el) el.remove();
+                this.attachmentCount--;
+                if (this.attachmentCount <= 0) {
+                    const list = document.getElementById('attachment-list');
+                    if (list) list.innerHTML = '<p class="text-sm text-gray-400 dark:text-gray-500 italic">No attachments</p>';
+                }
+                this.flash('Attachment deleted', true);
+            } catch (e) {
+                this.flash(e.message, false);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── Re-match unmatched serials ──
+        async rematchAll() {
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_rematch' batch.pk %}", {});
+                this.flash(data.rematched + ' re-matched, ' + data.still_unmatched + ' still unmatched', true);
+                if (data.rematched > 0) setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        // ── Remove item from batch (undo mistaken serial) ──
+        async removeItem(itemId, serial) {
+            if (!confirm('Remove serial ' + serial + ' from this batch?\n\nThis will reverse the receiving event if one was created.')) return;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_remove_item' batch.pk %}", { item_id: itemId });
+                this.flash('Removed ' + data.serial, true);
+                setTimeout(() => location.reload(), 600);
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        // ── Add more serials to batch ──
+        async addSerials() {
+            if (!this.newSerials.trim()) return;
+            this.addSerialsResult = '';
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_add_items' batch.pk %}", {
+                    serials: this.newSerials,
+                });
+                // Build result summary
+                let parts = [];
+                if (data.added > 0) parts.push('<span class="text-green-600 dark:text-green-400">' + data.added + ' added</span>');
+                if (data.matched > 0) parts.push(data.matched + ' matched');
+                if (data.new_registered > 0) parts.push(data.new_registered + ' unregistered (new)');
+                if (data.duplicates && data.duplicates.length) parts.push('<span class="text-amber-600">' + data.duplicates.length + ' skipped (already in batch)</span>');
+                if (data.errors && data.errors.length) parts.push('<span class="text-red-500">' + data.errors.length + ' invalid</span>');
+                this.addSerialsResult = parts.join(' &middot; ');
+
+                if (data.added > 0) {
+                    this.flash(data.added + ' serial(s) added to batch', true);
+                    this.newSerials = '';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.flash('No new serials added', false);
+                }
+            } catch (e) {
+                this.flash(e.message, false);
+            }
+        },
+
+        // ── Open edit serial modal ──
+        openEditModal(itemId, serial) {
+            this.editModal = {
+                show: true,
+                itemId: itemId,
+                oldSerial: serial,
+                newSerial: '',
+                error: '',
+                loading: false,
+            };
+        },
+
+        // ── Edit serial: keep all history (rename) ──
+        async editSerialKeep() {
+            const m = this.editModal;
+            if (!m.newSerial.trim()) return;
+            m.error = '';
+            m.loading = true;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_edit_serial' batch.pk %}", {
+                    item_id: m.itemId,
+                    new_serial: m.newSerial,
+                });
+                m.show = false;
+                this.flash('Serial updated: ' + data.old_serial + ' → ' + data.new_serial, true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                m.error = e.message;
+            } finally {
+                m.loading = false;
+            }
+        },
+
+        // ── Edit serial: remove & re-add (clean slate) ──
+        async editSerialClean() {
+            const m = this.editModal;
+            if (!m.newSerial.trim()) return;
+            if (!confirm('This will DELETE the old drill bit record (if it has no work orders) and all its events.\n\nA fresh item with the new serial will be created.\n\nContinue?')) return;
+            m.error = '';
+            m.loading = true;
+            try {
+                const data = await this.postJson("{% url 'workorders:api_batch_replace_serial' batch.pk %}", {
+                    item_id: m.itemId,
+                    new_serial: m.newSerial,
+                });
+                m.show = false;
+                this.flash('Replaced: ' + data.old_serial + ' → ' + data.new_serial, true);
+                setTimeout(() => location.reload(), 800);
+            } catch (e) {
+                m.error = e.message;
+            } finally {
+                m.loading = false;
+            }
+        },
+    };
+}
+
+function printAllQR() {
+    // Collect all drill bit PKs from the batch items
+    const bitPks = [];
+    document.querySelectorAll('[data-bit-pk]').forEach(el => {
+        const pk = el.getAttribute('data-bit-pk');
+        if (pk) bitPks.push(pk);
+    });
+    if (bitPks.length === 0) {
+        alert('No matched drill bits to print QR labels for.');
+        return;
+    }
+    window.open("{% url 'workorders:drillbit_qr_labels' %}?bits=" + bitPks.join(','), '_blank');
+}
+</script>
+{% endblock %}

@@ -7,9 +7,9 @@
 <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ order.order_number }}</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ order.so_number }}</h1>
             <div class="flex items-center gap-2 mt-1">
-                <span class="px-2 py-1 text-xs font-medium rounded-full {% if order.status == 'APPROVED' %}bg-green-100 text-green-800{% elif order.status == 'PENDING' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ order.get_status_display|default:order.status }}</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if order.status == 'CONFIRMED' %}bg-green-100 text-green-800{% elif order.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% elif order.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800{% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ order.get_status_display|default:order.status }}</span>
             </div>
         </div>
         <div class="flex gap-3">
@@ -26,10 +26,12 @@
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Order Information</h3>
             <dl class="grid grid-cols-2 gap-4 text-sm">
-                <div><dt class="text-gray-500">Order Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.order_number }}</dd></div>
+                <div><dt class="text-gray-500">SO Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.so_number }}</dd></div>
+                <div><dt class="text-gray-500">Customer PO</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.customer_po|default:"-" }}</dd></div>
                 <div><dt class="text-gray-500">Order Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.order_date|date:"M d, Y" }}</dd></div>
-                <div><dt class="text-gray-500">Expected Delivery</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.expected_delivery_date|date:"M d, Y"|default:"-" }}</dd></div>
-                <div><dt class="text-gray-500">Priority</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.priority|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Required Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.required_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Promised Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.promised_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Currency</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.currency }}</dd></div>
             </dl>
         </div>
 
@@ -37,11 +39,24 @@
             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer Information</h3>
             <dl class="space-y-3 text-sm">
                 <div><dt class="text-gray-500">Customer</dt><dd class="font-medium text-gray-900 dark:text-white">{% if order.customer %}<a href="{% url 'sales:customer_detail' order.customer.pk %}" class="text-ardt-blue hover:underline">{{ order.customer.name }}</a>{% else %}-{% endif %}</dd></div>
-                <div><dt class="text-gray-500">Contact Person</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.contact_person|default:"-" }}</dd></div>
                 <div><dt class="text-gray-500">Sales Rep</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.sales_rep.get_full_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Rig</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.rig|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Well</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.well|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Delivery Warehouse</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.delivery_warehouse|default:"-" }}</dd></div>
             </dl>
         </div>
     </div>
+
+    {% if order.total_amount %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Financials</h3>
+        <dl class="grid grid-cols-3 gap-4 text-sm">
+            <div><dt class="text-gray-500">Subtotal</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.currency }} {{ order.subtotal }}</dd></div>
+            <div><dt class="text-gray-500">Tax</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.currency }} {{ order.tax_amount }}</dd></div>
+            <div><dt class="text-gray-500">Total</dt><dd class="font-semibold text-gray-900 dark:text-white text-lg">{{ order.currency }} {{ order.total_amount }}</dd></div>
+        </dl>
+    </div>
+    {% endif %}
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Order Lines</h3>
@@ -50,7 +65,8 @@
             <thead>
                 <tr>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Line #</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Drill Bit</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Design</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
                     <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -60,10 +76,11 @@
                 {% for line in lines %}
                 <tr>
                     <td class="px-4 py-2 text-sm">{{ line.line_number }}</td>
-                    <td class="px-4 py-2 text-sm">{{ line.drill_bit.serial_number|default:"-" }}</td>
+                    <td class="px-4 py-2 text-sm">{{ line.design|default:"-" }}</td>
+                    <td class="px-4 py-2 text-sm">{{ line.description|default:"-" }}</td>
                     <td class="px-4 py-2 text-sm text-right">{{ line.quantity }}</td>
-                    <td class="px-4 py-2 text-sm text-right">${{ line.unit_price|default:"0" }}</td>
-                    <td class="px-4 py-2 text-sm">{{ line.get_line_status_display|default:line.line_status|default:"-" }}</td>
+                    <td class="px-4 py-2 text-sm text-right">{{ line.unit_price|default:"0" }}</td>
+                    <td class="px-4 py-2 text-sm">{{ line.get_status_display|default:line.status|default:"-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -73,10 +90,10 @@
         {% endif %}
     </div>
 
-    {% if order.special_instructions or order.internal_notes %}
+    {% if order.notes or order.internal_notes %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
-        {% if order.special_instructions %}<div class="mb-4"><p class="text-sm text-gray-500">Special Instructions</p><p class="text-gray-900 dark:text-white">{{ order.special_instructions }}</p></div>{% endif %}
+        {% if order.notes %}<div class="mb-4"><p class="text-sm text-gray-500">Notes</p><p class="text-gray-900 dark:text-white">{{ order.notes }}</p></div>{% endif %}
         {% if order.internal_notes %}<div><p class="text-sm text-gray-500">Internal Notes</p><p class="text-gray-900 dark:text-white">{{ order.internal_notes }}</p></div>{% endif %}
     </div>
     {% endif %}

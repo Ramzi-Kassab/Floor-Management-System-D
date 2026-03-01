@@ -92,7 +92,14 @@
 {% block page_header %}
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div class="flex items-start">
-        {% if request.GET.from == 'wo' and request.GET.wo_pk %}
+        {% if request.GET.from == 'batch' and request.GET.batch_pk %}
+        <a href="{% url 'workorders:backload_batch_detail' request.GET.batch_pk %}"
+           class="mr-3 inline-flex items-center px-2 py-2 text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 bg-teal-100 dark:bg-teal-900/30 rounded-lg"
+           title="Back to Batch">
+            <i data-lucide="arrow-left" class="w-5 h-5 mr-1"></i>
+            <span class="text-sm">Batch</span>
+        </a>
+        {% elif request.GET.from == 'wo' and request.GET.wo_pk %}
         <a href="{% url 'workorders:workorder_detail_enhanced' request.GET.wo_pk %}"
            class="mr-3 inline-flex items-center px-2 py-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg"
            title="Back to Work Order">
@@ -115,7 +122,8 @@
             <div class="flex items-center gap-3">
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</h1>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                    {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% if drill_bit.status == 'UNREGISTERED' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300
+                    {% elif drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
                     {% elif drill_bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
                     {% else %}bg-gray-100 text-gray-800{% endif %}">
                     {{ drill_bit.get_status_display }}
@@ -141,7 +149,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 gap-6 transition-all duration-300" :class="rightSidebarOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'" x-data="{ bomOpen: true, designOpen: true, woOpen: true, eventsOpen: true, rightSidebarOpen: localStorage.getItem('drillbitRightSidebar') !== 'false' }" x-init="$watch('rightSidebarOpen', val => localStorage.setItem('drillbitRightSidebar', val))">
+<div class="grid grid-cols-1 gap-6 transition-all duration-300" :class="rightSidebarOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'" x-data="{ bomOpen: true, designOpen: true, woOpen: true, inspectionsOpen: true, eventsOpen: true, rightSidebarOpen: localStorage.getItem('drillbitRightSidebar') !== 'false' }" x-init="$watch('rightSidebarOpen', val => localStorage.setItem('drillbitRightSidebar', val))">
     <!-- Right Sidebar Toggle -->
     <div class="lg:col-span-full flex justify-end">
         <button @click="rightSidebarOpen = !rightSidebarOpen"
@@ -211,7 +219,15 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Status</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_lifecycle_status_display|default:drill_bit.get_status_display }}</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_status_display }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Condition</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_condition_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Ownership</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_ownership_display|default:"--" }}</p>
                 </div>
             </div>
         </div>
@@ -394,7 +410,7 @@
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Level</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.design.order_level %}L{{ drill_bit.design.order_level }}{% else %}--{% endif %}</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if drill_bit.level == '3' %}bg-blue-100 text-blue-800{% elif drill_bit.level == '4' %}bg-green-100 text-green-800{% elif drill_bit.level == '5' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">L{{ drill_bit.level }}</span>{% else %}--{% endif %}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Size</p>
@@ -763,6 +779,78 @@
             </div>
         </div>
 
+        <!-- Receiving Inspections (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !inspectionsOpen }" @click="inspectionsOpen = !inspectionsOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    Receiving Inspections
+                </h3>
+                <div @click.stop>
+                    <a href="{% url 'workorders:receiving_inspection_create' bit_pk=drill_bit.pk %}"
+                       class="text-blue-600 dark:text-blue-400 text-sm hover:underline">New Inspection &rarr;</a>
+                </div>
+            </div>
+
+            <div class="p-6 pt-4" x-show="inspectionsOpen" x-collapse>
+            {% if receiving_inspections %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400">
+                            <th class="pb-2 font-medium">Date</th>
+                            <th class="pb-2 font-medium">Result</th>
+                            <th class="pb-2 font-medium">Cutters</th>
+                            <th class="pb-2 font-medium">Inspector</th>
+                            <th class="pb-2 font-medium text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        {% for ri in receiving_inspections %}
+                        <tr>
+                            <td class="py-2 text-gray-700 dark:text-gray-300">{{ ri.inspection_date|date:"M d, Y"|default:"—" }}</td>
+                            <td class="py-2">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                    {% if ri.result == 'ACCEPTED' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+                                    {% elif ri.result == 'REJECTED' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                                    {% elif ri.result == 'CONDITIONAL' %}bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                                    {{ ri.get_result_display }}
+                                </span>
+                                {% if ri.is_complete %}
+                                <i data-lucide="check-circle" class="w-3.5 h-3.5 inline text-green-500 ml-1" title="Complete"></i>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">
+                                {% if ri.cutters_total %}{{ ri.cutters_total }} total{% else %}—{% endif %}
+                            </td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">
+                                {{ ri.inspected_by.get_full_name|default:ri.inspected_by.username|default:"—" }}
+                            </td>
+                            <td class="py-2 text-right">
+                                <a href="{% url 'workorders:receiving_inspection_edit' bit_pk=drill_bit.pk pk=ri.pk %}"
+                                   class="text-blue-600 dark:text-blue-400 hover:underline text-xs">
+                                    {% if ri.is_complete %}View{% else %}Edit{% endif %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-6">
+                <i data-lucide="clipboard-check" class="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 mb-2"></i>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">No receiving inspections yet</p>
+                <a href="{% url 'workorders:receiving_inspection_create' bit_pk=drill_bit.pk %}"
+                   class="inline-flex items-center gap-1.5 mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Create First Inspection
+                </a>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+
         <!-- Event History (foldable) -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
             <div class="p-6 pb-0 section-toggle" :class="{ collapsed: !eventsOpen }" @click="eventsOpen = !eventsOpen">
@@ -814,21 +902,39 @@
                 <div class="flex justify-between items-center">
                     <span class="text-gray-600 dark:text-gray-400">Status</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {% if drill_bit.status == 'UNREGISTERED' %}bg-orange-100 text-orange-800
+                        {% elif drill_bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
+                        {% elif drill_bit.status == 'IN_PRODUCTION' or drill_bit.status == 'IN_REPAIR' %}bg-blue-100 text-blue-800
+                        {% elif drill_bit.status == 'DISPATCHED' or drill_bit.status == 'IN_FIELD' %}bg-indigo-100 text-indigo-800
+                        {% elif drill_bit.status == 'SCRAPPED' or drill_bit.status == 'DE_BRAZED' %}bg-red-100 text-red-800
+                        {% elif drill_bit.status == 'HOLD' %}bg-amber-100 text-amber-800
+                        {% elif drill_bit.status == 'BACKLOADED' %}bg-purple-100 text-purple-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
                         {{ drill_bit.get_status_display }}
                     </span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600 dark:text-gray-400">Lifecycle</span>
-                    <span class="text-gray-900 dark:text-white text-sm">{{ drill_bit.get_lifecycle_status_display|default:"--" }}</span>
+                    <span class="text-gray-600 dark:text-gray-400">Condition</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if drill_bit.condition == 'FINISHED_GOOD' %}bg-green-100 text-green-800
+                        {% elif drill_bit.condition == 'REPAIRED' %}bg-teal-100 text-teal-800
+                        {% elif drill_bit.condition == 'USED' %}bg-amber-100 text-amber-800
+                        {% elif drill_bit.condition == 'SCRAPPED' %}bg-red-100 text-red-800
+                        {% elif drill_bit.condition == 'DE_BRAZED' %}bg-rose-100 text-rose-800
+                        {% elif drill_bit.condition == 'SAVED_BODY' %}bg-violet-100 text-violet-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ drill_bit.get_condition_display|default:"--" }}
+                    </span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600 dark:text-gray-400">Physical</span>
+                    <span class="text-gray-600 dark:text-gray-400">Ownership</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        {% if drill_bit.physical_status == 'AT_RIG' %}bg-blue-100 text-blue-800
-                        {% elif drill_bit.physical_status == 'IN_SHOP' %}bg-purple-100 text-purple-800
+                        {% if drill_bit.ownership == 'RENTAL' %}bg-blue-100 text-blue-800
+                        {% elif drill_bit.ownership == 'CUSTOMER' %}bg-indigo-100 text-indigo-800
+                        {% elif drill_bit.ownership == 'MANUFACTURE' %}bg-emerald-100 text-emerald-800
+                        {% elif drill_bit.ownership == 'TRIAL' %}bg-pink-100 text-pink-800
                         {% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ drill_bit.get_physical_status_display|default:"--" }}
+                        {{ drill_bit.get_ownership_display|default:"--" }}
                     </span>
                 </div>
             </div>

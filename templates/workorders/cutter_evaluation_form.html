@@ -51,10 +51,12 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
                     <select name="evaluation_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                        <option value="PDC_EVAL" {% if request.GET.type == 'PDC_EVAL' %}selected{% endif %}>PDC Evaluation</option>
                         <option value="RECEIVING" {% if request.GET.type == 'RECEIVING' %}selected{% endif %}>Receiving Evaluation</option>
-                        <option value="ARDT" {% if request.GET.type == 'ARDT' %}selected{% endif %}>ARDT Evaluation</option>
+                        <option value="ARDT" {% if request.GET.type == 'ARDT' %}selected{% endif %}>ARDT Evaluation (Legacy)</option>
                         <option value="ENGINEER" {% if request.GET.type == 'ENGINEER' %}selected{% endif %}>Technical Rep. Evaluation</option>
                         <option value="QC" {% if request.GET.type == 'QC' %}selected{% endif %}>QC Evaluation</option>
+                        <option value="ARAMCO_REP" {% if request.GET.type == 'ARAMCO_REP' %}selected{% endif %}>Aramco Rep. Evaluation</option>
                         <option value="DIE_CHECK" {% if request.GET.type == 'DIE_CHECK' %}selected{% endif %}>Die Check</option>
                         <option value="FINAL_DIE_CHECK" {% if request.GET.type == 'FINAL_DIE_CHECK' %}selected{% endif %}>Final Die Check</option>
                         <option value="FINAL_QC" {% if request.GET.type == 'FINAL_QC' %}selected{% endif %}>Final QC Evaluation</option>

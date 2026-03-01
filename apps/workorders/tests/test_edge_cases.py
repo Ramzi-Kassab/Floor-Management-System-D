@@ -455,43 +455,7 @@ class TestUniqueConstraintEdgeCases:
 class TestUniqueTogether:
     """Tests for unique_together constraints."""
 
-    def test_duplicate_repair_number_same_bit_fails(self, drill_bit, base_user):
-        """Test duplicate repair_number for same bit fails."""
-        from apps.workorders.models import BitRepairHistory
-        BitRepairHistory.objects.create(
-            drill_bit=drill_bit,
-            repair_number=1,
-            repair_date=date.today(),
-            repair_type=BitRepairHistory.RepairType.REDRESS,
-            created_by=base_user
-        )
-        with pytest.raises(IntegrityError):
-            BitRepairHistory.objects.create(
-                drill_bit=drill_bit,
-                repair_number=1,
-                repair_date=date.today(),
-                repair_type=BitRepairHistory.RepairType.MINOR_REPAIR,
-                created_by=base_user
-            )
-
-    def test_same_repair_number_different_bits_ok(self, drill_bit, drill_bit_rc, base_user):
-        """Test same repair_number for different bits is allowed."""
-        from apps.workorders.models import BitRepairHistory
-        history1 = BitRepairHistory.objects.create(
-            drill_bit=drill_bit,
-            repair_number=1,
-            repair_date=date.today(),
-            repair_type=BitRepairHistory.RepairType.REDRESS,
-            created_by=base_user
-        )
-        history2 = BitRepairHistory.objects.create(
-            drill_bit=drill_bit_rc,
-            repair_number=1,
-            repair_date=date.today(),
-            repair_type=BitRepairHistory.RepairType.REDRESS,
-            created_by=base_user
-        )
-        assert history1.repair_number == history2.repair_number
+    # NOTE: BitRepairHistory unique_together tests REMOVED (Feb 2026) — model was dead code.
 
 
 # =============================================================================
@@ -570,20 +534,7 @@ class TestPropertyCalculationEdgeCases:
         )
         assert cost.variance_percent == 0
 
-    def test_total_cost_property(self, drill_bit, base_user):
-        """Test BitRepairHistory total_cost property."""
-        from apps.workorders.models import BitRepairHistory
-        history = BitRepairHistory.objects.create(
-            drill_bit=drill_bit,
-            repair_number=1,
-            repair_date=date.today(),
-            repair_type=BitRepairHistory.RepairType.REDRESS,
-            labor_cost=Decimal('500.00'),
-            material_cost=Decimal('1000.00'),
-            overhead_cost=Decimal('150.00'),
-            created_by=base_user
-        )
-        assert history.total_cost == Decimal('1650.00')
+    # NOTE: BitRepairHistory total_cost property test REMOVED (Feb 2026) — model was dead code.
 
     def test_estimated_repair_cost_property(self, drill_bit, base_user):
         """Test RepairEvaluation estimated_repair_cost property."""

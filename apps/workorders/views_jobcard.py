@@ -10,28 +10,31 @@ Enhanced views for Job Card functionality including:
 - Instruction Rules management
 """
 
+import json as _json
 from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Q, Count, Sum, F, Max
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView, TemplateView, View
 )
 
 from .models import (
     WorkOrder, DrillBit, BitEvent, Location,
-    CutterEvaluationMatrix, CutterEvaluationEntry,
+    CutterEvaluationMatrix, CutterEvaluationEntry, ReceivingInspection,
     RouterSheetEntry, EvaluationChecklist,
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
-    ProcessRoute, ProcessRouteOperation, OperationExecution,
+    ProcessRoute, ProcessRouteOperation,
     RepairEvaluation, WorkOrderCost, ProductionPlanEntry,
     PlannerSettings, PlannerHoliday,
     EvaluationRoute, EvaluationRouteStep
@@ -280,6 +283,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
                     'type_label': step.get_evaluation_type_display(),
                     'evaluation': eval_obj,
                     'exists': eval_obj is not None,
+                    'entry_count': len(eval_obj.entries.all()) if eval_obj else 0,
                     'help_text': step.condition_description if step.is_conditional else '',
                     'is_na': False,
                     'is_required': step.is_required,
@@ -315,6 +319,7 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
                         'type_label': type_label,
                         'evaluation': eval_obj,
                         'exists': eval_obj is not None,
+                        'entry_count': len(eval_obj.entries.all()) if eval_obj else 0,
                         'help_text': help_text,
                         'is_na': not show_by_default and eval_obj is None,
                         'is_required': True,
@@ -328,6 +333,23 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         context['is_new_bit'] = is_new_bit
         context['is_ur'] = is_ur
         context['is_aramco'] = is_aramco
+
+        # Evaluation progress summary
+        total_evals = len([e for e in evaluations if not e.get('is_na')])
+        complete_evals = len([e for e in evaluations if e.get('exists') and e['evaluation'].is_complete])
+        context['eval_progress'] = {
+            'total': total_evals,
+            'complete': complete_evals,
+            'percent': round(complete_evals * 100 / total_evals) if total_evals > 0 else 0,
+        }
+
+        # Receiving inspection (from drill bit, if linked)
+        if wo.drill_bit_id:
+            context['receiving_inspection'] = ReceivingInspection.objects.filter(
+                drill_bit_id=wo.drill_bit_id
+            ).select_related('inspected_by').first()
+        else:
+            context['receiving_inspection'] = None
 
         # Router sheet entries
         context["router_entries"] = wo.router_entries.order_by('step_number')
@@ -344,14 +366,8 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         except WorkOrderCost.DoesNotExist:
             context["cost_summary"] = None
 
-        # Status transitions
-        from django.contrib.contenttypes.models import ContentType
-        from .models import StatusTransitionLog
-        wo_ct = ContentType.objects.get_for_model(WorkOrder)
-        context["status_history"] = StatusTransitionLog.objects.filter(
-            content_type=wo_ct,
-            object_id=wo.pk
-        ).order_by('-changed_at')[:10]
+        # Status transitions — StatusTransitionLog removed (Feb 2026), was never written to
+        context["status_history"] = []
 
         return context
 
@@ -425,17 +441,17 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        lifecycle = self.request.GET.get("lifecycle")
-        if lifecycle:
-            queryset = queryset.filter(lifecycle_status=lifecycle)
+        condition = self.request.GET.get("condition")
+        if condition:
+            queryset = queryset.filter(condition=condition)
+
+        ownership = self.request.GET.get("ownership")
+        if ownership:
+            queryset = queryset.filter(ownership=ownership)
 
         bit_type = self.request.GET.get("bit_type")
         if bit_type:
             queryset = queryset.filter(bit_type=bit_type)
-
-        physical = self.request.GET.get("physical")
-        if physical:
-            queryset = queryset.filter(physical_status=physical)
 
         search = self.request.GET.get("search")
         if search:
@@ -451,14 +467,14 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Drill Bits"
         context["status_choices"] = DrillBit.Status.choices
-        context["lifecycle_choices"] = DrillBit.LifecycleStatus.choices
+        context["condition_choices"] = DrillBit.Condition.choices
+        context["ownership_choices"] = DrillBit.Ownership.choices
         context["bit_type_choices"] = DrillBit.BitCategory.choices
-        context["physical_choices"] = DrillBit.PhysicalStatus.choices
 
         context["current_status"] = self.request.GET.get("status", "")
-        context["current_lifecycle"] = self.request.GET.get("lifecycle", "")
+        context["current_condition"] = self.request.GET.get("condition", "")
+        context["current_ownership"] = self.request.GET.get("ownership", "")
         context["current_bit_type"] = self.request.GET.get("bit_type", "")
-        context["current_physical"] = self.request.GET.get("physical", "")
         context["current_search"] = self.request.GET.get("search", "")
 
         paginate_by = self.get_paginate_by(None)
@@ -488,7 +504,8 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
         ).prefetch_related(
-            "work_orders", "evaluations", "bit_events", "repair_history",
+            "work_orders", "evaluations", "bit_events",
+            "receiving_inspections", "receiving_inspections__inspected_by",
             "design__special_technologies",
         )
 
@@ -508,11 +525,11 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
         # Work orders
         context["work_orders"] = bit.work_orders.order_by('-created_at')
 
-        # Repair history
-        context["repairs"] = bit.repair_history.order_by('-repair_number')
-
         # Evaluations
         context["evaluations"] = bit.evaluations.order_by('-evaluation_date')
+
+        # Receiving Inspections
+        context["receiving_inspections"] = bit.receiving_inspections.order_by('-inspection_date')
 
         # ── BOM source_data for inline display ──
         active_bom = bit.brazing_bom or bit.bom or bit.system_bom
@@ -561,25 +578,47 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             ).order_by('order')
             context["pocket_configs"] = pocket_configs
 
-            # Build grid data, row separators, location data for Alpine.js read-only grid
+            # Build grid data with row-aligned virtual columns
+            # Pads shorter blades so R2 cutters always appear after R1 separator
+            from collections import defaultdict
+            pocket_list = list(pockets)
+
+            blade_row_counts = defaultdict(int)
+            for p in pocket_list:
+                blade_row_counts[(p.blade_number, p.row_number)] += 1
+
+            all_blades = sorted(set(p.blade_number for p in pocket_list))
+            all_rows = sorted(set(p.row_number for p in pocket_list))
+
+            row_max = {}
+            for rn in all_rows:
+                row_max[rn] = max(
+                    blade_row_counts.get((bn, rn), 0) for bn in all_blades
+                )
+
+            row_start = {}
+            off = 1
+            for rn in all_rows:
+                row_start[rn] = off
+                off += row_max[rn]
+
+            row_separators = []
+            cum = 0
+            for rn in all_rows[:-1]:
+                cum += row_max[rn]
+                row_separators.append(cum)
+
             grid_data = {}
             location_data = {}
             engagement_data = {}
-            positions_by_row = {}
-            for p in pockets:
-                key = f"{p.blade_number}_{p.position_in_blade}"
+            for p in pocket_list:
+                vcol = row_start[p.row_number] + p.position_in_row - 1
+                key = f"{p.blade_number}_{vcol}"
                 grid_data[key] = p.pocket_config_id
                 if p.blade_location:
                     location_data[key] = p.blade_location
                 if p.engagement_order:
                     engagement_data[key] = p.engagement_order
-                if p.row_number not in positions_by_row:
-                    positions_by_row[p.row_number] = []
-                positions_by_row[p.row_number].append(p.position_in_blade)
-
-            row_separators = []
-            for row_num in sorted(positions_by_row.keys())[:-1]:
-                row_separators.append(max(positions_by_row[row_num]))
 
             context["pocket_grid_data_json"] = _json.dumps(grid_data)
             context["pocket_row_separators_json"] = _json.dumps(sorted(row_separators))
@@ -707,10 +746,10 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
         context['source_choices'] = CutterEvaluationEntry.CutterSource.choices
 
         # Saved cutters details (from previous save or BOM data)
-        context['saved_cutters_details'] = matrix.cutters_details or []
+        # Use json.dumps for safe JS embedding (not Python repr)
+        context['saved_cutters_details'] = _json.dumps(matrix.cutters_details or [])
 
         # BOM lines for pre-populating cutters details (if no saved data)
-        import json as _json
         bom_lines_json = []
         active_bom = None
         if wo.bom:
@@ -734,6 +773,10 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
                     'remarks': '',
                 })
         context['bom_lines_json'] = _json.dumps(bom_lines_json)
+
+        # Dynamic row range for cutters details table
+        num_detail_rows = max(10, len(bom_lines_json), len(matrix.cutters_details or []))
+        context['cutter_detail_row_range'] = range(1, num_detail_rows + 1)
 
         # Cutter state history: all prior evaluations for this WO
         prior_evals = wo.cutter_evaluations.exclude(pk=matrix.pk).order_by(
@@ -784,31 +827,48 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
 
         content_type = request.content_type or ''
         if 'application/json' in content_type:
-            import json
-            data = json.loads(request.body)
+            data = _json.loads(request.body)
             entries_data = data.get('entries', [])
             remarks = data.get('remarks', '')
             decision = data.get('decision', '')
             cutters_details = data.get('cutters_details', None)
+            mark_complete = data.get('mark_complete', None)
 
-            # Clear existing entries and re-create
-            matrix.entries.all().delete()
-            for e in entries_data:
-                CutterEvaluationEntry.objects.create(
-                    matrix=matrix,
-                    blade_number=e['blade'],
-                    cutter_position=e['position'],
-                    action=e.get('action', ''),
-                )
+            with transaction.atomic():
+                # Clear existing entries and re-create
+                matrix.entries.all().delete()
+                for e in entries_data:
+                    CutterEvaluationEntry.objects.create(
+                        matrix=matrix,
+                        blade_number=e['blade'],
+                        cutter_position=e['position'],
+                        action=e.get('action', ''),
+                    )
 
-            # Update matrix fields
-            matrix.general_remark = remarks
-            matrix.decision = decision
-            if cutters_details is not None:
-                matrix.cutters_details = cutters_details
-            matrix.save(update_fields=['general_remark', 'decision', 'cutters_details', 'updated_at'])
+                # Update matrix fields
+                update_fields = ['general_remark', 'decision', 'cutters_details', 'updated_at']
+                matrix.general_remark = remarks
+                matrix.decision = decision
+                if cutters_details is not None:
+                    matrix.cutters_details = cutters_details
 
-            return JsonResponse({'success': True, 'count': len(entries_data)})
+                # Mark complete / reopen support
+                if mark_complete is True:
+                    matrix.is_complete = True
+                    matrix.qc_by = request.user
+                    matrix.qc_at = timezone.now()
+                    update_fields.extend(['is_complete', 'qc_by', 'qc_at'])
+                elif mark_complete is False:
+                    matrix.is_complete = False
+                    update_fields.append('is_complete')
+
+                matrix.save(update_fields=update_fields)
+
+            return JsonResponse({
+                'success': True,
+                'count': len(entries_data),
+                'is_complete': matrix.is_complete,
+            })
 
         # Legacy single-cell POST
         blade = int(request.POST.get('blade'))
@@ -833,6 +893,34 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
             'entry_id': entry.pk,
             'action': entry.get_action_display(),
         })
+
+
+@login_required
+@require_POST
+def api_evaluation_mark_complete(request, wo_pk, pk):
+    """Toggle is_complete on a CutterEvaluationMatrix. Sets qc_by/qc_at on first completion."""
+    matrix = get_object_or_404(CutterEvaluationMatrix, pk=pk, work_order_id=wo_pk)
+    data = _json.loads(request.body) if request.body else {}
+    mark_complete = data.get('mark_complete', True)
+
+    with transaction.atomic():
+        matrix.is_complete = bool(mark_complete)
+        update_fields = ['is_complete', 'updated_at']
+        if mark_complete and not matrix.qc_by:
+            matrix.qc_by = request.user
+            matrix.qc_at = timezone.now()
+            update_fields.extend(['qc_by', 'qc_at'])
+        elif not mark_complete:
+            # Reopen — keep qc_by/qc_at as audit trail
+            pass
+        matrix.save(update_fields=update_fields)
+
+    return JsonResponse({
+        'success': True,
+        'is_complete': matrix.is_complete,
+        'qc_by': str(matrix.qc_by) if matrix.qc_by else None,
+        'qc_at': matrix.qc_at.isoformat() if matrix.qc_at else None,
+    })
 
 
 # =============================================================================
@@ -2474,3 +2562,358 @@ def api_get_evaluation_types(request):
         'success': True,
         'evaluation_types': types
     })
+
+
+# =============================================================================
+# RECEIVING INSPECTION (QAS/005-1) — Linked to DrillBit
+# =============================================================================
+
+def _get_bom_blade_data(drill_bit):
+    """
+    Extract blade data from a drill bit's BOM source_data for the evaluation grid.
+    Returns (blade_data_list, bom_summary_list, has_data) tuple.
+    blade_data_list: [{name, rows: [{row_key, positions: [{pos_name, cutters: [{type, group, chamfer}]}]}]}]
+    """
+    bom = drill_bit.brazing_bom or drill_bit.system_bom or getattr(drill_bit, 'bom', None)
+    if not bom or not bom.source_data:
+        return [], [], False
+
+    source_data = bom.source_data if isinstance(bom.source_data, dict) else {}
+    raw_blades = source_data.get("blades", [])
+    bom_summary = source_data.get("bom", [])
+
+    if not raw_blades:
+        return [], bom_summary, False
+
+    POSITIONS = ["CONE", "NOSE", "SHOULDER", "GAUGE", "PAD"]
+    ROW_KEYS = ["r1", "r2", "r3", "r4"]
+
+    blade_data = []
+    for blade in raw_blades:
+        blade_name = blade.get("name", "")
+        rows = []
+        for rk in ROW_KEYS:
+            row_data = blade.get(rk, {})
+            if not row_data:
+                continue
+            positions = []
+            for pos in POSITIONS:
+                cutters = row_data.get(pos, [])
+                if cutters:
+                    positions.append({
+                        "pos_name": pos,
+                        "cutters": cutters,  # [{type, group, chamfer}, ...]
+                    })
+            if positions:
+                rows.append({"row_key": rk, "positions": positions})
+        if rows:
+            blade_data.append({"name": blade_name, "rows": rows})
+
+    return blade_data, bom_summary, bool(blade_data)
+
+
+def _get_pocket_grid_context(drill_bit):
+    """
+    Build pocket config + grid data for the receiving inspection template.
+    Reuses the same pattern as DrillBitDetailEnhancedView (lines 562-621).
+    Returns dict of context keys to add.
+    """
+    design = drill_bit.design if drill_bit else None
+    if not design:
+        return {'has_pocket_data': False}
+
+    from apps.technology.models import DesignPocket, DesignPocketConfig
+
+    pockets = DesignPocket.objects.filter(
+        design=design
+    ).select_related(
+        'pocket_config', 'pocket_config__pocket_size', 'pocket_config__pocket_shape'
+    ).order_by('blade_number', 'row_number', 'position_in_row')
+
+    if not pockets.exists():
+        return {'has_pocket_data': False}
+
+    pocket_configs = DesignPocketConfig.objects.filter(
+        design=design
+    ).select_related('pocket_size', 'pocket_shape').order_by('order')
+
+    # Build grid data with row-aligned virtual columns
+    # Different blades have different cutter counts per row. We pad shorter
+    # blades so all R2 cutters appear after the R1 separator, etc.
+    from collections import defaultdict
+    pocket_list = list(pockets)
+
+    blade_row_counts = defaultdict(int)
+    for p in pocket_list:
+        blade_row_counts[(p.blade_number, p.row_number)] += 1
+
+    all_blades = sorted(set(p.blade_number for p in pocket_list))
+    all_rows = sorted(set(p.row_number for p in pocket_list))
+
+    # Max cutters per row across ALL blades
+    row_max = {}
+    for row in all_rows:
+        row_max[row] = max(
+            blade_row_counts.get((blade, row), 0) for blade in all_blades
+        )
+
+    # Row start offsets (virtual column where each row begins)
+    row_start = {}
+    offset = 1
+    for row in all_rows:
+        row_start[row] = offset
+        offset += row_max[row]
+
+    # Row separators — cumulative end of each row except last
+    row_separators = []
+    cumulative = 0
+    for row in all_rows[:-1]:
+        cumulative += row_max[row]
+        row_separators.append(cumulative)
+
+    max_pos = offset - 1  # total virtual columns
+
+    # Build grid data using virtual columns
+    grid_data = {}
+    location_data = {}
+    for p in pocket_list:
+        vcol = row_start[p.row_number] + p.position_in_row - 1
+        key = f"{p.blade_number}_{vcol}"
+        grid_data[key] = p.pocket_config_id
+        if p.blade_location:
+            location_data[key] = p.blade_location
+
+    # Config display colors
+    colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+              '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1']
+    config_data = {}
+    config_list = []
+    for i, cfg in enumerate(pocket_configs):
+        dc = cfg.color_code if cfg.color_code else colors[i % len(colors)]
+        cfg.display_color = dc
+        config_data[cfg.pk] = {
+            "count": cfg.count,
+            "order": cfg.order,
+            "color": dc,
+            "name": cfg.pocket_size.display_name if cfg.pocket_size else '',
+            "sizeCode": cfg.pocket_size.code if cfg.pocket_size else '',
+        }
+        config_list.append({
+            'order': cfg.order,
+            'size': cfg.pocket_size.display_name if cfg.pocket_size else '—',
+            'shape': cfg.pocket_shape.name if cfg.pocket_shape else '—',
+            'length_type': cfg.get_length_type_display() if hasattr(cfg, 'get_length_type_display') else cfg.length_type or '—',
+            'count': cfg.count,
+            'color': dc,
+        })
+
+    # Determine blade count
+    blade_nums = sorted(set(p.blade_number for p in pockets))
+
+    return {
+        'has_pocket_data': True,
+        'pocket_grid_data_json': _json.dumps(grid_data),
+        'pocket_row_separators_json': _json.dumps(sorted(row_separators)),
+        'pocket_location_data_json': _json.dumps(location_data),
+        'pocket_config_data_json': _json.dumps(config_data),
+        'pocket_config_list': config_list,
+        'pocket_blade_nums': blade_nums,
+        'pocket_max_pos': max_pos,
+        'pocket_config_total': sum(cfg.count for cfg in pocket_configs),
+    }
+
+
+class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
+    """Create a new Receiving Inspection for a drill bit."""
+    model = ReceivingInspection
+    template_name = "workorders/receiving_inspection_form.html"
+
+    def get_form_class(self):
+        from .forms import ReceivingInspectionForm
+        return ReceivingInspectionForm
+
+    def get_drill_bit(self):
+        return get_object_or_404(DrillBit, pk=self.kwargs['bit_pk'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bit = self.get_drill_bit()
+        context['drill_bit'] = bit
+        context['page_title'] = f"New Receiving Inspection — {bit.serial_number}"
+        context['is_new'] = True
+        # QAS/005-1 checklist items (all NA for new) — 11 items
+        context['checklist_items'] = [
+            (1, "Bit Cleanliness", "vi_gauge_pads", "NA"),
+            (2, "Ring Gage GO", "vi_bit_face", "NA"),
+            (3, "Ring Gage NO GO", "vi_general", "NA"),
+            (4, "Nozzle Threads", "vi_nozzles", "NA"),
+            (5, "Breaker Slot", "vi_bit_breaker", "NA"),
+            (6, "Junk Slot", "vi_junk_slot", "NA"),
+            (7, "API Pin Connection", "vi_pin_connection", "NA"),
+            (8, "Cutters", "vi_blades", "NA"),
+            (9, "No Body Damage", "vi_bit_body", "NA"),
+            (10, "Nozzle Liner Fit", "vi_nozzle_liner", "NA"),
+            (11, "Q-Note from Vendor", "vi_vendor_note", "NA"),
+        ]
+        context['checklist_remarks'] = {}
+
+        # BOM blade data for cutter evaluation grid
+        blade_data, bom_summary, has_bom = _get_bom_blade_data(bit)
+        context['has_bom_data'] = has_bom
+        context['blade_data_json'] = _json.dumps(blade_data)
+        context['bom_summary_json'] = _json.dumps(bom_summary)
+        context['eval_data_json'] = '{}'
+
+        # Pocket grid data
+        context.update(_get_pocket_grid_context(bit))
+        context['pocket_eval_data_json'] = '{}'
+        return context
+
+    def _save_json_fields(self, form):
+        """Parse and save JSON hidden inputs for eval data, pocket data, and checklist remarks."""
+        for field, post_key in [
+            ('cutter_evaluation_data', 'cutter_evaluation_data'),
+            ('pocket_evaluation_data', 'pocket_evaluation_data'),
+            ('checklist_remarks', 'checklist_remarks'),
+        ]:
+            raw = self.request.POST.get(post_key, '{}')
+            try:
+                setattr(form.instance, field, _json.loads(raw))
+            except (ValueError, TypeError):
+                setattr(form.instance, field, {})
+
+    def form_valid(self, form):
+        form.instance.drill_bit = self.get_drill_bit()
+        form.instance.inspected_by = self.request.user
+        if not form.instance.inspection_date:
+            form.instance.inspection_date = timezone.now().date()
+        self._save_json_fields(form)
+        response = super().form_valid(form)
+        messages.success(self.request, "Receiving inspection created.")
+        return response
+
+    def get_success_url(self):
+        return reverse('workorders:receiving_inspection_edit',
+                        kwargs={'bit_pk': self.kwargs['bit_pk'], 'pk': self.object.pk})
+
+
+class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
+    """Edit an existing Receiving Inspection."""
+    model = ReceivingInspection
+    template_name = "workorders/receiving_inspection_form.html"
+
+    def get_form_class(self):
+        from .forms import ReceivingInspectionForm
+        return ReceivingInspectionForm
+
+    def get_queryset(self):
+        return ReceivingInspection.objects.select_related(
+            'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+            'work_order', 'inspected_by', 'qc_approved_by'
+        ).filter(drill_bit__pk=self.kwargs['bit_pk'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bit = self.object.drill_bit
+        context['drill_bit'] = bit
+        context['page_title'] = f"Receiving Inspection — {bit.serial_number}"
+        context['is_new'] = False
+        context['checklist_items'] = self.object.checklist_items
+        context['checklist_remarks'] = self.object.checklist_remarks or {}
+        # QR code for print header
+        from apps.workorders.utils import generate_drill_bit_qr
+        context['bit_qr_base64'] = generate_drill_bit_qr(bit)
+        # BOM blade data for cutter evaluation grid
+        blade_data, bom_summary, has_bom = _get_bom_blade_data(bit)
+        context['has_bom_data'] = has_bom
+        context['blade_data_json'] = _json.dumps(blade_data)
+        context['bom_summary_json'] = _json.dumps(bom_summary)
+        context['eval_data_json'] = _json.dumps(self.object.cutter_evaluation_data or {})
+        # Pocket grid data
+        context.update(_get_pocket_grid_context(bit))
+        context['pocket_eval_data_json'] = _json.dumps(self.object.pocket_evaluation_data or {})
+        return context
+
+    def form_valid(self, form):
+        # Save JSON fields from hidden inputs
+        for field, post_key in [
+            ('cutter_evaluation_data', 'cutter_evaluation_data'),
+            ('pocket_evaluation_data', 'pocket_evaluation_data'),
+            ('checklist_remarks', 'checklist_remarks'),
+        ]:
+            raw = self.request.POST.get(post_key, '{}')
+            try:
+                setattr(form.instance, field, _json.loads(raw))
+            except (ValueError, TypeError):
+                setattr(form.instance, field, {})
+        # Check if "mark_complete" was submitted
+        mark_complete = self.request.POST.get('mark_complete')
+        if mark_complete == 'true' and not form.instance.is_complete:
+            form.instance.is_complete = True
+            form.instance.qc_approved_by = self.request.user
+            form.instance.qc_approved_at = timezone.now()
+            messages.success(self.request, "Receiving inspection marked as complete.")
+        elif mark_complete == 'false' and form.instance.is_complete:
+            form.instance.is_complete = False
+            form.instance.qc_approved_by = None
+            form.instance.qc_approved_at = None
+            messages.success(self.request, "Receiving inspection reopened.")
+        else:
+            messages.success(self.request, "Receiving inspection saved.")
+
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('workorders:receiving_inspection_edit',
+                        kwargs={'bit_pk': self.kwargs['bit_pk'], 'pk': self.object.pk})
+
+
+@login_required
+@require_POST
+def api_receiving_inspection_complete(request, bit_pk, pk):
+    """Toggle is_complete on a ReceivingInspection. POST-only."""
+    inspection = get_object_or_404(ReceivingInspection, pk=pk, drill_bit__pk=bit_pk)
+
+    if inspection.is_complete:
+        # Reopen
+        inspection.is_complete = False
+        inspection.qc_approved_by = None
+        inspection.qc_approved_at = None
+        inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        return JsonResponse({'success': True, 'is_complete': False, 'message': 'Inspection reopened.'})
+    else:
+        # Complete
+        inspection.is_complete = True
+        inspection.qc_approved_by = request.user
+        inspection.qc_approved_at = timezone.now()
+        inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        return JsonResponse({'success': True, 'is_complete': True, 'message': 'Inspection marked complete.'})
+
+
+# =============================================================================
+# EVALUATION AUTO-CREATE (Standalone per-type URLs)
+# =============================================================================
+
+class EvaluationAutoCreateView(LoginRequiredMixin, View):
+    """
+    GET /workorders/<wo_pk>/evaluation/<type_code>/
+    Auto-creates CutterEvaluationMatrix for the given type if not exists,
+    then redirects to the matrix editor.
+    """
+    def get(self, request, wo_pk, type_code):
+        wo = get_object_or_404(WorkOrder, pk=wo_pk)
+        # Validate type_code
+        valid_codes = [c[0] for c in CutterEvaluationMatrix.EvaluationType.choices]
+        if type_code not in valid_codes:
+            messages.error(request, f"Invalid evaluation type: {type_code}")
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+        matrix, created = CutterEvaluationMatrix.objects.get_or_create(
+            work_order=wo,
+            evaluation_type=type_code,
+            evaluation_number=1,
+            defaults={'evaluated_by': request.user}
+        )
+        if created:
+            messages.info(request, f"Created new {matrix.get_evaluation_type_display()}")
+        return redirect('workorders:cutter_evaluation_edit', wo_pk=wo.pk, pk=matrix.pk)

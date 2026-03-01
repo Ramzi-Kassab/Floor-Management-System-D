@@ -272,7 +272,7 @@ class NonConformanceListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = NonConformance.objects.select_related(
-            'detected_by', 'responsible_person', 'verified_by'
+            'reported_by', 'responsible_person', 'verified_by'
         )
 
         search = self.request.GET.get('q')
@@ -777,7 +777,7 @@ class ComplianceReportListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = ComplianceReport.objects.select_related('prepared_by', 'reviewed_by', 'approved_by')
+        queryset = ComplianceReport.objects.select_related('prepared_by', 'approved_by')
 
         search = self.request.GET.get('q')
         if search:

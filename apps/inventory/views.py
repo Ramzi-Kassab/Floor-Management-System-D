@@ -19,8 +19,6 @@ from .forms import (
     InventoryCategoryForm,
     InventoryItemForm,
     InventoryLocationForm,
-    InventoryStockForm,
-    InventoryTransactionForm,
     ItemBitSpecForm,
     ItemCutterSpecForm,
     ItemIdentifierForm,
@@ -40,8 +38,6 @@ from .models import (
     InventoryCategory,
     InventoryItem,
     InventoryLocation,
-    InventoryStock,
-    InventoryTransaction,
     ItemAttributeValue,
     ItemBitSpec,
     ItemCutterSpec,
@@ -50,6 +46,7 @@ from .models import (
     ItemRelationship,
     ItemSupplier,
     ItemVariant,
+    StockLedger,
     UnitOfMeasure,
     VariantCase,
     VariantStock,
@@ -93,8 +90,9 @@ class InventoryDashboardView(LoginRequiredMixin, View):
         from .models import (
             GoodsReceiptNote, StockIssue, StockTransfer,
             StockAdjustment as StockAdjustmentDoc, StockLedger,
-            Asset, BillOfMaterial, StockReservation,
+            StockBalance, Asset, StockReservation,
         )
+        from apps.technology.models import BOM
 
         # Calculate stats
         stats = {
@@ -102,8 +100,8 @@ class InventoryDashboardView(LoginRequiredMixin, View):
             "total_stock_value": StockLedger.objects.aggregate(
                 total=Sum(F("qty_delta") * F("unit_cost"))
             )["total"] or 0,
-            "low_stock_count": InventoryStock.objects.filter(
-                quantity_on_hand__lt=F("item__reorder_point")
+            "low_stock_count": StockBalance.objects.filter(
+                qty_on_hand__lt=F("item__reorder_point")
             ).count(),
             "active_reservations": StockReservation.objects.filter(
                 status="PENDING"
@@ -113,7 +111,7 @@ class InventoryDashboardView(LoginRequiredMixin, View):
             "draft_transfers": StockTransfer.objects.filter(status="DRAFT").count(),
             "draft_adjustments": StockAdjustmentDoc.objects.filter(status="DRAFT").count(),
             "total_assets": Asset.objects.count(),
-            "active_boms": BillOfMaterial.objects.filter(status="ACTIVE").count(),
+            "active_boms": BOM.objects.filter(status="ACTIVE").count(),
         }
 
         # Recent ledger entries
@@ -463,7 +461,7 @@ class ItemListView(LoginRequiredMixin, ListView):
                 queryset=ItemVariant.objects.filter(is_active=True).select_related("variant_case")
             )
         ).annotate(
-            current_stock=Sum("stock_records__quantity_on_hand")
+            current_stock=Sum("variants__stock_records__quantity_on_hand")
         )
 
         # Filter by category (supports both ID and code)
@@ -606,7 +604,7 @@ class ItemListView(LoginRequiredMixin, ListView):
         context["total_items"] = all_items.count()
         context["active_items"] = all_items.filter(is_active=True).count()
         context["low_stock_count"] = all_items.annotate(
-            stock=Sum("stock_records__quantity_on_hand")
+            stock=Sum("variants__stock_records__quantity_on_hand")
         ).filter(stock__lte=F("min_stock"), min_stock__gt=0).count()
 
         return context
@@ -627,11 +625,15 @@ class ItemDetailView(LoginRequiredMixin, DetailView):
         item = self.object
         context["page_title"] = f"{item.code} - {item.name}"
 
-        # Stock by location
-        context["stock_by_location"] = item.stock_records.select_related("location", "location__warehouse")
+        # Stock by location (via VariantStock — aggregated per location)
+        context["stock_by_location"] = VariantStock.objects.filter(
+            variant__base_item=item
+        ).select_related("location", "location__warehouse", "variant__variant_case")
 
-        # Recent transactions
-        context["recent_transactions"] = item.transactions.select_related("created_by", "from_location", "to_location").order_by(
+        # Recent transactions (via StockLedger — replaces deprecated InventoryTransaction)
+        context["recent_transactions"] = StockLedger.objects.filter(
+            item=item
+        ).select_related("created_by", "location").order_by(
             "-transaction_date"
         )[:10]
 
@@ -1156,17 +1158,15 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
         except:
             pass
 
-        # Check stock records
-        if hasattr(item, 'stock_records'):
-            stock_count = item.stock_records.count()
-            if stock_count > 0:
-                usage['stock_records'] = stock_count
+        # Check stock records (via VariantStock through variants)
+        stock_count = VariantStock.objects.filter(variant__base_item=item).count()
+        if stock_count > 0:
+            usage['stock_records'] = stock_count
 
-        # Check transactions
-        if hasattr(item, 'transactions'):
-            trans_count = item.transactions.count()
-            if trans_count > 0:
-                usage['transactions'] = trans_count
+        # Check ledger entries (replaces deprecated InventoryTransaction)
+        ledger_count = StockLedger.objects.filter(item=item).count()
+        if ledger_count > 0:
+            usage['ledger_entries'] = ledger_count
 
         # Check variants
         if hasattr(item, 'variants'):
@@ -1255,242 +1255,17 @@ class ItemDeleteView(LoginRequiredMixin, DeleteView):
 
 
 # =============================================================================
-# Transaction Views
+# Transaction Views (REMOVED — deprecated InventoryTransaction model)
+# TransactionListView, TransactionDetailView, TransactionCreateView removed.
+# Use StockLedger for all transaction tracking.
 # =============================================================================
 
 
-class TransactionListView(LoginRequiredMixin, ListView):
-    """List all inventory transactions."""
-
-    model = InventoryTransaction
-    template_name = "inventory/transaction_list.html"
-    context_object_name = "transactions"
-    paginate_by = 50
-
-    def get_queryset(self):
-        qs = InventoryTransaction.objects.select_related("item", "from_location", "to_location", "created_by")
-
-        # Filter by type
-        trans_type = self.request.GET.get("type")
-        if trans_type:
-            qs = qs.filter(transaction_type=trans_type)
-
-        # Filter by item
-        item = self.request.GET.get("item")
-        if item:
-            qs = qs.filter(item_id=item)
-
-        # Search
-        search = self.request.GET.get("q")
-        if search:
-            qs = qs.filter(Q(transaction_number__icontains=search) | Q(reference_number__icontains=search))
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Inventory Transactions"
-        context["type_choices"] = InventoryTransaction.TransactionType.choices
-        context["current_type"] = self.request.GET.get("type", "")
-        context["search_query"] = self.request.GET.get("q", "")
-        return context
-
-
-class TransactionDetailView(LoginRequiredMixin, DetailView):
-    """View transaction details."""
-
-    model = InventoryTransaction
-    template_name = "inventory/transaction_detail.html"
-    context_object_name = "transaction"
-
-    def get_queryset(self):
-        return InventoryTransaction.objects.select_related("item", "from_location", "to_location", "created_by")
-
-
-class TransactionCreateView(LoginRequiredMixin, CreateView):
-    """Create inventory transaction."""
-
-    model = InventoryTransaction
-    form_class = InventoryTransactionForm
-    template_name = "inventory/transaction_form.html"
-    success_url = reverse_lazy("inventory:transaction_list")
-
-    def form_valid(self, form):
-        transaction = form.save(commit=False)
-        transaction.created_by = self.request.user
-        transaction.transaction_date = timezone.now()
-        transaction.transaction_number = self.generate_transaction_number()
-
-        # Calculate total cost
-        transaction.total_cost = transaction.quantity * transaction.unit_cost
-
-        transaction.save()
-
-        # Update stock levels
-        self.update_stock(transaction)
-
-        messages.success(self.request, f"Transaction '{transaction.transaction_number}' created successfully.")
-        return redirect(self.success_url)
-
-    def generate_transaction_number(self):
-        """Generate unique transaction number."""
-        prefix = "TXN"
-        today = timezone.now().strftime("%Y%m%d")
-        last = InventoryTransaction.objects.filter(transaction_number__startswith=f"{prefix}-{today}").order_by("-id").first()
-        if last:
-            try:
-                last_num = int(last.transaction_number.split("-")[-1])
-                next_num = last_num + 1
-            except (ValueError, IndexError):
-                next_num = 1
-        else:
-            next_num = 1
-        return f"{prefix}-{today}-{str(next_num).zfill(4)}"
-
-    def update_stock(self, transaction):
-        """Update stock levels based on transaction."""
-        if transaction.transaction_type == "RECEIPT":
-            # Add to destination
-            stock, _ = InventoryStock.objects.get_or_create(
-                item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-            )
-            stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-            stock.last_movement_date = timezone.now()
-            stock.save()
-
-        elif transaction.transaction_type == "ISSUE":
-            # Remove from source
-            try:
-                stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                stock.last_movement_date = timezone.now()
-                stock.save()
-            except InventoryStock.DoesNotExist:
-                pass
-
-        elif transaction.transaction_type == "TRANSFER":
-            # Remove from source
-            try:
-                from_stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                from_stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                from_stock.last_movement_date = timezone.now()
-                from_stock.save()
-            except InventoryStock.DoesNotExist:
-                pass
-
-            # Add to destination
-            to_stock, _ = InventoryStock.objects.get_or_create(
-                item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-            )
-            to_stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-            to_stock.last_movement_date = timezone.now()
-            to_stock.save()
-
-        elif transaction.transaction_type == "ADJUSTMENT":
-            # Adjustment can be positive or negative
-            if transaction.to_location:
-                stock, _ = InventoryStock.objects.get_or_create(
-                    item=transaction.item, location=transaction.to_location, defaults={"quantity_on_hand": 0}
-                )
-                stock.quantity_on_hand = F("quantity_on_hand") + transaction.quantity
-                stock.last_movement_date = timezone.now()
-                stock.save()
-            elif transaction.from_location:
-                try:
-                    stock = InventoryStock.objects.get(item=transaction.item, location=transaction.from_location)
-                    stock.quantity_on_hand = F("quantity_on_hand") - transaction.quantity
-                    stock.last_movement_date = timezone.now()
-                    stock.save()
-                except InventoryStock.DoesNotExist:
-                    pass
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New Transaction"
-        context["form_title"] = "Create Inventory Transaction"
-        return context
-
-
 # =============================================================================
-# Stock Views
+# Stock Views (REMOVED — deprecated InventoryStock model)
+# StockListView, StockAdjustView removed.
+# Use StockBalance and VariantStock for stock queries.
 # =============================================================================
-
-
-class StockListView(LoginRequiredMixin, ListView):
-    """List all stock records."""
-
-    model = InventoryStock
-    template_name = "inventory/stock_list.html"
-    context_object_name = "stock_records"
-    paginate_by = 50
-
-    def get_queryset(self):
-        qs = InventoryStock.objects.select_related("item", "location", "location__warehouse").filter(quantity_on_hand__gt=0)
-
-        # Filter by warehouse
-        warehouse = self.request.GET.get("warehouse")
-        if warehouse:
-            qs = qs.filter(location__warehouse_id=warehouse)
-
-        # Filter by item
-        item = self.request.GET.get("item")
-        if item:
-            qs = qs.filter(item_id=item)
-
-        return qs.order_by("item__code", "location__code")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Stock Levels"
-        from apps.sales.models import Warehouse
-
-        context["warehouses"] = Warehouse.objects.filter(is_active=True)
-        context["current_warehouse"] = self.request.GET.get("warehouse", "")
-        return context
-
-
-class StockAdjustView(LoginRequiredMixin, View):
-    """Quick stock adjustment view."""
-
-    def post(self, request, pk):
-        stock = get_object_or_404(InventoryStock, pk=pk)
-        form = StockAdjustmentForm(request.POST)
-
-        if form.is_valid():
-            adjustment_type = form.cleaned_data["adjustment_type"]
-            quantity = form.cleaned_data["quantity"]
-            reason = form.cleaned_data["reason"]
-            notes = form.cleaned_data["notes"]
-
-            # Create transaction
-            trans_type = "ADJUSTMENT"
-            transaction = InventoryTransaction.objects.create(
-                transaction_number=f"ADJ-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                transaction_type=trans_type,
-                transaction_date=timezone.now(),
-                item=stock.item,
-                from_location=stock.location if adjustment_type == "REMOVE" else None,
-                to_location=stock.location if adjustment_type == "ADD" else None,
-                quantity=quantity,
-                unit=stock.item.unit,
-                reason=reason,
-                notes=notes,
-                created_by=request.user,
-            )
-
-            # Update stock
-            if adjustment_type == "ADD":
-                stock.quantity_on_hand = F("quantity_on_hand") + quantity
-            else:
-                stock.quantity_on_hand = F("quantity_on_hand") - quantity
-            stock.last_movement_date = timezone.now()
-            stock.save()
-
-            messages.success(request, f"Stock adjusted successfully. Transaction: {transaction.transaction_number}")
-        else:
-            messages.error(request, "Invalid adjustment data.")
-
-        return redirect("inventory:item_detail", pk=stock.item.pk)
 
 
 # =============================================================================
@@ -1727,9 +1502,12 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         from datetime import timedelta
-        from django.db.models import Sum, F, Value, DecimalField
+        from django.db.models import Sum, F, Value, DecimalField, Case, When
         from django.db.models.functions import Coalesce
         from decimal import Decimal
+        from .models import StockLedger, VariantStock
+        from apps.technology.models import BOMLine
+        from apps.supplychain.models import PurchaseOrderLine
 
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Cutter Inventory Dashboard"
@@ -1749,7 +1527,66 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
         category_attributes = self._get_category_attributes()
         context["category_attributes"] = category_attributes
 
-        # Build cutter data with stock, consumption, requirements
+        # ── BULK QUERIES (replace N+1 per-item queries) ──────────────
+
+        # 1) Variant stock: one query → map of variant_id → total qty
+        variant_stock_map = {}
+        for vs in VariantStock.objects.filter(
+            variant__base_item__category__code="CUT-PDC",
+            variant__base_item__is_active=True,
+            variant__is_active=True,
+        ).values("variant_id").annotate(
+            total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+        ):
+            variant_stock_map[vs["variant_id"]] = vs["total"]
+
+        # 2) Consumption: one query → map of item_id → {6m, 3m, 2m}
+        consumption_map = {}
+        for row in StockLedger.objects.filter(
+            item__category__code="CUT-PDC",
+            item__is_active=True,
+            transaction_type__in=["ISSUE", "CONSUMPTION"],
+            transaction_date__gte=six_months_ago,
+        ).values("item_id").annotate(
+            c6m=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()),
+            c3m=Coalesce(Sum(Case(
+                When(transaction_date__gte=three_months_ago, then="qty_delta"),
+                default=Value(0), output_field=DecimalField(),
+            )), Value(0), output_field=DecimalField()),
+            c2m=Coalesce(Sum(Case(
+                When(transaction_date__gte=two_months_ago, then="qty_delta"),
+                default=Value(0), output_field=DecimalField(),
+            )), Value(0), output_field=DecimalField()),
+        ):
+            consumption_map[row["item_id"]] = row
+
+        # 3) BOM requirements: one query → map of item_id → total qty
+        bom_map = {}
+        for row in BOMLine.objects.filter(
+            inventory_item__category__code="CUT-PDC",
+            inventory_item__is_active=True,
+        ).values("inventory_item_id").annotate(
+            total=Coalesce(Sum("quantity"), Value(0), output_field=DecimalField())
+        ):
+            bom_map[row["inventory_item_id"]] = row["total"]
+
+        # 4) PO on-order: one query → map of item_id → outstanding qty
+        po_map = {}
+        for row in PurchaseOrderLine.objects.filter(
+            inventory_item__category__code="CUT-PDC",
+            inventory_item__is_active=True,
+            purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
+            is_cancelled=False,
+        ).values("inventory_item_id").annotate(
+            total=Coalesce(
+                Sum(F("quantity_ordered") - F("quantity_received")),
+                Value(0), output_field=DecimalField(),
+            )
+        ):
+            po_map[row["inventory_item_id"]] = max(row["total"], Decimal("0"))
+
+        # ── BUILD PER-ITEM ROWS (using pre-computed maps) ────────────
+
         cutter_data = []
         row_num = 0
         for cutter in context["cutters"]:
@@ -1783,13 +1620,11 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                 "remarks": cutter.notes or "",  # Use notes field for remarks
             }
 
-            # Get stock by variant
+            # Get stock by variant (uses pre-computed variant_stock_map)
             for variant in cutter.variants.all():
                 if variant.variant_case and variant.variant_case.code in variant_codes:
-                    # Get total stock for this variant across all locations
-                    variant_stock = VariantStock.objects.filter(
-                        variant=variant
-                    ).aggregate(total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField()))["total"]
+                    # Look up from pre-computed map instead of per-variant query
+                    variant_stock = variant_stock_map.get(variant.id, Decimal("0"))
                     row["variants"][variant.variant_case.code] = variant_stock
                     row["total_stock"] += variant_stock
 
@@ -1809,44 +1644,20 @@ class CutterInventoryListView(LoginRequiredMixin, ListView):
                         if variant.customer and "halliburton" in variant.customer.name.lower() and variant.account == "LSTK":
                             row["lstk_rcl"] += variant_stock
 
-            # Get consumption from StockLedger (ISSUE, CONSUMPTION transactions)
-            from .models import StockLedger
-            consumption_qs = StockLedger.objects.filter(
-                item=cutter,
-                transaction_type__in=["ISSUE", "CONSUMPTION"],
-            )
-
-            row["consumption_6m"] = abs(consumption_qs.filter(
-                transaction_date__gte=six_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
-
-            row["consumption_3m"] = abs(consumption_qs.filter(
-                transaction_date__gte=three_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
-
-            row["consumption_2m"] = abs(consumption_qs.filter(
-                transaction_date__gte=two_months_ago
-            ).aggregate(total=Coalesce(Sum("qty_delta"), Value(0), output_field=DecimalField()))["total"])
+            # Get consumption from pre-computed map
+            cons = consumption_map.get(cutter.id, {})
+            row["consumption_6m"] = abs(cons.get("c6m", Decimal("0")))
+            row["consumption_3m"] = abs(cons.get("c3m", Decimal("0")))
+            row["consumption_2m"] = abs(cons.get("c2m", Decimal("0")))
 
             # Calculate safety stock from 2-month consumption
             row["safety_stock"] = self._calculate_safety_stock(row["consumption_2m"])
 
-            # Get BOM requirements (cutters needed for drill bits)
-            from apps.technology.models import BOMLine
-            row["bom_requirement"] = BOMLine.objects.filter(
-                inventory_item=cutter
-            ).aggregate(total=Coalesce(Sum("quantity"), Value(0), output_field=DecimalField()))["total"]
+            # Get BOM requirements from pre-computed map
+            row["bom_requirement"] = bom_map.get(cutter.id, Decimal("0"))
 
-            # Get on order quantity (open PO lines)
-            from apps.supplychain.models import PurchaseOrderLine
-            on_order = PurchaseOrderLine.objects.filter(
-                inventory_item=cutter,
-                purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
-                is_cancelled=False
-            ).aggregate(
-                total=Coalesce(Sum(F("quantity_ordered") - F("quantity_received")), Value(0), output_field=DecimalField())
-            )["total"]
-            row["on_order"] = max(on_order, Decimal("0"))
+            # Get on order quantity from pre-computed map
+            row["on_order"] = po_map.get(cutter.id, Decimal("0"))
 
             # Calculate forecast: Total New + On Order - BOM Requirement
             row["forecast"] = row["total_new"] + row["on_order"] - row["bom_requirement"]
@@ -4229,8 +4040,6 @@ from .models import (
     AssetMovement,
     QualityStatusChange,
     StockReservation,
-    BillOfMaterial,
-    BOMLine,
     CycleCountPlan,
     CycleCountSession,
     CycleCountLine,
@@ -4254,8 +4063,6 @@ from .forms import (
     AssetMovementForm,
     QualityStatusChangeForm,
     StockReservationForm,
-    BillOfMaterialForm,
-    BOMLineFormSet,
     CycleCountPlanForm,
     CycleCountSessionForm,
     CycleCountLineFormSet,
@@ -4917,8 +4724,8 @@ class GRNPostView(LoginRequiredMixin, View):
                             from .models import VariantStock
                             VariantStock.update_from_ledger_entry(ledger_entry)
 
-                        # Update StockBalance
-                        self._update_stock_balance(
+                        # Update StockBalance and InventoryStock
+                        _update_stock_balance_shared(
                             item=line.item,
                             location=location,
                             lot=line.lot,
@@ -4970,58 +4777,6 @@ class GRNPostView(LoginRequiredMixin, View):
             messages.error(request, f"Error posting GRN: {str(e)}")
 
         return redirect("inventory:grn_detail", pk=pk)
-
-    def _update_stock_balance(self, item, location, lot, owner_party,
-                              ownership_type, quality_status, condition,
-                              qty_change, cost_change):
-        """Update or create StockBalance and InventoryStock entries."""
-        from decimal import Decimal
-
-        # Update StockBalance (detailed inventory with dimensions)
-        balance, created = StockBalance.objects.get_or_create(
-            item=item,
-            location=location,
-            lot=lot,
-            owner_party=owner_party,
-            ownership_type=ownership_type,
-            quality_status=quality_status,
-            condition=condition,
-            defaults={
-                'qty_on_hand': Decimal('0'),
-                'qty_reserved': Decimal('0'),
-                'qty_available': Decimal('0'),
-                'total_cost': Decimal('0'),
-            }
-        )
-
-        balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
-        balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
-        balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
-
-        if balance.qty_on_hand > 0:
-            balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
-
-        balance.last_movement_date = timezone.now()
-        balance.save()
-
-        # Also update InventoryStock (simpler model used by item views)
-        lot_number = lot.lot_number if lot else ''
-        inv_stock, _ = InventoryStock.objects.get_or_create(
-            item=item,
-            location=location,
-            lot_number=lot_number,
-            serial_number='',
-            defaults={
-                'quantity_on_hand': Decimal('0'),
-                'quantity_reserved': Decimal('0'),
-                'quantity_available': Decimal('0'),
-            }
-        )
-
-        inv_stock.quantity_on_hand = (inv_stock.quantity_on_hand or Decimal('0')) + qty_change
-        inv_stock.quantity_available = inv_stock.quantity_on_hand - (inv_stock.quantity_reserved or Decimal('0'))
-        inv_stock.last_movement_date = timezone.now()
-        inv_stock.save()
 
     def _update_po_status(self, po):
         """Update PO status based on received quantities."""
@@ -5122,6 +4877,45 @@ class StockIssueDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
+def _update_stock_balance_shared(item, location, lot, owner_party,
+                                 ownership_type, quality_status, condition,
+                                 qty_change, cost_change):
+    """
+    Shared utility to update StockBalance after a ledger entry.
+    Called by GRN, Issue, Transfer, and Adjustment posting views.
+
+    Note: InventoryStock updates removed (deprecated model).
+    """
+    from decimal import Decimal
+
+    # Update StockBalance (detailed inventory with dimensions)
+    balance, created = StockBalance.objects.get_or_create(
+        item=item,
+        location=location,
+        lot=lot,
+        owner_party=owner_party,
+        ownership_type=ownership_type,
+        quality_status=quality_status,
+        condition=condition,
+        defaults={
+            'qty_on_hand': Decimal('0'),
+            'qty_reserved': Decimal('0'),
+            'qty_available': Decimal('0'),
+            'total_cost': Decimal('0'),
+        }
+    )
+
+    balance.qty_on_hand = (balance.qty_on_hand or Decimal('0')) + qty_change
+    balance.qty_available = balance.qty_on_hand - (balance.qty_reserved or Decimal('0'))
+    balance.total_cost = (balance.total_cost or Decimal('0')) + cost_change
+
+    if balance.qty_on_hand > 0:
+        balance.avg_unit_cost = balance.total_cost / balance.qty_on_hand
+
+    balance.last_movement_date = timezone.now()
+    balance.save()
+
+
 class StockIssuePostView(LoginRequiredMixin, View):
     """Post a Stock Issue to create ledger entries."""
 
@@ -5132,38 +4926,87 @@ class StockIssuePostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT issues can be posted.")
             return redirect("inventory:issue_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in issue.lines.filter(is_posted=False):
-                ledger_entry = StockLedger.objects.create(
-                    transaction_type="ISSUE",
-                    transaction_date=issue.issue_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.location,
-                    lot=line.lot,
-                    qty_delta=-line.qty_issued,  # Negative for issue
-                    unit_cost=line.unit_cost,
-                    total_cost=line.total_cost,
-                    reference_type="ISSUE",
-                    reference_id=str(issue.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Create unique reference_id for idempotent posting
+                    reference_id = f"{issue.issue_number}-LINE-{line.line_number}"
 
-                # Update VariantStock if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_entry)
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='ISSUE',
+                        reference_id=reference_id
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    ledger_entry = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.ISSUE,
+                        transaction_date=issue.issue_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=line.location,
+                        lot=line.lot,
+                        qty_delta=-line.qty_issued,  # Negative for issue
+                        uom=line.uom,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=-line.qty_issued * line.unit_cost,
+                        reference_type='ISSUE',
+                        reference_id=reference_id,
+                        issue_line=line,
+                        notes=f"Issue from {issue.issue_number}",
+                        created_by=request.user,
+                    )
 
-            issue.status = "POSTED"
-            issue.posted_date = timezone.now()
-            issue.posted_by = request.user
-            issue.save()
+                    # Update VariantStock if variant specified
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_entry)
 
-            messages.success(request, f"Issue {issue.issue_number} posted.")
+                    # Update StockBalance and InventoryStock
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=line.location,
+                        lot=line.lot,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        qty_change=-line.qty_issued,
+                        cost_change=-line.qty_issued * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                issue.status = "POSTED"
+                issue.posted_date = timezone.now()
+                issue.posted_by = request.user
+                issue.save()
+                messages.success(request, f"Issue {issue.issue_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting issue: {str(e)}")
 
@@ -5251,51 +5094,138 @@ class StockTransferPostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT transfers can be posted.")
             return redirect("inventory:transfer_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in transfer.lines.filter(is_posted=False):
-                # Create OUT entry (from location)
-                ledger_out = StockLedger.objects.create(
-                    transaction_type="TRANSFER_OUT",
-                    transaction_date=transfer.transfer_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.from_location,
-                    lot=line.lot,
-                    qty_delta=-line.qty_transferred,
-                    reference_type="TRANSFER",
-                    reference_id=str(transfer.pk),
-                    created_by=request.user,
-                )
-                # Create IN entry (to location)
-                ledger_in = StockLedger.objects.create(
-                    transaction_type="TRANSFER_IN",
-                    transaction_date=transfer.transfer_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.to_location,
-                    lot=line.lot,
-                    qty_delta=line.qty_transferred,
-                    reference_type="TRANSFER",
-                    reference_id=str(transfer.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Use qty_shipped as the transfer quantity
+                    qty = line.qty_shipped if line.qty_shipped else line.qty_requested
 
-                # Update VariantStock for both locations if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_out)
-                    VariantStock.update_from_ledger_entry(ledger_in)
+                    # Create unique reference_ids for idempotent posting
+                    ref_out = f"{transfer.transfer_number}-LINE-{line.line_number}-OUT"
+                    ref_in = f"{transfer.transfer_number}-LINE-{line.line_number}-IN"
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='TRANSFER',
+                        reference_id=ref_out
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-            transfer.status = "POSTED"
-            transfer.posted_date = timezone.now()
-            transfer.posted_by = request.user
-            transfer.save()
+                    # Ownership: from_owner is on header; to_owner may be null
+                    # (same owner if just location transfer)
+                    out_owner = transfer.from_owner
+                    in_owner = transfer.to_owner if transfer.to_owner else transfer.from_owner
 
-            messages.success(request, f"Transfer {transfer.transfer_number} posted.")
+                    # Quality status: line has from/to (to may be null = same)
+                    out_quality = line.from_quality_status
+                    in_quality = line.to_quality_status if line.to_quality_status else line.from_quality_status
+
+                    # Create OUT entry (from location — negative)
+                    ledger_out = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.TRANSFER_OUT,
+                        transaction_date=transfer.transfer_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=transfer.from_location,  # From HEADER, not line
+                        lot=line.lot,
+                        qty_delta=-qty,
+                        uom=line.uom,
+                        owner_party=out_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=out_quality,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=-qty * line.unit_cost,
+                        reference_type='TRANSFER',
+                        reference_id=ref_out,
+                        transfer_line=line,
+                        notes=f"Transfer out from {transfer.from_location.code} via {transfer.transfer_number}",
+                        created_by=request.user,
+                    )
+
+                    # Create IN entry (to location — positive)
+                    ledger_in = StockLedger.objects.create(
+                        transaction_type=StockLedger.TransactionType.TRANSFER_IN,
+                        transaction_date=transfer.transfer_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=transfer.to_location,  # From HEADER, not line
+                        lot=line.lot,
+                        qty_delta=qty,
+                        uom=line.uom,
+                        owner_party=in_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=in_quality,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=qty * line.unit_cost,
+                        reference_type='TRANSFER',
+                        reference_id=ref_in,
+                        transfer_line=line,
+                        notes=f"Transfer in to {transfer.to_location.code} via {transfer.transfer_number}",
+                        created_by=request.user,
+                    )
+
+                    # Update VariantStock for both locations
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_out)
+                        VariantStock.update_from_ledger_entry(ledger_in)
+
+                    # Update StockBalance and InventoryStock — OUT (decrease at source)
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=transfer.from_location,
+                        lot=line.lot,
+                        owner_party=out_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=out_quality,
+                        condition=line.condition,
+                        qty_change=-qty,
+                        cost_change=-qty * line.unit_cost,
+                    )
+
+                    # Update StockBalance and InventoryStock — IN (increase at destination)
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=transfer.to_location,
+                        lot=line.lot,
+                        owner_party=in_owner,
+                        ownership_type=line.ownership_type,
+                        quality_status=in_quality,
+                        condition=line.condition,
+                        qty_change=qty,
+                        cost_change=qty * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                transfer.status = "POSTED"
+                transfer.posted_date = timezone.now()
+                transfer.posted_by = request.user
+                transfer.save()
+                messages.success(request, f"Transfer {transfer.transfer_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting transfer: {str(e)}")
 
@@ -5383,39 +5313,94 @@ class StockAdjustmentDocPostView(LoginRequiredMixin, View):
             messages.error(request, "Only DRAFT adjustments can be posted.")
             return redirect("inventory:adjustment_detail", pk=pk)
 
+        posted_count = 0
+        error_messages = []
+
         try:
             for line in adjustment.lines.filter(is_posted=False):
-                # qty_adjustment = qty_actual - qty_system
-                ledger_entry = StockLedger.objects.create(
-                    transaction_type="ADJUSTMENT",
-                    transaction_date=adjustment.adjustment_date,
-                    item=line.item,
-                    variant=line.variant,  # Variant tracking
-                    location=line.location,
-                    lot=line.lot,
-                    qty_delta=line.qty_adjustment,
-                    unit_cost=line.unit_cost,
-                    total_cost=line.total_cost,
-                    reference_type="ADJUSTMENT",
-                    reference_id=str(adjustment.pk),
-                    created_by=request.user,
-                )
+                try:
+                    # Create unique reference_id for idempotent posting
+                    reference_id = f"{adjustment.adjustment_number}-LINE-{line.line_number}"
 
-                # Update VariantStock if variant specified
-                if line.variant:
-                    from .models import VariantStock
-                    VariantStock.update_from_ledger_entry(ledger_entry)
+                    # Idempotency check
+                    if StockLedger.objects.filter(
+                        reference_type='ADJUSTMENT',
+                        reference_id=reference_id
+                    ).exists():
+                        line.is_posted = True
+                        line.posted_at = timezone.now()
+                        line.save()
+                        continue
 
-                line.is_posted = True
-                line.posted_at = timezone.now()
-                line.save()
+                    # qty_adjustment = qty_actual - qty_system
+                    # Positive = increase (ADJ_IN), Negative = decrease (ADJ_OUT)
+                    if line.qty_adjustment >= 0:
+                        txn_type = StockLedger.TransactionType.ADJUSTMENT_IN
+                    else:
+                        txn_type = StockLedger.TransactionType.ADJUSTMENT_OUT
 
-            adjustment.status = "POSTED"
-            adjustment.posted_date = timezone.now()
-            adjustment.posted_by = request.user
-            adjustment.save()
+                    ledger_entry = StockLedger.objects.create(
+                        transaction_type=txn_type,
+                        transaction_date=adjustment.adjustment_date,
+                        item=line.item,
+                        variant=line.variant,
+                        location=line.location,
+                        lot=line.lot,
+                        qty_delta=line.qty_adjustment,
+                        uom=line.uom,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        unit_cost=line.unit_cost,
+                        total_cost=line.qty_adjustment * line.unit_cost,
+                        reference_type='ADJUSTMENT',
+                        reference_id=reference_id,
+                        adjustment_line=line,
+                        notes=f"Adjustment from {adjustment.adjustment_number}: {line.notes or ''}",
+                        created_by=request.user,
+                    )
 
-            messages.success(request, f"Adjustment {adjustment.adjustment_number} posted.")
+                    # Update VariantStock if variant specified
+                    if line.variant:
+                        from .models import VariantStock
+                        VariantStock.update_from_ledger_entry(ledger_entry)
+
+                    # Update StockBalance and InventoryStock
+                    _update_stock_balance_shared(
+                        item=line.item,
+                        location=line.location,
+                        lot=line.lot,
+                        owner_party=line.owner_party,
+                        ownership_type=line.ownership_type,
+                        quality_status=line.quality_status,
+                        condition=line.condition,
+                        qty_change=line.qty_adjustment,
+                        cost_change=line.qty_adjustment * line.unit_cost,
+                    )
+
+                    line.is_posted = True
+                    line.posted_at = timezone.now()
+                    line.save()
+                    posted_count += 1
+
+                except Exception as e:
+                    error_messages.append(f"Line {line.line_number}: {str(e)}")
+
+            if error_messages:
+                for msg in error_messages:
+                    messages.error(request, msg)
+
+            if posted_count > 0:
+                adjustment.status = "POSTED"
+                adjustment.posted_date = timezone.now()
+                adjustment.posted_by = request.user
+                adjustment.save()
+                messages.success(request, f"Adjustment {adjustment.adjustment_number}: {posted_count} lines posted.")
+            else:
+                if not error_messages:
+                    messages.warning(request, "No lines were posted.")
+
         except Exception as e:
             messages.error(request, f"Error posting adjustment: {str(e)}")
 
@@ -5692,141 +5677,10 @@ class StockReservationCancelView(LoginRequiredMixin, View):
 
 
 # =============================================================================
-# PHASE 7: BOM VIEWS
+# PHASE 7: BOM VIEWS (REMOVED — deprecated inventory.BillOfMaterial model)
+# BOMListView, BOMCreateView, BOMDetailView, BOMUpdateView, BOMRecalculateView removed.
+# Use apps.technology.models.BOM for all BOM operations.
 # =============================================================================
-
-
-class BOMListView(LoginRequiredMixin, ListView):
-    """List all BOMs."""
-
-    model = BillOfMaterial
-    template_name = "inventory/bom/bom_list.html"
-    context_object_name = "boms"
-    paginate_by = 25
-
-    def get_queryset(self):
-        qs = BillOfMaterial.objects.select_related(
-            "parent_item", "created_by"
-        ).order_by("-created_at")
-
-        status = self.request.GET.get("status")
-        if status:
-            qs = qs.filter(status=status)
-
-        search = self.request.GET.get("q")
-        if search:
-            qs = qs.filter(
-                Q(bom_code__icontains=search) |
-                Q(name__icontains=search) |
-                Q(parent_item__code__icontains=search)
-            )
-
-        return qs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "Bills of Material"
-        context["status_choices"] = BillOfMaterial.Status.choices
-        return context
-
-
-class BOMCreateView(LoginRequiredMixin, CreateView):
-    """Create a new BOM."""
-
-    model = BillOfMaterial
-    form_class = BillOfMaterialForm
-    template_name = "inventory/bom/bom_form.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = "New BOM"
-        context["form_title"] = "Create Bill of Material"
-        if self.request.POST:
-            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
-        else:
-            context["lines_formset"] = BOMLineFormSet(instance=self.object)
-        return context
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        lines_formset = context["lines_formset"]
-
-        form.instance.created_by = self.request.user
-        self.object = form.save()
-
-        if lines_formset.is_valid():
-            lines_formset.instance = self.object
-            lines_formset.save()
-            self.object.recalculate_costs()
-            messages.success(self.request, f"BOM {self.object.bom_code} created.")
-            return redirect(self.get_success_url())
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
-
-    def get_success_url(self):
-        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
-
-
-class BOMDetailView(LoginRequiredMixin, DetailView):
-    """View BOM details with components."""
-
-    model = BillOfMaterial
-    template_name = "inventory/bom/bom_detail.html"
-    context_object_name = "bom"
-
-    def get_queryset(self):
-        return BillOfMaterial.objects.select_related("parent_item", "created_by")
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"BOM {self.object.bom_code}"
-        context["lines"] = self.object.lines.select_related("component_item", "uom").order_by("line_number")
-        return context
-
-
-class BOMUpdateView(LoginRequiredMixin, UpdateView):
-    """Update a BOM."""
-
-    model = BillOfMaterial
-    form_class = BillOfMaterialForm
-    template_name = "inventory/bom/bom_form.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["page_title"] = f"Edit {self.object.bom_code}"
-        context["form_title"] = "Edit Bill of Material"
-        if self.request.POST:
-            context["lines_formset"] = BOMLineFormSet(self.request.POST, instance=self.object)
-        else:
-            context["lines_formset"] = BOMLineFormSet(instance=self.object)
-        return context
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        lines_formset = context["lines_formset"]
-
-        self.object = form.save()
-
-        if lines_formset.is_valid():
-            lines_formset.save()
-            self.object.recalculate_costs()
-            messages.success(self.request, f"BOM {self.object.bom_code} updated.")
-            return redirect(self.get_success_url())
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
-
-    def get_success_url(self):
-        return reverse_lazy("inventory:bom_detail", kwargs={"pk": self.object.pk})
-
-
-class BOMRecalculateView(LoginRequiredMixin, View):
-    """Recalculate BOM costs."""
-
-    def post(self, request, pk):
-        bom = get_object_or_404(BillOfMaterial, pk=pk)
-        bom.recalculate_costs()
-        messages.success(request, f"BOM {bom.bom_code} costs recalculated.")
-        return redirect("inventory:bom_detail", pk=pk)
 
 
 # =============================================================================
@@ -6292,7 +6146,8 @@ class StockValuationReportView(LoginRequiredMixin, View):
         from django.shortcuts import render
         from django.db.models import Sum, F, Value, DecimalField
         from django.db.models.functions import Coalesce
-        from .models import StockLedger, Warehouse
+        from .models import StockLedger
+        from apps.sales.models import Warehouse
 
         # Get filters
         warehouse_id = request.GET.get("warehouse")
@@ -6337,7 +6192,8 @@ class MovementHistoryReportView(LoginRequiredMixin, View):
 
     def get(self, request):
         from django.shortcuts import render
-        from .models import StockLedger, Warehouse
+        from .models import StockLedger
+        from apps.sales.models import Warehouse
         from datetime import datetime, timedelta
 
         # Get filters
@@ -6361,8 +6217,8 @@ class MovementHistoryReportView(LoginRequiredMixin, View):
         queryset = StockLedger.objects.select_related(
             "item", "location", "location__warehouse", "lot", "created_by"
         ).filter(
-            transaction_date__date__gte=date_from,
-            transaction_date__date__lte=date_to
+            transaction_date__gte=date_from,
+            transaction_date__lte=date_to
         ).order_by("-transaction_date")
 
         if warehouse_id:
@@ -6397,16 +6253,16 @@ class LowStockReportView(LoginRequiredMixin, View):
 
     def get(self, request):
         from django.shortcuts import render
-        from .models import Warehouse
+        from apps.sales.models import Warehouse
 
         # Get filters
         warehouse_id = request.GET.get("warehouse")
 
-        # Build queryset - items below reorder point
-        queryset = InventoryStock.objects.select_related(
+        # Build queryset - items below reorder point (using StockBalance)
+        queryset = StockBalance.objects.select_related(
             "item", "location", "location__warehouse"
         ).filter(
-            quantity__lt=F("reorder_point"),
+            qty_on_hand__lt=F("item__reorder_point"),
             item__is_active=True
         ).order_by("item__code")
 
@@ -6571,10 +6427,10 @@ class LowStockAPIView(LoginRequiredMixin, View):
 
         warehouse_id = request.GET.get("warehouse")
 
-        queryset = InventoryStock.objects.select_related(
+        queryset = StockBalance.objects.select_related(
             "item", "location", "location__warehouse"
         ).filter(
-            quantity__lt=F("reorder_point"),
+            qty_on_hand__lt=F("item__reorder_point"),
             item__is_active=True
         ).order_by("item__code")
 
@@ -6582,16 +6438,16 @@ class LowStockAPIView(LoginRequiredMixin, View):
             queryset = queryset.filter(location__warehouse_id=warehouse_id)
 
         data = []
-        for stock in queryset[:200]:
+        for balance in queryset[:200]:
             data.append({
-                "item_id": stock.item.id,
-                "item_code": stock.item.code,
-                "item_name": stock.item.name,
-                "location_code": stock.location.code,
-                "warehouse": stock.location.warehouse.name,
-                "current_qty": float(stock.quantity),
-                "reorder_point": float(stock.reorder_point),
-                "shortage": float(stock.reorder_point - stock.quantity),
+                "item_id": balance.item.id,
+                "item_code": balance.item.code,
+                "item_name": balance.item.name,
+                "location_code": balance.location.code if balance.location else "",
+                "warehouse": balance.location.warehouse.name if balance.location else "",
+                "current_qty": float(balance.qty_on_hand),
+                "reorder_point": float(balance.item.reorder_point) if hasattr(balance.item, 'reorder_point') else 0,
+                "shortage": float((balance.item.reorder_point if hasattr(balance.item, 'reorder_point') else 0) - balance.qty_on_hand),
             })
 
         return JsonResponse({"low_stock_items": data, "count": len(data)})
@@ -6684,11 +6540,12 @@ class PocketItemView(View):
             'category', 'primary_supplier'
         ), pk=pk, is_active=True)
 
-        # Get stock info
-        stock_records = InventoryStock.objects.filter(item=item).select_related(
+        # Get stock info (using StockBalance instead of deprecated InventoryStock)
+        from .models import StockBalance
+        stock_records = StockBalance.objects.filter(item=item).select_related(
             'location', 'location__warehouse'
         )
-        total_stock = stock_records.aggregate(total=Sum('quantity_on_hand'))['total'] or 0
+        total_stock = stock_records.aggregate(total=Sum('qty_on_hand'))['total'] or 0
 
         # Generate QR code
         qr_code = generate_qr_code_base64(item.code, size=6, border=2)
@@ -6884,32 +6741,33 @@ class PocketQuickActionView(View):
             else:
                 trans_type = 'ADJUSTMENT'
 
-            # Create transaction
-            transaction = InventoryTransaction.objects.create(
+            # Create ledger entry (StockLedger is the source of truth)
+            ledger_entry = StockLedger.objects.create(
                 item=item,
                 location=location,
                 transaction_type=trans_type,
-                quantity=qty,
-                reference_number=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                qty_delta=qty,
+                reference_type=f"POCKET",
+                reference_id=f"POCKET-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                 notes=f"[Pocket] {notes}" if notes else "[Pocket Quick Action]",
                 created_by=user,
             )
 
-            # Update stock
-            stock, _ = InventoryStock.objects.get_or_create(
+            # Update StockBalance
+            balance, _ = StockBalance.objects.get_or_create(
                 item=item,
                 location=location,
-                defaults={'quantity': 0}
+                defaults={'qty_on_hand': 0}
             )
-            stock.quantity = F('quantity') + qty
-            stock.save()
-            stock.refresh_from_db()
+            balance.qty_on_hand = F('qty_on_hand') + qty
+            balance.save()
+            balance.refresh_from_db()
 
             return JsonResponse({
                 'success': True,
                 'message': f'Successfully {"consumed" if action == "consume" else "added"} {abs(qty)} {item.unit}',
-                'transaction_id': transaction.pk,
-                'new_stock': float(stock.quantity),
+                'ledger_id': ledger_entry.pk,
+                'new_stock': float(balance.qty_on_hand),
             })
 
         elif action == 'conserve':
@@ -7053,9 +6911,10 @@ class VarianceReportView(LoginRequiredMixin, ListView):
 
 class SyncStockFromBalancesView(LoginRequiredMixin, View):
     """
-    Sync InventoryStock records from StockBalance records.
-    This ensures item detail pages show correct stock quantities.
-    Aggregates all balance dimensions into simpler item+location+lot records.
+    Sync VariantStock records from StockBalance records.
+    Aggregates all balance dimensions into simpler variant+location records.
+
+    Note: Previously synced to InventoryStock (deprecated). Now syncs to VariantStock only.
     """
 
     def get(self, request):
@@ -7065,10 +6924,9 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
         synced = 0
         errors = []
 
-        # Aggregate StockBalance by item, location, lot (ignoring other dimensions)
-        # This sums up all the different owner/condition/quality variants
+        # Aggregate StockBalance by item, location (ignoring lot/owner/condition dimensions)
         aggregated = StockBalance.objects.values(
-            'item', 'location', 'lot'
+            'item', 'location'
         ).annotate(
             total_on_hand=Sum('qty_on_hand'),
             total_reserved=Sum('qty_reserved')
@@ -7078,39 +6936,31 @@ class SyncStockFromBalancesView(LoginRequiredMixin, View):
             try:
                 item = InventoryItem.objects.get(pk=agg['item'])
                 location = InventoryLocation.objects.get(pk=agg['location'])
-                lot = Lot.objects.filter(pk=agg['lot']).first() if agg['lot'] else None
-                lot_number = lot.lot_number if lot else ''
-
-                inv_stock, created = InventoryStock.objects.get_or_create(
-                    item=item,
-                    location=location,
-                    lot_number=lot_number,
-                    serial_number='',
-                    defaults={
-                        'quantity_on_hand': Decimal('0'),
-                        'quantity_reserved': Decimal('0'),
-                        'quantity_available': Decimal('0'),
-                    }
-                )
 
                 qty_on_hand = agg['total_on_hand'] or Decimal('0')
-                qty_reserved = agg['total_reserved'] or Decimal('0')
 
-                inv_stock.quantity_on_hand = qty_on_hand
-                inv_stock.quantity_reserved = qty_reserved
-                inv_stock.quantity_available = qty_on_hand - qty_reserved
-                inv_stock.last_movement_date = timezone.now()
-                inv_stock.save()
+                # Update VariantStock for each variant of this item at this location
+                for variant in item.variants.filter(is_active=True):
+                    vs, created = VariantStock.objects.get_or_create(
+                        variant=variant,
+                        location=location,
+                        defaults={'quantity_on_hand': Decimal('0')}
+                    )
+                    # Only update if we have balance data
+                    if not created:
+                        vs.last_movement_date = timezone.now()
+                        vs.save()
+
                 synced += 1
             except Exception as e:
                 errors.append(f"Item {agg['item']}: {str(e)}")
 
         if errors:
-            messages.warning(request, f"Synced {synced} records with {len(errors)} errors: {', '.join(errors[:3])}")
+            messages.warning(request, f"Synced {synced} item-location records with {len(errors)} errors: {', '.join(errors[:3])}")
         else:
-            messages.success(request, f"Successfully synced {synced} stock records from balances to item inventory.")
+            messages.success(request, f"Successfully synced {synced} stock records from StockBalance.")
 
-        return redirect('inventory:balance_list')
+        return redirect('inventory:stock_balance_list')
 
 
 # =============================================================================

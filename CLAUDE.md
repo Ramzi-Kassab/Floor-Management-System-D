@@ -114,15 +114,23 @@ Design (L3/L4)                    # Blueprint - what the bit looks like
 - **Pocket**: Individual position on a blade where a cutter is placed
 
 #### Cutter Variant Cases
-| Code | Description | Use Case |
-|------|-------------|----------|
-| NEW-PUR | New Purchased | Fresh from supplier |
-| NEW-EO | ENO As New | Evaluated as new condition |
-| NEW-RET | Retrofit as New | Retrofitted, counts as new |
-| NEW-CLI | Client Stock (LSTK) | Halliburton consignment |
-| USED-GRD | ENO Ground | Ground/refurbished |
-| USED-RCL | ARDT Reclaimed | Reclaimed by ARDT |
-| USED-CLI | Client Used | Customer's used cutters |
+Canonical codes defined in `apps/inventory/constants.py` and seeded by `seed_variant_cases` command:
+
+| Code | Description | Condition | Ownership | Use Case |
+|------|-------------|-----------|-----------|----------|
+| NEW-PUR | New Purchased | NEW | ARDT | Fresh from supplier |
+| NEW-MFG | New Manufactured | NEW | ARDT | Manufactured in-house |
+| NEW-RET | Retrofit (as New) | NEW | ARDT | Refurbished to new condition |
+| NEW-EO | E&O (Excess & Obsolete) | NEW | ARDT | Excess/obsolete, new condition |
+| GRD-EO | E&O Ground | USED | ARDT | Ground cutters in E&O stock |
+| USED-RCL | Used Reclaimed | USED | ARDT | Standard reclaim by ARDT |
+| CLI-NEW | Client New | NEW | CLIENT | New items provided by client |
+| CLI-RCL | Client Reclaimed | USED | CLIENT | Used/reclaimed from client (LSTK) |
+
+**Deprecated codes** (deactivated by seed, may still exist in old database records):
+`NEW-ENO` → NEW-EO, `USED-GRD` → GRD-EO, `USED-STD` → USED-RCL, `CLI-USED` → CLI-RCL
+
+**Note**: Some views and import commands still reference deprecated codes (`USED-GRD`, `NEW-CLI`, `USED-CLI`) because existing database records were created with them. Run `fix_variant_codes` management command to migrate old records to current codes.
 
 ---
 
@@ -1033,6 +1041,37 @@ At runtime, `{{ROUTE}}` is replaced with the step's resolved value (e.g. "ROUTE-
 
 ## ERP Automation: Complete Architecture Reference
 
+### Recent Bug Fixes (Feb 25, 2026) — System Audit Fixes
+- **Fix #1: WorkOrderCreateEnhancedForm KeyError**: `WorkOrderCreateEnhancedForm.__init__()` in `apps/workorders/forms.py` referenced `self.fields['customer']` and `self.fields['from_location_text']` which were not in `Meta.fields`, causing KeyError on form instantiation. Fixed by adding both fields to `Meta.fields` with `HiddenInput` widgets (they're populated by JS from serial number lookup, same pattern as drill_bit/design/bom).
+- **Fix #2: Stock Divergence — Issue/Transfer/Adjustment Missing Updates**: Three posting views (`StockIssuePostView`, `StockTransferPostView`, `StockAdjustmentDocPostView`) in `apps/inventory/views.py` created incomplete `StockLedger` entries and never updated `StockBalance` or `InventoryStock`. Fixes:
+  1. **Extracted shared `_update_stock_balance_shared()` function** — standalone utility replacing GRNPostView's private method. Called by all 4 posting views (GRN, Issue, Transfer, Adjustment).
+  2. **StockIssuePostView**: Added missing `uom`, `owner_party`, `ownership_type`, `quality_status`, `condition` fields from line; added `issue_line` FK; fixed `reference_id` to be per-line (was per-document — violated UniqueConstraint); added idempotency check; added StockBalance/InventoryStock update; uses enum `TransactionType.ISSUE` instead of string.
+  3. **StockTransferPostView**: Fixed non-existent field references (`line.from_location` → `transfer.from_location`, `line.to_location` → `transfer.to_location`, `line.qty_transferred` → `line.qty_shipped`); added all 5 dimension fields with from/to split for owner and quality; separate reference_ids for OUT/IN entries; added StockBalance update for BOTH locations.
+  4. **StockAdjustmentDocPostView**: Fixed invalid `transaction_type="ADJUSTMENT"` to use `ADJ_IN`/`ADJ_OUT` based on qty sign; added all 5 dimension fields; added `adjustment_line` FK; per-line reference_id and idempotency.
+- **Fix #3: SyncStockFromBalancesView Crash**: Two bugs in `SyncStockFromBalancesView` at `/inventory/admin/sync-stock/`: (1) Referenced non-existent `Lot` model instead of `MaterialLot` (line 7081), (2) Used `redirect('inventory:balance_list')` instead of correct `'inventory:stock_balance_list'` (line 7113).
+- **Fix #4: Status Transition Validation**: Added `STATUS_TRANSITIONS` dict and `clean()` method to 7 models to prevent invalid status changes. Django `clean()` is called by `full_clean()` from forms/admin but NOT by direct `Model.save()`. Each model defines allowed transitions and raises `ValidationError` on invalid ones.
+  - **Design** (`apps/technology/models.py`): DRAFT → ACTIVE/OBSOLETE, ACTIVE → OBSOLETE, OBSOLETE = terminal
+  - **BOM** (`apps/technology/models.py`): Same transitions as Design (DRAFT/ACTIVE/OBSOLETE)
+  - **WorkOrder** (`apps/workorders/models.py`): Full 10-status flow: DRAFT → PLANNED → RELEASED → IN_PROGRESS → QC_PENDING → QC_PASSED → COMPLETED. ON_HOLD can resume to PLANNED/RELEASED/IN_PROGRESS. CANCELLED = terminal.
+  - **GoodsReceiptNote** (`apps/inventory/models.py`): DRAFT → PENDING_QC/CONFIRMED/CANCELLED. CONFIRMED = terminal (stock posted to ledger, irreversible).
+  - **PurchaseOrder** (`apps/supplychain/models.py`): 10-status flow: DRAFT → PENDING_APPROVAL → APPROVED → SENT → ACKNOWLEDGED → IN_PROGRESS → PARTIALLY_RECEIVED → COMPLETED → CLOSED. CANCELLED/CLOSED = terminal.
+  - **Workflow** (`apps/erp_automation/models.py`): draft → active/archived, active → archived, archived = terminal. Note: lowercase status values per `WorkflowStatus` choices.
+  - **ERPJobData** (`apps/erp_automation/models.py`): DRAFT → READY → SENT → COMPLETED. ERROR can retry back to READY. COMPLETED = terminal.
+- **Fix #5: HDBS Case Mismatch**: `sync_hdbs_from_designs` management command used case-sensitive dictionary lookup, causing `Design.hdbs_type='GT65RHs'` to miss `HDBSType.hdbs_name='GT65RHS'`. Fixed by using `.lower()` keys in the lookup dict. DesignHDBS junction table now populated (was empty). Also logs case-match warnings during sync (e.g., "Design 'GT65RHs' -> HDBSType 'GT65RHS'").
+- **Fix #6: N+1 Query in CutterInventoryListView**: `get_context_data()` in `apps/inventory/views.py` ran ~3,000-3,600 queries for 300 cutters (per-item VariantStock aggregation, StockLedger consumption, BOMLine requirements, PurchaseOrderLine on-order). Replaced with 4 bulk queries using `.values().annotate()` pre-computed into dict maps, then dict lookups in the per-item loop. Reduces to ~5-10 total queries. Consumption uses `Case/When` to compute 6m/3m/2m in a single query.
+
+### Recent Bug Fixes (Feb 26, 2026) — System Audit Fixes (Batch 3)
+- **Fix #16-18: Dead Model Removal**: Removed 3 models (`StatusTransitionLog`, `BitRepairHistory`, `OperationExecution`) from `apps/workorders/`. These models had admin registrations, views, URLs, and templates but were NEVER written to in production (no `.objects.create()` or `.save()` outside tests). Removal included: model definitions, admin registrations, 3 ListView classes, 3 URL patterns, `log_status_transition()`/`get_status_history()` utility functions, 3 template files, ~12 test classes across 5 test files. Also removed `RouterSheetEntry.operation_execution` OneToOneField (always null) and refactored `WorkOrderCost.recalculate()` to use `WorkOrderTimeLog` instead of deleted `OperationExecution`. Migrations: `workorders/0020`, `inventory/0034`. Commit `2176324`.
+- **Fix #20: DrillBitCreateForm Dead Code**: Removed duplicate `save()` method from `DrillBitCreateForm` in `apps/workorders/forms.py`.
+- **Fix #21: sync_to_design() Stub**: Removed empty `sync_to_design()` method from `CutterMapDocument` in `apps/cutter_map/models.py`.
+- **Fix #23: Variant Case Code Mismatches**: Created centralized `apps/inventory/constants.py` with all 8 canonical variant case codes matching `seed_variant_cases.py`. Fixed `fix_variant_codes.py` which had broken mappings (used `NEW-ENO` instead of `NEW-EO`, inverted `USED-RCL→USED-STD`). Updated CLAUDE.md "Cutter Variant Cases" table to match actual seed data (old table listed `NEW-CLI`/`USED-GRD`/`USED-CLI` which are deprecated codes). Key finding: multiple import commands still reference deprecated codes (`USED-GRD`, `NEW-CLI`) because database records were created with them — run `fix_variant_codes` to migrate.
+- **Fix #24: SalesOrder Template Field Mismatches**: All 3 SalesOrder templates (`salesorder_form.html`, `salesorder_detail.html`, `salesorder_list.html`) referenced non-existent model fields from an older version: `order_number` (→ `so_number`), `expected_delivery_date` (→ `required_date`/`promised_date`), plus 8 orphaned fields (`priority`, `payment_terms`, `credit_limit`, `contact_person`, `shipping_address`, `billing_address`, `special_instructions`). Rewrote all 3 templates to match actual `SalesOrder` model fields and `SalesOrderForm.Meta.fields`.
+- **Fix #25: GRN System Overlap (Documented)**: Two parallel GRN systems exist: `GoodsReceiptNote`/`GRNLine` in inventory app (full-featured: QC, variance, 3-way matching, StockLedger integration) and `Receipt`/`ReceiptLine` in supplychain app (simpler: basic inspection, no ledger integration). `GoodsReceiptNote` is the production system; `Receipt` is used only in tests. Supplychain URLs alias Receipt views as "GRN" views causing confusion. Consolidation deferred — requires data migration and careful test updates.
+
+---
+
+## ERP Automation: Complete Architecture Reference
+
 ### What the System Does (End-to-End)
 The ERP Automation module automates D365 (Dynamics 365) ERP operations for drill bit repair job cards. The full pipeline:
 1. **Upload** Job Card Excel → `job_card_parser.py` extracts all fields
@@ -1222,23 +1261,31 @@ Final: job_data.item_number = "RPR-0042", job_data.movement_journal_number = "MV
 
 ### Key Improvements Needed
 
+#### CRITICAL — Production-Grade Headless Execution (Required for Server Deployment)
+These 5 enhancements are required before deploying to a hosted Linux server where Playwright runs headless (no visible browser). They ensure errors are diagnosable without a GUI.
+
+1. **Screenshot on error**: When a step fails, automatically capture a full-page screenshot and save it to disk (and link it to the `StepExecution` record). Viewable from the job data detail page and execution history. This is the primary debugging tool in headless mode — replaces "looking at the browser."
+2. **Pre-execution validation**: Before opening the browser, validate the entire workflow/chain: all steps have locators, all `{{TEMPLATE}}` variables exist in `row_data`, all required fields are present on the `ERPJobData` record. Fail fast with a clear error report instead of discovering missing data mid-run.
+3. **Auto-retry with backoff**: When a step fails (locator not found, click didn't register), automatically retry 2-3 times with increasing wait intervals (1s, 3s, 5s) before giving up. Many D365 failures are transient (slow rendering, network lag). Currently only the debug mode has manual retry.
+4. **Execution report**: After a chain completes (or fails), generate a structured summary viewable in the browser: total duration, per-step timing, pass/fail status per step, error messages, and screenshots for failed steps. Replaces the live debug panel for production runs.
+5. **Video recording option**: Toggle on `WorkflowExecution` or `ChainExecution` to record the full Playwright session as MP4 video. Playwright supports this natively via `browser.new_context(record_video_dir=...)`. Stored on disk, linked from execution detail page. Essential for diagnosing complex multi-step failures.
+
 #### HIGH Priority
-1. **Pre-execution validation**: Check all steps have locators, all templates exist in row_data, all required fields present — before starting the browser
-2. **Smart waits based on recording timing**: Capture time deltas between user actions during recording; use actual pauses as `wait_after` values instead of generic 500ms
-3. **Loop detection in converter**: Detect repeated step patterns and auto-create `repeat_group` (currently manual)
-4. **Network-aware waits**: After click/fill, wait for D365 AJAX to complete (`networkidle`) instead of fixed timer
+6. **Smart waits based on recording timing**: Capture time deltas between user actions during recording; use actual pauses as `wait_after` values instead of generic 500ms
+7. **Loop detection in converter**: Detect repeated step patterns and auto-create `repeat_group` (currently manual)
+8. **Network-aware waits**: After click/fill, wait for D365 AJAX to complete (`networkidle`) instead of fixed timer
 
 #### MEDIUM Priority
-5. **Strategy success-based reordering**: Use `success_count`/`failure_count` to reorder strategies (already tracked, just not applied)
-6. **Dry-run mode**: Find elements without clicking (validate workflow before live run)
-7. **Conditional branching in converter**: Detect if-else patterns from recordings (currently all steps are linear)
-8. **Error recovery chains**: On step failure, try alternative locator before failing
+9. **Strategy success-based reordering**: Use `success_count`/`failure_count` to reorder strategies (already tracked, just not applied)
+10. **Dry-run mode**: Find elements without clicking (validate workflow before live run)
+11. **Conditional branching in converter**: Detect if-else patterns from recordings (currently all steps are linear)
+12. **Error recovery chains**: On step failure, try alternative locator before failing
 
 #### LOW Priority
-9. **Scroll event capture in recorder**: Record scroll positions for explicit scroll steps
-10. **Keyboard shortcut capture**: Record Ctrl+S, Alt+F4, etc. (currently only Tab/Enter/Escape)
-11. **RC (Roller Cone) route selection**: Only FC routes fully implemented
-12. **Screenshot comparison for visual regression**: Compare page screenshots to baselines
+13. **Scroll event capture in recorder**: Record scroll positions for explicit scroll steps
+14. **Keyboard shortcut capture**: Record Ctrl+S, Alt+F4, etc. (currently only Tab/Enter/Escape)
+15. **RC (Roller Cone) route selection**: Only FC routes fully implemented
+16. **Screenshot comparison for visual regression**: Compare page screenshots to baselines
 
 ### Default Rule for List Pages
 **Every list page being edited must include**: Excel-style column filters (cascading), sort (A-Z / Z-A with Lucide icons), client-side pagination (25/50/100/All), global search, and visual filter indicators (blue header text). The `applyColumnFilter()` function must only consider visible checkboxes (respect search input filtering).
@@ -1431,6 +1478,129 @@ StockLedger.objects.filter(
 - **D365 ERP Target**: `https://ardt.operations.dynamics.com/` (ADFS auth)
 - **Playwright**: Chromium browser for ERP automation (sync API, installed via `playwright install chromium`)
 - **ERP Chain**: "ARAMCO FC Repair: Full ERP Flow" (pk=7) — 13 workflows, 161 steps, 108 locators
+
+---
+
+## Todo-Enhancement
+
+Items noted for future enhancement. These are not bugs — they are improvements to revisit later.
+
+1. **Stock Issue / Transfer / Adjustment Create Forms**: The create forms for stock documents (`/inventory/issues/create/`, `/inventory/transfers/create/`, `/inventory/adjustments/create/`) are overly complicated and require too many fields (default_location, owner_party, ownership_type, etc.) to create a simple document. Needs UX simplification — auto-populate defaults, reduce required fields, add smart defaults based on item/variant selection.
+
+2. **~~Audit All Parallel/Duplicate Models~~**: ✅ DONE (Feb 2026). Removed `InventoryStock`, `InventoryTransaction`, `BillOfMaterial`/`BOMLine` from inventory app. `VariantStock` + `StockBalance` + `StockLedger` are the active models. `technology.BOM`/`BOMLine` is the active BOM system.
+
+3. **~~Phase Out InventoryStock~~**: ✅ DONE (Feb 2026). Removed `InventoryStock` model and all references. Views migrated to `StockBalance` queries.
+
+4. **Consolidate GRN Systems (inventory + supplychain)**: Two parallel GRN models exist: `GoodsReceiptNote`/`GRNLine` (inventory, production) and `Receipt`/`ReceiptLine` (supplychain, test-only). Supplychain aliases Receipt views as "GRN" views (`GRNListView = ReceiptListView`). Plan: migrate supplychain tests to use `GoodsReceiptNote`, remove `Receipt`/`ReceiptLine` models, clean up URL aliases.
+
+5. **Migrate Deprecated Variant Case Codes**: Multiple import commands and views reference deprecated variant codes (`USED-GRD`, `NEW-CLI`, `USED-CLI`) because database records were created with them. After running `fix_variant_codes` command to migrate existing records, update the hardcoded lists in `inventory/views.py`, `technology/views.py`, `cutter_map/views.py`, and import commands to use canonical codes from `apps/inventory/constants.py`.
+
+4. **ERP Baseline + Local Tracking Strategy**: The system is NOT the authority for receiving (GRN) — the ERP (D365) is. But the system IS the authority for consumption (issues via work orders). To keep inventory accurate despite this dual-system reality:
+   - **Periodic ERP On-Hand Import**: Enhance `import_stock_from_onhand` command to create `StockLedger` entries with `transaction_type='ERP_SYNC'` representing the difference between system balance and ERP balance. This captures all missed GRNs as a single reconciliation adjustment. Store import date for "accurate as of" tracking.
+   - **Track Issues Precisely via Work Orders**: Already accurate — every WO tracks what's issued. Fix #2 ensures Issue/Transfer/Adjustment update ALL stock tables.
+   - **Stock Formula**: `Accurate Stock = Last ERP Sync Balance - Issues Since Last Sync + Manual GRNs Since Last Sync`
+   - **Reconciliation Dashboard**: Show last sync date, days since sync, items with largest discrepancies, items with negative stock (= missed GRN). One-click "Import from ERP" button.
+   - **Priority**: Build this AFTER fixing the stock posting (Fix #2) so the issue tracking is solid first.
+
+---
+
+## Master Plan — System Audit & Improvement Roadmap
+
+### Phase 1: Critical Bug Fixes ✅ COMPLETED
+| # | Fix | Status | Commit |
+|---|-----|--------|--------|
+| 1 | WorkOrderCreateEnhancedForm KeyError (`customer`/`from_location_text` not in Meta.fields) | ✅ Done | `9a3d0db` |
+| 2 | Stock Divergence — Issue/Transfer/Adjustment posting now updates StockBalance + InventoryStock | ✅ Done | `a121c6f` |
+| 3 | SyncStockFromBalancesView — Lot→MaterialLot + balance_list→stock_balance_list | ✅ Done | `62db65b` |
+| 4 | Status Transition Validation — clean() + STATUS_TRANSITIONS on 7 models | ✅ Done | `73c8585` |
+| 5 | HDBS case mismatch — case-insensitive sync command + data fix | ✅ Done | — |
+
+### Phase 2: ERP Data Reconciliation (DELAYED — waiting for user's D365 export files)
+**Context**: IT department refused to stop D365. System coexists with ERP. Issues tracked accurately via WOs, but GRNs may be missed (done in ERP only).
+
+**D365 Export Files Needed** (user will provide):
+1. **Inventory Transactions** (`Inventory Management → Inquiries → Transactions`) — ALL posted transactions (movements, receipts, issues). Right-click → Export all rows. Contains: item number, qty, warehouse, serial, date, journal reference.
+2. **On-Hand Inventory** (`Inventory Management → Inquiries → On-hand list`) — Current stock snapshot for reconciliation baseline.
+3. **Movement Journal Lines** — Via Inventory Transactions filtered by Reference = "Inventory journal"
+
+**Build Plan** (after receiving files):
+1. Study exported Excel column structure
+2. Build `import_erp_transactions` management command — parses D365 Inventory Transactions Excel, creates StockLedger entries with `transaction_type='ERP_SYNC'`
+3. Build `import_erp_onhand` management command — reconciles system balance vs D365 on-hand, creates adjustment entries for discrepancies
+4. Build **Reconciliation Dashboard** page — last sync date, discrepancies, negative stock alerts, one-click import button
+5. Stock Formula: `Accurate Stock = Last ERP Sync Balance - Issues Since Last Sync + Manual GRNs Since Sync`
+
+### Phase 3: Parallel Model Cleanup ✅ COMPLETED
+**Goal**: Remove duplicate/parallel models that cause data divergence.
+
+| Duplicate Pair | Keep | Remove | Status |
+|----------------|------|--------|--------|
+| `VariantStock` vs `InventoryStock` vs `StockBalance` | `VariantStock` + `StockBalance` | `InventoryStock` (legacy) | ✅ Done |
+| `InventoryTransaction` vs `StockLedger` | `StockLedger` | `InventoryTransaction` | ✅ Done |
+| `inventory.BillOfMaterial/BOMLine` vs `technology.BOM/BOMLine` | `technology.BOM` | `inventory.BillOfMaterial` (dead code) | ✅ Done |
+
+**What was done** (Feb 26, 2026):
+1. Removed all cross-app references: views.py, admin.py, forms.py, urls.py (inventory), reports/views.py, supplychain/views.py, technology/views.py, 3 management commands, all test files
+2. Migrated references to replacement models: `InventoryStock` → `StockBalance` (field mapping: `quantity_on_hand` → `qty_on_hand`, `quantity_reserved` → `qty_reserved`, `quantity_available` → `qty_available`), `InventoryTransaction` → `StockLedger` (field mapping: `quantity` → `qty_delta`, `link_type` → `reference_type`, `reference_number` → `reference_id`)
+3. Removed model class definitions from `apps/inventory/models.py` (~300 lines)
+4. Created migration `0033_remove_deprecated_models.py` (DeleteModel for BOMLine → BillOfMaterial → InventoryTransaction → InventoryStock)
+5. 17 files changed, 229 insertions, 1,378 deletions. Commits: `53996d8` (model removal), prior commits for reference cleanup
+
+### Phase 4: Remaining Audit Fixes
+| # | Category | Issues | Status |
+|---|----------|--------|--------|
+| 4 | Architectural | Status state machines (7 models) | ✅ Done |
+| 5 | Architectural | HDBS case mismatch fix | ✅ Done |
+| 6 | Architectural | N+1 query fix in CutterInventoryListView (~3,600 → ~5 queries) | ✅ Done |
+| 7-8 | Architectural | RBAC placeholders, god function refactoring | Deferred |
+| 9-15 | Missing Features | Validation gaps, missing error handling, incomplete workflows | Pending |
+| 16-18 | Dead Code | StatusTransitionLog, BitRepairHistory, OperationExecution removed | ✅ Done |
+| 20 | Dead Code | DrillBitCreateForm duplicate save() removed | ✅ Done |
+| 21 | Dead Code | CutterMapDocument.sync_to_design() stub removed | ✅ Done |
+| 22 | Dead Code | BitType deprecated model | Deferred (41 records, needs data migration) |
+| 26 | Inconsistency | api_boms_list brazing_mat_no reference fixed | ✅ Done |
+| 27 | Inconsistency | DesignPocket cascade conflict (PROTECT→CASCADE) | ✅ Done |
+| 23 | Inconsistency | Variant case code mismatches — created `constants.py`, fixed `fix_variant_codes.py`, updated CLAUDE.md | ✅ Done |
+| 24 | Inconsistency | SalesOrder template field mismatches (form/detail/list used wrong field names) | ✅ Done |
+| 25 | Inconsistency | GRN system overlap (inventory vs supplychain) — documented, deferred consolidation | Documented |
+
+### Workflow for Each Fix
+1. Restudy the code (fresh context each session)
+2. Run server → give user link to see the bug
+3. User confirms the bug
+4. Implement fix
+5. User verifies fix works
+6. Update CLAUDE.md with documentation
+7. Sync worktree ↔ D3
+8. Commit + push to GitHub
+
+### Recent Enhancements (Feb 27, 2026) — Receiving Dock System
+- **Receiving Dock Module**: Complete new module for two drill bit intake flows — REPAIR (backload batches) and MANUFACTURE (register → inspection → inventory).
+- **3 New Models** (migration 0022): `BackloadBatch` (batch tracking with auto-generated `BL-YYYY-NNN` numbers, account FK, status flow PENDING→ARRIVED→PROCESSING→COMPLETED), `BackloadItem` (per-serial tracking with match_status PENDING/MATCHED/UNMATCHED/NEW_REGISTERED, auto-matching via `attempt_match()`), `BOMPendingRequest` (queue for manufacture bits without BOM, status OPEN/ASSIGNED/CANCELLED).
+- **Reference File Upload** (migration 0023): `BackloadBatch.reference_file` FileField for attaching source documents. Accepts Outlook emails (.msg/.eml), PDF, Excel, Word, images, ZIP — max 25 MB. Drag-and-drop styled upload with Alpine.js file preview (name + size). Batch detail page shows file with type-specific icon (mail icon for .msg/.eml, red for PDF, green for Excel, purple for images, etc.) and download button.
+- **Serial Number Validation**: `BackloadBatchForm.clean_serial_numbers_bulk()` strips non-digit characters, validates length (6 digits for RC, 8 for FC), removes duplicates, and shows per-line warnings for skipped entries. Only pure digits stored.
+- **6 New Templates**: `receiving_dashboard.html` (4-panel overview: incoming batches, recently received, pending inspections, BOM pending), `backload_batch_list.html` (filters by status/account/search, pagination), `backload_batch_create.html` (account select, date, reference text + file upload, serial textarea with live counter), `backload_batch_detail.html` (Alpine.js interactive: progress bar, item table with Confirm/Register/WO/View actions, AJAX operations), `bom_pending_list.html` (filter by status, AJAX resolve), `receiving_inspection_list.html` (pending/complete filter).
+- **5 JSON API Endpoints**: `api_batch_confirm_item` (creates BitEvent BACKLOADED, updates bit status/backload_count), `api_batch_confirm_all` (bulk confirm), `api_batch_register_new` (creates DrillBit for unmatched serial), `api_batch_rematch` (re-attempts matching), `api_resolve_bom_request`.
+- **Sidebar**: New "Receiving" section with teal theme (`package-check` icon) between Field and Production sections. 4 links: Dashboard, Backload Batches, Inspections, BOM Pending.
+- **BOM Auto-Request Integration**: `DrillBitFirstEventView.post()` auto-creates `BOMPendingRequest` when a manufacture bit (account.workflow_type in MANUFACTURE/BOTH) is registered via "Received" event without any BOM assigned.
+- **Key URLs**: `/work-orders/receiving/` (dashboard), `/work-orders/receiving/batches/` (list), `/work-orders/receiving/batches/create/` (create), `/work-orders/receiving/batches/<pk>/` (detail), `/work-orders/receiving/bom-pending/` (BOM queue), `/work-orders/receiving/inspections/` (inspection list).
+- **Key Files**: `apps/workorders/views_receiving.py` (all views + APIs), `apps/workorders/forms.py` (BackloadBatchForm with file upload + serial validation), 6 templates in `templates/workorders/`.
+
+### Recent Enhancements (Feb 28, 2026) — Receiving Dock Fixes + Drill Bit List Enhancements
+- **Backload Batch Error Correction**: Batch detail page now supports correcting errors after creation — add/remove serial numbers, change account, edit metadata. New API endpoints: `api_batch_add_serials`, `api_batch_remove_item`, `api_batch_update_account`. UI: Alpine.js "Add Serials" panel (expandable textarea with live counter), per-item delete buttons (with confirmation), account change dropdown.
+- **Backload Batch Type Field**: New `batch_type` field (REPAIR/MANUFACTURE) on `BackloadBatch` model with auto-detection from account's `workflow_type`. Migration 0025. Create form shows batch type selector alongside account.
+- **UNREGISTERED DrillBit Status**: New `UNREGISTERED` status added to `DrillBit.Status` choices — used for bits auto-created from backload batches that have no design assigned. Previously these showed as "New" which was confusing since "New" implies a properly registered bit. Migration 0026.
+  - `views_receiving.py`: All auto-create paths (`_create_and_process_items`, `_auto_process_single_item`, `api_batch_register_new`) now set `status=DrillBit.Status.UNREGISTERED`.
+  - Template badges: Orange badge (`bg-orange-100 text-orange-800`) for UNREGISTERED in both `drillbit_list_enhanced.html` and `drillbit_detail_enhanced.html`.
+  - Data fix: 7 existing bits with no design and status NEW were updated to UNREGISTERED.
+- **Drill Bit List — Alpine.js Column Visibility**: Converted `drillbit_list_enhanced.html` from vanilla JavaScript to Alpine.js component pattern (matching cutter inventory). `x-data="drillBitPage()"` component with 19 toggleable columns via `x-show="columns.KEY"` on all `<th>` and `<td>` elements. Column groups: Core (serial, type, customer, location, status, lifecycle, created), Design (level, design, refmat, hdbs, smi, size, connection, iadc), BOM (systembom, brazingbom), Spec (breaker, specialtech, application). Serial # and Actions columns always visible.
+- **Drill Bit List — Columns Dropdown**: "Columns" button in toolbar opens grouped checkboxes dropdown with "Show All" and "Reset to Defaults" buttons. Each checkbox bound to `x-model="columns.KEY"` with auto-save to localStorage.
+- **Drill Bit List — Saved Views (localStorage)**: All column visibility, freeze panes, full page view, and text wrap preferences saved to `localStorage` key `drillBitListPrefs`. Auto-loaded on page init, auto-saved on every toggle.
+- **Drill Bit List — Text Wrap Toggle**: New toolbar button toggles `whitespace-nowrap` / `whitespace-normal` on table cells for better readability of long values.
+- **Drill Bit List — Export to Excel Dialog**: Export button opens modal with radio options: "Visible columns only" / "All columns" and "All records" / "Filtered/visible rows only". `executeExport()` reads Alpine state for visible columns and collects row PKs from `data-pk` attributes, builds URL params, triggers download.
+- **DrillBitExportExcelView Enhanced**: Backend rewritten with `ALL_COLUMNS` class attribute (20 column definitions matching template `data-column` keys), `_get_cell_value()` method for each column, support for `columns`/`records`/`visible_cols`/`bit_ids` query params. Rich `select_related` and `prefetch_related` for performance. Row number column. Styled Excel output with blue headers, frozen panes, and auto-width columns.
+- **Column Default Visibility**: `level:true, type:true, design:true, refmat:false, systembom:false, brazingbom:false, hdbs:true, smi:false, size:true, connection:false, iadc:false, breaker:false, specialtech:false, application:false, customer:true, location:true, status:true, lifecycle:true, created:true`.
+- **Column Filters Compatibility**: Existing Excel-style column filters (sort, filter values, search) kept as global JavaScript functions — work correctly with Alpine.js `x-show` because hidden elements remain in DOM (indices unchanged).
 
 ---
 

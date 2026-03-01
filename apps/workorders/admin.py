@@ -17,8 +17,6 @@ from .models import (
     WorkOrderPhoto,
     WorkOrderTimeLog,
     # Sprint 4 Models
-    StatusTransitionLog,
-    BitRepairHistory,
     SalvageItem,
     RepairApprovalAuthority,
     RepairEvaluation,
@@ -26,7 +24,7 @@ from .models import (
     RepairBOMLine,
     ProcessRoute,
     ProcessRouteOperation,
-    OperationExecution,
+    # OperationExecution removed (Feb 2026)
     WorkOrderCost,
     # Job Card Models
     CutterEvaluationMatrix,
@@ -37,8 +35,14 @@ from .models import (
     APIThreadInspection,
     InstructionRule,
     InstructionRuleCondition,
+    ReceivingInspection,
     # Production Planning
     ProductionPlanEntry,
+    # Receiving Dock
+    BackloadBatch,
+    BackloadBatchAttachment,
+    BackloadItem,
+    BOMPendingRequest,
 )
 
 
@@ -185,31 +189,7 @@ class BitEvaluationAdmin(admin.ModelAdmin):
     list_select_related = ["drill_bit", "evaluated_by"]
 
 
-# =============================================================================
-# STATUS TRANSITION LOG
-# =============================================================================
-
-@admin.register(StatusTransitionLog)
-class StatusTransitionLogAdmin(admin.ModelAdmin):
-    list_display = ["content_object", "from_status", "to_status", "changed_by", "changed_at"]
-    list_filter = ["from_status", "to_status"]
-    search_fields = ["reason"]
-    list_select_related = ["changed_by"]
-    date_hierarchy = "changed_at"
-    readonly_fields = ["changed_at"]
-
-
-# =============================================================================
-# BIT REPAIR HISTORY
-# =============================================================================
-
-@admin.register(BitRepairHistory)
-class BitRepairHistoryAdmin(admin.ModelAdmin):
-    list_display = ["drill_bit", "repair_number", "repair_type", "repair_date", "total_cost"]
-    list_filter = ["repair_type"]
-    search_fields = ["drill_bit__serial_number"]
-    list_select_related = ["drill_bit", "work_order"]
-    date_hierarchy = "repair_date"
+# NOTE: StatusTransitionLog, BitRepairHistory admin registrations REMOVED (Feb 2026)
 
 
 # =============================================================================
@@ -283,11 +263,7 @@ class ProcessRouteAdmin(admin.ModelAdmin):
     inlines = [ProcessRouteOperationInline]
 
 
-@admin.register(OperationExecution)
-class OperationExecutionAdmin(admin.ModelAdmin):
-    list_display = ["work_order", "route_operation", "sequence", "status", "start_time", "end_time"]
-    list_filter = ["status"]
-    list_select_related = ["work_order", "route_operation", "operator"]
+# NOTE: OperationExecution admin registration REMOVED (Feb 2026)
 
 
 # =============================================================================
@@ -316,6 +292,15 @@ class CutterEvaluationMatrixAdmin(admin.ModelAdmin):
     list_filter = ["evaluation_type"]
     list_select_related = ["work_order", "evaluated_by"]
     inlines = [CutterEvaluationEntryInline]
+
+
+@admin.register(ReceivingInspection)
+class ReceivingInspectionAdmin(admin.ModelAdmin):
+    list_display = ["drill_bit", "inspection_date", "result", "is_complete", "inspected_by"]
+    list_filter = ["result", "is_complete"]
+    list_select_related = ["drill_bit", "inspected_by", "work_order"]
+    search_fields = ["drill_bit__serial_number", "po_number"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 # =============================================================================
@@ -410,3 +395,51 @@ class ProductionPlanEntryAdmin(admin.ModelAdmin):
             entry.create_work_order(user=request.user)
             created += 1
         self.message_user(request, f"Created {created} work orders.")
+
+
+# =============================================================================
+# RECEIVING DOCK — Backload Batches + BOM Pending
+# =============================================================================
+
+class BackloadBatchAttachmentInline(admin.TabularInline):
+    model = BackloadBatchAttachment
+    extra = 0
+    fields = ["file", "original_filename", "file_size", "uploaded_by", "uploaded_at"]
+    readonly_fields = ["original_filename", "file_size", "uploaded_by", "uploaded_at"]
+
+
+class BackloadItemInline(admin.TabularInline):
+    model = BackloadItem
+    extra = 0
+    fields = [
+        "serial_number", "match_status", "status", "drill_bit",
+        "received_date", "received_by",
+    ]
+    readonly_fields = ["match_status", "received_date", "received_by"]
+    raw_id_fields = ["drill_bit"]
+
+
+@admin.register(BackloadBatch)
+class BackloadBatchAdmin(admin.ModelAdmin):
+    list_display = [
+        "batch_number", "account", "status", "item_count",
+        "received_count", "expected_date", "created_at",
+    ]
+    list_filter = ["status", "account"]
+    search_fields = ["batch_number", "batch_reference"]
+    readonly_fields = ["batch_number", "item_count", "received_count", "created_at", "updated_at"]
+    raw_id_fields = ["customer", "created_by"]
+    date_hierarchy = "created_at"
+    inlines = [BackloadBatchAttachmentInline, BackloadItemInline]
+
+
+@admin.register(BOMPendingRequest)
+class BOMPendingRequestAdmin(admin.ModelAdmin):
+    list_display = [
+        "drill_bit", "status", "requested_by", "assigned_by",
+        "resolved_at", "created_at",
+    ]
+    list_filter = ["status"]
+    search_fields = ["drill_bit__serial_number"]
+    readonly_fields = ["created_at"]
+    raw_id_fields = ["drill_bit", "requested_by", "assigned_by"]

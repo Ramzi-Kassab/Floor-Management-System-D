@@ -101,10 +101,21 @@
                 class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
             <i data-lucide="printer" class="w-4 h-4 mr-1"></i>Print
         </button>
-        <button type="button" onclick="saveAll()"
-                class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+        <button type="button" onclick="doSave(false)"
+                class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm" id="saveDraftBtn">
             <i data-lucide="save" class="w-4 h-4 mr-1"></i>Save
         </button>
+        {% if matrix.is_complete %}
+        <button type="button" onclick="doSave('reopen')"
+                class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm" id="reopenBtn">
+            <i data-lucide="unlock" class="w-4 h-4 mr-1"></i>Reopen
+        </button>
+        {% else %}
+        <button type="button" onclick="doSave(true)"
+                class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm" id="saveCompleteBtn">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Save &amp; Complete
+        </button>
+        {% endif %}
         <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
            class="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Job Card
@@ -164,6 +175,48 @@
             </div>
         </div>
     </div>
+
+    <!-- Evaluation Details (read-only info bar) -->
+    {% if matrix.ncr_ref_no or matrix.ardt_remark or matrix.eng_remark or matrix.ardt_matrix_buildup or matrix.eng_matrix_buildup %}
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-3 mb-3">
+        <div class="flex items-center justify-between mb-1 cursor-pointer" onclick="this.parentElement.querySelector('.eval-details-body').classList.toggle('hidden')">
+            <h4 class="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i> Evaluation Details
+            </h4>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-blue-400"></i>
+        </div>
+        <div class="eval-details-body grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+            {% if matrix.ncr_ref_no %}
+            <div class="flex"><span class="text-blue-500 w-32 flex-shrink-0">NCR Ref No:</span><span class="text-gray-900 dark:text-white font-medium">{{ matrix.ncr_ref_no }}</span></div>
+            {% endif %}
+            {% if matrix.ardt_matrix_buildup %}
+            <div class="flex"><span class="text-blue-500 w-32 flex-shrink-0">ARDT Build-up:</span><span class="text-gray-900 dark:text-white">{{ matrix.ardt_matrix_buildup }}</span></div>
+            {% endif %}
+            {% if matrix.eng_matrix_buildup %}
+            <div class="flex"><span class="text-blue-500 w-32 flex-shrink-0">Eng Build-up:</span><span class="text-gray-900 dark:text-white">{{ matrix.eng_matrix_buildup }}</span></div>
+            {% endif %}
+            {% if matrix.ardt_remark %}
+            <div class="flex col-span-full"><span class="text-blue-500 w-32 flex-shrink-0">ARDT Remark:</span><span class="text-gray-900 dark:text-white">{{ matrix.ardt_remark }}</span></div>
+            {% endif %}
+            {% if matrix.eng_remark %}
+            <div class="flex col-span-full"><span class="text-blue-500 w-32 flex-shrink-0">Eng Remark:</span><span class="text-gray-900 dark:text-white">{{ matrix.eng_remark }}</span></div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if matrix.is_complete %}
+    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 p-2 mb-3 flex items-center gap-2 text-xs">
+        <i data-lucide="shield-check" class="w-4 h-4 text-green-600"></i>
+        <span class="font-semibold text-green-700 dark:text-green-300">Evaluation Completed</span>
+        {% if matrix.qc_by %}
+        <span class="text-green-600 dark:text-green-400">by {{ matrix.qc_by.get_full_name|default:matrix.qc_by.username }}</span>
+        {% endif %}
+        {% if matrix.qc_at %}
+        <span class="text-green-500">on {{ matrix.qc_at|date:"M d, Y H:i" }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Instructions -->
     <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 mb-3 text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -244,6 +297,9 @@
             <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="F" style="width:20px;height:20px;font-size:10px">F</span> Fill</span>
             <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="X" style="width:20px;height:20px;font-size:10px">X</span> Replace</span>
             <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="L" style="width:20px;height:20px;font-size:10px">L</span> Lost</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="P" style="width:20px;height:20px;font-size:10px">P</span> Pocket Build Up</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="I" style="width:20px;height:20px;font-size:10px">I</span> Impact Arrestor</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="V" style="width:20px;height:20px;font-size:10px">V</span> Fin Build Up</span>
             <span class="ml-auto font-semibold text-gray-700 dark:text-gray-300">Total: <span id="totalCount" class="text-blue-600 dark:text-blue-400">0</span> <span id="actionBreakdown" class="text-gray-400 font-normal ml-2"></span></span>
         </div>
     </div>
@@ -270,7 +326,13 @@
 
     <!-- Cutters Details Table (For Plant Use Only) -->
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
-        <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">For Plant Use Only: Cutters Details</h3>
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300">For Plant Use Only: Cutters Details</h3>
+            <button type="button" onclick="addCutterDetailRow()"
+                    class="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 no-print">
+                <i data-lucide="plus" class="w-3 h-3 mr-1"></i>Add Row
+            </button>
+        </div>
         <table class="w-full text-xs border-collapse">
             <thead>
                 <tr class="bg-gray-50 dark:bg-gray-700">
@@ -283,17 +345,15 @@
                 </tr>
             </thead>
             <tbody id="cutterDetailsBody">
-                {% for i in "1234567890" %}
-                {% if forloop.counter <= 10 %}
+                {% for row_num in cutter_detail_row_range %}
                 <tr>
-                    <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">{{ forloop.counter }}</td>
-                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_qty_{{ forloop.counter }}"></td>
-                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_size_{{ forloop.counter }}"></td>
-                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_partno_{{ forloop.counter }}"></td>
-                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_desc_{{ forloop.counter }}"></td>
-                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_remarks_{{ forloop.counter }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center cd-row-num">{{ row_num }}</td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_qty_{{ row_num }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_size_{{ row_num }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_partno_{{ row_num }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_desc_{{ row_num }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_remarks_{{ row_num }}"></td>
                 </tr>
-                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
@@ -388,7 +448,10 @@ function toggleLayout() {
     }
 }
 
-async function saveAll() {
+/**
+ * Save evaluation data. markComplete: true = save & complete, false = save draft, 'reopen' = save & reopen.
+ */
+async function doSave(markComplete) {
     const entries = [];
     document.querySelectorAll('.eval-cell').forEach(cell => {
         const val = cell.value.trim().toUpperCase();
@@ -404,9 +467,10 @@ async function saveAll() {
     const remarks = document.getElementById('remarks')?.value || '';
     const decision = document.getElementById('decisionSelect')?.value || '';
 
-    // Collect cutters details table
+    // Collect cutters details table (dynamic row count)
     const cutters_details = [];
-    for (let i = 1; i <= 10; i++) {
+    const rowCount = document.querySelectorAll('#cutterDetailsBody tr').length;
+    for (let i = 1; i <= rowCount; i++) {
         const qty = document.querySelector(`[name="cd_qty_${i}"]`)?.value || '';
         const size_mm = document.querySelector(`[name="cd_size_${i}"]`)?.value || '';
         const part_no = document.querySelector(`[name="cd_partno_${i}"]`)?.value || '';
@@ -417,7 +481,11 @@ async function saveAll() {
         }
     }
 
-    const body = JSON.stringify({ entries, remarks, decision, cutters_details });
+    const payload = { entries, remarks, decision, cutters_details };
+    if (markComplete === true) payload.mark_complete = true;
+    else if (markComplete === 'reopen') payload.mark_complete = false;
+
+    const body = JSON.stringify(payload);
 
     try {
         const resp = await fetch(window.location.href, {
@@ -429,17 +497,24 @@ async function saveAll() {
             }
         });
         if (resp.ok) {
-            // Flash success
-            const btn = document.querySelector('[onclick="saveAll()"]');
+            const result = await resp.json();
+            // Flash success on the Save button
+            const btn = document.getElementById('saveDraftBtn');
             const orig = btn.innerHTML;
             btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 mr-1"></i>Saved!';
             btn.classList.replace('bg-blue-600', 'bg-green-600');
             if (typeof lucide !== 'undefined') lucide.createIcons();
-            setTimeout(() => {
-                btn.innerHTML = orig;
-                btn.classList.replace('bg-green-600', 'bg-blue-600');
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }, 2000);
+
+            if (markComplete === true || markComplete === 'reopen') {
+                // Reload to reflect new complete/reopen state (buttons change)
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                setTimeout(() => {
+                    btn.innerHTML = orig;
+                    btn.classList.replace('bg-green-600', 'bg-blue-600');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }, 2000);
+            }
         } else {
             alert('Save failed. Please try again.');
         }
@@ -449,7 +524,26 @@ async function saveAll() {
     }
 }
 
+// Backward-compatible alias
+function saveAll() { doSave(false); }
+
+function addCutterDetailRow() {
+    const tbody = document.getElementById('cutterDetailsBody');
+    const rowNum = tbody.querySelectorAll('tr').length + 1;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center cd-row-num">${rowNum}</td>
+        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_qty_${rowNum}"></td>
+        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_size_${rowNum}"></td>
+        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_partno_${rowNum}"></td>
+        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_desc_${rowNum}"></td>
+        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_remarks_${rowNum}"></td>
+    `;
+    tbody.appendChild(tr);
+}
+
 // Pre-populate cutters details from saved data or BOM
+// saved_cutters_details is already JSON-serialized from the backend
 const savedDetails = {{ saved_cutters_details|safe }};
 const bomLines = {{ bom_lines_json|safe }};
 

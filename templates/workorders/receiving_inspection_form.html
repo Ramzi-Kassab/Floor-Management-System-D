@@ -1,0 +1,1080 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            QAS/005-1 &mdash; FC Bit Receiving Inspection
+        </p>
+    </div>
+    <div class="flex items-center gap-3">
+        {% if not is_new %}
+        <button type="button" onclick="window.print()"
+                class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm no-print">
+            <i data-lucide="printer" class="w-4 h-4 mr-1.5"></i> Print
+        </button>
+        <a href="{% url 'workorders:drillbit_qr_labels' %}?bits={{ drill_bit.pk }}" target="_blank"
+           class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm no-print">
+            <i data-lucide="qr-code" class="w-4 h-4 mr-1.5"></i> QR Label
+        </a>
+        {% endif %}
+        {% if not is_new and object.is_complete %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 no-print">
+                <i data-lucide="check-circle" class="w-4 h-4"></i> Complete
+            </span>
+        {% endif %}
+        <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
+           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 no-print">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Drill Bit
+        </a>
+    </div>
+</div>
+{% endblock page_header %}
+
+{% block content %}
+
+<!-- ══════════ PRINT HEADER (hidden on screen, shown on print) ══════════ -->
+<div class="print-header">
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 12px;">
+        <div>
+            <h1 style="font-size: 18pt; font-weight: bold; margin: 0;">ARDT</h1>
+            <h2 style="font-size: 13pt; font-weight: bold; margin: 4px 0 0;">FC BIT RECEIVING INSPECTION</h2>
+            <p style="font-size: 9pt; color: #555; margin: 2px 0 0;">QAS/005-1</p>
+        </div>
+        {% if bit_qr_base64 %}
+        <div style="text-align: center;">
+            <img src="{{ bit_qr_base64 }}" alt="QR" style="width: 80px; height: 80px;">
+            <div style="font-size: 8pt; font-family: monospace; margin-top: 2px;">{{ drill_bit.serial_number }}</div>
+        </div>
+        {% endif %}
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 9pt; margin-bottom: 12px;">
+        <div><strong>Serial:</strong> {{ drill_bit.serial_number }}</div>
+        <div><strong>Type:</strong> {{ drill_bit.get_bit_type_display }}</div>
+        <div><strong>Design:</strong> {{ drill_bit.design.mat_number|default:"—" }}</div>
+        <div><strong>Size:</strong> {{ drill_bit.design.size|default:"—" }}</div>
+        <div><strong>Date:</strong> {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
+        <div><strong>PO:</strong> {% if not is_new %}{{ object.po_number|default:"—" }}{% else %}—{% endif %}</div>
+        <div><strong>Client:</strong> {% if not is_new %}{{ object.client_name|default:"—" }}{% else %}—{% endif %}</div>
+        <div><strong>Status:</strong> {% if not is_new and object.is_complete %}COMPLETE{% else %}DRAFT{% endif %}</div>
+    </div>
+</div>
+
+<form method="post" id="inspectionForm"
+      x-data="inspectionPage()" x-init="init()">
+{% csrf_token %}
+
+<!-- Hidden JSON inputs -->
+{% if has_bom_data %}
+<input type="hidden" name="cutter_evaluation_data" :value="JSON.stringify(cutterEvalData)">
+{% else %}
+<input type="hidden" name="cutter_evaluation_data" value="{}">
+{% endif %}
+{% if has_pocket_data %}
+<input type="hidden" name="pocket_evaluation_data" :value="JSON.stringify(pocketEvalData)">
+{% else %}
+<input type="hidden" name="pocket_evaluation_data" value="{}">
+{% endif %}
+<input type="hidden" name="checklist_remarks" :value="JSON.stringify(checklistRemarks)">
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 1: INSPECTION DETAILS (Header)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s1 = !s1"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="clipboard-list" class="w-5 h-5 text-blue-500"></i>
+            1. Inspection Details
+        </h2>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s1 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s1" x-collapse class="px-5 pb-4">
+        <!-- Read-only bit info -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ drill_bit.serial_number }}</span>
+            </div>
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Bit Type</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.get_bit_type_display }}</span>
+            </div>
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Design</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.mat_number|default:"—" }}</span>
+            </div>
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Size</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.size|default:"—" }}</span>
+            </div>
+        </div>
+        <!-- Editable fields -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspection Date</label>
+                {{ form.inspection_date }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PO Number</label>
+                {{ form.po_number }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Name</label>
+                {{ form.client_name }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 2: VISUAL INSPECTION CHECKLIST (QAS/005-1)
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s2 = !s2"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="eye" class="w-5 h-5 text-amber-500"></i>
+            2. Visual Inspection Checklist
+        </h2>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s2 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s2" x-collapse class="px-5 pb-4">
+        <!-- Screen table -->
+        <div class="overflow-x-auto no-print">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b-2 border-gray-300 dark:border-gray-600">
+                        <th class="text-left py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-8">#</th>
+                        <th class="text-left py-2 px-2 font-semibold text-gray-600 dark:text-gray-400">Check Point</th>
+                        <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-16">OK</th>
+                        <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-16">Not OK</th>
+                        <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-16">N/A</th>
+                        <th class="text-left py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-48">Reason for Not OK</th>
+                        <th class="text-left py-2 px-2 font-semibold text-gray-600 dark:text-gray-400 w-48">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for num, label, field_name, current_value in checklist_items %}
+                    <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="py-2 px-2 text-gray-400 text-xs font-mono">{{ num }}</td>
+                        <td class="py-2 px-2 font-medium text-gray-700 dark:text-gray-300">{{ label }}</td>
+                        <td class="text-center py-2 px-2">
+                            <input type="radio" name="{{ field_name }}" value="OK"
+                                   {% if current_value == "OK" %}checked{% endif %}
+                                   class="text-green-600 focus:ring-green-500 dark:bg-gray-700">
+                        </td>
+                        <td class="text-center py-2 px-2">
+                            <input type="radio" name="{{ field_name }}" value="NOT_OK"
+                                   {% if current_value == "NOT_OK" %}checked{% endif %}
+                                   class="text-red-600 focus:ring-red-500 dark:bg-gray-700">
+                        </td>
+                        <td class="text-center py-2 px-2">
+                            <input type="radio" name="{{ field_name }}" value="NA"
+                                   {% if current_value == "NA" %}checked{% endif %}
+                                   class="text-gray-400 focus:ring-gray-500 dark:bg-gray-700">
+                        </td>
+                        <td class="py-2 px-2">
+                            <input type="text"
+                                   class="w-full text-xs px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                   placeholder="Reason..."
+                                   :value="checklistRemarks['{{ field_name }}']?.reason || ''"
+                                   @input="setChecklistRemark('{{ field_name }}', 'reason', $event.target.value)">
+                        </td>
+                        <td class="py-2 px-2">
+                            <input type="text"
+                                   class="w-full text-xs px-2 py-1 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                   placeholder="Remarks..."
+                                   :value="checklistRemarks['{{ field_name }}']?.remarks || ''"
+                                   @input="setChecklistRemark('{{ field_name }}', 'remarks', $event.target.value)">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Print table -->
+        <table class="print-checklist">
+            <thead>
+                <tr>
+                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333; width:20px;">#</th>
+                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Check Point</th>
+                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">OK</th>
+                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">Not OK</th>
+                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">N/A</th>
+                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Reason</th>
+                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for num, label, field_name, current_value in checklist_items %}
+                <tr>
+                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">{{ num }}</td>
+                    <td style="padding:2px 6px; border-bottom:1px solid #ddd;">{{ label }}</td>
+                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "OK" %}&#10004;{% endif %}</td>
+                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "NOT_OK" %}&#10008;{% endif %}</td>
+                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "NA" %}&mdash;{% endif %}</td>
+                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">&nbsp;</td>
+                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">&nbsp;</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 3: CUTTER CONDITION + MEASUREMENTS
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s3 = !s3"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="ruler" class="w-5 h-5 text-teal-500"></i>
+            3. Cutter Condition & Measurements
+        </h2>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s3 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s3" x-collapse class="px-5 pb-4">
+        <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Cutter Counts</h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 no-print">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total Cutters</label>
+                {{ form.cutters_total }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Chipped</label>
+                {{ form.cutters_chipped }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Broken</label>
+                {{ form.cutters_broken }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Worn</label>
+                {{ form.cutters_worn }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Missing</label>
+                {{ form.cutters_missing }}
+            </div>
+        </div>
+        <div class="mb-4 p-2 bg-gray-50 dark:bg-gray-900/50 rounded text-sm text-gray-600 dark:text-gray-400 no-print" id="cutterSummary">
+            Good condition: <span id="cuttersGood" class="font-semibold text-green-600 dark:text-green-400">&mdash;</span>
+        </div>
+
+        <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Measurements</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">TFA (Total Flow Area)</label>
+                {{ form.tfa }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 1</label>
+                {{ form.gauge_reading_1 }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 2</label>
+                {{ form.gauge_reading_2 }}
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 3</label>
+                {{ form.gauge_reading_3 }}
+            </div>
+        </div>
+
+        <!-- Print version -->
+        <table class="print-measurements-table">
+            <tr>
+                <td><strong>Total:</strong> {{ form.cutters_total.value|default:"—" }}</td>
+                <td><strong>Chipped:</strong> {{ form.cutters_chipped.value|default:"0" }}</td>
+                <td><strong>Broken:</strong> {{ form.cutters_broken.value|default:"0" }}</td>
+                <td><strong>Worn:</strong> {{ form.cutters_worn.value|default:"0" }}</td>
+                <td><strong>Missing:</strong> {{ form.cutters_missing.value|default:"0" }}</td>
+            </tr>
+            <tr>
+                <td><strong>TFA:</strong> {{ form.tfa.value|default:"—" }}</td>
+                <td><strong>Gauge 1:</strong> {{ form.gauge_reading_1.value|default:"—" }}</td>
+                <td><strong>Gauge 2:</strong> {{ form.gauge_reading_2.value|default:"—" }}</td>
+                <td><strong>Gauge 3:</strong> {{ form.gauge_reading_3.value|default:"—" }}</td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 4: POCKET EVALUATION (Design pockets grid)
+     ══════════════════════════════════════════════════════════════════════ -->
+{% if has_pocket_data %}
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s4 = !s4"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="layout-grid" class="w-5 h-5 text-violet-500"></i>
+            4. Pocket Evaluation
+        </h2>
+        <span class="text-xs px-2 py-0.5 rounded-full ml-2"
+              :class="pocketEvalCount > 0 ? 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
+              x-text="pocketEvalCount + ' marked'"></span>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s4 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s4" x-collapse class="px-5 pb-4">
+        <!-- Pocket config table -->
+        {% if pocket_config_list %}
+        <div class="mb-3">
+            <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Pocket Configurations</h3>
+            <table class="w-full text-xs border-collapse">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-gray-600">
+                        <th class="py-1 px-2 text-left text-gray-500">#</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Size</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Shape</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Length</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Qty</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Color</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cfg in pocket_config_list %}
+                    <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                        <td class="py-1 px-2 font-mono text-gray-400">{{ cfg.order }}</td>
+                        <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.size }}</td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.shape }}</td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.length_type }}</td>
+                        <td class="py-1 px-2 text-center font-semibold">{{ cfg.count }}</td>
+                        <td class="py-1 px-2 text-center">
+                            <span class="inline-block w-4 h-4 rounded" style="background: {{ cfg.color }};"></span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Legend -->
+        <div class="flex flex-wrap gap-2 items-center text-xs mb-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded">
+            <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Symbols:</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="I">I</span> Impact Arrestor</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="P">P</span> Pocket Build Up</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="V">V</span> Fin Build Up</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="T">T</span> Tight</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="W">W</span> Wide</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="D">D</span> Deep</span>
+            <span class="inline-flex items-center gap-0.5"><span class="pocket-sym-mini" data-sym="N">N</span> Narrow</span>
+        </div>
+
+        <!-- Pocket Grid -->
+        <div class="overflow-x-auto">
+            <div class="inline-block min-w-max">
+                <!-- Column number headers -->
+                <div class="flex items-end mb-0.5">
+                    <div class="w-14 flex-shrink-0"></div>
+                    <template x-for="col in pocketMaxPos" :key="col">
+                        <div class="flex">
+                            <div class="w-10 text-center text-xs font-medium py-1 text-gray-500" x-text="col"></div>
+                            <div class="w-3" x-show="col < pocketMaxPos"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Blade rows -->
+                {% for bn in pocket_blade_nums %}
+                <div class="flex items-center mb-0.5">
+                    <div class="w-14 flex-shrink-0 font-semibold text-sm text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
+                    <template x-for="col in pocketMaxPos" :key="col">
+                        <div class="flex">
+                            <div class="pocket-grid-cell"
+                                 :style="getPocketCellStyle({{ bn }}, col)"
+                                 :class="getPocketCellClass({{ bn }}, col)"
+                                 @click="onPocketCellClick({{ bn }}, col)"
+                                 :title="getPocketCellTitle({{ bn }}, col)"
+                                 x-text="getPocketCellText({{ bn }}, col)">
+                            </div>
+                            <div class="w-3 flex items-center justify-center" x-show="col < pocketMaxPos">
+                                <div class="w-0.5 h-10 rounded"
+                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Pocket symbol input modal -->
+        <div x-show="pocketModal.open" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+             @click.self="pocketModal.open = false">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 w-80">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
+                    x-text="'B' + pocketModal.blade + ' / Pos ' + pocketModal.pos"></h3>
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <template x-for="sym in pocketSymbols" :key="sym.code">
+                        <button type="button"
+                                class="px-3 py-1.5 rounded text-sm font-bold border transition"
+                                :class="pocketModal.selected.includes(sym.code)
+                                    ? 'bg-violet-600 text-white border-violet-600'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200'"
+                                :disabled="!canTogglePocketSym(sym.code)"
+                                :title="sym.label"
+                                @click="togglePocketSym(sym.code)"
+                                x-text="sym.code">
+                        </button>
+                    </template>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Selected: <span class="font-mono font-bold" x-text="pocketModal.selected.join('') || '—'"></span>
+                    <span class="text-gray-400 ml-2">(T/W &amp; D/N mutually exclusive)</span>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" @click="clearPocketCell()" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Clear</button>
+                    <button type="button" @click="pocketModal.open = false" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded">Cancel</button>
+                    <button type="button" @click="savePocketCell()" class="px-3 py-1 text-xs bg-violet-600 text-white rounded hover:bg-violet-700">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 5: CUTTER EVALUATION (BOM/CL grid — L5 only)
+     ══════════════════════════════════════════════════════════════════════ -->
+{% if has_bom_data %}
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s5 = !s5"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="grid-3x3" class="w-5 h-5 text-blue-500"></i>
+            5. Cutter Evaluation
+        </h2>
+        <span class="text-xs px-2 py-0.5 rounded-full ml-2"
+              :class="cutterEvalCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
+              x-text="cutterEvalCount + '/' + cutterTotal"></span>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s5 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s5" x-collapse class="px-5 pb-4">
+        <!-- Legend -->
+        <div class="flex flex-wrap gap-2 items-center text-xs mb-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded">
+            <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Actions:</span>
+            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="O">O</span> OK</span>
+            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="X">X</span> Replace</span>
+            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="R">R</span> Rotate</span>
+            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="S">S</span> Spin</span>
+            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="L">L</span> Lost</span>
+            <span class="ml-auto font-semibold text-gray-600 dark:text-gray-300">
+                <span x-text="cutterEvalCount + '/' + cutterTotal" class="text-blue-600 dark:text-blue-400"></span>
+                <template x-for="a in cutterActions" :key="a">
+                    <span x-show="cutterCounts[a] > 0" class="ml-1 text-gray-400" x-text="a + ':' + cutterCounts[a]"></span>
+                </template>
+            </span>
+        </div>
+
+        <!-- Compact Matrix Grid -->
+        <div class="overflow-x-auto mb-3">
+            <div class="inline-block">
+                <!-- Column headers -->
+                <div class="flex items-end mb-0.5">
+                    <div class="blade-label">&nbsp;</div>
+                    <div class="blade-label">&nbsp;</div>
+                    <template x-for="col in matrixCols" :key="col.key">
+                        <div class="pos-header" :title="col.fullName" x-text="col.label"></div>
+                    </template>
+                </div>
+
+                <!-- Grid rows -->
+                <template x-for="(gr, grIdx) in matrixRows" :key="gr.blade + gr.row">
+                    <div class="flex items-center" style="height: 30px;"
+                         :class="gr.isFirstRow && grIdx > 0 ? 'border-t border-gray-300 dark:border-gray-600' : ''">
+                        <div class="blade-label font-bold"
+                             :class="gr.isFirstRow ? 'text-indigo-600 dark:text-indigo-400' : 'text-transparent select-none'"
+                             x-text="gr.blade"></div>
+                        <div class="blade-label text-[9px] text-gray-400" x-text="gr.row"></div>
+                        <template x-for="(cell, cIdx) in gr.cells" :key="cIdx">
+                            <div>
+                                <template x-if="cell.has">
+                                    <input type="text" maxlength="1" class="eval-cell"
+                                           :data-val="getCutterAction(cell.b, cell.r, cell.p, cell.i)"
+                                           :value="getCutterAction(cell.b, cell.r, cell.p, cell.i)"
+                                           @input.prevent="onCutterInput($event, cell.b, cell.r, cell.p, cell.i)"
+                                           @keydown="onCutterKeydown($event, cell.b, cell.r, cell.p, cell.i)"
+                                           onfocus="this.select()"
+                                           :title="cell.p + ' #' + (cell.i+1)">
+                                </template>
+                                <template x-if="!cell.has">
+                                    <div class="eval-cell-empty"></div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SECTION 6: INSPECTION DECISION
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+    <button type="button" @click="s6 = !s6"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <i data-lucide="check-square" class="w-5 h-5 text-green-500"></i>
+            {% if has_bom_data %}6{% elif has_pocket_data %}5{% else %}4{% endif %}. Inspection Decision
+        </h2>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s6 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s6" x-collapse class="px-5 pb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
+                {{ form.result }}
+            </div>
+            <div>
+                {% if not is_new and object.inspected_by %}
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspector</label>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
+                    {% if object.qc_approved_by %}
+                        <br>
+                        <span class="text-green-600 dark:text-green-400">
+                            QC: {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
+                            ({{ object.qc_approved_at|date:"M d, Y H:i" }})
+                        </span>
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Print version of decision -->
+        <div class="print-decision">
+            <table style="width:100%; font-size:10pt;">
+                <tr>
+                    <td style="padding:4px 8px; width:50%;"><strong>Result:</strong>
+                        {% if not is_new %}
+                            {% if object.result == 'ACCEPTED' %}<span style="color:green; font-weight:bold;">ACCEPTED</span>
+                            {% elif object.result == 'REJECTED' %}<span style="color:red; font-weight:bold;">REJECTED</span>
+                            {% elif object.result == 'CONDITIONAL' %}<span style="color:#d97706; font-weight:bold;">CONDITIONAL</span>
+                            {% else %}PENDING{% endif %}
+                        {% else %}&mdash;{% endif %}
+                    </td>
+                    <td style="padding:4px 8px;">
+                        <strong>Remarks:</strong> {% if not is_new %}{{ object.remarks|default:"—" }}{% else %}&mdash;{% endif %}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="mt-4 no-print">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
+            {{ form.remarks }}
+        </div>
+    </div>
+</div>
+
+<!-- ── PRINT: Signatures Section ── -->
+<div class="print-signatures">
+    <table style="width:100%; font-size:10pt; border-top:2px solid #333; margin-top:20px; padding-top:12px;">
+        <tr>
+            <td style="width:50%; padding:8px; vertical-align:top;">
+                <strong>Inspector:</strong><br>
+                {% if not is_new and object.inspected_by %}
+                    {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}<br>
+                    <span style="font-size:8pt; color:#666;">Date: {{ object.inspection_date|date:"M d, Y" }}</span>
+                {% else %}
+                    <br><div style="border-bottom:1px solid #999; width:200px; margin-top:30px;"></div>
+                    <span style="font-size:8pt; color:#666;">Signature / Date</span>
+                {% endif %}
+            </td>
+            <td style="width:50%; padding:8px; vertical-align:top;">
+                <strong>QC Approver:</strong><br>
+                {% if not is_new and object.qc_approved_by %}
+                    {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}<br>
+                    <span style="font-size:8pt; color:#666;">Date: {{ object.qc_approved_at|date:"M d, Y H:i" }}</span>
+                {% else %}
+                    <br><div style="border-bottom:1px solid #999; width:200px; margin-top:30px;"></div>
+                    <span style="font-size:8pt; color:#666;">Signature / Date</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- ── ACTION BUTTONS ── -->
+<div class="flex items-center justify-between py-4 no-print">
+    <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
+       class="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+        Cancel
+    </a>
+
+    <div class="flex items-center gap-3">
+        <button type="submit" name="action" value="save"
+                class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 text-sm font-medium transition">
+            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+            {% if is_new %}Create{% else %}Save{% endif %}
+        </button>
+
+        {% if not is_new %}
+            {% if object.is_complete %}
+                <button type="submit" name="mark_complete" value="false"
+                        class="px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 text-sm font-medium transition"
+                        onclick="return confirm('Reopen this inspection?')">
+                    <i data-lucide="unlock" class="w-4 h-4 inline mr-1"></i> Reopen
+                </button>
+            {% else %}
+                <button type="submit" name="mark_complete" value="true"
+                        class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 text-sm font-medium transition"
+                        onclick="return confirm('Mark this inspection as complete? QC approval will be recorded.')">
+                    <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
+                </button>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+</form>
+
+{% if form.errors %}
+<div class="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg no-print">
+    <h3 class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Please correct the following errors:</h3>
+    <ul class="list-disc pl-5 text-sm text-red-700 dark:text-red-400">
+        {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+                <li>{{ field|title }}: {{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+// Auto-calculate cutters good condition
+function updateCutterSummary() {
+    const total = parseInt(document.querySelector('[name="cutters_total"]')?.value || 0);
+    const chipped = parseInt(document.querySelector('[name="cutters_chipped"]')?.value || 0);
+    const broken = parseInt(document.querySelector('[name="cutters_broken"]')?.value || 0);
+    const worn = parseInt(document.querySelector('[name="cutters_worn"]')?.value || 0);
+    const missing = parseInt(document.querySelector('[name="cutters_missing"]')?.value || 0);
+    const good = Math.max(0, total - chipped - broken - worn - missing);
+    const el = document.getElementById('cuttersGood');
+    if (el) el.textContent = good;
+}
+document.querySelectorAll('[name^="cutters_"]').forEach(i => i.addEventListener('input', updateCutterSummary));
+updateCutterSummary();
+
+function inspectionPage() {
+    return {
+        // ── Section toggles (collapsible) ──
+        s1: true, s2: true, s3: false, s4: true, s5: true, s6: true,
+
+        // ── Checklist remarks ──
+        checklistRemarks: {},
+
+        // ── Pocket evaluation ──
+        pocketGridData: {},
+        pocketConfigData: {},
+        pocketRowSeparators: [],
+        pocketEvalData: {},
+        pocketMaxPos: 0,
+        pocketEvalCount: 0,
+        pocketSymbols: [
+            {code: 'I', label: 'Impact Arrestor'},
+            {code: 'P', label: 'Pocket Build Up'},
+            {code: 'V', label: 'Fin Build Up'},
+            {code: 'T', label: 'Tight'},
+            {code: 'W', label: 'Wide'},
+            {code: 'D', label: 'Deep'},
+            {code: 'N', label: 'Narrow'},
+        ],
+        pocketModal: { open: false, blade: 0, pos: 0, selected: [] },
+
+        // ── Cutter evaluation ──
+        blades: [],
+        cutterEvalData: {},
+        matrixCols: [],
+        matrixRows: [],
+        cutterCounts: {},
+        cutterTotal: 0,
+        cutterEvalCount: 0,
+        cutterActions: ['O','X','R','S','L'],
+
+        init() {
+            this.checklistRemarks = {{ checklist_remarks|safe }};
+            if (!this.checklistRemarks || typeof this.checklistRemarks !== 'object') this.checklistRemarks = {};
+
+            {% if has_pocket_data %}
+            this.pocketGridData = {{ pocket_grid_data_json|safe }};
+            this.pocketConfigData = {{ pocket_config_data_json|safe }};
+            this.pocketRowSeparators = {{ pocket_row_separators_json|safe }};
+            this.pocketEvalData = {{ pocket_eval_data_json|safe }};
+            this.pocketMaxPos = {{ pocket_max_pos }};
+            this.recalcPocketCount();
+            {% endif %}
+
+            {% if has_bom_data %}
+            this.blades = {{ blade_data_json|safe }};
+            this.cutterEvalData = {{ eval_data_json|safe }};
+            this.buildMatrix();
+            this.recalcCutterCounts();
+            {% endif %}
+        },
+
+        // ════════════ CHECKLIST REMARKS ════════════
+        setChecklistRemark(field, key, value) {
+            if (!this.checklistRemarks[field]) this.checklistRemarks[field] = {};
+            this.checklistRemarks[field][key] = value;
+        },
+
+        // ════════════ POCKET EVALUATION ════════════
+        getPocketCellStyle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.pocketGridData[key];
+            if (!cfgId) return '';
+            const cfg = this.pocketConfigData[cfgId];
+            if (!cfg) return '';
+            return 'background-color: ' + cfg.color + '20; border-color: ' + cfg.color + ';';
+        },
+
+        getPocketCellClass(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.pocketGridData[key];
+            if (!cfgId) return 'pocket-grid-cell-empty';
+            const syms = this.pocketEvalData[key] || '';
+            return syms ? 'pocket-grid-cell-marked' : '';
+        },
+
+        getPocketCellText(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.pocketGridData[key];
+            if (!cfgId) return '';
+            const syms = this.pocketEvalData[key] || '';
+            if (syms) return syms;
+            const cfg = this.pocketConfigData[cfgId];
+            return cfg ? cfg.order : '';
+        },
+
+        getPocketCellTitle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.pocketGridData[key];
+            if (!cfgId) return 'Empty';
+            const cfg = this.pocketConfigData[cfgId];
+            const syms = this.pocketEvalData[key] || '';
+            let title = 'B' + blade + ' Pos ' + col;
+            if (cfg) title += ' — ' + (cfg.name || 'Config #' + cfg.order);
+            if (syms) title += ' [' + syms + ']';
+            return title;
+        },
+
+        onPocketCellClick(blade, col) {
+            const key = blade + '_' + col;
+            if (!this.pocketGridData[key]) return;
+            const current = this.pocketEvalData[key] || '';
+            this.pocketModal.blade = blade;
+            this.pocketModal.pos = col;
+            this.pocketModal.selected = current ? current.split('') : [];
+            this.pocketModal.open = true;
+        },
+
+        canTogglePocketSym(code) {
+            const sel = this.pocketModal.selected;
+            if (sel.includes(code)) return true;
+            // T/W mutually exclusive
+            if (code === 'T' && sel.includes('W')) return false;
+            if (code === 'W' && sel.includes('T')) return false;
+            // D/N mutually exclusive
+            if (code === 'D' && sel.includes('N')) return false;
+            if (code === 'N' && sel.includes('D')) return false;
+            return true;
+        },
+
+        togglePocketSym(code) {
+            const idx = this.pocketModal.selected.indexOf(code);
+            if (idx >= 0) {
+                this.pocketModal.selected.splice(idx, 1);
+            } else {
+                this.pocketModal.selected.push(code);
+            }
+        },
+
+        savePocketCell() {
+            const key = this.pocketModal.blade + '_' + this.pocketModal.pos;
+            const syms = this.pocketModal.selected.join('');
+            if (syms) {
+                this.pocketEvalData[key] = syms;
+            } else {
+                delete this.pocketEvalData[key];
+            }
+            this.pocketModal.open = false;
+            this.recalcPocketCount();
+        },
+
+        clearPocketCell() {
+            const key = this.pocketModal.blade + '_' + this.pocketModal.pos;
+            delete this.pocketEvalData[key];
+            this.pocketModal.selected = [];
+            this.pocketModal.open = false;
+            this.recalcPocketCount();
+        },
+
+        recalcPocketCount() {
+            this.pocketEvalCount = Object.keys(this.pocketEvalData).length;
+        },
+
+        // ════════════ CUTTER EVALUATION ════════════
+        buildMatrix() {
+            const POS_ORDER = ['CONE','NOSE','SHOULDER','GAUGE','PAD'];
+            const POS_ABBR = {CONE:'CON', NOSE:'NOS', SHOULDER:'SHO', GAUGE:'GAU', PAD:'PAD'};
+
+            const maxPerPos = {};
+            POS_ORDER.forEach(p => maxPerPos[p] = 0);
+            for (const blade of this.blades) {
+                for (const row of blade.rows) {
+                    for (const pos of row.positions) {
+                        const pn = pos.pos_name.toUpperCase();
+                        if (maxPerPos.hasOwnProperty(pn))
+                            maxPerPos[pn] = Math.max(maxPerPos[pn], pos.cutters.length);
+                    }
+                }
+            }
+
+            this.matrixCols = [];
+            for (const p of POS_ORDER) {
+                for (let i = 0; i < maxPerPos[p]; i++) {
+                    this.matrixCols.push({
+                        key: p + '_' + i, pos: p, idx: i,
+                        label: (POS_ABBR[p] || p.substring(0,3)) + (maxPerPos[p] > 1 ? (i+1) : ''),
+                        fullName: p + (maxPerPos[p] > 1 ? ' #' + (i+1) : '')
+                    });
+                }
+            }
+
+            this.matrixRows = [];
+            for (const blade of this.blades) {
+                for (let ri = 0; ri < blade.rows.length; ri++) {
+                    const row = blade.rows[ri];
+                    const posMap = {};
+                    for (const pos of row.positions) posMap[pos.pos_name.toUpperCase()] = pos.cutters;
+                    const cells = this.matrixCols.map(col => {
+                        const cutters = posMap[col.pos];
+                        if (cutters && col.idx < cutters.length)
+                            return { has: true, b: blade.name, r: row.row_key, p: col.pos, i: col.idx };
+                        return { has: false };
+                    });
+                    this.matrixRows.push({ blade: blade.name, row: row.row_key, isFirstRow: ri === 0, cells });
+                }
+            }
+        },
+
+        getCutterAction(blade, row, pos, idx) {
+            return this.cutterEvalData?.[blade]?.[row]?.[pos]?.[String(idx)]?.action || '';
+        },
+
+        setCutterAction(blade, row, pos, idx, action) {
+            if (!this.cutterEvalData[blade]) this.cutterEvalData[blade] = {};
+            if (!this.cutterEvalData[blade][row]) this.cutterEvalData[blade][row] = {};
+            if (!this.cutterEvalData[blade][row][pos]) this.cutterEvalData[blade][row][pos] = {};
+            if (!this.cutterEvalData[blade][row][pos][String(idx)])
+                this.cutterEvalData[blade][row][pos][String(idx)] = {action: '', remarks: ''};
+            this.cutterEvalData[blade][row][pos][String(idx)].action = action || '';
+            this.recalcCutterCounts();
+        },
+
+        onCutterInput(event, blade, row, pos, idx) {
+            const input = event.target;
+            let val = input.value.toUpperCase().trim();
+            if (val && !this.cutterActions.includes(val)) val = '';
+            input.value = val;
+            input.setAttribute('data-val', val);
+            this.setCutterAction(blade, row, pos, idx, val);
+            if (val) {
+                const allCells = [...document.querySelectorAll('.eval-cell')];
+                const ci = allCells.indexOf(input);
+                if (ci >= 0 && ci < allCells.length - 1) {
+                    allCells[ci + 1].focus();
+                    allCells[ci + 1].select();
+                }
+            }
+        },
+
+        onCutterKeydown(event, blade, row, pos, idx) {
+            const allCells = [...document.querySelectorAll('.eval-cell')];
+            const ci = allCells.indexOf(event.target);
+            if (ci < 0) return;
+            const numCols = this.matrixCols.length;
+            if (event.key === 'ArrowRight' || event.key === 'Tab') {
+                event.preventDefault();
+                if (ci < allCells.length - 1) { allCells[ci+1].focus(); allCells[ci+1].select(); }
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                if (ci > 0) { allCells[ci-1].focus(); allCells[ci-1].select(); }
+            } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
+                event.preventDefault();
+                if (ci + numCols < allCells.length) { allCells[ci+numCols].focus(); allCells[ci+numCols].select(); }
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (ci - numCols >= 0) { allCells[ci-numCols].focus(); allCells[ci-numCols].select(); }
+            } else if (event.key === 'Delete' || event.key === 'Backspace') {
+                event.preventDefault();
+                event.target.value = '';
+                event.target.setAttribute('data-val', '');
+                this.setCutterAction(blade, row, pos, idx, '');
+            }
+        },
+
+        recalcCutterCounts() {
+            const c = {};
+            this.cutterActions.forEach(a => c[a] = 0);
+            let total = 0, evaluated = 0;
+            for (const blade of this.blades) {
+                for (const row of blade.rows) {
+                    for (const pos of row.positions) {
+                        for (let i = 0; i < pos.cutters.length; i++) {
+                            total++;
+                            const action = this.getCutterAction(blade.name, row.row_key, pos.pos_name.toUpperCase(), i);
+                            if (action && c.hasOwnProperty(action)) { c[action]++; evaluated++; }
+                        }
+                    }
+                }
+            }
+            this.cutterCounts = c;
+            this.cutterTotal = total;
+            this.cutterEvalCount = evaluated;
+        },
+    };
+}
+
+document.addEventListener('alpine:initialized', () => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+if (typeof lucide !== 'undefined') lucide.createIcons();
+</script>
+{% endblock extra_js %}
+
+{% block extra_css %}
+<style>
+    /* ── Pocket grid cells ── */
+    .pocket-grid-cell {
+        width: 40px; min-width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700; text-align: center;
+        border: 1.5px solid #d1d5db; border-radius: 4px;
+        cursor: pointer; user-select: none; transition: all 0.15s;
+        background: white;
+    }
+    .dark .pocket-grid-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
+    .pocket-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .pocket-grid-cell-empty {
+        background: #f9fafb !important; border-style: dashed !important;
+        cursor: default; color: transparent;
+    }
+    .dark .pocket-grid-cell-empty { background: #1f2937 !important; }
+    .pocket-grid-cell-marked {
+        font-weight: 900 !important; font-size: 9px !important;
+        color: #7c3aed !important; border-color: #7c3aed !important;
+        background: #ede9fe !important;
+    }
+    .dark .pocket-grid-cell-marked { color: #c4b5fd !important; border-color: #8b5cf6 !important; background: #4c1d95 !important; }
+
+    /* ── Pocket symbol mini (legend) ── */
+    .pocket-sym-mini {
+        display: inline-block; width: 18px; height: 18px;
+        font-size: 10px; font-weight: 700; text-align: center; line-height: 18px;
+        border: 1px solid #8b5cf6; border-radius: 3px;
+        background: #ede9fe; color: #7c3aed;
+    }
+    .dark .pocket-sym-mini { background: #4c1d95; color: #c4b5fd; border-color: #8b5cf6; }
+
+    /* ── Matrix grid labels ── */
+    .blade-label {
+        width: 24px; min-width: 24px; text-align: center;
+        font-size: 10px; line-height: 28px; user-select: none;
+    }
+    .pos-header {
+        width: 28px; min-width: 28px; height: 22px;
+        font-size: 8px; font-weight: 600; text-align: center; line-height: 22px;
+        color: #6b7280; user-select: none; overflow: hidden;
+    }
+    .dark .pos-header { color: #9ca3af; }
+    .eval-cell-empty {
+        width: 28px; min-width: 28px; height: 28px;
+        background: #f9fafb; border: 1px solid #e5e7eb;
+    }
+    .dark .eval-cell-empty { background: #1f2937; border-color: #374151; }
+
+    /* ── Eval grid cells ── */
+    .eval-cell {
+        width: 28px; min-width: 28px; height: 28px;
+        font-size: 12px; font-weight: 700; text-align: center; text-transform: uppercase;
+        border: 1px solid #d1d5db; background: white; padding: 0; outline: none;
+        transition: background 0.1s; cursor: pointer;
+    }
+    .dark .eval-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
+    .eval-cell:focus { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; z-index: 1; position: relative; }
+    .eval-cell[data-val="O"] { background: #dcfce7; color: #166534; }
+    .eval-cell[data-val="X"] { background: #fee2e2; color: #991b1b; }
+    .eval-cell[data-val="R"] { background: #fef3c7; color: #92400e; }
+    .eval-cell[data-val="S"] { background: #dbeafe; color: #1e40af; }
+    .eval-cell[data-val="L"] { background: #f3f4f6; color: #6b7280; }
+    .dark .eval-cell[data-val="O"] { background: #166534; color: #dcfce7; }
+    .dark .eval-cell[data-val="X"] { background: #991b1b; color: #fee2e2; }
+    .dark .eval-cell[data-val="R"] { background: #92400e; color: #fef3c7; }
+    .dark .eval-cell[data-val="S"] { background: #1e40af; color: #dbeafe; }
+    .dark .eval-cell[data-val="L"] { background: #4b5563; color: #9ca3af; }
+
+    .eval-cell-mini {
+        display: inline-block; width: 18px; height: 18px;
+        font-size: 10px; font-weight: 700; text-align: center; line-height: 18px;
+        border: 1px solid #d1d5db;
+    }
+    .eval-cell-mini[data-val="O"] { background: #dcfce7; color: #166534; }
+    .eval-cell-mini[data-val="X"] { background: #fee2e2; color: #991b1b; }
+    .eval-cell-mini[data-val="R"] { background: #fef3c7; color: #92400e; }
+    .eval-cell-mini[data-val="S"] { background: #dbeafe; color: #1e40af; }
+    .eval-cell-mini[data-val="L"] { background: #f3f4f6; color: #6b7280; }
+
+    /* ── Print-only elements: hidden on screen ── */
+    .print-header, .print-checklist, .print-measurements-table,
+    .print-decision, .print-signatures, .print-only-block {
+        display: none;
+    }
+
+    /* ── Print styles ── */
+    @media print {
+        .no-print, nav, .sidebar, header, footer,
+        button[type="submit"], form > .flex.items-center { display: none !important; }
+        .print-header, .print-checklist, .print-measurements-table,
+        .print-decision, .print-signatures, .print-only-block { display: block !important; }
+        body { background: white !important; font-size: 10pt; }
+        @page { margin: 0.5in; }
+        .print-section {
+            background: white !important; border: none !important;
+            box-shadow: none !important; padding: 4px 0 !important;
+            margin-bottom: 4px !important; page-break-inside: avoid;
+        }
+        /* Show all sections during print */
+        [x-show] { display: block !important; }
+        /* Collapsible toggle buttons: show as static headers */
+        .print-section > button[type="button"] {
+            display: block !important; pointer-events: none;
+            padding: 4px 0 !important; border-bottom: 1px solid #ddd;
+        }
+        .print-section > button[type="button"] i[data-lucide="chevron-down"] { display: none !important; }
+        /* Grid print colors */
+        .eval-cell, .pocket-grid-cell, .eval-cell-mini, .pocket-sym-mini {
+            print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        }
+    }
+
+    /* x-cloak hide */
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock extra_css %}

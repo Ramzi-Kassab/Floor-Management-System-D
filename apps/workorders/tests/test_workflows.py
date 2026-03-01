@@ -288,52 +288,8 @@ class TestRepairEvaluationWorkflow:
         assert 'scrap' in evaluation.approval_notes.lower()
 
 
-# =============================================================================
-# PROCESS ROUTE EXECUTION WORKFLOW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestProcessRouteExecutionWorkflow:
-    """Tests for process route execution on work orders."""
-
-    def test_route_operation_execution_workflow(self, work_order, process_route, process_route_operation, operator_user, qc_user):
-        """Test executing operations from a process route."""
-        from apps.workorders.models import OperationExecution
-
-        # Create operation execution from route
-        exec = OperationExecution.objects.create(
-            work_order=work_order,
-            route_operation=process_route_operation,
-            sequence=process_route_operation.sequence,
-            status=OperationExecution.Status.PENDING
-        )
-        assert exec.status == OperationExecution.Status.PENDING
-
-        # Start operation
-        exec.status = OperationExecution.Status.IN_PROGRESS
-        exec.operator = operator_user
-        exec.start_time = timezone.now()
-        exec.save()
-        assert exec.status == OperationExecution.Status.IN_PROGRESS
-
-        # Complete operation
-        exec.status = OperationExecution.Status.COMPLETED
-        exec.end_time = timezone.now()
-        exec.actual_hours = Decimal('1.5')
-        exec.labor_cost = exec.actual_hours * process_route_operation.labor_rate
-        exec.save()
-
-        assert exec.status == OperationExecution.Status.COMPLETED
-        assert exec.actual_hours == Decimal('1.5')
-
-        # QC if required
-        if process_route_operation.requires_qc:
-            exec.qc_performed = True
-            exec.qc_passed = True
-            exec.qc_by = qc_user
-            exec.qc_notes = 'Passed all checks'
-            exec.save()
-            assert exec.qc_passed is True
+# NOTE: TestProcessRouteExecutionWorkflow (OperationExecution) REMOVED (Feb 2026)
+# — OperationExecution model was dead code, never written to in production.
 
 
 # =============================================================================
@@ -457,119 +413,8 @@ class TestCostTrackingWorkflow:
         assert cost.labor_cost > 0
 
 
-# =============================================================================
-# STATUS TRANSITION AUDIT WORKFLOW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestStatusAuditWorkflow:
-    """Tests for status transition audit trail."""
-
-    def test_status_transition_audit_trail(self, work_order, base_user):
-        """Test status transitions are logged."""
-        from apps.workorders.models import StatusTransitionLog, WorkOrder
-
-        content_type = ContentType.objects.get_for_model(WorkOrder)
-
-        # Log initial status
-        StatusTransitionLog.objects.create(
-            content_type=content_type,
-            object_id=work_order.pk,
-            from_status='',
-            to_status='DRAFT',
-            changed_by=base_user,
-            reason='Work order created'
-        )
-
-        # Release
-        work_order.status = WorkOrder.Status.RELEASED
-        work_order.save()
-        StatusTransitionLog.objects.create(
-            content_type=content_type,
-            object_id=work_order.pk,
-            from_status='DRAFT',
-            to_status='RELEASED',
-            changed_by=base_user,
-            reason='Ready for production'
-        )
-
-        # Verify audit trail
-        logs = StatusTransitionLog.objects.filter(
-            content_type=content_type,
-            object_id=work_order.pk
-        ).order_by('changed_at')
-
-        assert logs.count() == 2
-        assert logs[0].to_status == 'DRAFT'
-        assert logs[1].to_status == 'RELEASED'
-        assert logs[1].from_status == 'DRAFT'
-
-
-# =============================================================================
-# BIT REPAIR HISTORY WORKFLOW TESTS
-# =============================================================================
-
-@pytest.mark.django_db
-class TestBitRepairHistoryWorkflow:
-    """Tests for bit repair history tracking."""
-
-    def test_repair_history_accumulation(self, drill_bit, base_user):
-        """Test repair history accumulates over multiple repairs."""
-        from apps.workorders.models import BitRepairHistory, WorkOrder
-
-        # First repair
-        wo1 = WorkOrder.objects.create(
-            wo_number='WO-HIST-001',
-            wo_type=WorkOrder.WOType.FC_REPAIR,
-            drill_bit=drill_bit,
-            created_by=base_user
-        )
-        history1 = BitRepairHistory.objects.create(
-            drill_bit=drill_bit,
-            work_order=wo1,
-            repair_number=1,
-            repair_date=date.today() - timedelta(days=90),
-            repair_type=BitRepairHistory.RepairType.REDRESS,
-            labor_cost=Decimal('400.00'),
-            material_cost=Decimal('800.00'),
-            created_by=base_user
-        )
-
-        # Second repair
-        wo2 = WorkOrder.objects.create(
-            wo_number='WO-HIST-002',
-            wo_type=WorkOrder.WOType.FC_REPAIR,
-            drill_bit=drill_bit,
-            created_by=base_user
-        )
-        history2 = BitRepairHistory.objects.create(
-            drill_bit=drill_bit,
-            work_order=wo2,
-            repair_number=2,
-            repair_date=date.today(),
-            repair_type=BitRepairHistory.RepairType.MAJOR_REPAIR,
-            labor_cost=Decimal('800.00'),
-            material_cost=Decimal('1500.00'),
-            created_by=base_user
-        )
-
-        # Update drill bit repair tracking
-        drill_bit.total_repairs = 2
-        drill_bit.last_repair_date = date.today()
-        drill_bit.last_repair_type = 'MAJOR_REPAIR'
-        drill_bit.total_repair_cost = (
-            history1.total_cost + history2.total_cost
-        )
-        drill_bit.save()
-
-        assert drill_bit.total_repairs == 2
-        assert drill_bit.total_repair_cost == Decimal('3500.00')
-
-        # Verify history records
-        history = BitRepairHistory.objects.filter(drill_bit=drill_bit).order_by('repair_number')
-        assert history.count() == 2
-        assert history[0].repair_number == 1
-        assert history[1].repair_number == 2
+# NOTE: TestStatusAuditWorkflow (StatusTransitionLog) REMOVED (Feb 2026) — model was dead code.
+# NOTE: TestBitRepairHistoryWorkflow REMOVED (Feb 2026) — model was dead code.
 
 
 # =============================================================================

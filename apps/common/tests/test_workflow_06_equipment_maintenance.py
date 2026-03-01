@@ -119,7 +119,7 @@ def inventory_location(db, inventory_warehouse):
 @pytest.fixture
 def spare_part(db, maintenance_manager):
     """Create a spare part for maintenance."""
-    from apps.inventory.models import InventoryItem, InventoryCategory, InventoryStock
+    from apps.inventory.models import InventoryItem, InventoryCategory
 
     category, _ = InventoryCategory.objects.get_or_create(
         code='SPARE',
@@ -178,7 +178,7 @@ class TestEquipmentMaintenanceWorkflow:
         10. Schedule next maintenance
         """
         from apps.maintenance.models import Equipment, MaintenanceRequest, MaintenanceWorkOrder, MaintenancePartsUsed
-        from apps.inventory.models import InventoryStock, InventoryTransaction
+        from apps.inventory.models import StockBalance, StockLedger
         from apps.documents.models import Document, DocumentCategory
         from apps.notifications.models import Notification
 
@@ -275,21 +275,21 @@ class TestEquipmentMaintenanceWorkflow:
         # ---------------------------------------------------------------------
         print("\n[Step 5] Issuing spare parts from inventory...")
 
-        # Create stock for spare part
-        stock = InventoryStock.objects.create(
+        # Create stock balance for spare part
+        balance = StockBalance.objects.create(
             item=spare_part,
             location=inventory_location,
-            quantity_on_hand=Decimal('50.000'),
-            quantity_reserved=Decimal('0.000'),
-            quantity_available=Decimal('50.000')
+            qty_on_hand=Decimal('50.000'),
+            qty_reserved=Decimal('0.000'),
+            qty_available=Decimal('50.000')
         )
 
         parts_needed = Decimal('2.000')  # Need 2 filters
 
-        # Reserve parts for work order (convert to Decimal for arithmetic)
-        stock.quantity_reserved = Decimal(str(stock.quantity_reserved)) + parts_needed
-        stock.quantity_available = Decimal(str(stock.quantity_available)) - parts_needed
-        stock.save()
+        # Reserve parts for work order
+        balance.qty_reserved = Decimal(str(balance.qty_reserved)) + parts_needed
+        balance.qty_available = Decimal(str(balance.qty_available)) - parts_needed
+        balance.save()
 
         # Record parts used (mwo = MaintenanceWorkOrder, inventory_item, quantity)
         parts_used = MaintenancePartsUsed.objects.create(
@@ -304,27 +304,22 @@ class TestEquipmentMaintenanceWorkflow:
         print(f"  Quantity issued: {parts_needed}")
         print(f"  Cost: ${parts_used.total_cost}")
 
-        # Issue from inventory
-        issue_txn = InventoryTransaction.objects.create(
-            transaction_number='TXN-MWO-001',
-            transaction_type=InventoryTransaction.TransactionType.ISSUE,
-            transaction_date=timezone.now(),
+        # Issue from inventory via StockLedger
+        issue_entry = StockLedger.objects.create(
             item=spare_part,
-            from_location=inventory_location,
-            quantity=parts_needed,
-            unit=spare_part.unit,
-            unit_cost=spare_part.standard_cost,
-            total_cost=parts_used.total_cost,
-            link_type=InventoryTransaction.LinkType.WORK_ORDER,
-            reference_number=work_order.mwo_number,
+            transaction_type=StockLedger.TransactionType.ISSUE,
+            qty_delta=-parts_needed,
+            location=inventory_location,
+            reference_type='MWO',
+            reference_id=f'MWO-{work_order.pk}',
             notes=f'Parts for {work_order.mwo_number}',
             created_by=maintenance_manager
         )
 
-        # Update stock after issue (convert to Decimal for arithmetic)
-        stock.quantity_on_hand = Decimal(str(stock.quantity_on_hand)) - parts_needed
-        stock.quantity_reserved = Decimal(str(stock.quantity_reserved)) - parts_needed
-        stock.save()
+        # Update stock balance after issue
+        balance.qty_on_hand = Decimal(str(balance.qty_on_hand)) - parts_needed
+        balance.qty_reserved = Decimal(str(balance.qty_reserved)) - parts_needed
+        balance.save()
 
         print(f"  Inventory updated")
 
@@ -565,7 +560,7 @@ class TestMaintenanceWorkflowSummary:
     def test_workflow_models_exist(self, db):
         """Verify all workflow models are accessible."""
         from apps.maintenance.models import Equipment, MaintenanceRequest, MaintenanceWorkOrder
-        from apps.inventory.models import InventoryItem, InventoryStock
+        from apps.inventory.models import InventoryItem
         from apps.documents.models import Document
 
         assert Equipment._meta.model_name == 'equipment'

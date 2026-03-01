@@ -9,7 +9,6 @@ from django.utils import timezone
 
 from apps.inventory.models import (
     InventoryCategory, InventoryLocation, InventoryItem,
-    InventoryStock, InventoryTransaction
 )
 
 User = get_user_model()
@@ -98,38 +97,8 @@ def inventory_item(db, test_user, inventory_category):
     )
 
 
-@pytest.fixture
-def inventory_stock(db, inventory_item, inventory_location):
-    """Create a test inventory stock record."""
-    return InventoryStock.objects.create(
-        item=inventory_item,
-        location=inventory_location,
-        quantity_on_hand=Decimal('50.000'),
-        quantity_reserved=Decimal('5.000'),
-        lot_number='LOT-2024-001',
-        expiry_date=date.today().replace(year=date.today().year + 1)
-    )
-
-
-@pytest.fixture
-def inventory_transaction(db, test_user, inventory_item, inventory_location):
-    """Create a test inventory transaction."""
-    return InventoryTransaction.objects.create(
-        transaction_number='TXN-001',
-        transaction_type=InventoryTransaction.TransactionType.RECEIPT,
-        transaction_date=timezone.now(),
-        item=inventory_item,
-        from_location=None,
-        to_location=inventory_location,
-        quantity=Decimal('50.000'),
-        unit='EA',
-        unit_cost=Decimal('24.50'),
-        total_cost=Decimal('1225.00'),
-        link_type=InventoryTransaction.LinkType.PURCHASE_ORDER,
-        reference_number='PO-001',
-        notes='Initial stock receipt',
-        created_by=test_user
-    )
+# NOTE: inventory_stock and inventory_transaction fixtures REMOVED (Feb 2026).
+# InventoryStock replaced by StockBalance; InventoryTransaction replaced by StockLedger.
 
 
 # Fixtures for base class tests

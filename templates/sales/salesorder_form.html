@@ -16,9 +16,9 @@
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Order Details</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.order_number.label }}</label>
-                    {{ form.order_number }}
-                    {% if form.order_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.order_number.errors.0 }}</p>{% endif %}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.so_number.label }}</label>
+                    {{ form.so_number }}
+                    {% if form.so_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.so_number.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.customer.label }}</label>
@@ -26,53 +26,55 @@
                     {% if form.customer.errors %}<p class="mt-1 text-sm text-red-600">{{ form.customer.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.customer_po.label }}</label>
+                    {{ form.customer_po }}
+                    {% if form.customer_po.errors %}<p class="mt-1 text-sm text-red-600">{{ form.customer_po.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.order_date.label }}</label>
                     {{ form.order_date }}
                     {% if form.order_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.order_date.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.expected_delivery_date.label }}</label>
-                    {{ form.expected_delivery_date }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.required_date.label }}</label>
+                    {{ form.required_date }}
+                    {% if form.required_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.required_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.promised_date.label }}</label>
+                    {{ form.promised_date }}
+                    {% if form.promised_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.promised_date.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>
                     {{ form.status }}
+                    {% if form.status.errors %}<p class="mt-1 text-sm text-red-600">{{ form.status.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.priority.label }}</label>
-                    {{ form.priority }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.currency.label }}</label>
+                    {{ form.currency }}
+                    {% if form.currency.errors %}<p class="mt-1 text-sm text-red-600">{{ form.currency.errors.0 }}</p>{% endif %}
                 </div>
             </div>
         </div>
 
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment & Shipping</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Destination</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.payment_terms.label }}</label>
-                    {{ form.payment_terms }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.rig.label }}</label>
+                    {{ form.rig }}
+                    {% if form.rig.errors %}<p class="mt-1 text-sm text-red-600">{{ form.rig.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.credit_limit.label }}</label>
-                    {{ form.credit_limit }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.well.label }}</label>
+                    {{ form.well }}
+                    {% if form.well.errors %}<p class="mt-1 text-sm text-red-600">{{ form.well.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.contact_person.label }}</label>
-                    {{ form.contact_person }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.sales_rep.label }}</label>
-                    {{ form.sales_rep }}
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.shipping_address.label }}</label>
-                    {{ form.shipping_address }}
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.billing_address.label }}</label>
-                    {{ form.billing_address }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.delivery_warehouse.label }}</label>
+                    {{ form.delivery_warehouse }}
+                    {% if form.delivery_warehouse.errors %}<p class="mt-1 text-sm text-red-600">{{ form.delivery_warehouse.errors.0 }}</p>{% endif %}
                 </div>
             </div>
         </div>
@@ -81,12 +83,14 @@
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.special_instructions.label }}</label>
-                    {{ form.special_instructions }}
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}<p class="mt-1 text-sm text-red-600">{{ form.notes.errors.0 }}</p>{% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.internal_notes.label }}</label>
                     {{ form.internal_notes }}
+                    {% if form.internal_notes.errors %}<p class="mt-1 text-sm text-red-600">{{ form.internal_notes.errors.0 }}</p>{% endif %}
                 </div>
             </div>
         </div>
