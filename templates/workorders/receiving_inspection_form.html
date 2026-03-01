@@ -400,7 +400,7 @@
              @keydown.escape.window="pocketModal.open = false">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-72">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
-                    x-text="'B' + pocketModal.blade + ' / Pos ' + pocketModal.pos"></h3>
+                    x-text="'B' + pocketModal.blade + 'P' + (pocketNumberMap[pocketModal.blade + '_' + pocketModal.pos] || pocketModal.pos)"></h3>
                 <div class="flex flex-wrap gap-2 mb-3">
                     <template x-for="sym in pocketSymbols" :key="sym.code">
                         <button type="button"
@@ -483,89 +483,94 @@
 
         <!-- Legend -->
         <div class="flex flex-wrap gap-2 items-center text-xs mb-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded">
-            <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Actions:</span>
-            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="O">O</span> OK</span>
-            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="X">X</span> Replace</span>
-            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="R">R</span> Rotate</span>
-            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="S">S</span> Spin</span>
-            <span class="inline-flex items-center gap-0.5"><span class="eval-cell-mini" data-val="L">L</span> Lost</span>
+            <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Symbols:</span>
+            <template x-for="sym in cutterSymbols" :key="sym.code">
+                <span class="inline-flex items-center gap-0.5">
+                    <span class="cutter-sym-mini" x-text="sym.code"></span>
+                    <span x-text="sym.label"></span>
+                </span>
+            </template>
             <span class="ml-auto font-semibold text-gray-600 dark:text-gray-300">
                 <span x-text="cutterEvalCount + '/' + cutterTotal" class="text-blue-600 dark:text-blue-400"></span>
-                <template x-for="a in cutterActions" :key="a">
-                    <span x-show="cutterCounts[a] > 0" class="ml-1 text-gray-400" x-text="a + ':' + cutterCounts[a]"></span>
+                <template x-for="sym in cutterSymbols" :key="'c'+sym.code">
+                    <span x-show="cutterCounts[sym.code] > 0" class="ml-1 text-gray-400" x-text="sym.code + ':' + cutterCounts[sym.code]"></span>
                 </template>
             </span>
         </div>
 
-        <!-- Cutter Grid (click-modal style — same pattern as pocket eval) -->
+        <!-- Cutter Grid (pocket-style flat layout — one row per blade) -->
         <div class="overflow-x-auto mb-3">
             <div class="inline-block">
-                <!-- Column headers -->
+                <!-- Column number headers -->
                 <div class="flex items-end mb-0.5">
                     <div class="cutter-blade-label">&nbsp;</div>
-                    <div class="cutter-blade-label">&nbsp;</div>
-                    <template x-for="col in matrixCols" :key="col.key">
+                    <template x-for="col in cutterMaxCol" :key="col">
                         <div class="flex">
-                            <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-500 dark:text-gray-400 select-none overflow-hidden"
-                                 :title="col.fullName" x-text="col.label"></div>
-                            <div class="w-1"></div>
+                            <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-400 dark:text-gray-500 select-none"
+                                 x-text="col"></div>
+                            <div class="w-3 flex items-center justify-center" x-show="col < cutterMaxCol">
+                                <div class="w-0.5 h-3 rounded"
+                                     :class="cutterRowSeparators.includes(col) ? 'bg-red-400' : 'bg-transparent'"></div>
+                            </div>
                         </div>
                     </template>
                 </div>
 
-                <!-- Grid rows -->
-                <template x-for="(gr, grIdx) in matrixRows" :key="gr.blade + gr.row">
-                    <div class="flex items-center mb-0.5"
-                         :class="gr.isFirstRow && grIdx > 0 ? 'border-t border-gray-300 dark:border-gray-600 pt-0.5' : ''">
-                        <div class="cutter-blade-label font-bold"
-                             :class="gr.isFirstRow ? 'text-indigo-600 dark:text-indigo-400' : 'text-transparent select-none'"
-                             x-text="gr.blade"></div>
-                        <div class="cutter-blade-label text-[9px] text-gray-400" x-text="gr.row"></div>
-                        <template x-for="(cell, cIdx) in gr.cells" :key="cIdx">
-                            <div class="flex">
-                                <template x-if="cell.has">
-                                    <div class="cutter-grid-cell"
-                                         :style="getCutterCellStyle(cell.b, cell.r, cell.p, cell.i)"
-                                         :class="getCutterCellClass(cell.b, cell.r, cell.p, cell.i)"
-                                         @click="onCutterCellClick(cell.b, cell.r, cell.p, cell.i, $event)"
-                                         :title="getCutterCellTitle(cell.b, cell.r, cell.p, cell.i)"
-                                         x-text="getCutterCellText(cell.b, cell.r, cell.p, cell.i)">
-                                    </div>
-                                </template>
-                                <template x-if="!cell.has">
-                                    <div class="cutter-grid-cell-empty"></div>
-                                </template>
-                                <div class="w-1"></div>
+                <!-- One row per blade -->
+                {% for bn in cutter_blade_names %}
+                <div class="flex items-center mb-0.5">
+                    <div class="cutter-blade-label font-bold text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
+                    <template x-for="col in cutterMaxCol" :key="col">
+                        <div class="flex">
+                            <template x-if="cutterGridData['{{ bn }}_' + col] !== undefined">
+                                <div class="cutter-grid-cell"
+                                     :style="getCutterCellStyle('{{ bn }}', col)"
+                                     :class="getCutterCellClass('{{ bn }}', col)"
+                                     @click="onCutterCellClick('{{ bn }}', col, $event)"
+                                     :title="getCutterCellTitle('{{ bn }}', col)"
+                                     x-text="getCutterCellText('{{ bn }}', col)">
+                                </div>
+                            </template>
+                            <template x-if="cutterGridData['{{ bn }}_' + col] === undefined">
+                                <div class="cutter-grid-cell-empty"></div>
+                            </template>
+                            <div class="w-3 flex items-center justify-center" x-show="col < cutterMaxCol">
+                                <div class="w-0.5 h-10 rounded"
+                                     :class="cutterRowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
                             </div>
-                        </template>
-                    </div>
-                </template>
+                        </div>
+                    </template>
+                </div>
+                {% endfor %}
             </div>
         </div>
 
-        <!-- Cutter action modal (positioned near clicked cell) -->
+        <!-- Cutter symbol modal (multi-select, positioned near clicked cell) -->
         <div x-show="cutterModal.open" x-cloak
              class="fixed z-50"
              :style="`top: ${cutterModal.top}px; left: ${cutterModal.left}px;`"
              @click.outside="cutterModal.open = false"
              @keydown.escape.window="cutterModal.open = false">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-64">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-80">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
-                    x-text="cutterModal.blade + ' / ' + cutterModal.row + ' / ' + cutterModal.pos + ' #' + (cutterModal.idx + 1)"></h3>
+                    x-text="'B' + cutterModal.blade + 'C' + (cutterNumberMap[cutterModal.blade + '_' + cutterModal.col] || cutterModal.col)"></h3>
                 <div class="flex flex-wrap gap-2 mb-3">
-                    <template x-for="act in cutterActions" :key="act">
+                    <template x-for="sym in cutterSymbols" :key="sym.code">
                         <button type="button"
-                                class="px-3 py-2 rounded text-sm font-bold border-2 transition min-w-[42px]"
-                                :class="cutterModal.action === act
-                                    ? 'ring-2 ring-offset-1 ring-blue-500 ' + getCutterBtnActiveClass(act)
-                                    : getCutterBtnClass(act)"
-                                @click="selectCutterAction(act)">
-                            <span x-text="act"></span>
+                                class="px-3 py-1.5 rounded text-sm font-bold border transition"
+                                :class="cutterModal.selected.includes(sym.code)
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200'"
+                                :disabled="!canToggleCutterSym(sym.code)"
+                                :title="sym.label"
+                                @click="toggleCutterSym(sym.code)"
+                                x-text="sym.code">
                         </button>
                     </template>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Action: <span class="font-mono font-bold text-sm" x-text="cutterModal.action || '—'"></span>
+                    Selected: <span class="font-mono font-bold" x-text="cutterModal.selected.join('') || '—'"></span>
+                    <span class="text-gray-400 ml-2">(O exclusive with X/L/M)</span>
                 </div>
                 <div class="flex gap-2 justify-end">
                     <button type="button" @click="clearCutterCell()" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Clear</button>
@@ -821,18 +826,32 @@ function inspectionPage() {
         ],
         pocketModal: { open: false, blade: 0, pos: 0, selected: [], top: 200, left: 200 },
 
-        // ── Cutter evaluation ──
+        // ── Pocket number map (for B2P6 labels) ──
+        pocketNumberMap: {},
+
+        // ── Cutter evaluation (pocket-style flat grid) ──
         blades: [],
         cutterEvalData: {},
-        cutterConfigMap: {},   // 'blade|row|pos|idx' -> config order
         cutterConfigColors: {},  // config order -> {color, type, group}
-        matrixCols: [],
-        matrixRows: [],
+        cutterGridData: {},      // 'blade_vcol' -> config order
+        cutterCellRef: {},       // 'blade_vcol' -> {b, r, p, i}
+        cutterNumberMap: {},     // 'blade_vcol' -> sequential cutter # per blade
+        cutterRowSeparators: [],
+        cutterMaxCol: 0,
         cutterCounts: {},
         cutterTotal: 0,
         cutterEvalCount: 0,
-        cutterActions: ['O','X','R','S','L'],
-        cutterModal: { open: false, blade: '', row: '', pos: '', idx: 0, action: '', top: 200, left: 200 },
+        cutterSymbols: [
+            {code: 'O', label: 'OK'},
+            {code: 'X', label: 'Replace'},
+            {code: 'R', label: 'Rotate'},
+            {code: 'S', label: 'Spin'},
+            {code: 'L', label: 'Lost'},
+            {code: 'C', label: 'Chipped'},
+            {code: 'H', label: 'Hairline'},
+            {code: 'M', label: 'Missing'},
+        ],
+        cutterModal: { open: false, blade: '', col: 0, selected: [], top: 200, left: 200 },
 
         init() {
             this.checklistRemarks = {{ checklist_remarks|safe }};
@@ -844,6 +863,7 @@ function inspectionPage() {
             this.pocketRowSeparators = {{ pocket_row_separators_json|safe }};
             this.pocketEvalData = {{ pocket_eval_data_json|safe }};
             this.pocketMaxPos = {{ pocket_max_pos }};
+            this.pocketNumberMap = {{ pocket_number_data_json|safe }};
             this.recalcPocketCount();
             {% endif %}
 
@@ -851,7 +871,11 @@ function inspectionPage() {
             this.blades = {{ blade_data_json|safe }};
             this.cutterEvalData = {{ eval_data_json|safe }};
             this.cutterConfigColors = {{ cutter_config_json|safe }};
-            this.buildMatrix();
+            this.cutterGridData = {{ cutter_grid_data_json|safe }};
+            this.cutterCellRef = {{ cutter_cell_ref_json|safe }};
+            this.cutterNumberMap = {{ cutter_number_data_json|safe }};
+            this.cutterRowSeparators = {{ cutter_row_separators_json|safe }};
+            this.cutterMaxCol = {{ cutter_max_col|default:"0" }};
             this.recalcCutterCounts();
             {% endif %}
         },
@@ -896,7 +920,8 @@ function inspectionPage() {
             if (!cfgId) return 'Empty';
             const cfg = this.pocketConfigData[cfgId];
             const syms = this.pocketEvalData[key] || '';
-            let title = 'B' + blade + ' Pos ' + col;
+            const pNum = this.pocketNumberMap[key] || col;
+            let title = 'B' + blade + 'P' + pNum;
             if (cfg) title += ' — ' + (cfg.name || 'Config #' + cfg.order);
             if (syms) title += ' [' + syms + ']';
             return title;
@@ -959,175 +984,106 @@ function inspectionPage() {
             this.pocketEvalCount = Object.keys(this.pocketEvalData).length;
         },
 
-        // ════════════ CUTTER EVALUATION (Click-Modal Style) ════════════
-        buildMatrix() {
-            const POS_ORDER = ['CONE','NOSE','SHOULDER','GAUGE','PAD'];
-            const POS_ABBR = {CONE:'CON', NOSE:'NOS', SHOULDER:'SHO', GAUGE:'GAU', PAD:'PAD'};
+        // ════════════ CUTTER EVALUATION (Pocket-Style Flat Grid) ════════════
 
-            // Build config map (blade|row|pos|idx -> config order)
-            const CUTTER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-                                   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-                                   '#14B8A6', '#F43F5E', '#A855F7', '#22D3EE'];
-            const seenTypes = {};
-            let typeIdx = 0;
-            for (const blade of this.blades) {
-                for (const row of blade.rows) {
-                    for (const pos of row.positions) {
-                        const pn = pos.pos_name.toUpperCase();
-                        for (let i = 0; i < pos.cutters.length; i++) {
-                            const c = pos.cutters[i];
-                            const typeKey = (c.type || '') + '|' + (c.group || '') + '|' + (c.chamfer || '');
-                            if (!seenTypes[typeKey]) {
-                                seenTypes[typeKey] = typeIdx + 1;
-                                typeIdx++;
-                            }
-                            const mapKey = blade.name + '|' + row.row_key + '|' + pn + '|' + i;
-                            this.cutterConfigMap[mapKey] = seenTypes[typeKey];
-                        }
-                    }
-                }
-            }
-
-            const maxPerPos = {};
-            POS_ORDER.forEach(p => maxPerPos[p] = 0);
-            for (const blade of this.blades) {
-                for (const row of blade.rows) {
-                    for (const pos of row.positions) {
-                        const pn = pos.pos_name.toUpperCase();
-                        if (maxPerPos.hasOwnProperty(pn))
-                            maxPerPos[pn] = Math.max(maxPerPos[pn], pos.cutters.length);
-                    }
-                }
-            }
-
-            this.matrixCols = [];
-            for (const p of POS_ORDER) {
-                for (let i = 0; i < maxPerPos[p]; i++) {
-                    this.matrixCols.push({
-                        key: p + '_' + i, pos: p, idx: i,
-                        label: (POS_ABBR[p] || p.substring(0,3)) + (maxPerPos[p] > 1 ? (i+1) : ''),
-                        fullName: p + (maxPerPos[p] > 1 ? ' #' + (i+1) : '')
-                    });
-                }
-            }
-
-            this.matrixRows = [];
-            for (const blade of this.blades) {
-                for (let ri = 0; ri < blade.rows.length; ri++) {
-                    const row = blade.rows[ri];
-                    const posMap = {};
-                    for (const pos of row.positions) posMap[pos.pos_name.toUpperCase()] = pos.cutters;
-                    const cells = this.matrixCols.map(col => {
-                        const cutters = posMap[col.pos];
-                        if (cutters && col.idx < cutters.length)
-                            return { has: true, b: blade.name, r: row.row_key, p: col.pos, i: col.idx };
-                        return { has: false };
-                    });
-                    this.matrixRows.push({ blade: blade.name, row: row.row_key, isFirstRow: ri === 0, cells });
-                }
-            }
-        },
-
-        // ── Cutter cell display helpers ──
-        getCutterCellStyle(blade, row, pos, idx) {
-            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
-            const cfgOrder = this.cutterConfigMap[mapKey];
+        // ── Cutter cell display helpers (use blade + vcol) ──
+        getCutterCellStyle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgOrder = this.cutterGridData[key];
             const cfg = this.cutterConfigColors[cfgOrder];
             if (!cfg) return '';
-            const action = this.getCutterAction(blade, row, pos, idx);
-            if (action) return '';  // action color takes over
             return 'background-color: ' + cfg.color + '20; border-color: ' + cfg.color + ';';
         },
 
-        getCutterCellClass(blade, row, pos, idx) {
-            const action = this.getCutterAction(blade, row, pos, idx);
-            if (action) return 'cutter-grid-cell-action cutter-action-' + action;
-            return '';
+        getCutterCellClass(blade, col) {
+            const key = blade + '_' + col;
+            const syms = this.getCutterSymbols(blade, col);
+            return syms ? 'cutter-grid-cell-marked' : '';
         },
 
-        getCutterCellText(blade, row, pos, idx) {
-            const action = this.getCutterAction(blade, row, pos, idx);
-            if (action) return action;
-            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
-            const cfgOrder = this.cutterConfigMap[mapKey];
+        getCutterCellText(blade, col) {
+            const key = blade + '_' + col;
+            const syms = this.getCutterSymbols(blade, col);
+            if (syms) return syms;
+            const cfgOrder = this.cutterGridData[key];
             return cfgOrder || '';
         },
 
-        getCutterCellTitle(blade, row, pos, idx) {
-            const action = this.getCutterAction(blade, row, pos, idx);
-            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
-            const cfgOrder = this.cutterConfigMap[mapKey];
+        getCutterCellTitle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgOrder = this.cutterGridData[key];
             const cfg = this.cutterConfigColors[cfgOrder];
-            let title = blade + ' / ' + row + ' / ' + pos + ' #' + (idx + 1);
+            const cNum = this.cutterNumberMap[key] || col;
+            const syms = this.getCutterSymbols(blade, col);
+            let title = 'B' + blade + 'C' + cNum;
             if (cfg) title += ' — ' + (cfg.type || 'Unknown') + (cfg.group ? ' Grp' + cfg.group : '');
-            if (action) title += ' [' + action + ']';
+            if (syms) title += ' [' + syms + ']';
             return title;
         },
 
-        onCutterCellClick(blade, row, pos, idx, $event) {
+        onCutterCellClick(blade, col, $event) {
+            const key = blade + '_' + col;
+            if (this.cutterGridData[key] === undefined) return;
+            const current = this.getCutterSymbols(blade, col);
             this.cutterModal.blade = blade;
-            this.cutterModal.row = row;
-            this.cutterModal.pos = pos;
-            this.cutterModal.idx = idx;
-            this.cutterModal.action = this.getCutterAction(blade, row, pos, idx);
+            this.cutterModal.col = col;
+            this.cutterModal.selected = current ? current.split('') : [];
             // Position modal near clicked cell
             const rect = $event.target.getBoundingClientRect();
-            this.cutterModal.top = Math.min(rect.bottom + 4, window.innerHeight - 240);
-            this.cutterModal.left = Math.min(rect.left, window.innerWidth - 280);
+            this.cutterModal.top = Math.min(rect.bottom + 4, window.innerHeight - 320);
+            this.cutterModal.left = Math.min(rect.left, window.innerWidth - 340);
             this.cutterModal.open = true;
         },
 
-        selectCutterAction(act) {
-            this.cutterModal.action = (this.cutterModal.action === act) ? '' : act;
+        canToggleCutterSym(code) {
+            const sel = this.cutterModal.selected;
+            if (sel.includes(code)) return true;
+            // O (OK) is exclusive with X, L, M (can't be OK and Replace/Lost/Missing)
+            if (code === 'O' && (sel.includes('X') || sel.includes('L') || sel.includes('M'))) return false;
+            if ((code === 'X' || code === 'L' || code === 'M') && sel.includes('O')) return false;
+            return true;
+        },
+
+        toggleCutterSym(code) {
+            const idx = this.cutterModal.selected.indexOf(code);
+            if (idx >= 0) {
+                this.cutterModal.selected.splice(idx, 1);
+            } else {
+                this.cutterModal.selected.push(code);
+            }
         },
 
         saveCutterCell() {
-            this.setCutterAction(this.cutterModal.blade, this.cutterModal.row,
-                                this.cutterModal.pos, this.cutterModal.idx, this.cutterModal.action);
+            const ref = this.cutterCellRef[this.cutterModal.blade + '_' + this.cutterModal.col];
+            if (!ref) { this.cutterModal.open = false; return; }
+            const syms = this.cutterModal.selected.join('');
+            this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, syms);
             this.cutterModal.open = false;
         },
 
         clearCutterCell() {
-            this.setCutterAction(this.cutterModal.blade, this.cutterModal.row,
-                                this.cutterModal.pos, this.cutterModal.idx, '');
-            this.cutterModal.action = '';
+            const ref = this.cutterCellRef[this.cutterModal.blade + '_' + this.cutterModal.col];
+            if (ref) this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, '');
+            this.cutterModal.selected = [];
             this.cutterModal.open = false;
         },
 
-        getCutterBtnClass(act) {
-            const map = {
-                O: 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100',
-                X: 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100',
-                R: 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100',
-                S: 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100',
-                L: 'bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100',
-            };
-            return map[act] || '';
+        // ── Read/write eval data using original blade/row/pos/idx keys ──
+        getCutterSymbols(blade, col) {
+            const key = blade + '_' + col;
+            const ref = this.cutterCellRef[key];
+            if (!ref) return '';
+            return this.cutterEvalData?.[ref.b]?.[ref.r]?.[ref.p]?.[String(ref.i)]?.action || '';
         },
 
-        getCutterBtnActiveClass(act) {
-            const map = {
-                O: 'bg-green-600 text-white border-green-600',
-                X: 'bg-red-600 text-white border-red-600',
-                R: 'bg-amber-500 text-white border-amber-500',
-                S: 'bg-blue-600 text-white border-blue-600',
-                L: 'bg-gray-600 text-white border-gray-600',
-            };
-            return map[act] || '';
-        },
-
-        getCutterAction(blade, row, pos, idx) {
-            return this.cutterEvalData?.[blade]?.[row]?.[pos]?.[String(idx)]?.action || '';
-        },
-
-        setCutterAction(blade, row, pos, idx, action) {
+        setCutterSymbols(blade, row, pos, idx, syms) {
             if (!this.cutterEvalData[blade]) this.cutterEvalData[blade] = {};
             if (!this.cutterEvalData[blade][row]) this.cutterEvalData[blade][row] = {};
             if (!this.cutterEvalData[blade][row][pos]) this.cutterEvalData[blade][row][pos] = {};
             if (!this.cutterEvalData[blade][row][pos][String(idx)])
                 this.cutterEvalData[blade][row][pos][String(idx)] = {action: '', remarks: ''};
-            this.cutterEvalData[blade][row][pos][String(idx)].action = action || '';
-            if (!action) {
+            this.cutterEvalData[blade][row][pos][String(idx)].action = syms || '';
+            if (!syms) {
                 delete this.cutterEvalData[blade][row][pos][String(idx)];
                 if (Object.keys(this.cutterEvalData[blade][row][pos]).length === 0)
                     delete this.cutterEvalData[blade][row][pos];
@@ -1141,16 +1097,18 @@ function inspectionPage() {
 
         recalcCutterCounts() {
             const c = {};
-            this.cutterActions.forEach(a => c[a] = 0);
+            this.cutterSymbols.forEach(s => c[s.code] = 0);
             let total = 0, evaluated = 0;
-            for (const blade of this.blades) {
-                for (const row of blade.rows) {
-                    for (const pos of row.positions) {
-                        for (let i = 0; i < pos.cutters.length; i++) {
-                            total++;
-                            const action = this.getCutterAction(blade.name, row.row_key, pos.pos_name.toUpperCase(), i);
-                            if (action && c.hasOwnProperty(action)) { c[action]++; evaluated++; }
-                        }
+            // Count from cutterGridData keys (all valid cutter cells)
+            for (const key of Object.keys(this.cutterGridData)) {
+                total++;
+                const ref = this.cutterCellRef[key];
+                if (!ref) continue;
+                const syms = this.cutterEvalData?.[ref.b]?.[ref.r]?.[ref.p]?.[String(ref.i)]?.action || '';
+                if (syms) {
+                    evaluated++;
+                    for (const ch of syms) {
+                        if (c.hasOwnProperty(ch)) c[ch]++;
                     }
                 }
             }
@@ -1221,29 +1179,22 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     }
     .dark .cutter-grid-cell-empty { background: #1f2937; border-color: #374151; }
 
-    /* ── Cutter action colors (on grid cells) ── */
-    .cutter-action-O { background: #dcfce7 !important; color: #166534 !important; border-color: #22c55e !important; }
-    .cutter-action-X { background: #fee2e2 !important; color: #991b1b !important; border-color: #ef4444 !important; }
-    .cutter-action-R { background: #fef3c7 !important; color: #92400e !important; border-color: #f59e0b !important; }
-    .cutter-action-S { background: #dbeafe !important; color: #1e40af !important; border-color: #3b82f6 !important; }
-    .cutter-action-L { background: #f3f4f6 !important; color: #6b7280 !important; border-color: #9ca3af !important; }
-    .dark .cutter-action-O { background: #166534 !important; color: #dcfce7 !important; }
-    .dark .cutter-action-X { background: #991b1b !important; color: #fee2e2 !important; }
-    .dark .cutter-action-R { background: #92400e !important; color: #fef3c7 !important; }
-    .dark .cutter-action-S { background: #1e40af !important; color: #dbeafe !important; }
-    .dark .cutter-action-L { background: #4b5563 !important; color: #9ca3af !important; }
+    /* ── Cutter grid cell marked (single blue theme for all symbols) ── */
+    .cutter-grid-cell-marked {
+        font-weight: 900 !important; font-size: 9px !important;
+        color: #1d4ed8 !important; border-color: #3b82f6 !important;
+        background: #dbeafe !important;
+    }
+    .dark .cutter-grid-cell-marked { color: #93c5fd !important; border-color: #3b82f6 !important; background: #1e3a5f !important; }
 
-    /* ── Eval legend mini ── */
-    .eval-cell-mini {
+    /* ── Cutter symbol mini (legend) ── */
+    .cutter-sym-mini {
         display: inline-block; width: 18px; height: 18px;
         font-size: 10px; font-weight: 700; text-align: center; line-height: 18px;
-        border: 1px solid #d1d5db; border-radius: 3px;
+        border: 1px solid #3b82f6; border-radius: 3px;
+        background: #dbeafe; color: #1d4ed8;
     }
-    .eval-cell-mini[data-val="O"] { background: #dcfce7; color: #166534; }
-    .eval-cell-mini[data-val="X"] { background: #fee2e2; color: #991b1b; }
-    .eval-cell-mini[data-val="R"] { background: #fef3c7; color: #92400e; }
-    .eval-cell-mini[data-val="S"] { background: #dbeafe; color: #1e40af; }
-    .eval-cell-mini[data-val="L"] { background: #f3f4f6; color: #6b7280; }
+    .dark .cutter-sym-mini { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
 
     /* ── Print-only elements: hidden on screen ── */
     .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block {
@@ -1268,8 +1219,8 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
             padding: 4px 0 !important; border-bottom: 1px solid #ddd;
         }
         .print-section > button[type="button"] i[data-lucide="chevron-down"] { display: none !important; }
-        .cutter-grid-cell, .pocket-grid-cell, .eval-cell-mini, .pocket-sym-mini,
-        .cutter-action-O, .cutter-action-X, .cutter-action-R, .cutter-action-S, .cutter-action-L {
+        .cutter-grid-cell, .pocket-grid-cell, .pocket-sym-mini, .cutter-sym-mini,
+        .cutter-grid-cell-marked, .pocket-grid-cell-marked {
             print-color-adjust: exact; -webkit-print-color-adjust: exact;
         }
     }

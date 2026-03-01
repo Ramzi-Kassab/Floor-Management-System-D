@@ -2572,20 +2572,21 @@ def api_get_evaluation_types(request):
 def _get_bom_blade_data(drill_bit):
     """
     Extract blade data from a drill bit's BOM source_data for the evaluation grid.
-    Returns (blade_data_list, bom_summary_list, cutter_config_list, has_data) tuple.
+    Returns (blade_data_list, bom_summary_list, cutter_config_list, has_data, cutter_grid_ctx) tuple.
     blade_data_list: [{name, rows: [{row_key, positions: [{pos_name, cutters: [{type, group, chamfer}]}]}]}]
     cutter_config_list: [{order, color, count, type, group, chamfer}]
+    cutter_grid_ctx: dict of JSON strings for pocket-style cutter grid
     """
     bom = drill_bit.brazing_bom or drill_bit.system_bom or getattr(drill_bit, 'bom', None)
     if not bom or not bom.source_data:
-        return [], [], [], False
+        return [], [], [], False, {}
 
     source_data = bom.source_data if isinstance(bom.source_data, dict) else {}
     raw_blades = source_data.get("blades", [])
     bom_summary = source_data.get("bom", [])
 
     if not raw_blades:
-        return [], bom_summary, [], False
+        return [], bom_summary, [], False, {}
 
     POSITIONS = ["CONE", "NOSE", "SHOULDER", "GAUGE", "PAD"]
     ROW_KEYS = ["r1", "r2", "r3", "r4"]
@@ -2634,7 +2635,82 @@ def _get_bom_blade_data(drill_bit):
                     seen_types[key]['count'] += 1
     cutter_config_list = sorted(seen_types.values(), key=lambda x: x['order'])
 
-    return blade_data, bom_summary, cutter_config_list, bool(blade_data)
+    # ── Build cutter grid context (pocket-style flat layout) ──
+    # Count cutters per row per blade
+    blade_row_counts = {}
+    for blade in blade_data:
+        for row in blade['rows']:
+            count = sum(len(pos['cutters']) for pos in row['positions'])
+            blade_row_counts[(blade['name'], row['row_key'])] = count
+
+    all_blade_names = [b['name'] for b in blade_data]
+    # Determine which rows exist across all blades
+    all_row_keys = [rk for rk in ROW_KEYS
+                    if any(blade_row_counts.get((bn, rk), 0) > 0 for bn in all_blade_names)]
+
+    # Max cutters per row across all blades (for vertical alignment)
+    row_max = {}
+    for rk in all_row_keys:
+        row_max[rk] = max(blade_row_counts.get((bn, rk), 0) for bn in all_blade_names)
+
+    # Row start offsets (virtual column where each row begins)
+    row_start = {}
+    col_offset = 1
+    for rk in all_row_keys:
+        row_start[rk] = col_offset
+        col_offset += row_max[rk]
+
+    # Row separators (cumulative end of each row except last)
+    row_separators = []
+    cumulative = 0
+    for rk in all_row_keys[:-1]:
+        cumulative += row_max[rk]
+        row_separators.append(cumulative)
+
+    max_col = col_offset - 1  # total virtual columns
+
+    # Build grid data: maps "blade_vcol" -> config_order / cell_ref / cutter_number
+    cutter_grid_data = {}
+    cutter_cell_ref = {}
+    cutter_number_data = {}
+
+    for blade in blade_data:
+        bn = blade['name']
+        cutter_seq = 0
+        for rk in all_row_keys:
+            row_obj = next((r for r in blade['rows'] if r['row_key'] == rk), None)
+            if not row_obj:
+                continue
+            pos_offset = 0
+            for pos in row_obj['positions']:
+                pn = pos['pos_name'].upper()
+                for i in range(len(pos['cutters'])):
+                    cutter_seq += 1
+                    vcol = row_start[rk] + pos_offset
+                    key = f"{bn}_{vcol}"
+
+                    c = pos['cutters'][i]
+                    ct = c.get('type', '')
+                    cg = c.get('group', '')
+                    cc = c.get('chamfer', '')
+                    type_key = f"{ct}|{cg}|{cc}"
+                    cfg = seen_types.get(type_key)
+
+                    cutter_grid_data[key] = cfg['order'] if cfg else 0
+                    cutter_cell_ref[key] = {'b': bn, 'r': rk, 'p': pn, 'i': i}
+                    cutter_number_data[key] = cutter_seq
+                    pos_offset += 1
+
+    cutter_grid_ctx = {
+        'cutter_grid_data_json': _json.dumps(cutter_grid_data),
+        'cutter_cell_ref_json': _json.dumps(cutter_cell_ref),
+        'cutter_number_data_json': _json.dumps(cutter_number_data),
+        'cutter_row_separators_json': _json.dumps(sorted(row_separators)),
+        'cutter_max_col': max_col,
+        'cutter_blade_names': all_blade_names,
+    }
+
+    return blade_data, bom_summary, cutter_config_list, bool(blade_data), cutter_grid_ctx
 
 
 def _get_pocket_grid_context(drill_bit):
@@ -2735,12 +2811,25 @@ def _get_pocket_grid_context(drill_bit):
     # Determine blade count
     blade_nums = sorted(set(p.blade_number for p in pockets))
 
+    # Sequential pocket numbers per blade (for B2P6 format labels)
+    pocket_number_data = {}
+    blade_counters = {}
+    for p in pocket_list:
+        bn = p.blade_number
+        if bn not in blade_counters:
+            blade_counters[bn] = 0
+        blade_counters[bn] += 1
+        vcol = row_start[p.row_number] + p.position_in_row - 1
+        key = f"{bn}_{vcol}"
+        pocket_number_data[key] = blade_counters[bn]
+
     return {
         'has_pocket_data': True,
         'pocket_grid_data_json': _json.dumps(grid_data),
         'pocket_row_separators_json': _json.dumps(sorted(row_separators)),
         'pocket_location_data_json': _json.dumps(location_data),
         'pocket_config_data_json': _json.dumps(config_data),
+        'pocket_number_data_json': _json.dumps(pocket_number_data),
         'pocket_config_list': config_list,
         'pocket_blade_nums': blade_nums,
         'pocket_max_pos': max_pos,
@@ -2784,7 +2873,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         context['checklist_remarks'] = {}
 
         # BOM blade data for cutter evaluation grid
-        blade_data, bom_summary, cutter_config_list, has_bom = _get_bom_blade_data(bit)
+        blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = _get_bom_blade_data(bit)
         context['has_bom_data'] = has_bom
         context['blade_data_json'] = _json.dumps(blade_data)
         context['bom_summary_json'] = _json.dumps(bom_summary)
@@ -2794,6 +2883,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
             cfg['order']: {'color': cfg['color'], 'type': cfg['type'], 'group': cfg['group']}
             for cfg in cutter_config_list
         })
+        context.update(cutter_grid_ctx)
 
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
@@ -2856,7 +2946,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         from apps.workorders.utils import generate_drill_bit_qr
         context['bit_qr_base64'] = generate_drill_bit_qr(bit)
         # BOM blade data for cutter evaluation grid
-        blade_data, bom_summary, cutter_config_list, has_bom = _get_bom_blade_data(bit)
+        blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = _get_bom_blade_data(bit)
         context['has_bom_data'] = has_bom
         context['blade_data_json'] = _json.dumps(blade_data)
         context['bom_summary_json'] = _json.dumps(bom_summary)
@@ -2866,6 +2956,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
             cfg['order']: {'color': cfg['color'], 'type': cfg['type'], 'group': cfg['group']}
             for cfg in cutter_config_list
         })
+        context.update(cutter_grid_ctx)
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
         context['pocket_eval_data_json'] = _json.dumps(self.object.pocket_evaluation_data or {})
