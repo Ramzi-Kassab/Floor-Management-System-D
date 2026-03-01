@@ -1635,6 +1635,14 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Sidebar Link Added**: "Inspections" link under Receiving section in `templates/includes/sidebar.html`.
 - **Key Files Modified**: `apps/workorders/models.py`, `apps/workorders/forms.py`, `apps/workorders/views_jobcard.py`, `apps/workorders/urls.py`, `templates/workorders/receiving_inspection_form.html`, `templates/workorders/receiving_inspection_list.html`, `templates/includes/sidebar.html`.
 
+### Recent Enhancements (Mar 2, 2026) — Receiving Inspection Grid & Symbol Fixes
+- **Cutter Grid Redesigned to Pocket-Style Flat Layout**: Replaced the old blade+row matrix (one row per blade/row combo with CON/NOS/SHO/GAU/PAD columns) with pocket-style flat layout: one row per blade (B1, B2, ...) with all cutters from all rows inline, separated by red vertical lines between row groups. Virtual column alignment matches the pocket grid exactly.
+- **Cutter Grid Computation Moved to Python**: `_get_bom_blade_data()` now returns 5-tuple (added `cutter_grid_ctx` dict). Computes `cutterGridData` (blade_vcol → config_order), `cutterCellRef` (blade_vcol → {b,r,p,i}), `cutterNumberMap` (blade_vcol → sequential cutter# per blade), `cutterRowSeparators`, `cutterMaxCol`, `cutterBladeNames`. Removed JS `buildMatrix()` function entirely.
+- **B2P6 / B2C6 Label Format**: Pocket modal title changed from "B1 / Pos 8" to "B2P6" (blade + sequential pocket number). Cutter modal title changed to "B2C6" format. Sequential numbering is per-blade across all rows. Added `pocket_number_data` mapping in `_get_pocket_grid_context()`.
+- **8 Cutter Symbols (was 5)**: Added C (Chipped), H (Hairline), M (Missing) to existing O/X/R/S/L. Cutter evaluation is now multi-select (toggle buttons like pocket evaluation) instead of single-select. Mutual exclusion: O is exclusive with X/L/M.
+- **Single Blue Color Theme for Cutter Symbols**: Removed per-action colors (green for O, red for X, amber for R, etc.). All marked cutter cells use blue theme (`.cutter-grid-cell-marked`) matching the pocket section's violet pattern. Legend uses `.cutter-sym-mini` with blue styling.
+- **Data Format Unchanged**: `cutterEvalData` still stored as `{blade: {row: {pos: {idx: {action: "OXRC", remarks: ""}}}}}` — the `action` field now stores concatenated multi-select symbols (e.g., "XC" for Replace+Chipped) instead of single letters.
+
 ---
 
 ## Need Help?
