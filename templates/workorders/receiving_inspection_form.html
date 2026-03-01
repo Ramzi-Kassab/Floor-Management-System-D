@@ -7,6 +7,7 @@
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
             QAS/005-1 &mdash; FC Bit Receiving Inspection
+            <span class="ml-2 font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{{ report_number }}</span>
         </p>
     </div>
     <div class="flex items-center gap-3">
@@ -41,7 +42,7 @@
         <div>
             <h1 style="font-size: 18pt; font-weight: bold; margin: 0;">ARDT</h1>
             <h2 style="font-size: 13pt; font-weight: bold; margin: 4px 0 0;">FC BIT RECEIVING INSPECTION</h2>
-            <p style="font-size: 9pt; color: #555; margin: 2px 0 0;">QAS/005-1</p>
+            <p style="font-size: 9pt; color: #555; margin: 2px 0 0;">QAS/005-1 &mdash; {{ report_number }}</p>
         </div>
         {% if bit_qr_base64 %}
         <div style="text-align: center;">
@@ -51,11 +52,13 @@
         {% endif %}
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 9pt; margin-bottom: 12px;">
+        <div><strong>Report No:</strong> {{ report_number }}</div>
         <div><strong>Serial:</strong> {{ drill_bit.serial_number }}</div>
         <div><strong>Type:</strong> {{ drill_bit.get_bit_type_display }}</div>
-        <div><strong>Design:</strong> {{ drill_bit.design.mat_number|default:"—" }}</div>
         <div><strong>Size:</strong> {{ drill_bit.design.size|default:"—" }}</div>
-        <div><strong>Date:</strong> {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
+        <div><strong>Material No:</strong> {{ drill_bit.design.mat_number|default:"—" }}</div>
+        <div><strong>Inspection Date:</strong> {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
+        <div><strong>Date of Receipt:</strong> {% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"M d, Y" }}{% else %}—{% endif %}</div>
         <div><strong>PO:</strong> {% if not is_new %}{{ object.po_number|default:"—" }}{% else %}—{% endif %}</div>
         <div><strong>Client:</strong> {% if not is_new %}{{ object.client_name|default:"—" }}{% else %}—{% endif %}</div>
         <div><strong>Status:</strong> {% if not is_new and object.is_complete %}COMPLETE{% else %}DRAFT{% endif %}</div>
@@ -93,7 +96,11 @@
     </button>
     <div x-show="s1" x-collapse class="px-5 pb-4">
         <!-- Read-only bit info -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Report No.</span>
+                <span class="font-semibold text-gray-900 dark:text-white font-mono">{{ report_number }}</span>
+            </div>
             <div>
                 <span class="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
                 <span class="font-semibold text-gray-900 dark:text-white">{{ drill_bit.serial_number }}</span>
@@ -103,19 +110,23 @@
                 <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.get_bit_type_display }}</span>
             </div>
             <div>
-                <span class="text-xs text-gray-500 dark:text-gray-400 block">Design</span>
-                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.mat_number|default:"—" }}</span>
-            </div>
-            <div>
                 <span class="text-xs text-gray-500 dark:text-gray-400 block">Size</span>
                 <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.size|default:"—" }}</span>
             </div>
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Material No.</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.mat_number|default:"—" }}</span>
+            </div>
         </div>
         <!-- Editable fields -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspection Date</label>
                 {{ form.inspection_date }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date of Receipt</label>
+                {{ form.date_of_receipt }}
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PO Number</label>
@@ -130,7 +141,7 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 2: VISUAL INSPECTION CHECKLIST (QAS/005-1)
+     SECTION 2: VISUAL INSPECTION CHECKLIST (QAS/005-1) + Attachments
      ══════════════════════════════════════════════════════════════════════ -->
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
     <button type="button" @click="s2 = !s2"
@@ -223,106 +234,81 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- ── Attachments Section ── -->
+        {% if not is_new %}
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 no-print">
+            <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+                <i data-lucide="paperclip" class="w-4 h-4"></i>
+                Attachments (Q-Note / Documents)
+            </h3>
+
+            <!-- Existing attachments list -->
+            <div id="attachmentsList" class="space-y-2 mb-3">
+                {% for att in attachments %}
+                <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900/50 rounded" data-att-id="{{ att.pk }}">
+                    <div class="flex items-center gap-2 text-sm">
+                        <i data-lucide="{% if att.is_image %}image{% else %}file-text{% endif %}" class="w-4 h-4 text-gray-400"></i>
+                        <span class="font-medium text-gray-700 dark:text-gray-300">{{ att.name }}</span>
+                        <span class="text-xs text-gray-400">({{ att.file.name|truncatechars:30 }})</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ att.file.url }}" target="_blank"
+                           class="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">Download</a>
+                        <button type="button"
+                                onclick="deleteAttachment({{ att.pk }})"
+                                class="text-xs text-red-500 hover:text-red-700">Delete</button>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-xs text-gray-400 italic" id="noAttachments">No attachments yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Upload form -->
+            <div class="flex items-end gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Document Name</label>
+                    <select id="attachmentName"
+                            class="w-full text-sm px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        <option value="Q-Note">Q-Note</option>
+                        <option value="Vendor Certificate">Vendor Certificate</option>
+                        <option value="Photo">Photo</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">File</label>
+                    <input type="file" id="attachmentFile"
+                           class="w-full text-sm text-gray-600 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-100 file:text-blue-700 dark:file:bg-blue-900 dark:file:text-blue-300">
+                </div>
+                <button type="button" onclick="uploadAttachment()"
+                        class="px-4 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 whitespace-nowrap">
+                    <i data-lucide="upload" class="w-3.5 h-3.5 inline mr-1"></i> Upload
+                </button>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 3: CUTTER CONDITION + MEASUREMENTS
+     SECTION 3: POCKET EVALUATION (Design pockets grid)
      ══════════════════════════════════════════════════════════════════════ -->
+{% if has_pocket_data %}
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
     <button type="button" @click="s3 = !s3"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-            <i data-lucide="ruler" class="w-5 h-5 text-teal-500"></i>
-            3. Cutter Condition & Measurements
-        </h2>
-        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s3 ? '' : '-rotate-90'"></i>
-    </button>
-    <div x-show="s3" x-collapse class="px-5 pb-4">
-        <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Cutter Counts</h3>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 no-print">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total Cutters</label>
-                {{ form.cutters_total }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Chipped</label>
-                {{ form.cutters_chipped }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Broken</label>
-                {{ form.cutters_broken }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Worn</label>
-                {{ form.cutters_worn }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Missing</label>
-                {{ form.cutters_missing }}
-            </div>
-        </div>
-        <div class="mb-4 p-2 bg-gray-50 dark:bg-gray-900/50 rounded text-sm text-gray-600 dark:text-gray-400 no-print" id="cutterSummary">
-            Good condition: <span id="cuttersGood" class="font-semibold text-green-600 dark:text-green-400">&mdash;</span>
-        </div>
-
-        <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Measurements</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">TFA (Total Flow Area)</label>
-                {{ form.tfa }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 1</label>
-                {{ form.gauge_reading_1 }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 2</label>
-                {{ form.gauge_reading_2 }}
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gauge Reading 3</label>
-                {{ form.gauge_reading_3 }}
-            </div>
-        </div>
-
-        <!-- Print version -->
-        <table class="print-measurements-table">
-            <tr>
-                <td><strong>Total:</strong> {{ form.cutters_total.value|default:"—" }}</td>
-                <td><strong>Chipped:</strong> {{ form.cutters_chipped.value|default:"0" }}</td>
-                <td><strong>Broken:</strong> {{ form.cutters_broken.value|default:"0" }}</td>
-                <td><strong>Worn:</strong> {{ form.cutters_worn.value|default:"0" }}</td>
-                <td><strong>Missing:</strong> {{ form.cutters_missing.value|default:"0" }}</td>
-            </tr>
-            <tr>
-                <td><strong>TFA:</strong> {{ form.tfa.value|default:"—" }}</td>
-                <td><strong>Gauge 1:</strong> {{ form.gauge_reading_1.value|default:"—" }}</td>
-                <td><strong>Gauge 2:</strong> {{ form.gauge_reading_2.value|default:"—" }}</td>
-                <td><strong>Gauge 3:</strong> {{ form.gauge_reading_3.value|default:"—" }}</td>
-                <td></td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 4: POCKET EVALUATION (Design pockets grid)
-     ══════════════════════════════════════════════════════════════════════ -->
-{% if has_pocket_data %}
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
-    <button type="button" @click="s4 = !s4"
-            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="layout-grid" class="w-5 h-5 text-violet-500"></i>
-            4. Pocket Evaluation
+            3. Pocket Evaluation
         </h2>
         <span class="text-xs px-2 py-0.5 rounded-full ml-2"
               :class="pocketEvalCount > 0 ? 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
               x-text="pocketEvalCount + ' marked'"></span>
-        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s4 ? '' : '-rotate-90'"></i>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s3 ? '' : '-rotate-90'"></i>
     </button>
-    <div x-show="s4" x-collapse class="px-5 pb-4">
+    <div x-show="s3" x-collapse class="px-5 pb-4">
         <!-- Pocket config table -->
         {% if pocket_config_list %}
         <div class="mb-3">
@@ -391,7 +377,7 @@
                             <div class="pocket-grid-cell"
                                  :style="getPocketCellStyle({{ bn }}, col)"
                                  :class="getPocketCellClass({{ bn }}, col)"
-                                 @click="onPocketCellClick({{ bn }}, col)"
+                                 @click="onPocketCellClick({{ bn }}, col, $event)"
                                  :title="getPocketCellTitle({{ bn }}, col)"
                                  x-text="getPocketCellText({{ bn }}, col)">
                             </div>
@@ -406,14 +392,16 @@
             </div>
         </div>
 
-        <!-- Pocket symbol input modal -->
+        <!-- Pocket symbol input modal (positioned near clicked cell) -->
         <div x-show="pocketModal.open" x-cloak
-             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-             @click.self="pocketModal.open = false">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-5 w-80">
+             class="fixed z-50"
+             :style="`top: ${pocketModal.top}px; left: ${pocketModal.left}px;`"
+             @click.outside="pocketModal.open = false"
+             @keydown.escape.window="pocketModal.open = false">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-72">
                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
                     x-text="'B' + pocketModal.blade + ' / Pos ' + pocketModal.pos"></h3>
-                <div class="flex flex-wrap gap-2 mb-4">
+                <div class="flex flex-wrap gap-2 mb-3">
                     <template x-for="sym in pocketSymbols" :key="sym.code">
                         <button type="button"
                                 class="px-3 py-1.5 rounded text-sm font-bold border transition"
@@ -429,7 +417,7 @@
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     Selected: <span class="font-mono font-bold" x-text="pocketModal.selected.join('') || '—'"></span>
-                    <span class="text-gray-400 ml-2">(T/W &amp; D/N mutually exclusive)</span>
+                    <span class="text-gray-400 ml-2">(T/W &amp; D/N exclusive)</span>
                 </div>
                 <div class="flex gap-2 justify-end">
                     <button type="button" @click="clearPocketCell()" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Clear</button>
@@ -443,22 +431,56 @@
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 5: CUTTER EVALUATION (BOM/CL grid — L5 only)
+     SECTION 4: CUTTER EVALUATION (BOM/CL grid — L5 only)
+     Click-modal style matching pocket evaluation
      ══════════════════════════════════════════════════════════════════════ -->
 {% if has_bom_data %}
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
-    <button type="button" @click="s5 = !s5"
+    <button type="button" @click="s4 = !s4"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="grid-3x3" class="w-5 h-5 text-blue-500"></i>
-            5. Cutter Evaluation
+            {% if has_pocket_data %}4{% else %}3{% endif %}. Cutter Evaluation
         </h2>
         <span class="text-xs px-2 py-0.5 rounded-full ml-2"
               :class="cutterEvalCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
               x-text="cutterEvalCount + '/' + cutterTotal"></span>
-        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s5 ? '' : '-rotate-90'"></i>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s4 ? '' : '-rotate-90'"></i>
     </button>
-    <div x-show="s5" x-collapse class="px-5 pb-4">
+    <div x-show="s4" x-collapse class="px-5 pb-4">
+        <!-- Cutter config table (like pocket config table) -->
+        {% if cutter_config_list %}
+        <div class="mb-3">
+            <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Cutter Configurations (from BOM)</h3>
+            <table class="w-full text-xs border-collapse">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-gray-600">
+                        <th class="py-1 px-2 text-left text-gray-500">#</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Type</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Group</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Chamfer</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Qty</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Color</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cfg in cutter_config_list %}
+                    <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                        <td class="py-1 px-2 font-mono text-gray-400">{{ cfg.order }}</td>
+                        <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.type|default:"—" }}</td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.group|default:"—" }}</td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.chamfer|default:"—" }}</td>
+                        <td class="py-1 px-2 text-center font-semibold">{{ cfg.count }}</td>
+                        <td class="py-1 px-2 text-center">
+                            <span class="inline-block w-4 h-4 rounded" style="background: {{ cfg.color }};"></span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         <!-- Legend -->
         <div class="flex flex-wrap gap-2 items-center text-xs mb-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded">
             <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Actions:</span>
@@ -475,44 +497,81 @@
             </span>
         </div>
 
-        <!-- Compact Matrix Grid -->
+        <!-- Cutter Grid (click-modal style — same pattern as pocket eval) -->
         <div class="overflow-x-auto mb-3">
             <div class="inline-block">
                 <!-- Column headers -->
                 <div class="flex items-end mb-0.5">
-                    <div class="blade-label">&nbsp;</div>
-                    <div class="blade-label">&nbsp;</div>
+                    <div class="cutter-blade-label">&nbsp;</div>
+                    <div class="cutter-blade-label">&nbsp;</div>
                     <template x-for="col in matrixCols" :key="col.key">
-                        <div class="pos-header" :title="col.fullName" x-text="col.label"></div>
+                        <div class="flex">
+                            <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-500 dark:text-gray-400 select-none overflow-hidden"
+                                 :title="col.fullName" x-text="col.label"></div>
+                            <div class="w-1"></div>
+                        </div>
                     </template>
                 </div>
 
                 <!-- Grid rows -->
                 <template x-for="(gr, grIdx) in matrixRows" :key="gr.blade + gr.row">
-                    <div class="flex items-center" style="height: 30px;"
-                         :class="gr.isFirstRow && grIdx > 0 ? 'border-t border-gray-300 dark:border-gray-600' : ''">
-                        <div class="blade-label font-bold"
+                    <div class="flex items-center mb-0.5"
+                         :class="gr.isFirstRow && grIdx > 0 ? 'border-t border-gray-300 dark:border-gray-600 pt-0.5' : ''">
+                        <div class="cutter-blade-label font-bold"
                              :class="gr.isFirstRow ? 'text-indigo-600 dark:text-indigo-400' : 'text-transparent select-none'"
                              x-text="gr.blade"></div>
-                        <div class="blade-label text-[9px] text-gray-400" x-text="gr.row"></div>
+                        <div class="cutter-blade-label text-[9px] text-gray-400" x-text="gr.row"></div>
                         <template x-for="(cell, cIdx) in gr.cells" :key="cIdx">
-                            <div>
+                            <div class="flex">
                                 <template x-if="cell.has">
-                                    <input type="text" maxlength="1" class="eval-cell"
-                                           :data-val="getCutterAction(cell.b, cell.r, cell.p, cell.i)"
-                                           :value="getCutterAction(cell.b, cell.r, cell.p, cell.i)"
-                                           @input.prevent="onCutterInput($event, cell.b, cell.r, cell.p, cell.i)"
-                                           @keydown="onCutterKeydown($event, cell.b, cell.r, cell.p, cell.i)"
-                                           onfocus="this.select()"
-                                           :title="cell.p + ' #' + (cell.i+1)">
+                                    <div class="cutter-grid-cell"
+                                         :style="getCutterCellStyle(cell.b, cell.r, cell.p, cell.i)"
+                                         :class="getCutterCellClass(cell.b, cell.r, cell.p, cell.i)"
+                                         @click="onCutterCellClick(cell.b, cell.r, cell.p, cell.i, $event)"
+                                         :title="getCutterCellTitle(cell.b, cell.r, cell.p, cell.i)"
+                                         x-text="getCutterCellText(cell.b, cell.r, cell.p, cell.i)">
+                                    </div>
                                 </template>
                                 <template x-if="!cell.has">
-                                    <div class="eval-cell-empty"></div>
+                                    <div class="cutter-grid-cell-empty"></div>
                                 </template>
+                                <div class="w-1"></div>
                             </div>
                         </template>
                     </div>
                 </template>
+            </div>
+        </div>
+
+        <!-- Cutter action modal (positioned near clicked cell) -->
+        <div x-show="cutterModal.open" x-cloak
+             class="fixed z-50"
+             :style="`top: ${cutterModal.top}px; left: ${cutterModal.left}px;`"
+             @click.outside="cutterModal.open = false"
+             @keydown.escape.window="cutterModal.open = false">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-64">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
+                    x-text="cutterModal.blade + ' / ' + cutterModal.row + ' / ' + cutterModal.pos + ' #' + (cutterModal.idx + 1)"></h3>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <template x-for="act in cutterActions" :key="act">
+                        <button type="button"
+                                class="px-3 py-2 rounded text-sm font-bold border-2 transition min-w-[42px]"
+                                :class="cutterModal.action === act
+                                    ? 'ring-2 ring-offset-1 ring-blue-500 ' + getCutterBtnActiveClass(act)
+                                    : getCutterBtnClass(act)"
+                                @click="selectCutterAction(act)">
+                            <span x-text="act"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Action: <span class="font-mono font-bold text-sm" x-text="cutterModal.action || '—'"></span>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" @click="clearCutterCell()" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Clear</button>
+                    <button type="button" @click="cutterModal.open = false" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded">Cancel</button>
+                    <button type="button" @click="saveCutterCell()" class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Apply</button>
+                </div>
             </div>
         </div>
     </div>
@@ -520,35 +579,57 @@
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 6: INSPECTION DECISION
+     SECTION 5: INSPECTION DECISION
      ══════════════════════════════════════════════════════════════════════ -->
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
-    <button type="button" @click="s6 = !s6"
+    <button type="button" @click="s5 = !s5"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="check-square" class="w-5 h-5 text-green-500"></i>
-            {% if has_bom_data %}6{% elif has_pocket_data %}5{% else %}4{% endif %}. Inspection Decision
+            {% if has_bom_data and has_pocket_data %}5{% elif has_bom_data or has_pocket_data %}4{% else %}3{% endif %}. Inspection Decision
         </h2>
-        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s6 ? '' : '-rotate-90'"></i>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s5 ? '' : '-rotate-90'"></i>
     </button>
-    <div x-show="s6" x-collapse class="px-5 pb-4">
+    <div x-show="s5" x-collapse class="px-5 pb-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
                 {{ form.result }}
             </div>
             <div>
-                {% if not is_new and object.inspected_by %}
+                <!-- Auto-filled audit info -->
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspector</label>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
-                    {% if object.qc_approved_by %}
-                        <br>
-                        <span class="text-green-600 dark:text-green-400">
-                            QC: {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
-                            ({{ object.qc_approved_at|date:"M d, Y H:i" }})
+                {% if not is_new and object.inspected_by %}
+                <div class="p-2 bg-gray-50 dark:bg-gray-900/50 rounded text-sm">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
+                        <span class="font-medium text-gray-700 dark:text-gray-300">
+                            {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
                         </span>
+                    </div>
+                    {% if object.inspection_date %}
+                    <div class="text-xs text-gray-400 mt-1">
+                        <i data-lucide="calendar" class="w-3 h-3 inline"></i>
+                        Inspection: {{ object.inspection_date|date:"M d, Y" }}
+                    </div>
                     {% endif %}
+                    {% if object.is_complete and object.qc_approved_by %}
+                    <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
+                            <span class="font-medium">
+                                QC: {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-0.5">
+                            {{ object.qc_approved_at|date:"M d, Y H:i" }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-400 italic mt-1">
+                    Will be auto-filled with current user on save.
                 </p>
                 {% endif %}
             </div>
@@ -659,24 +740,65 @@
 
 {% block extra_js %}
 <script>
-// Auto-calculate cutters good condition
-function updateCutterSummary() {
-    const total = parseInt(document.querySelector('[name="cutters_total"]')?.value || 0);
-    const chipped = parseInt(document.querySelector('[name="cutters_chipped"]')?.value || 0);
-    const broken = parseInt(document.querySelector('[name="cutters_broken"]')?.value || 0);
-    const worn = parseInt(document.querySelector('[name="cutters_worn"]')?.value || 0);
-    const missing = parseInt(document.querySelector('[name="cutters_missing"]')?.value || 0);
-    const good = Math.max(0, total - chipped - broken - worn - missing);
-    const el = document.getElementById('cuttersGood');
-    if (el) el.textContent = good;
+// ── Attachment AJAX helpers ──
+function uploadAttachment() {
+    const fileInput = document.getElementById('attachmentFile');
+    const nameSelect = document.getElementById('attachmentName');
+    if (!fileInput.files.length) { alert('Please select a file.'); return; }
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('name', nameSelect.value);
+    fd.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
+    {% if not is_new %}
+    fetch('{% url "workorders:receiving_inspection_upload" bit_pk=drill_bit.pk pk=object.pk %}', {
+        method: 'POST', body: fd,
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            const list = document.getElementById('attachmentsList');
+            const noAtt = document.getElementById('noAttachments');
+            if (noAtt) noAtt.remove();
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900/50 rounded';
+            div.setAttribute('data-att-id', data.attachment.id);
+            div.innerHTML = `<div class="flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span class="font-medium text-gray-700 dark:text-gray-300">${data.attachment.name}</span>
+                <span class="text-xs text-gray-400">(${data.attachment.filename})</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="${data.attachment.url}" target="_blank" class="text-xs text-blue-600 hover:text-blue-700">Download</a>
+                <button type="button" onclick="deleteAttachment(${data.attachment.id})" class="text-xs text-red-500 hover:text-red-700">Delete</button>
+            </div>`;
+            list.appendChild(div);
+            fileInput.value = '';
+        } else {
+            alert(data.error || 'Upload failed');
+        }
+    }).catch(() => alert('Upload failed'));
+    {% endif %}
 }
-document.querySelectorAll('[name^="cutters_"]').forEach(i => i.addEventListener('input', updateCutterSummary));
-updateCutterSummary();
+
+function deleteAttachment(attId) {
+    if (!confirm('Delete this attachment?')) return;
+    {% if not is_new %}
+    fetch(`{% url "workorders:drillbit_detail_enhanced" pk=drill_bit.pk %}`.replace(/\/[^/]*\/$/, '') + '/receiving-inspection/{{ object.pk }}/attachment/' + attId + '/delete/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': document.querySelector('[name="csrfmiddlewaretoken"]').value},
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            const el = document.querySelector(`[data-att-id="${attId}"]`);
+            if (el) el.remove();
+        } else {
+            alert(data.error || 'Delete failed');
+        }
+    }).catch(() => alert('Delete failed'));
+    {% endif %}
+}
 
 function inspectionPage() {
     return {
         // ── Section toggles (collapsible) ──
-        s1: true, s2: true, s3: false, s4: true, s5: true, s6: true,
+        s1: true, s2: true, s3: true, s4: true, s5: true,
 
         // ── Checklist remarks ──
         checklistRemarks: {},
@@ -697,17 +819,20 @@ function inspectionPage() {
             {code: 'D', label: 'Deep'},
             {code: 'N', label: 'Narrow'},
         ],
-        pocketModal: { open: false, blade: 0, pos: 0, selected: [] },
+        pocketModal: { open: false, blade: 0, pos: 0, selected: [], top: 200, left: 200 },
 
         // ── Cutter evaluation ──
         blades: [],
         cutterEvalData: {},
+        cutterConfigMap: {},   // 'blade|row|pos|idx' -> config order
+        cutterConfigColors: {},  // config order -> {color, type, group}
         matrixCols: [],
         matrixRows: [],
         cutterCounts: {},
         cutterTotal: 0,
         cutterEvalCount: 0,
         cutterActions: ['O','X','R','S','L'],
+        cutterModal: { open: false, blade: '', row: '', pos: '', idx: 0, action: '', top: 200, left: 200 },
 
         init() {
             this.checklistRemarks = {{ checklist_remarks|safe }};
@@ -725,6 +850,7 @@ function inspectionPage() {
             {% if has_bom_data %}
             this.blades = {{ blade_data_json|safe }};
             this.cutterEvalData = {{ eval_data_json|safe }};
+            this.cutterConfigColors = {{ cutter_config_json|safe }};
             this.buildMatrix();
             this.recalcCutterCounts();
             {% endif %}
@@ -776,23 +902,25 @@ function inspectionPage() {
             return title;
         },
 
-        onPocketCellClick(blade, col) {
+        onPocketCellClick(blade, col, $event) {
             const key = blade + '_' + col;
             if (!this.pocketGridData[key]) return;
             const current = this.pocketEvalData[key] || '';
             this.pocketModal.blade = blade;
             this.pocketModal.pos = col;
             this.pocketModal.selected = current ? current.split('') : [];
+            // Position modal near the clicked cell
+            const rect = $event.target.getBoundingClientRect();
+            this.pocketModal.top = Math.min(rect.bottom + 4, window.innerHeight - 280);
+            this.pocketModal.left = Math.min(rect.left, window.innerWidth - 300);
             this.pocketModal.open = true;
         },
 
         canTogglePocketSym(code) {
             const sel = this.pocketModal.selected;
             if (sel.includes(code)) return true;
-            // T/W mutually exclusive
             if (code === 'T' && sel.includes('W')) return false;
             if (code === 'W' && sel.includes('T')) return false;
-            // D/N mutually exclusive
             if (code === 'D' && sel.includes('N')) return false;
             if (code === 'N' && sel.includes('D')) return false;
             return true;
@@ -831,10 +959,34 @@ function inspectionPage() {
             this.pocketEvalCount = Object.keys(this.pocketEvalData).length;
         },
 
-        // ════════════ CUTTER EVALUATION ════════════
+        // ════════════ CUTTER EVALUATION (Click-Modal Style) ════════════
         buildMatrix() {
             const POS_ORDER = ['CONE','NOSE','SHOULDER','GAUGE','PAD'];
             const POS_ABBR = {CONE:'CON', NOSE:'NOS', SHOULDER:'SHO', GAUGE:'GAU', PAD:'PAD'};
+
+            // Build config map (blade|row|pos|idx -> config order)
+            const CUTTER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                                   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+                                   '#14B8A6', '#F43F5E', '#A855F7', '#22D3EE'];
+            const seenTypes = {};
+            let typeIdx = 0;
+            for (const blade of this.blades) {
+                for (const row of blade.rows) {
+                    for (const pos of row.positions) {
+                        const pn = pos.pos_name.toUpperCase();
+                        for (let i = 0; i < pos.cutters.length; i++) {
+                            const c = pos.cutters[i];
+                            const typeKey = (c.type || '') + '|' + (c.group || '') + '|' + (c.chamfer || '');
+                            if (!seenTypes[typeKey]) {
+                                seenTypes[typeKey] = typeIdx + 1;
+                                typeIdx++;
+                            }
+                            const mapKey = blade.name + '|' + row.row_key + '|' + pn + '|' + i;
+                            this.cutterConfigMap[mapKey] = seenTypes[typeKey];
+                        }
+                    }
+                }
+            }
 
             const maxPerPos = {};
             POS_ORDER.forEach(p => maxPerPos[p] = 0);
@@ -876,6 +1028,94 @@ function inspectionPage() {
             }
         },
 
+        // ── Cutter cell display helpers ──
+        getCutterCellStyle(blade, row, pos, idx) {
+            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
+            const cfgOrder = this.cutterConfigMap[mapKey];
+            const cfg = this.cutterConfigColors[cfgOrder];
+            if (!cfg) return '';
+            const action = this.getCutterAction(blade, row, pos, idx);
+            if (action) return '';  // action color takes over
+            return 'background-color: ' + cfg.color + '20; border-color: ' + cfg.color + ';';
+        },
+
+        getCutterCellClass(blade, row, pos, idx) {
+            const action = this.getCutterAction(blade, row, pos, idx);
+            if (action) return 'cutter-grid-cell-action cutter-action-' + action;
+            return '';
+        },
+
+        getCutterCellText(blade, row, pos, idx) {
+            const action = this.getCutterAction(blade, row, pos, idx);
+            if (action) return action;
+            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
+            const cfgOrder = this.cutterConfigMap[mapKey];
+            return cfgOrder || '';
+        },
+
+        getCutterCellTitle(blade, row, pos, idx) {
+            const action = this.getCutterAction(blade, row, pos, idx);
+            const mapKey = blade + '|' + row + '|' + pos + '|' + idx;
+            const cfgOrder = this.cutterConfigMap[mapKey];
+            const cfg = this.cutterConfigColors[cfgOrder];
+            let title = blade + ' / ' + row + ' / ' + pos + ' #' + (idx + 1);
+            if (cfg) title += ' — ' + (cfg.type || 'Unknown') + (cfg.group ? ' Grp' + cfg.group : '');
+            if (action) title += ' [' + action + ']';
+            return title;
+        },
+
+        onCutterCellClick(blade, row, pos, idx, $event) {
+            this.cutterModal.blade = blade;
+            this.cutterModal.row = row;
+            this.cutterModal.pos = pos;
+            this.cutterModal.idx = idx;
+            this.cutterModal.action = this.getCutterAction(blade, row, pos, idx);
+            // Position modal near clicked cell
+            const rect = $event.target.getBoundingClientRect();
+            this.cutterModal.top = Math.min(rect.bottom + 4, window.innerHeight - 240);
+            this.cutterModal.left = Math.min(rect.left, window.innerWidth - 280);
+            this.cutterModal.open = true;
+        },
+
+        selectCutterAction(act) {
+            this.cutterModal.action = (this.cutterModal.action === act) ? '' : act;
+        },
+
+        saveCutterCell() {
+            this.setCutterAction(this.cutterModal.blade, this.cutterModal.row,
+                                this.cutterModal.pos, this.cutterModal.idx, this.cutterModal.action);
+            this.cutterModal.open = false;
+        },
+
+        clearCutterCell() {
+            this.setCutterAction(this.cutterModal.blade, this.cutterModal.row,
+                                this.cutterModal.pos, this.cutterModal.idx, '');
+            this.cutterModal.action = '';
+            this.cutterModal.open = false;
+        },
+
+        getCutterBtnClass(act) {
+            const map = {
+                O: 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100',
+                X: 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100',
+                R: 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100',
+                S: 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100',
+                L: 'bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100',
+            };
+            return map[act] || '';
+        },
+
+        getCutterBtnActiveClass(act) {
+            const map = {
+                O: 'bg-green-600 text-white border-green-600',
+                X: 'bg-red-600 text-white border-red-600',
+                R: 'bg-amber-500 text-white border-amber-500',
+                S: 'bg-blue-600 text-white border-blue-600',
+                L: 'bg-gray-600 text-white border-gray-600',
+            };
+            return map[act] || '';
+        },
+
         getCutterAction(blade, row, pos, idx) {
             return this.cutterEvalData?.[blade]?.[row]?.[pos]?.[String(idx)]?.action || '';
         },
@@ -887,49 +1127,16 @@ function inspectionPage() {
             if (!this.cutterEvalData[blade][row][pos][String(idx)])
                 this.cutterEvalData[blade][row][pos][String(idx)] = {action: '', remarks: ''};
             this.cutterEvalData[blade][row][pos][String(idx)].action = action || '';
+            if (!action) {
+                delete this.cutterEvalData[blade][row][pos][String(idx)];
+                if (Object.keys(this.cutterEvalData[blade][row][pos]).length === 0)
+                    delete this.cutterEvalData[blade][row][pos];
+                if (Object.keys(this.cutterEvalData[blade][row]).length === 0)
+                    delete this.cutterEvalData[blade][row];
+                if (Object.keys(this.cutterEvalData[blade]).length === 0)
+                    delete this.cutterEvalData[blade];
+            }
             this.recalcCutterCounts();
-        },
-
-        onCutterInput(event, blade, row, pos, idx) {
-            const input = event.target;
-            let val = input.value.toUpperCase().trim();
-            if (val && !this.cutterActions.includes(val)) val = '';
-            input.value = val;
-            input.setAttribute('data-val', val);
-            this.setCutterAction(blade, row, pos, idx, val);
-            if (val) {
-                const allCells = [...document.querySelectorAll('.eval-cell')];
-                const ci = allCells.indexOf(input);
-                if (ci >= 0 && ci < allCells.length - 1) {
-                    allCells[ci + 1].focus();
-                    allCells[ci + 1].select();
-                }
-            }
-        },
-
-        onCutterKeydown(event, blade, row, pos, idx) {
-            const allCells = [...document.querySelectorAll('.eval-cell')];
-            const ci = allCells.indexOf(event.target);
-            if (ci < 0) return;
-            const numCols = this.matrixCols.length;
-            if (event.key === 'ArrowRight' || event.key === 'Tab') {
-                event.preventDefault();
-                if (ci < allCells.length - 1) { allCells[ci+1].focus(); allCells[ci+1].select(); }
-            } else if (event.key === 'ArrowLeft') {
-                event.preventDefault();
-                if (ci > 0) { allCells[ci-1].focus(); allCells[ci-1].select(); }
-            } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
-                event.preventDefault();
-                if (ci + numCols < allCells.length) { allCells[ci+numCols].focus(); allCells[ci+numCols].select(); }
-            } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                if (ci - numCols >= 0) { allCells[ci-numCols].focus(); allCells[ci-numCols].select(); }
-            } else if (event.key === 'Delete' || event.key === 'Backspace') {
-                event.preventDefault();
-                event.target.value = '';
-                event.target.setAttribute('data-val', '');
-                this.setCutterAction(blade, row, pos, idx, '');
-            }
         },
 
         recalcCutterCounts() {
@@ -993,47 +1200,44 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     }
     .dark .pocket-sym-mini { background: #4c1d95; color: #c4b5fd; border-color: #8b5cf6; }
 
-    /* ── Matrix grid labels ── */
-    .blade-label {
-        width: 24px; min-width: 24px; text-align: center;
-        font-size: 10px; line-height: 28px; user-select: none;
+    /* ── Cutter grid cells (click-modal style) ── */
+    .cutter-blade-label {
+        width: 28px; min-width: 28px; text-align: center;
+        font-size: 10px; line-height: 40px; user-select: none;
     }
-    .pos-header {
-        width: 28px; min-width: 28px; height: 22px;
-        font-size: 8px; font-weight: 600; text-align: center; line-height: 22px;
-        color: #6b7280; user-select: none; overflow: hidden;
+    .cutter-grid-cell {
+        width: 40px; min-width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700; text-align: center;
+        border: 1.5px solid #d1d5db; border-radius: 4px;
+        cursor: pointer; user-select: none; transition: all 0.15s;
+        background: white;
     }
-    .dark .pos-header { color: #9ca3af; }
-    .eval-cell-empty {
-        width: 28px; min-width: 28px; height: 28px;
-        background: #f9fafb; border: 1px solid #e5e7eb;
+    .dark .cutter-grid-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
+    .cutter-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .cutter-grid-cell-empty {
+        width: 40px; min-width: 40px; height: 40px;
+        background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 4px;
     }
-    .dark .eval-cell-empty { background: #1f2937; border-color: #374151; }
+    .dark .cutter-grid-cell-empty { background: #1f2937; border-color: #374151; }
 
-    /* ── Eval grid cells ── */
-    .eval-cell {
-        width: 28px; min-width: 28px; height: 28px;
-        font-size: 12px; font-weight: 700; text-align: center; text-transform: uppercase;
-        border: 1px solid #d1d5db; background: white; padding: 0; outline: none;
-        transition: background 0.1s; cursor: pointer;
-    }
-    .dark .eval-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
-    .eval-cell:focus { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; z-index: 1; position: relative; }
-    .eval-cell[data-val="O"] { background: #dcfce7; color: #166534; }
-    .eval-cell[data-val="X"] { background: #fee2e2; color: #991b1b; }
-    .eval-cell[data-val="R"] { background: #fef3c7; color: #92400e; }
-    .eval-cell[data-val="S"] { background: #dbeafe; color: #1e40af; }
-    .eval-cell[data-val="L"] { background: #f3f4f6; color: #6b7280; }
-    .dark .eval-cell[data-val="O"] { background: #166534; color: #dcfce7; }
-    .dark .eval-cell[data-val="X"] { background: #991b1b; color: #fee2e2; }
-    .dark .eval-cell[data-val="R"] { background: #92400e; color: #fef3c7; }
-    .dark .eval-cell[data-val="S"] { background: #1e40af; color: #dbeafe; }
-    .dark .eval-cell[data-val="L"] { background: #4b5563; color: #9ca3af; }
+    /* ── Cutter action colors (on grid cells) ── */
+    .cutter-action-O { background: #dcfce7 !important; color: #166534 !important; border-color: #22c55e !important; }
+    .cutter-action-X { background: #fee2e2 !important; color: #991b1b !important; border-color: #ef4444 !important; }
+    .cutter-action-R { background: #fef3c7 !important; color: #92400e !important; border-color: #f59e0b !important; }
+    .cutter-action-S { background: #dbeafe !important; color: #1e40af !important; border-color: #3b82f6 !important; }
+    .cutter-action-L { background: #f3f4f6 !important; color: #6b7280 !important; border-color: #9ca3af !important; }
+    .dark .cutter-action-O { background: #166534 !important; color: #dcfce7 !important; }
+    .dark .cutter-action-X { background: #991b1b !important; color: #fee2e2 !important; }
+    .dark .cutter-action-R { background: #92400e !important; color: #fef3c7 !important; }
+    .dark .cutter-action-S { background: #1e40af !important; color: #dbeafe !important; }
+    .dark .cutter-action-L { background: #4b5563 !important; color: #9ca3af !important; }
 
+    /* ── Eval legend mini ── */
     .eval-cell-mini {
         display: inline-block; width: 18px; height: 18px;
         font-size: 10px; font-weight: 700; text-align: center; line-height: 18px;
-        border: 1px solid #d1d5db;
+        border: 1px solid #d1d5db; border-radius: 3px;
     }
     .eval-cell-mini[data-val="O"] { background: #dcfce7; color: #166534; }
     .eval-cell-mini[data-val="X"] { background: #fee2e2; color: #991b1b; }
@@ -1042,8 +1246,7 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     .eval-cell-mini[data-val="L"] { background: #f3f4f6; color: #6b7280; }
 
     /* ── Print-only elements: hidden on screen ── */
-    .print-header, .print-checklist, .print-measurements-table,
-    .print-decision, .print-signatures, .print-only-block {
+    .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block {
         display: none;
     }
 
@@ -1051,8 +1254,7 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     @media print {
         .no-print, nav, .sidebar, header, footer,
         button[type="submit"], form > .flex.items-center { display: none !important; }
-        .print-header, .print-checklist, .print-measurements-table,
-        .print-decision, .print-signatures, .print-only-block { display: block !important; }
+        .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block { display: block !important; }
         body { background: white !important; font-size: 10pt; }
         @page { margin: 0.5in; }
         .print-section {
@@ -1060,21 +1262,18 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
             box-shadow: none !important; padding: 4px 0 !important;
             margin-bottom: 4px !important; page-break-inside: avoid;
         }
-        /* Show all sections during print */
         [x-show] { display: block !important; }
-        /* Collapsible toggle buttons: show as static headers */
         .print-section > button[type="button"] {
             display: block !important; pointer-events: none;
             padding: 4px 0 !important; border-bottom: 1px solid #ddd;
         }
         .print-section > button[type="button"] i[data-lucide="chevron-down"] { display: none !important; }
-        /* Grid print colors */
-        .eval-cell, .pocket-grid-cell, .eval-cell-mini, .pocket-sym-mini {
+        .cutter-grid-cell, .pocket-grid-cell, .eval-cell-mini, .pocket-sym-mini,
+        .cutter-action-O, .cutter-action-X, .cutter-action-R, .cutter-action-S, .cutter-action-L {
             print-color-adjust: exact; -webkit-print-color-adjust: exact;
         }
     }
 
-    /* x-cloak hide */
     [x-cloak] { display: none !important; }
 </style>
 {% endblock extra_css %}

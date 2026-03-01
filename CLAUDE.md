@@ -1407,6 +1407,9 @@ Then restart the server (kill + start fresh).
 | Chain executor service | `apps/erp_automation/services/chain_executor.py` |
 | Seed ERP chain command | `apps/erp_automation/management/commands/seed_erp_chain.py` |
 | Seed ERP environments | `apps/erp_automation/management/commands/seed_erp_environments.py` |
+| Receiving inspection form | `templates/workorders/receiving_inspection_form.html` |
+| Receiving inspection list | `templates/workorders/receiving_inspection_list.html` |
+| Receiving inspection views | `apps/workorders/views_jobcard.py` (ReceivingInspectionCreateView, ReceivingInspectionEditView) |
 
 ### Key View Classes
 
@@ -1423,6 +1426,9 @@ Then restart the server (kill + start fresh).
 | RouterSheetView | `apps/workorders/views_jobcard.py:656` | `/workorders/<pk>/router-sheet/` |
 | CutterEvaluationCreateView | `apps/workorders/views_jobcard.py:548` | `/workorders/<wo_pk>/cutter-evaluation/create/` |
 | CutterEvaluationEditView | `apps/workorders/views_jobcard.py:591` | `/workorders/<wo_pk>/cutter-evaluation/<pk>/edit/` |
+| ReceivingInspectionCreateView | `apps/workorders/views_jobcard.py` | `/work-orders/drill-bits/<pk>/receiving-inspection/create/` |
+| ReceivingInspectionEditView | `apps/workorders/views_jobcard.py` | `/work-orders/drill-bits/<pk>/receiving-inspection/<pk>/edit/` |
+| api_receiving_inspection_upload | `apps/workorders/views_jobcard.py` | `/work-orders/drill-bits/<pk>/receiving-inspection/<pk>/upload/` |
 | api_drillbit_lookup | `apps/workorders/views.py` | `/workorders/api/drill-bits/lookup/` |
 | api_boms_list | `apps/technology/views.py` | `/technology/api/boms/` |
 | DashboardView (ERP) | `apps/erp_automation/views.py` | `/erp-automation/` |
@@ -1601,6 +1607,33 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **DrillBitExportExcelView Enhanced**: Backend rewritten with `ALL_COLUMNS` class attribute (20 column definitions matching template `data-column` keys), `_get_cell_value()` method for each column, support for `columns`/`records`/`visible_cols`/`bit_ids` query params. Rich `select_related` and `prefetch_related` for performance. Row number column. Styled Excel output with blue headers, frozen panes, and auto-width columns.
 - **Column Default Visibility**: `level:true, type:true, design:true, refmat:false, systembom:false, brazingbom:false, hdbs:true, smi:false, size:true, connection:false, iadc:false, breaker:false, specialtech:false, application:false, customer:true, location:true, status:true, lifecycle:true, created:true`.
 - **Column Filters Compatibility**: Existing Excel-style column filters (sort, filter values, search) kept as global JavaScript functions — work correctly with Alpine.js `x-show` because hidden elements remain in DOM (indices unchanged).
+
+### Recent Enhancements (Mar 1, 2026) — QAS/005-1 Receiving Inspection Form Overhaul
+- **Receiving Inspection Form Complete Rewrite**: `templates/workorders/receiving_inspection_form.html` rebuilt from scratch to match QAS/005-1 FC Bit Receiving Inspection standard. 6 original sections reduced to 5 sections with a complete UI/UX overhaul.
+- **Section 1 — Header Fields Enhanced**: Added read-only info grid (Report No as `RI-{pk:04d}`, Serial No, Type, Size, Material No from BOM) plus editable fields (Inspection Date, Date of Receipt as DateField, PO Number, Client). Report No auto-generated from inspection PK. Date of Receipt stored as `ReceivingInspection.date_of_receipt` DateField (migration 0032).
+- **Section 2 — Attachment Upload System**: Visual inspection checklist retained; added AJAX-based file attachment upload/delete. `ReceivingInspectionAttachment` model (migration 0032) with `file` FileField, `name` CharField (dropdown: Q-Note, Inspection Report, Photo, Damage Report, Other), `uploaded_by` FK, `uploaded_at` timestamp. API endpoints: `POST .../upload/` and `POST .../attachment/<pk>/delete/`. Alpine.js `uploadAttachment()`/`deleteAttachment()` functions with live UI updates (no page reload). File type icons (PDF red, Excel green, image purple, etc.). Upload only available on edit mode (not create — inspection must exist first).
+- **Section 3 Removed**: Old "Cutter Condition & Measurements" section with manual count inputs (total, chipped, broken, worn, missing) and gauge readings (TFA, gauge 1-3) completely removed from template. Form fields already removed from `ReceivingInspectionForm.Meta.fields`. Model fields retained for backward compatibility with existing data.
+- **Section 3 (was 4) — Pocket Evaluation Modal Repositioning**: Pocket symbol modal changed from fixed center-screen overlay to positioned modal near the clicked cell. Uses `$event.target.getBoundingClientRect()` to calculate `top` and `left` with `Math.min()` bounds (viewport width - 320px, viewport height - 400px). Modal has `@click.outside` and `@keydown.escape` close handlers. Absolute positioning via `:style="'top:'+pocketModal.top+'px; left:'+pocketModal.left+'px'"`.
+- **Section 4 (was 5) — Cutter Evaluation Complete Rebuild**: Transformed from keyboard-input matrix (`<input>` cells with arrow key navigation) to click-modal interactive grid (matching pocket evaluation pattern):
+  - **Cutter Config Table**: Shows unique cutter types from BOM `source_data` with assigned colors from 14-color palette. Columns: #, Type, Group, Chamfer, Qty, Color swatch. Built from `cutter_config_list` passed by view.
+  - **Colored Grid Cells**: `<div>` elements (40x40px) replace old `<input>` elements (28x28px). Each cell shows config order number as default, action letter when set. Config-specific background color tint via inline `background-color` with alpha. Action-specific override colors: O=green, X=red, R=blue, S=purple, L=amber.
+  - **Click-to-Open Modal**: Clicking a cell opens a positioned modal (same positioning logic as pocket eval) with 5 action buttons (O/X/R/S/L), current config info display, and Clear/Close actions. Single-select — clicking an action saves immediately and closes modal.
+  - **Removed**: All keyboard navigation code (`onCutterInput`, `onCutterKeydown`, arrow key handling), old `updateCutterSummary()` function, old `.eval-cell` CSS.
+  - **BOM Config Mapping**: `cutterConfigMap` dict maps `'blade|row|pos|idx'` → config order number. Built during `buildMatrix()` from BOM `source_data.blades` structure. `cutterConfigColors` maps config orders to hex colors.
+- **Section 5 (was 6) — Decision & Audit Enhanced**: Structured audit info card with Lucide icons showing inspector name (auto-filled from logged-in user for new inspections), creation timestamp, last modified timestamp. Q-note approval section with structured display. Auto-fill notice for new inspections: "Inspector name will be auto-filled with your login name."
+- **New Models** (migration 0032):
+  - `ReceivingInspection.date_of_receipt` — DateField, nullable
+  - `ReceivingInspectionAttachment` — file attachment model with inspection FK, file FileField (`receiving_inspections/` upload path), name CharField, uploaded_by FK, uploaded_at auto timestamp. Properties: `file_extension`, `is_image`.
+- **View Changes** (`apps/workorders/views_jobcard.py`):
+  - `_get_bom_blade_data()` returns 4-tuple: `(blade_data, bom_summary, cutter_config_list, has_data)` — `cutter_config_list` contains unique cutter types with assigned colors and counts
+  - Both Create/Edit views pass: `report_number`, `cutter_config_list`, `cutter_config_json`
+  - Edit view passes `attachments = self.object.attachments.all()`
+  - New `api_receiving_inspection_upload()`: handles multipart file upload with CSRF, returns JSON with file metadata
+  - New `api_receiving_inspection_delete_attachment()`: deletes file + DB record, returns JSON success
+- **URL Patterns Added**: `drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/upload/` and `drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/attachment/<int:att_pk>/delete/`
+- **Receiving Inspection List Enhanced** (`receiving_inspection_list.html`): Added columns for Report No, Date of Receipt, attachment count. Status badges. Filters by status. Links to create/edit inspections from drill bit detail page.
+- **Sidebar Link Added**: "Inspections" link under Receiving section in `templates/includes/sidebar.html`.
+- **Key Files Modified**: `apps/workorders/models.py`, `apps/workorders/forms.py`, `apps/workorders/views_jobcard.py`, `apps/workorders/urls.py`, `templates/workorders/receiving_inspection_form.html`, `templates/workorders/receiving_inspection_list.html`, `templates/includes/sidebar.html`.
 
 ---
 

@@ -134,6 +134,8 @@ urlpatterns = [
     path("drill-bits/<int:bit_pk>/receiving-inspection/create/", views_jobcard.ReceivingInspectionCreateView.as_view(), name="receiving_inspection_create"),
     path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/", views_jobcard.ReceivingInspectionEditView.as_view(), name="receiving_inspection_edit"),
     path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/mark-complete/", views_jobcard.api_receiving_inspection_complete, name="receiving_inspection_mark_complete"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/upload/", views_jobcard.api_receiving_inspection_upload, name="receiving_inspection_upload"),
+    path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/attachment/<int:att_pk>/delete/", views_jobcard.api_receiving_inspection_delete_attachment, name="receiving_inspection_delete_attachment"),
 
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),

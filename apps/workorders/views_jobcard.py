@@ -31,6 +31,7 @@ from django.views.generic import (
 from .models import (
     WorkOrder, DrillBit, BitEvent, Location,
     CutterEvaluationMatrix, CutterEvaluationEntry, ReceivingInspection,
+    ReceivingInspectionAttachment,
     RouterSheetEntry, EvaluationChecklist,
     LPTReport, APIThreadInspection,
     InstructionRule, InstructionRuleCondition,
@@ -2571,19 +2572,20 @@ def api_get_evaluation_types(request):
 def _get_bom_blade_data(drill_bit):
     """
     Extract blade data from a drill bit's BOM source_data for the evaluation grid.
-    Returns (blade_data_list, bom_summary_list, has_data) tuple.
+    Returns (blade_data_list, bom_summary_list, cutter_config_list, has_data) tuple.
     blade_data_list: [{name, rows: [{row_key, positions: [{pos_name, cutters: [{type, group, chamfer}]}]}]}]
+    cutter_config_list: [{order, color, count, type, group, chamfer}]
     """
     bom = drill_bit.brazing_bom or drill_bit.system_bom or getattr(drill_bit, 'bom', None)
     if not bom or not bom.source_data:
-        return [], [], False
+        return [], [], [], False
 
     source_data = bom.source_data if isinstance(bom.source_data, dict) else {}
     raw_blades = source_data.get("blades", [])
     bom_summary = source_data.get("bom", [])
 
     if not raw_blades:
-        return [], bom_summary, False
+        return [], bom_summary, [], False
 
     POSITIONS = ["CONE", "NOSE", "SHOULDER", "GAUGE", "PAD"]
     ROW_KEYS = ["r1", "r2", "r3", "r4"]
@@ -2609,7 +2611,30 @@ def _get_bom_blade_data(drill_bit):
         if rows:
             blade_data.append({"name": blade_name, "rows": rows})
 
-    return blade_data, bom_summary, bool(blade_data)
+    # Build cutter config list (unique cutter types with colors for the grid)
+    CUTTER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                     '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+                     '#14B8A6', '#F43F5E', '#A855F7', '#22D3EE']
+    seen_types = {}
+    cutter_config_list = []
+    type_idx = 0
+    for blade in blade_data:
+        for row in blade['rows']:
+            for pos in row['positions']:
+                for cutter in pos['cutters']:
+                    ct = cutter.get('type', '')
+                    cg = cutter.get('group', '')
+                    cc = cutter.get('chamfer', '')
+                    key = f"{ct}|{cg}|{cc}"
+                    if key not in seen_types:
+                        color = CUTTER_COLORS[type_idx % len(CUTTER_COLORS)]
+                        seen_types[key] = {'order': type_idx + 1, 'color': color, 'count': 0,
+                                          'type': ct, 'group': cg, 'chamfer': cc}
+                        type_idx += 1
+                    seen_types[key]['count'] += 1
+    cutter_config_list = sorted(seen_types.values(), key=lambda x: x['order'])
+
+    return blade_data, bom_summary, cutter_config_list, bool(blade_data)
 
 
 def _get_pocket_grid_context(drill_bit):
@@ -2741,6 +2766,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         context['drill_bit'] = bit
         context['page_title'] = f"New Receiving Inspection — {bit.serial_number}"
         context['is_new'] = True
+        context['report_number'] = 'RI-NEW'
         # QAS/005-1 checklist items (all NA for new) — 11 items
         context['checklist_items'] = [
             (1, "Bit Cleanliness", "vi_gauge_pads", "NA"),
@@ -2758,11 +2784,16 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         context['checklist_remarks'] = {}
 
         # BOM blade data for cutter evaluation grid
-        blade_data, bom_summary, has_bom = _get_bom_blade_data(bit)
+        blade_data, bom_summary, cutter_config_list, has_bom = _get_bom_blade_data(bit)
         context['has_bom_data'] = has_bom
         context['blade_data_json'] = _json.dumps(blade_data)
         context['bom_summary_json'] = _json.dumps(bom_summary)
         context['eval_data_json'] = '{}'
+        context['cutter_config_list'] = cutter_config_list
+        context['cutter_config_json'] = _json.dumps({
+            cfg['order']: {'color': cfg['color'], 'type': cfg['type'], 'group': cfg['group']}
+            for cfg in cutter_config_list
+        })
 
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
@@ -2818,20 +2849,28 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         context['drill_bit'] = bit
         context['page_title'] = f"Receiving Inspection — {bit.serial_number}"
         context['is_new'] = False
+        context['report_number'] = self.object.report_number
         context['checklist_items'] = self.object.checklist_items
         context['checklist_remarks'] = self.object.checklist_remarks or {}
         # QR code for print header
         from apps.workorders.utils import generate_drill_bit_qr
         context['bit_qr_base64'] = generate_drill_bit_qr(bit)
         # BOM blade data for cutter evaluation grid
-        blade_data, bom_summary, has_bom = _get_bom_blade_data(bit)
+        blade_data, bom_summary, cutter_config_list, has_bom = _get_bom_blade_data(bit)
         context['has_bom_data'] = has_bom
         context['blade_data_json'] = _json.dumps(blade_data)
         context['bom_summary_json'] = _json.dumps(bom_summary)
         context['eval_data_json'] = _json.dumps(self.object.cutter_evaluation_data or {})
+        context['cutter_config_list'] = cutter_config_list
+        context['cutter_config_json'] = _json.dumps({
+            cfg['order']: {'color': cfg['color'], 'type': cfg['type'], 'group': cfg['group']}
+            for cfg in cutter_config_list
+        })
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
         context['pocket_eval_data_json'] = _json.dumps(self.object.pocket_evaluation_data or {})
+        # Attachments
+        context['attachments'] = self.object.attachments.all()
         return context
 
     def form_valid(self, form):
@@ -2888,6 +2927,46 @@ def api_receiving_inspection_complete(request, bit_pk, pk):
         inspection.qc_approved_at = timezone.now()
         inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
         return JsonResponse({'success': True, 'is_complete': True, 'message': 'Inspection marked complete.'})
+
+
+@login_required
+@require_POST
+def api_receiving_inspection_upload(request, bit_pk, pk):
+    """Upload an attachment to a receiving inspection."""
+    inspection = get_object_or_404(ReceivingInspection, pk=pk, drill_bit__pk=bit_pk)
+    file = request.FILES.get('file')
+    if not file:
+        return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+    name = request.POST.get('name', 'Q-Note').strip() or 'Q-Note'
+    attachment = ReceivingInspectionAttachment.objects.create(
+        inspection=inspection,
+        file=file,
+        name=name,
+        uploaded_by=request.user,
+    )
+    return JsonResponse({
+        'success': True,
+        'attachment': {
+            'id': attachment.pk,
+            'name': attachment.name,
+            'file_url': attachment.file.url,
+            'file_extension': attachment.file_extension,
+            'is_image': attachment.is_image,
+            'uploaded_at': attachment.uploaded_at.strftime('%b %d, %Y %H:%M'),
+            'uploaded_by': request.user.get_full_name() or request.user.username,
+        }
+    })
+
+
+@login_required
+@require_POST
+def api_receiving_inspection_delete_attachment(request, bit_pk, pk, att_pk):
+    """Delete an attachment from a receiving inspection."""
+    attachment = get_object_or_404(ReceivingInspectionAttachment, pk=att_pk,
+                                  inspection__pk=pk, inspection__drill_bit__pk=bit_pk)
+    attachment.file.delete(save=False)
+    attachment.delete()
+    return JsonResponse({'success': True})
 
 
 # =============================================================================

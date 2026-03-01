@@ -1168,20 +1168,19 @@ class ReceivingInspectionForm(forms.ModelForm):
     class Meta:
         model = ReceivingInspection
         fields = [
-            'inspection_date', 'po_number', 'client_name',
+            'inspection_date', 'date_of_receipt', 'po_number', 'client_name',
             # Visual inspection checklist (QAS/005-1 — 11 items)
             'vi_pin_connection', 'vi_bit_body', 'vi_bit_breaker', 'vi_blades',
             'vi_nozzles', 'vi_junk_slot', 'vi_gauge_pads', 'vi_bit_face', 'vi_general',
             'vi_nozzle_liner', 'vi_vendor_note',
-            # Cutter condition
-            'cutters_total', 'cutters_chipped', 'cutters_broken', 'cutters_worn', 'cutters_missing',
-            # Measurements
-            'tfa', 'gauge_reading_1', 'gauge_reading_2', 'gauge_reading_3',
             # Decision
             'result', 'remarks',
         ]
         widgets = {
             'inspection_date': forms.DateInput(attrs={
+                'type': 'date', 'class': INPUT_CLASS,
+            }),
+            'date_of_receipt': forms.DateInput(attrs={
                 'type': 'date', 'class': INPUT_CLASS,
             }),
             'po_number': forms.TextInput(attrs={
@@ -1202,17 +1201,6 @@ class ReceivingInspectionForm(forms.ModelForm):
             'vi_general': forms.Select(attrs={'class': SELECT_CLASS}),
             'vi_nozzle_liner': forms.Select(attrs={'class': SELECT_CLASS}),
             'vi_vendor_note': forms.Select(attrs={'class': SELECT_CLASS}),
-            # Cutter counts
-            'cutters_total': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
-            'cutters_chipped': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
-            'cutters_broken': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
-            'cutters_worn': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
-            'cutters_missing': forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': 0}),
-            # Measurements
-            'tfa': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'gauge_reading_1': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'gauge_reading_2': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
-            'gauge_reading_3': forms.NumberInput(attrs={'class': INPUT_CLASS, 'step': '0.001'}),
             # Decision
             'result': forms.Select(attrs={'class': SELECT_CLASS}),
             'remarks': forms.Textarea(attrs={

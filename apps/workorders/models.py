@@ -1890,6 +1890,7 @@ class ReceivingInspection(models.Model):
     inspection_date = models.DateField(null=True, blank=True)
     po_number = models.CharField(max_length=50, blank=True)
     client_name = models.CharField(max_length=100, blank=True)
+    date_of_receipt = models.DateField(null=True, blank=True, verbose_name="Date of Receipt")
 
     # ── Visual Inspection Checklist per QAS/005-1 (11 items, each OK/NOT_OK/NA) ──
     CHECKLIST_CHOICES = [("OK", "OK"), ("NOT_OK", "Not OK"), ("NA", "N/A")]
@@ -2031,6 +2032,43 @@ class ReceivingInspection(models.Model):
             (10, "Nozzle Liner Fit", "vi_nozzle_liner", self.vi_nozzle_liner),
             (11, "Q-Note from Vendor", "vi_vendor_note", self.vi_vendor_note),
         ]
+
+    @property
+    def report_number(self):
+        """Auto-generated report number from PK."""
+        if self.pk:
+            return f"RI-{self.pk:04d}"
+        return "RI-NEW"
+
+
+class ReceivingInspectionAttachment(models.Model):
+    """File attachments for receiving inspections (Q-Note, photos, etc.)."""
+    inspection = models.ForeignKey(
+        ReceivingInspection, on_delete=models.CASCADE, related_name='attachments'
+    )
+    file = models.FileField(upload_to='receiving_inspections/%Y/%m/')
+    name = models.CharField(max_length=100, default='Q-Note',
+                           help_text="Document name (e.g., Q-Note, Photo, Additional)")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "receiving_inspection_attachments"
+        ordering = ['uploaded_at']
+
+    def __str__(self):
+        return f"{self.name} — {self.inspection}"
+
+    @property
+    def file_extension(self):
+        import os
+        return os.path.splitext(self.file.name)[1].lower() if self.file else ''
+
+    @property
+    def is_image(self):
+        return self.file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 
 
 class InstructionRule(models.Model):
