@@ -1548,6 +1548,12 @@ class DesignPocketConfig(models.Model):
         verbose_name='L/M/S',
         help_text='Long, Medium, or Short'
     )
+    length_code = models.CharField(
+        max_length=10,
+        blank=True,
+        verbose_name='Length Code',
+        help_text='Raw length value from inventory (e.g., 08, 13, 16)'
+    )
     pocket_shape = models.ForeignKey(
         PocketShape,
         on_delete=models.PROTECT,

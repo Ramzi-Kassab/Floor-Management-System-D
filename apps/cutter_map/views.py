@@ -1032,6 +1032,7 @@ def api_sync_to_erp(request):
             # Try to find matching inventory item
             inv_item = None
             substrate_shape = 'DEFAULT'
+            cutter_length = ''
 
             if hdbs_code:
                 # Try exact match on mat_number field
@@ -1052,13 +1053,20 @@ def api_sync_to_erp(request):
 
                 if inv_item:
                     items_matched += 1
-                    # Get substrate_shape attribute
+                    # Get cutter_shape attribute
                     shape_attr = ItemAttributeValue.objects.filter(
                         item=inv_item,
-                        attribute__attribute__code__in=['substrate_shape', 'shape', 'pocket_shape']
+                        attribute__attribute__code__in=['cutter_shape', 'substrate_shape', 'shape', 'pocket_shape']
                     ).first()
                     if shape_attr and shape_attr.text_value:
                         substrate_shape = shape_attr.text_value
+                    # Get length attribute
+                    length_attr = ItemAttributeValue.objects.filter(
+                        item=inv_item,
+                        attribute__attribute__code='length'
+                    ).first()
+                    if length_attr and length_attr.text_value and length_attr.text_value != 'N/A':
+                        cutter_length = length_attr.text_value
                 elif create_missing_items:
                     # Create new inventory item for unmatched HDBS code
                     display_name = f"{cutter_size} {cutter_type}".strip() or hdbs_code
@@ -1107,6 +1115,7 @@ def api_sync_to_erp(request):
             index_to_item_info[bom_index] = {
                 'size': cutter_size,
                 'shape': substrate_shape,
+                'length': cutter_length,
                 'color': color_code,
                 'count': item.get('count', 1)
             }
@@ -1117,10 +1126,10 @@ def api_sync_to_erp(request):
         parent_design.pockets.all().delete()
         parent_design.pocket_configs.all().delete()
 
-        # Group by (size, shape)
-        config_groups = {}  # (size, shape) → {indices: [], count: 0, color: ''}
+        # Group by (size, shape, length)
+        config_groups = {}  # (size, shape, length) → {indices: [], count: 0, color: ''}
         for bom_index, info in index_to_item_info.items():
-            key = (info['size'], info['shape'])
+            key = (info['size'], info['shape'], info['length'])
             if key not in config_groups:
                 config_groups[key] = {
                     'indices': [],
@@ -1134,7 +1143,23 @@ def api_sync_to_erp(request):
         index_to_config = {}  # Maps BOM index → DesignPocketConfig
         pocket_configs_created = 0
 
-        for order, ((size_code, shape_code), group_info) in enumerate(config_groups.items(), start=1):
+        # Map raw length codes to L/M/S categories
+        def _length_code_to_type(code):
+            """Map numeric length code to L/M/S. Thresholds based on cutter conventions."""
+            if not code:
+                return 'L'  # Default to Long if unknown
+            try:
+                val = int(code)
+            except (ValueError, TypeError):
+                return 'L'
+            if val <= 5:
+                return 'S'  # Short: 03, 05
+            elif val <= 10:
+                return 'M'  # Medium: 08, 10
+            else:
+                return 'L'  # Long: 13, 16, 18
+
+        for order, ((size_code, shape_code, length_code), group_info) in enumerate(config_groups.items(), start=1):
             # Find or create PocketSize
             pocket_size = PocketSize.objects.filter(code=size_code).first()
             if not pocket_size:
@@ -1159,6 +1184,8 @@ def api_sync_to_erp(request):
                 order=order,
                 pocket_size=pocket_size,
                 pocket_shape=pocket_shape,
+                length_type=_length_code_to_type(length_code),
+                length_code=length_code,
                 count=group_info['count'],
                 color_code=group_info['color'],
                 row_number=1  # Default to row 1, will be refined by pocket positions

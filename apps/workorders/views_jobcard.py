@@ -2816,7 +2816,7 @@ def _get_pocket_grid_context(drill_bit):
             'order': cfg.order,
             'size': cfg.pocket_size.display_name if cfg.pocket_size else '—',
             'shape': cfg.pocket_shape.name if cfg.pocket_shape else '—',
-            'length_type': cfg.get_length_type_display() if hasattr(cfg, 'get_length_type_display') else cfg.length_type or '—',
+            'length_type': cfg.length_code if cfg.length_code else cfg.get_length_type_display(),
             'count': cfg.count,
             'color': dc,
         })
