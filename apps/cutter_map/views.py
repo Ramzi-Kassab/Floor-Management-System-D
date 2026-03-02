@@ -1053,10 +1053,10 @@ def api_sync_to_erp(request):
 
                 if inv_item:
                     items_matched += 1
-                    # Get cutter_shape attribute
+                    # Get substrate_shape attribute (pocket shape, not cutter shape)
                     shape_attr = ItemAttributeValue.objects.filter(
                         item=inv_item,
-                        attribute__attribute__code__in=['cutter_shape', 'substrate_shape', 'shape', 'pocket_shape']
+                        attribute__attribute__code__in=['substrate_shape', 'shape', 'pocket_shape']
                     ).first()
                     if shape_attr and shape_attr.text_value:
                         substrate_shape = shape_attr.text_value
