@@ -2860,7 +2860,20 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         return ReceivingInspectionForm
 
     def get_drill_bit(self):
-        return get_object_or_404(DrillBit, pk=self.kwargs['bit_pk'])
+        return get_object_or_404(
+            DrillBit.objects.select_related(
+                'design', 'design__size', 'system_bom', 'brazing_bom',
+            ),
+            pk=self.kwargs['bit_pk'],
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        bit = self.get_drill_bit()
+        if bit.status == DrillBit.Status.UNREGISTERED:
+            from django.contrib import messages
+            messages.error(request, f"Bit {bit.serial_number} has status Unregistered and cannot be inspected. Please register it first.")
+            return redirect('workorders:receiving_inspection_list')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
         initial = super().get_initial()
@@ -2968,6 +2981,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
     def get_queryset(self):
         return ReceivingInspection.objects.select_related(
             'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+            'drill_bit__system_bom', 'drill_bit__brazing_bom',
             'work_order', 'inspected_by', 'qc_approved_by'
         ).filter(drill_bit__pk=self.kwargs['bit_pk'])
 

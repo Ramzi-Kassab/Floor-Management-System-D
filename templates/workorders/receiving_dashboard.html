@@ -156,6 +156,45 @@
         </div>
     </div>
 
+    {# ── Panel 6: Recently Inspected ── #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-emerald-500"></i>
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Recently Inspected</h2>
+                {% if recently_inspected_count %}
+                <span class="ml-1 px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">{{ recently_inspected_count }}</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'workorders:receiving_inspection_list' %}" class="text-sm text-emerald-600 hover:text-emerald-800 dark:text-emerald-400">View all &rarr;</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700 max-h-80 overflow-y-auto">
+            {% for insp in recently_inspected %}
+            <a href="{% url 'workorders:receiving_inspection_edit' bit_pk=insp.drill_bit.pk pk=insp.pk %}"
+               class="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                <div class="flex items-center justify-between">
+                    <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ insp.drill_bit.serial_number }}</span>
+                    <span class="px-2 py-0.5 text-xs rounded-full
+                        {% if insp.result == 'ACCEPTED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+                        {% elif insp.result == 'REJECTED' %}bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300
+                        {% elif insp.result == 'CONDITIONAL' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
+                        {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        {{ insp.get_result_display }}
+                    </span>
+                </div>
+                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {% if insp.drill_bit.design %}{{ insp.drill_bit.design }}{% endif %}
+                    {% if insp.drill_bit.design.size %} &middot; {{ insp.drill_bit.design.size }}{% endif %}
+                    {% if insp.inspected_by %} &middot; {{ insp.inspected_by.get_short_name|default:insp.inspected_by.username }}{% endif %}
+                    &middot; {{ insp.updated_at|date:"M d" }}
+                </div>
+            </a>
+            {% empty %}
+            <div class="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">No completed inspections yet</div>
+            {% endfor %}
+        </div>
+    </div>
+
     {# ── Panel 5: Pending Registration (unmatched serials) ── #}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">

@@ -1690,6 +1690,16 @@ Items noted for future enhancement. These are not bugs — they are improvements
   - **View Updated**: `DrillBitQRLabelsView` now passes `bit_type_display` and `connection_display` (from design's `connection_type_ref` + `connection_size_ref`). Added `select_related` for connection FKs.
 - **Key Files Modified**: `apps/workorders/forms.py`, `apps/workorders/views_jobcard.py`, `apps/workorders/views_drillbit.py`, `templates/workorders/receiving_inspection_form.html`, `templates/workorders/drillbit_qr_labels.html`.
 
+### Recent Enhancements (Mar 3, 2026 — Session 2) — Receiving Dock UX & Inspection Guards
+- **Recently Inspected Dashboard Widget**: New Panel 6 on Receiving Dock dashboard (`/work-orders/receiving/`) showing the 10 most recently completed inspections. Emerald theme with `shield-check` icon. Each row shows serial number, result badge (green=Accepted, red=Rejected, yellow=Conditional), design/size, inspector name, date. Links to inspection edit page. "View all →" links to full inspection list. Query: `ReceivingInspection.objects.filter(is_complete=True).order_by("-updated_at")[:10]` with `select_related` on drill_bit, design, size, inspected_by.
+- **UNREGISTERED Bit Inspection Guard**: Drill bits with `status=UNREGISTERED` are now blocked from receiving inspections. `ReceivingInspectionCreateView.dispatch()` checks status and redirects to inspection list with error message. Dashboard's Pending Inspections panel (Panel 3) excludes UNREGISTERED bits via `.exclude(drill_bit__status=DrillBit.Status.UNREGISTERED)`.
+- **Toast Notification Enhancement**: `templates/components/toast.html` redesigned — positioned top-center (was top-right), wider box (480px, was max-w-sm), slides down with scale animation (was slide from right), 8s default / 12s for errors (was 5s), larger icons (6×6), bolder text, colored ring borders, rounded-xl with shadow-xl, hover background on close button.
+- **Inspection Form Back Links Fixed**: Back link changed from drill bit detail to `receiving_inspection_list`. Added secondary "Drill Bit" link with box icon. Cancel link also updated. Audit confirmed all other Receiving templates have correct back links.
+- **QR Label Visible Before Create**: QR Label button moved outside `{% if not is_new %}` guard so it's visible on the create page. Print button remains after-create only.
+- **Photos Section Visible Before Create**: Removed outer `{% if not is_new %}` from Photos section. On create, includes photo module without `context_id`; on edit, passes `context_id=object.pk`.
+- **Design MAT & System MAT in Inspection Header**: Section 1 info grid expanded from 5 to 6 columns. Single "Material No." replaced with "Design MAT (L3/L4)" (from `drill_bit.design.mat_number`) and "System MAT (L5)" (from `drill_bit.system_bom.system_mat_no`, falls back to `brazing_bom`). Print header also updated with both MAT fields. Both Create and Edit views now `select_related` system_bom and brazing_bom.
+- **Key Files Modified**: `apps/workorders/views_jobcard.py`, `apps/workorders/views_receiving.py`, `templates/components/toast.html`, `templates/workorders/receiving_dashboard.html`, `templates/workorders/receiving_inspection_form.html`.
+
 ---
 
 ## Need Help?

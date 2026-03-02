@@ -16,19 +16,23 @@
                 class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm no-print">
             <i data-lucide="printer" class="w-4 h-4 mr-1.5"></i> Print
         </button>
+        {% endif %}
         <a href="{% url 'workorders:drillbit_qr_labels' %}?bits={{ drill_bit.pk }}" target="_blank"
            class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm no-print">
             <i data-lucide="qr-code" class="w-4 h-4 mr-1.5"></i> QR Label
         </a>
-        {% endif %}
         {% if not is_new and object.is_complete %}
             <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 no-print">
                 <i data-lucide="check-circle" class="w-4 h-4"></i> Complete
             </span>
         {% endif %}
+        <a href="{% url 'workorders:receiving_inspection_list' %}"
+           class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 no-print">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Inspections
+        </a>
         <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
            class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 no-print">
-            <i data-lucide="arrow-left" class="w-4 h-4 inline"></i> Back to Drill Bit
+            <i data-lucide="box" class="w-4 h-4 inline"></i> Drill Bit
         </a>
     </div>
 </div>
@@ -83,7 +87,11 @@
         </div>
         <div style="display:flex;">
             <div style="flex:1;"><strong>Type</strong> &nbsp;: &nbsp;{{ drill_bit.get_bit_type_display }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;"><strong>Material No</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_number|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>Design MAT (L3/L4)</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_number|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:100px;">&nbsp;</span></div>
+        </div>
+        <div style="display:flex;">
+            <div style="flex:1;"><strong>System MAT (L5)</strong> &nbsp;: &nbsp;{% if drill_bit.system_bom %}{{ drill_bit.system_bom.system_mat_no|default:drill_bit.system_bom.brazing_mat_no|default:"" }}{% elif drill_bit.brazing_bom %}{{ drill_bit.brazing_bom.system_mat_no|default:drill_bit.brazing_bom.brazing_mat_no|default:"" }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;">&nbsp;</div>
         </div>
     </div>
 </div>
@@ -119,7 +127,7 @@
     </button>
     <div x-show="s1" x-collapse class="px-5 pb-4">
         <!-- Read-only bit info -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
             <div>
                 <span class="text-xs text-gray-500 dark:text-gray-400 block">Report No.</span>
                 <span class="font-semibold text-gray-900 dark:text-white font-mono">{{ report_number }}</span>
@@ -137,8 +145,12 @@
                 <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.size|default:"—" }}</span>
             </div>
             <div>
-                <span class="text-xs text-gray-500 dark:text-gray-400 block">Material No.</span>
-                <span class="font-medium text-gray-700 dark:text-gray-300">{{ drill_bit.design.mat_number|default:"—" }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">Design MAT (L3/L4)</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{{ drill_bit.design.mat_number|default:"—" }}</span>
+            </div>
+            <div>
+                <span class="text-xs text-gray-500 dark:text-gray-400 block">System MAT (L5)</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{% if drill_bit.system_bom %}{{ drill_bit.system_bom.system_mat_no|default:drill_bit.system_bom.brazing_mat_no|default:"—" }}{% elif drill_bit.brazing_bom %}{{ drill_bit.brazing_bom.system_mat_no|default:drill_bit.brazing_bom.brazing_mat_no|default:"—" }}{% else %}—{% endif %}</span>
             </div>
         </div>
         <!-- Editable fields -->
@@ -670,7 +682,6 @@
 <!-- ══════════════════════════════════════════════════════════════════════
      SECTION 6: PHOTOS
      ══════════════════════════════════════════════════════════════════════ -->
-{% if not is_new %}
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s6 = !s6"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
@@ -681,10 +692,13 @@
         <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s6 ? '' : '-rotate-90'"></i>
     </button>
     <div x-show="s6" x-collapse class="px-5 pb-4">
-        {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="RECEIVING" context_id=object.pk %}
+        {% if not is_new %}
+            {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="RECEIVING" context_id=object.pk %}
+        {% else %}
+            {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="RECEIVING" %}
+        {% endif %}
     </div>
 </div>
-{% endif %}
 
 <!-- ── PRINT: Signatures (matches QAS/005-1 — simple label : underline) ── -->
 <div class="print-signatures" style="font-size:10pt; line-height:2.4; margin-top:16px;">
@@ -695,7 +709,7 @@
 
 <!-- ── ACTION BUTTONS ── -->
 <div class="flex items-center justify-between py-4 no-print">
-    <a href="{% url 'workorders:drillbit_detail_enhanced' pk=drill_bit.pk %}"
+    <a href="{% url 'workorders:receiving_inspection_list' %}"
        class="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
         Cancel
     </a>

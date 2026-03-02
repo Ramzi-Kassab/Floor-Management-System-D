@@ -6,43 +6,43 @@ Usage: window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Hello
 
 <div x-data="toastManager()"
      @toast.window="addToast($event.detail)"
-     class="fixed top-20 right-4 z-50 space-y-2 pointer-events-none"
-     style="max-width: 400px;">
+     class="fixed top-6 left-1/2 -translate-x-1/2 z-50 space-y-3 pointer-events-none"
+     style="width: 480px; max-width: 90vw;">
 
     <template x-for="toast in toasts" :key="toast.id">
         <div x-show="toast.show"
-             x-transition:enter="transform transition ease-out duration-300"
-             x-transition:enter-start="translate-x-full opacity-0"
-             x-transition:enter-end="translate-x-0 opacity-100"
-             x-transition:leave="transform transition ease-in duration-200"
-             x-transition:leave-start="translate-x-0 opacity-100"
-             x-transition:leave-end="translate-x-full opacity-0"
-             class="pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg shadow-lg ring-1 ring-black ring-opacity-5"
+             x-transition:enter="transform transition ease-out duration-400"
+             x-transition:enter-start="-translate-y-4 opacity-0 scale-95"
+             x-transition:enter-end="translate-y-0 opacity-100 scale-100"
+             x-transition:leave="transform transition ease-in duration-300"
+             x-transition:leave-start="translate-y-0 opacity-100 scale-100"
+             x-transition:leave-end="-translate-y-4 opacity-0 scale-95"
+             class="pointer-events-auto w-full overflow-hidden rounded-xl shadow-xl ring-1 ring-black/10"
              :class="{
-                 'bg-green-50 dark:bg-green-900/30': toast.type === 'success',
-                 'bg-red-50 dark:bg-red-900/30': toast.type === 'error',
-                 'bg-yellow-50 dark:bg-yellow-900/30': toast.type === 'warning',
-                 'bg-blue-50 dark:bg-blue-900/30': toast.type === 'info' || !toast.type
+                 'bg-green-50 dark:bg-green-900/40 ring-green-200 dark:ring-green-700': toast.type === 'success',
+                 'bg-red-50 dark:bg-red-900/40 ring-red-200 dark:ring-red-700': toast.type === 'error',
+                 'bg-yellow-50 dark:bg-yellow-900/40 ring-yellow-200 dark:ring-yellow-700': toast.type === 'warning',
+                 'bg-blue-50 dark:bg-blue-900/40 ring-blue-200 dark:ring-blue-700': toast.type === 'info' || !toast.type
              }">
-            <div class="p-4">
-                <div class="flex items-start">
+            <div class="px-5 py-4">
+                <div class="flex items-center">
                     <div class="flex-shrink-0">
                         <template x-if="toast.type === 'success'">
-                            <i data-lucide="check-circle" class="h-5 w-5 text-green-500"></i>
+                            <i data-lucide="check-circle" class="h-6 w-6 text-green-500"></i>
                         </template>
                         <template x-if="toast.type === 'error'">
-                            <i data-lucide="x-circle" class="h-5 w-5 text-red-500"></i>
+                            <i data-lucide="x-circle" class="h-6 w-6 text-red-500"></i>
                         </template>
                         <template x-if="toast.type === 'warning'">
-                            <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-500"></i>
+                            <i data-lucide="alert-triangle" class="h-6 w-6 text-yellow-500"></i>
                         </template>
                         <template x-if="toast.type === 'info' || !toast.type">
-                            <i data-lucide="info" class="h-5 w-5 text-blue-500"></i>
+                            <i data-lucide="info" class="h-6 w-6 text-blue-500"></i>
                         </template>
                     </div>
-                    <div class="ml-3 w-0 flex-1 pt-0.5">
+                    <div class="ml-3 flex-1">
                         <p x-text="toast.message"
-                           class="text-sm font-medium"
+                           class="text-sm font-semibold leading-5"
                            :class="{
                                'text-green-800 dark:text-green-200': toast.type === 'success',
                                'text-red-800 dark:text-red-200': toast.type === 'error',
@@ -52,12 +52,12 @@ Usage: window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Hello
                     </div>
                     <div class="ml-4 flex flex-shrink-0">
                         <button @click="removeToast(toast.id)"
-                                class="inline-flex rounded-md hover:opacity-75 focus:outline-none"
+                                class="inline-flex rounded-md p-1 hover:opacity-75 focus:outline-none"
                                 :class="{
-                                    'text-green-500': toast.type === 'success',
-                                    'text-red-500': toast.type === 'error',
-                                    'text-yellow-500': toast.type === 'warning',
-                                    'text-blue-500': toast.type === 'info' || !toast.type
+                                    'text-green-500 hover:bg-green-100 dark:hover:bg-green-800/50': toast.type === 'success',
+                                    'text-red-500 hover:bg-red-100 dark:hover:bg-red-800/50': toast.type === 'error',
+                                    'text-yellow-500 hover:bg-yellow-100 dark:hover:bg-yellow-800/50': toast.type === 'warning',
+                                    'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-800/50': toast.type === 'info' || !toast.type
                                 }">
                             <span class="sr-only">Close</span>
                             <i data-lucide="x" class="h-5 w-5"></i>
@@ -92,10 +92,11 @@ Usage: window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Hello
                     }
                 });
 
-                // Auto-dismiss after 5 seconds
+                // Auto-dismiss after 8 seconds (error: 12s)
+                const duration = data.duration || (data.type === 'error' ? 12000 : 8000);
                 setTimeout(() => {
                     this.removeToast(id);
-                }, data.duration || 5000);
+                }, duration);
             },
 
             removeToast(id) {
@@ -112,7 +113,7 @@ Usage: window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Hello
     }
 
     // Global function to show toasts from anywhere
-    window.showToast = function(message, type = 'info', duration = 5000) {
+    window.showToast = function(message, type = 'info', duration) {
         window.dispatchEvent(new CustomEvent('toast', {
             detail: { message, type, duration }
         }));

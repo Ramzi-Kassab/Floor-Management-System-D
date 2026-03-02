@@ -347,9 +347,11 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             event_date__gte=seven_days_ago.date(),
         ).select_related("bit", "bit__account").order_by("-event_date", "-id")[:15]
 
-        # Panel 3: Pending receiving inspections (new bits only)
+        # Panel 3: Pending receiving inspections (exclude UNREGISTERED bits)
         pending_inspections = ReceivingInspection.objects.filter(
             is_complete=False
+        ).exclude(
+            drill_bit__status=DrillBit.Status.UNREGISTERED
         ).select_related(
             "drill_bit", "drill_bit__design", "drill_bit__design__size"
         ).order_by("-created_at")[:10]
@@ -373,6 +375,14 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             "batch",
         ).order_by("-batch__created_at", "sort_order")[:15]
 
+        # Panel 6: Recently inspected (completed inspections)
+        recently_inspected = ReceivingInspection.objects.filter(
+            is_complete=True
+        ).select_related(
+            "drill_bit", "drill_bit__design", "drill_bit__design__size",
+            "inspected_by",
+        ).order_by("-updated_at")[:10]
+
         ctx.update({
             "incoming_batches": incoming_batches,
             "incoming_batches_count": incoming_batches.count(),
@@ -382,6 +392,8 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
             "pending_inspections_count": pending_inspections.count(),
             "bom_pending": bom_pending,
             "bom_pending_count": bom_pending.count(),
+            "recently_inspected": recently_inspected,
+            "recently_inspected_count": recently_inspected.count(),
             "pending_registration": pending_registration,
             "pending_registration_count": BackloadItem.objects.filter(
                 match_status=BackloadItem.MatchStatus.UNMATCHED,
