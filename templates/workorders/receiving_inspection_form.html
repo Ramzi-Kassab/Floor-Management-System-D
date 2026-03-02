@@ -387,22 +387,22 @@
 
         <!-- Pocket Grid -->
         <div class="overflow-x-auto">
-            <div class="inline-block min-w-max">
+            <div class="inline-block min-w-max bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
                 <!-- Column number headers -->
-                <div class="flex items-end mb-0.5">
-                    <div class="w-14 flex-shrink-0"></div>
+                <div class="flex items-end mb-1">
+                    <div class="w-12 flex-shrink-0"></div>
                     <template x-for="col in pocketMaxPos" :key="col">
                         <div class="flex">
-                            <div class="w-10 text-center text-xs font-medium py-1 text-gray-500" x-text="col"></div>
-                            <div class="w-3" x-show="col < pocketMaxPos"></div>
+                            <div class="w-10 text-center text-xs font-bold py-1 text-gray-500 dark:text-gray-400" x-text="col"></div>
+                            <div class="w-1.5" x-show="col < pocketMaxPos"></div>
                         </div>
                     </template>
                 </div>
 
                 <!-- Blade rows -->
                 {% for bn in pocket_blade_nums %}
-                <div class="flex items-center mb-0.5">
-                    <div class="w-14 flex-shrink-0 font-semibold text-sm text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
+                <div class="flex items-center mb-1">
+                    <div class="w-12 flex-shrink-0 font-bold text-sm text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
                     <template x-for="col in pocketMaxPos" :key="col">
                         <div class="flex">
                             <div class="pocket-grid-cell"
@@ -412,9 +412,9 @@
                                  :title="getPocketCellTitle({{ bn }}, col)"
                                  x-text="getPocketCellText({{ bn }}, col)">
                             </div>
-                            <div class="w-3 flex items-center justify-center" x-show="col < pocketMaxPos">
+                            <div class="w-1.5 flex items-center justify-center" x-show="col < pocketMaxPos">
                                 <div class="w-0.5 h-10 rounded"
-                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
+                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-500' : ''"></div>
                             </div>
                         </div>
                     </template>
@@ -1144,21 +1144,24 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
         width: 40px; min-width: 40px; height: 40px;
         display: flex; align-items: center; justify-content: center;
         font-size: 10px; font-weight: 700; text-align: center;
-        border: 1.5px solid #d1d5db; border-radius: 4px;
+        border: 2px solid #9ca3af; border-radius: 5px;
         cursor: pointer; user-select: none; transition: all 0.15s;
         background: white;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
     }
-    .dark .pocket-grid-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
-    .pocket-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .dark .pocket-grid-cell { border-color: #6b7280; background: #374151; color: #f9fafb; }
+    .pocket-grid-cell:hover { transform: scale(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.2); border-color: #6366f1; }
+    .dark .pocket-grid-cell:hover { border-color: #818cf8; }
     .pocket-grid-cell-empty {
-        background: #f9fafb !important; border-style: dashed !important;
-        cursor: default; color: transparent;
+        background: #f3f4f6 !important; border: 2px dashed #d1d5db !important;
+        cursor: default; color: transparent; box-shadow: none !important;
     }
-    .dark .pocket-grid-cell-empty { background: #1f2937 !important; }
+    .dark .pocket-grid-cell-empty { background: #1f2937 !important; border-color: #4b5563 !important; }
     .pocket-grid-cell-marked {
         font-weight: 900 !important; font-size: 9px !important;
         color: #7c3aed !important; border-color: #7c3aed !important;
-        background: #ede9fe !important;
+        background: #ede9fe !important; border-width: 2.5px !important;
+        box-shadow: 0 0 0 1px rgba(124,58,237,0.15) !important;
     }
     .dark .pocket-grid-cell-marked { color: #c4b5fd !important; border-color: #8b5cf6 !important; background: #4c1d95 !important; }
 
