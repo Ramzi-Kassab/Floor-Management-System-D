@@ -36,33 +36,79 @@
 
 {% block content %}
 
-<!-- ══════════ PRINT HEADER (hidden on screen, shown on print) ══════════ -->
+<!-- ══════════ PRINT HEADER — matches QAS/005-1 exactly ══════════ -->
 <div class="print-header">
-    <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 12px;">
-        <div>
-            <h1 style="font-size: 18pt; font-weight: bold; margin: 0;">ARDT</h1>
-            <h2 style="font-size: 13pt; font-weight: bold; margin: 4px 0 0;">FC BIT RECEIVING INSPECTION</h2>
-            <p style="font-size: 9pt; color: #555; margin: 2px 0 0;">QAS/005-1 &mdash; {{ report_number }}</p>
-        </div>
-        {% if bit_qr_base64 %}
-        <div style="text-align: center;">
-            <img src="{{ bit_qr_base64 }}" alt="QR" style="width: 80px; height: 80px;">
-            <div style="font-size: 8pt; font-family: monospace; margin-top: 2px;">{{ drill_bit.serial_number }}</div>
-        </div>
-        {% endif %}
-    </div>
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 9pt; margin-bottom: 12px; border: 1px solid #ccc; padding: 8px;">
-        <div><strong>Report No:</strong> {{ report_number }}</div>
-        <div><strong>Serial No:</strong> {{ drill_bit.serial_number }}</div>
-        <div><strong>Type:</strong> {{ drill_bit.get_bit_type_display }}</div>
-        <div><strong>Size:</strong> {{ drill_bit.design.size|default:"—" }}</div>
-        <div><strong>Material No:</strong> {{ drill_bit.design.mat_number|default:"—" }}</div>
-        <div><strong>Inspection Date:</strong> {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
-        <div><strong>Date of Receipt:</strong> {% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"M d, Y" }}{% else %}—{% endif %}</div>
-        <div><strong>PO No:</strong> {% if not is_new %}{{ object.po_number|default:"—" }}{% else %}—{% endif %}</div>
-        <div><strong>Inspector:</strong> {% if not is_new and object.inspector_name %}{{ object.inspector_name }}{% else %}—{% endif %}</div>
-        <div><strong>Status:</strong> {% if not is_new and object.is_complete %}COMPLETE{% else %}DRAFT{% endif %}</div>
-    </div>
+    <!-- Top header row: ARDT | Title | Document info -->
+    <table class="print-hdr-table" style="width:100%; border-collapse:collapse; border:2px solid #000; margin-bottom:0;">
+        <tr>
+            <td rowspan="3" style="width:120px; border:1px solid #000; padding:6px; vertical-align:middle; text-align:center;">
+                <div style="font-size:20pt; font-weight:900; letter-spacing:2px;">ARDT</div>
+            </td>
+            <td rowspan="3" style="border:1px solid #000; padding:8px; vertical-align:middle; text-align:center;">
+                <div style="font-size:14pt; font-weight:bold;">FC BIT RECEIVING INSPECTION</div>
+            </td>
+            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt; width:200px;">
+                <strong>Document No:</strong> QAS/005-1
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt;">
+                <strong>Revision No:</strong> 01
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt;">
+                <strong>Effective Date:</strong> 01 NOV 2024
+            </td>
+        </tr>
+    </table>
+
+    <!-- Report No row -->
+    <table style="width:100%; border-collapse:collapse; border:1px solid #000; border-top:none; margin-bottom:8px;">
+        <tr>
+            <td style="padding:4px 8px; font-size:10pt;">
+                <strong>Report No.:</strong> {{ report_number }}
+            </td>
+            <td style="padding:4px 8px; font-size:10pt; text-align:right;">
+                {% if bit_qr_base64 %}
+                <img src="{{ bit_qr_base64 }}" alt="QR" style="width:50px; height:50px; vertical-align:middle;">
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Section 1: Information fields — 2-row table matching QAS/005-1 -->
+    <div style="font-size:10pt; font-weight:bold; margin:8px 0 4px; border-bottom:1px solid #000; padding-bottom:2px;">1. Information</div>
+    <table style="width:100%; border-collapse:collapse; border:1px solid #000; margin-bottom:8px; font-size:9pt;">
+        <tr>
+            <td style="border:1px solid #000; padding:4px 8px; width:33%;">
+                <strong>Date of Inspection:</strong><br>
+                {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"d M Y" }}{% else %}&nbsp;{% endif %}
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px; width:33%;">
+                <strong>Date of Receipt:</strong><br>
+                {% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"d M Y" }}{% else %}&nbsp;{% endif %}
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px; width:34%;">
+                <strong>PO Number:</strong><br>
+                {% if not is_new %}{{ object.po_number|default:"&nbsp;" }}{% else %}&nbsp;{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:4px 8px;">
+                <strong>Serial No.:</strong><br>
+                {{ drill_bit.serial_number }}
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px;">
+                <strong>Bit Type:</strong><br>
+                {{ drill_bit.get_bit_type_display }}
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px;">
+                <strong>Size:</strong><br>
+                {{ drill_bit.design.size|default:"—" }}
+            </td>
+        </tr>
+    </table>
 </div>
 
 <form method="post" id="inspectionForm"
@@ -203,29 +249,27 @@
             </table>
         </div>
 
-        <!-- Print table -->
-        <table class="print-checklist">
+        <!-- Print checklist table (matches QAS/005-1 bordered format) -->
+        <table class="print-checklist" style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt;">
             <thead>
-                <tr>
-                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333; width:20px;">#</th>
-                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Check Point</th>
-                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">OK</th>
-                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">Not OK</th>
-                    <th style="text-align:center; padding:3px 6px; border-bottom:2px solid #333; width:50px;">N/A</th>
-                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Reason</th>
-                    <th style="text-align:left; padding:3px 6px; border-bottom:2px solid #333;">Remarks</th>
+                <tr style="background:#f0f0f0;">
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">S.No</th>
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:left; font-weight:bold;">Check Point</th>
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">OK</th>
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:50px; font-weight:bold;">Not OK</th>
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">N/A</th>
+                    <th style="border:1px solid #000; padding:3px 6px; text-align:left; font-weight:bold; width:180px;">Reason for Not OK</th>
                 </tr>
             </thead>
             <tbody>
                 {% for num, label, field_name, current_value in checklist_items %}
                 <tr>
-                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">{{ num }}</td>
-                    <td style="padding:2px 6px; border-bottom:1px solid #ddd;">{{ label }}</td>
-                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "OK" %}&#10004;{% endif %}</td>
-                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "NOT_OK" %}&#10008;{% endif %}</td>
-                    <td style="text-align:center; padding:2px 6px; border-bottom:1px solid #ddd;">{% if current_value == "NA" %}&mdash;{% endif %}</td>
-                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">&nbsp;</td>
-                    <td style="padding:2px 6px; border-bottom:1px solid #ddd; font-size:8pt;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{{ num }}</td>
+                    <td style="border:1px solid #000; padding:2px 6px;">{{ label }}</td>
+                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "OK" %}&#10004;{% endif %}</td>
+                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "NOT_OK" %}&#10008;{% endif %}</td>
+                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "NA" %}&mdash;{% endif %}</td>
+                    <td style="border:1px solid #000; padding:2px 6px; font-size:8pt;">&nbsp;</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -634,20 +678,28 @@
             </div>
         </div>
 
-        <!-- Print version of decision -->
+        <!-- Print version of decision (matches QAS/005-1) -->
         <div class="print-decision">
-            <table style="width:100%; font-size:10pt;">
+            <table style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt; margin-top:4px;">
                 <tr>
-                    <td style="padding:4px 8px; width:50%;"><strong>Result:</strong>
-                        {% if not is_new %}
-                            {% if object.result == 'ACCEPTED' %}<span style="color:green; font-weight:bold;">ACCEPTED</span>
-                            {% elif object.result == 'REJECTED' %}<span style="color:red; font-weight:bold;">REJECTED</span>
-                            {% elif object.result == 'CONDITIONAL' %}<span style="color:#d97706; font-weight:bold;">CONDITIONAL</span>
-                            {% else %}PENDING{% endif %}
-                        {% else %}&mdash;{% endif %}
+                    <td style="border:1px solid #000; padding:6px 10px; width:50%; vertical-align:top;">
+                        <strong>Inspection Result:</strong><br><br>
+                        <div style="margin:4px 0;">
+                            {% if not is_new and object.result == 'ACCEPTED' %}&#9746;{% else %}&#9744;{% endif %}
+                            &nbsp; <strong>Accept</strong>
+                        </div>
+                        <div style="margin:4px 0;">
+                            {% if not is_new and object.result == 'REJECTED' %}&#9746;{% else %}&#9744;{% endif %}
+                            &nbsp; <strong>Reject</strong>
+                        </div>
+                        <div style="margin:4px 0;">
+                            {% if not is_new and object.result == 'CONDITIONAL' %}&#9746;{% else %}&#9744;{% endif %}
+                            &nbsp; <strong>Conditional Accept</strong>
+                        </div>
                     </td>
-                    <td style="padding:4px 8px;">
-                        <strong>Remarks:</strong> {% if not is_new %}{{ object.remarks|default:"—" }}{% else %}&mdash;{% endif %}
+                    <td style="border:1px solid #000; padding:6px 10px; vertical-align:top;">
+                        <strong>Remarks:</strong><br>
+                        {% if not is_new %}{{ object.remarks|default:"" }}{% endif %}
                     </td>
                 </tr>
             </table>
@@ -679,29 +731,61 @@
 </div>
 {% endif %}
 
-<!-- ── PRINT: Signatures Section ── -->
+<!-- ── PRINT: Signatures Section (matches QAS/005-1) ── -->
 <div class="print-signatures">
-    <table style="width:100%; font-size:10pt; border-top:2px solid #333; margin-top:20px; padding-top:12px;">
+    <table style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt; margin-top:0;">
         <tr>
-            <td style="width:50%; padding:8px; vertical-align:top;">
-                <strong>Inspector:</strong><br>
-                {% if not is_new and object.inspected_by %}
-                    {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}<br>
-                    <span style="font-size:8pt; color:#666;">Date: {{ object.inspection_date|date:"M d, Y" }}</span>
-                {% else %}
-                    <br><div style="border-bottom:1px solid #999; width:200px; margin-top:30px;"></div>
-                    <span style="font-size:8pt; color:#666;">Signature / Date</span>
-                {% endif %}
+            <td style="border:1px solid #000; padding:6px 10px; width:50%; vertical-align:top;">
+                <strong>Inspected By:</strong><br>
+                <table style="width:100%; border:none; font-size:9pt; margin-top:6px;">
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Name:
+                            {% if not is_new and object.inspected_by %}
+                                {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
+                            {% else %}
+                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Signature: <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Date:
+                            {% if not is_new and object.inspection_date %}
+                                {{ object.inspection_date|date:"d M Y" }}
+                            {% else %}
+                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
             </td>
-            <td style="width:50%; padding:8px; vertical-align:top;">
-                <strong>QC Approver:</strong><br>
-                {% if not is_new and object.qc_approved_by %}
-                    {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}<br>
-                    <span style="font-size:8pt; color:#666;">Date: {{ object.qc_approved_at|date:"M d, Y H:i" }}</span>
-                {% else %}
-                    <br><div style="border-bottom:1px solid #999; width:200px; margin-top:30px;"></div>
-                    <span style="font-size:8pt; color:#666;">Signature / Date</span>
-                {% endif %}
+            <td style="border:1px solid #000; padding:6px 10px; vertical-align:top;">
+                <strong>QC Approval:</strong><br>
+                <table style="width:100%; border:none; font-size:9pt; margin-top:6px;">
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Name:
+                            {% if not is_new and object.qc_approved_by %}
+                                {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
+                            {% else %}
+                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Signature: <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:3px 0; border:none;">Date:
+                            {% if not is_new and object.qc_approved_at %}
+                                {{ object.qc_approved_at|date:"d M Y" }}
+                            {% else %}
+                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
             </td>
         </tr>
     </table>
@@ -1210,70 +1294,84 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     .dark .cutter-sym-mini { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
 
     /* ── Print-only elements: hidden on screen ── */
-    .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block {
+    .print-header, .print-checklist, .print-decision, .print-signatures {
         display: none;
     }
 
-    /* ── Print styles ── */
+    /* ── Print styles — matches QAS/005-1 form ── */
     @media print {
+        /* Hide screen-only elements */
         .no-print, nav, .sidebar, header, footer,
         button[type="submit"], form > .flex.items-center,
-        .topnav, [data-lucide="chevron-down"] { display: none !important; }
-        .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block { display: block !important; }
+        .topnav, [data-lucide="chevron-down"],
+        .bg-blue-50, #attachmentsList, #noAttachments { display: none !important; }
+
+        /* Show print-only elements */
+        .print-header, .print-checklist, .print-decision, .print-signatures { display: block !important; }
+
+        /* Base print styles */
         body { background: white !important; font-size: 9pt; color: #000 !important; }
-        @page { margin: 0.4in 0.5in; }
+        @page { margin: 0.5in; size: A4; }
 
         /* Force all Alpine sections open */
         [x-show] { display: block !important; }
         [x-collapse] { height: auto !important; overflow: visible !important; }
 
-        /* Section styling for print */
+        /* Section cards: remove web styling, keep clean for print */
         .print-section {
             background: white !important; border: none !important;
-            box-shadow: none !important; padding: 2px 0 !important;
-            margin-bottom: 2px !important; page-break-inside: avoid;
+            box-shadow: none !important; padding: 0 !important;
+            margin-bottom: 6px !important; page-break-inside: avoid;
         }
+
+        /* Section header buttons: show as section titles with QAS/005-1 numbering */
         .print-section > button[type="button"] {
             display: block !important; pointer-events: none;
-            padding: 3px 0 !important; border-bottom: 1px solid #999;
-            font-size: 11pt; font-weight: bold;
+            padding: 4px 0 2px !important; border: none !important;
+            border-bottom: 1px solid #000 !important;
+            font-size: 10pt; font-weight: bold; color: #000 !important;
+            background: white !important;
         }
+        /* Hide chevron icons and count badges from section headers */
         .print-section > button[type="button"] i[data-lucide="chevron-down"],
-        .print-section > button[type="button"] span { display: none !important; }
+        .print-section > button[type="button"] i[data-lucide],
+        .print-section > button[type="button"] span[x-text] { display: none !important; }
+
+        /* Hide screen info grid (replaced by print header info table) */
+        .print-section .grid.grid-cols-2.md\\:grid-cols-5,
+        .print-section .grid.grid-cols-1.md\\:grid-cols-3 { display: none !important; }
 
         /* Grids: preserve colors */
         .cutter-grid-cell, .pocket-grid-cell, .pocket-sym-mini, .cutter-sym-mini,
-        .cutter-grid-cell-marked, .pocket-grid-cell-marked {
+        .cutter-grid-cell-marked, .pocket-grid-cell-marked,
+        .print-hdr-table td {
             print-color-adjust: exact; -webkit-print-color-adjust: exact;
         }
 
-        /* Grid cells smaller for print */
-        .pocket-grid-cell, .pocket-grid-cell-marked { width: 28px !important; height: 28px !important; font-size: 8px !important; }
-        .cutter-grid-cell, .cutter-grid-cell-marked { width: 30px !important; height: 30px !important; font-size: 8px !important; }
+        /* Grid cells compact for print */
+        .pocket-grid-cell, .pocket-grid-cell-empty,
+        .pocket-grid-cell-marked { width: 24px !important; min-width: 24px !important; height: 24px !important; font-size: 7px !important; border-radius: 2px !important; }
+        .cutter-grid-cell, .cutter-grid-cell-empty,
+        .cutter-grid-cell-marked { width: 26px !important; min-width: 26px !important; height: 26px !important; font-size: 7px !important; border-radius: 2px !important; }
+        .cutter-blade-label { width: 22px !important; min-width: 22px !important; font-size: 8px !important; line-height: 26px !important; }
 
-        /* Config tables compact */
-        .print-section table { font-size: 8pt; }
+        /* Separators thinner */
+        .w-3 { width: 4px !important; }
+        .w-3 .w-0\\.5 { width: 1px !important; }
 
-        /* Attachment section: hide upload controls, show file list only */
-        .print-section [x-show*="uploadArea"] { display: none !important; }
+        /* Config tables: bordered for print */
+        .print-section table.text-xs { font-size: 8pt; border-collapse: collapse; }
+        .print-section table.text-xs th,
+        .print-section table.text-xs td { border: 1px solid #000 !important; padding: 2px 4px !important; }
+
+        /* Legend compact */
+        .pocket-sym-mini, .cutter-sym-mini { width: 14px !important; height: 14px !important; font-size: 8px !important; line-height: 14px !important; }
 
         /* Dark mode overrides for print */
-        .dark * { color: #000 !important; background: white !important; border-color: #ccc !important; }
+        .dark, .dark * { color: #000 !important; background: white !important; border-color: #000 !important; }
 
-        /* Page break before grids if needed */
-        .print-section:nth-child(n+3) { page-break-before: auto; }
-
-        /* Signature area for print */
-        .print-signatures {
-            margin-top: 20px; padding-top: 15px;
-            border-top: 1px solid #999;
-            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px;
-            font-size: 9pt;
-        }
-        .print-signatures div {
-            border-top: 1px solid #333; padding-top: 4px;
-            text-align: center; margin-top: 40px;
-        }
+        /* Print signatures — already styled inline */
+        .print-signatures { margin-top: 0; }
     }
 
     [x-cloak] { display: none !important; }
