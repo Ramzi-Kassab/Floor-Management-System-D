@@ -2862,7 +2862,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
     def get_drill_bit(self):
         return get_object_or_404(
             DrillBit.objects.select_related(
-                'design', 'design__size', 'system_bom', 'brazing_bom',
+                'design', 'design__size', 'bom', 'system_bom', 'brazing_bom',
             ),
             pk=self.kwargs['bit_pk'],
         )
@@ -2981,7 +2981,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
     def get_queryset(self):
         return ReceivingInspection.objects.select_related(
             'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
-            'drill_bit__system_bom', 'drill_bit__brazing_bom',
+            'drill_bit__bom', 'drill_bit__system_bom', 'drill_bit__brazing_bom',
             'work_order', 'inspected_by', 'qc_approved_by'
         ).filter(drill_bit__pk=self.kwargs['bit_pk'])
 

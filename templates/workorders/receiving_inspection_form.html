@@ -87,10 +87,10 @@
         </div>
         <div style="display:flex;">
             <div style="flex:1;"><strong>Type</strong> &nbsp;: &nbsp;{{ drill_bit.get_bit_type_display }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;"><strong>Design MAT (L3/L4)</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_number|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:100px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>Design MAT (L3/L4)</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_no|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:100px;">&nbsp;</span></div>
         </div>
         <div style="display:flex;">
-            <div style="flex:1;"><strong>System MAT (L5)</strong> &nbsp;: &nbsp;{% if drill_bit.system_bom %}{{ drill_bit.system_bom.system_mat_no|default:drill_bit.system_bom.brazing_mat_no|default:"" }}{% elif drill_bit.brazing_bom %}{{ drill_bit.brazing_bom.system_mat_no|default:drill_bit.brazing_bom.brazing_mat_no|default:"" }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>System MAT (L5)</strong> &nbsp;: &nbsp;{% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}{{ drill_bit.brazing_bom.system_mat_no }}{% elif drill_bit.bom and drill_bit.bom.system_mat_no %}{{ drill_bit.bom.system_mat_no }}{% elif drill_bit.system_bom and drill_bit.system_bom.system_mat_no %}{{ drill_bit.system_bom.system_mat_no }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
             <div style="flex:1;">&nbsp;</div>
         </div>
     </div>
@@ -146,11 +146,11 @@
             </div>
             <div>
                 <span class="text-xs text-gray-500 dark:text-gray-400 block">Design MAT (L3/L4)</span>
-                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{{ drill_bit.design.mat_number|default:"—" }}</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{{ drill_bit.design.mat_no|default:"—" }}</span>
             </div>
             <div>
                 <span class="text-xs text-gray-500 dark:text-gray-400 block">System MAT (L5)</span>
-                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{% if drill_bit.system_bom %}{{ drill_bit.system_bom.system_mat_no|default:drill_bit.system_bom.brazing_mat_no|default:"—" }}{% elif drill_bit.brazing_bom %}{{ drill_bit.brazing_bom.system_mat_no|default:drill_bit.brazing_bom.brazing_mat_no|default:"—" }}{% else %}—{% endif %}</span>
+                <span class="font-medium text-gray-700 dark:text-gray-300 font-mono text-xs">{% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}{{ drill_bit.brazing_bom.system_mat_no }}{% elif drill_bit.bom and drill_bit.bom.system_mat_no %}{{ drill_bit.bom.system_mat_no }}{% elif drill_bit.system_bom and drill_bit.system_bom.system_mat_no %}{{ drill_bit.system_bom.system_mat_no }}{% else %}—{% endif %}</span>
             </div>
         </div>
         <!-- Editable fields -->
