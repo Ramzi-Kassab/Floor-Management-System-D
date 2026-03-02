@@ -38,77 +38,54 @@
 
 <!-- ══════════ PRINT HEADER — matches QAS/005-1 exactly ══════════ -->
 <div class="print-header">
-    <!-- Top header row: ARDT | Title | Document info -->
+    <!-- Top header: Logo | Company + Subtitle | Document info (4 rows) -->
     <table class="print-hdr-table" style="width:100%; border-collapse:collapse; border:2px solid #000; margin-bottom:0;">
         <tr>
-            <td rowspan="3" style="width:120px; border:1px solid #000; padding:6px; vertical-align:middle; text-align:center;">
-                <div style="font-size:20pt; font-weight:900; letter-spacing:2px;">ARDT</div>
+            <td rowspan="4" style="width:90px; border:1px solid #000; padding:6px; vertical-align:middle; text-align:center;">
+                <div style="font-size:18pt; font-weight:900; letter-spacing:2px; font-family:serif;">ARDT</div>
             </td>
-            <td rowspan="3" style="border:1px solid #000; padding:8px; vertical-align:middle; text-align:center;">
-                <div style="font-size:14pt; font-weight:bold;">FC BIT RECEIVING INSPECTION</div>
+            <td rowspan="2" style="border:1px solid #000; padding:4px 8px; vertical-align:middle; text-align:center;">
+                <div style="font-size:11pt; font-weight:bold;">ARABIAN ROCKBITS & DRILLING TOOLS CO.LTD</div>
             </td>
-            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt; width:200px;">
-                <strong>Document No:</strong> QAS/005-1
-            </td>
-        </tr>
-        <tr>
-            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt;">
-                <strong>Revision No:</strong> 01
+            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt; width:220px;">
+                Document No: QAS/005-1
             </td>
         </tr>
         <tr>
-            <td style="border:1px solid #000; padding:3px 8px; font-size:9pt;">
-                <strong>Effective Date:</strong> 01 NOV 2024
+            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
+                Rev No & Date: F & 10/15/2024
+            </td>
+        </tr>
+        <tr>
+            <td rowspan="2" style="border:1px solid #000; padding:4px 8px; vertical-align:middle; text-align:center;">
+                <div style="font-size:10pt;">FC Bit Receiving Inspection</div>
+            </td>
+            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
+                Reviewed by: Javed Umar Lohar
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
+                Approved by: Ahmed Faizan Chisti
             </td>
         </tr>
     </table>
 
-    <!-- Report No row -->
-    <table style="width:100%; border-collapse:collapse; border:1px solid #000; border-top:none; margin-bottom:8px;">
-        <tr>
-            <td style="padding:4px 8px; font-size:10pt;">
-                <strong>Report No.:</strong> {{ report_number }}
-            </td>
-            <td style="padding:4px 8px; font-size:10pt; text-align:right;">
-                {% if bit_qr_base64 %}
-                <img src="{{ bit_qr_base64 }}" alt="QR" style="width:50px; height:50px; vertical-align:middle;">
-                {% endif %}
-            </td>
-        </tr>
-    </table>
-
-    <!-- Section 1: Information fields — 2-row table matching QAS/005-1 -->
-    <div style="font-size:10pt; font-weight:bold; margin:8px 0 4px; border-bottom:1px solid #000; padding-bottom:2px;">1. Information</div>
-    <table style="width:100%; border-collapse:collapse; border:1px solid #000; margin-bottom:8px; font-size:9pt;">
-        <tr>
-            <td style="border:1px solid #000; padding:4px 8px; width:33%;">
-                <strong>Date of Inspection:</strong><br>
-                {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"d M Y" }}{% else %}&nbsp;{% endif %}
-            </td>
-            <td style="border:1px solid #000; padding:4px 8px; width:33%;">
-                <strong>Date of Receipt:</strong><br>
-                {% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"d M Y" }}{% else %}&nbsp;{% endif %}
-            </td>
-            <td style="border:1px solid #000; padding:4px 8px; width:34%;">
-                <strong>PO Number:</strong><br>
-                {% if not is_new %}{{ object.po_number|default:"&nbsp;" }}{% else %}&nbsp;{% endif %}
-            </td>
-        </tr>
-        <tr>
-            <td style="border:1px solid #000; padding:4px 8px;">
-                <strong>Serial No.:</strong><br>
-                {{ drill_bit.serial_number }}
-            </td>
-            <td style="border:1px solid #000; padding:4px 8px;">
-                <strong>Bit Type:</strong><br>
-                {{ drill_bit.get_bit_type_display }}
-            </td>
-            <td style="border:1px solid #000; padding:4px 8px;">
-                <strong>Size:</strong><br>
-                {{ drill_bit.design.size|default:"—" }}
-            </td>
-        </tr>
-    </table>
+    <!-- Info fields — label : underline format, 2-column layout (matches QAS/005-1) -->
+    <div style="margin:12px 0 4px; font-size:10pt; line-height:2.2;">
+        <div style="display:flex;">
+            <div style="flex:1;"><strong>Report No</strong> &nbsp;: &nbsp;{% if report_number != 'RI-NEW' %}{{ report_number }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>Date of <em>Receipt</em></strong> &nbsp;: &nbsp;{% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"d M Y" }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+        </div>
+        <div style="display:flex;">
+            <div style="flex:1;"><strong>Serial No</strong> &nbsp;: &nbsp;{{ drill_bit.serial_number }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>Size</strong> &nbsp;: &nbsp;{{ drill_bit.design.size|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+        </div>
+        <div style="display:flex;">
+            <div style="flex:1;"><strong>Type</strong> &nbsp;: &nbsp;{{ drill_bit.get_bit_type_display }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+            <div style="flex:1;"><strong>Material No</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_number|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
+        </div>
+    </div>
 </div>
 
 <form method="post" id="inspectionForm"
@@ -249,31 +226,33 @@
             </table>
         </div>
 
-        <!-- Print checklist table (matches QAS/005-1 bordered format) -->
+        <!-- Print checklist table (matches QAS/005-1: Sr No | Checkpoint | Condition [inline ☐] | Reason for Not OK | Remarks) -->
         <table class="print-checklist" style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt;">
             <thead>
-                <tr style="background:#f0f0f0;">
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">S.No</th>
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:left; font-weight:bold;">Check Point</th>
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">OK</th>
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:50px; font-weight:bold;">Not OK</th>
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:center; width:35px; font-weight:bold;">N/A</th>
-                    <th style="border:1px solid #000; padding:3px 6px; text-align:left; font-weight:bold; width:180px;">Reason for Not OK</th>
+                <tr>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; width:40px; font-weight:bold;">Sr No</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:140px;">Checkpoint</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold;">Condition</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:150px;">Reason for Not OK</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:100px;">Remarks</th>
                 </tr>
             </thead>
             <tbody>
                 {% for num, label, field_name, current_value in checklist_items %}
                 <tr>
-                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{{ num }}</td>
-                    <td style="border:1px solid #000; padding:2px 6px;">{{ label }}</td>
-                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "OK" %}&#10004;{% endif %}</td>
-                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "NOT_OK" %}&#10008;{% endif %}</td>
-                    <td style="border:1px solid #000; padding:2px 6px; text-align:center;">{% if current_value == "NA" %}&mdash;{% endif %}</td>
-                    <td style="border:1px solid #000; padding:2px 6px; font-size:8pt;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:4px 6px; text-align:center;">{{ num }}</td>
+                    <td style="border:1px solid #000; padding:4px 6px;">{{ label }}</td>
+                    <td style="border:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">{% if current_value == "OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>OK</strong> &nbsp; {% if current_value == "NOT_OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>Not OK</strong> &nbsp; {% if current_value == "NA" %}&#9746;{% else %}&#9744;{% endif %} <strong>NA</strong></td>
+                    <td style="border:1px solid #000; padding:4px 6px; font-size:8pt;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:4px 6px; font-size:8pt;">&nbsp;</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        <!-- Note below checklist (matches QAS/005-1) -->
+        <div class="print-checklist-note" style="font-size:9pt; font-weight:bold; margin:8px 0 4px; text-align:center;">
+            Note: If there is Q-note from HDBS Woodlands get the approval from ARDT Quality Control.
+        </div>
 
         <!-- ── Attachments Section ── -->
         {% if not is_new %}
@@ -679,31 +658,7 @@
         </div>
 
         <!-- Print version of decision (matches QAS/005-1) -->
-        <div class="print-decision">
-            <table style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt; margin-top:4px;">
-                <tr>
-                    <td style="border:1px solid #000; padding:6px 10px; width:50%; vertical-align:top;">
-                        <strong>Inspection Result:</strong><br><br>
-                        <div style="margin:4px 0;">
-                            {% if not is_new and object.result == 'ACCEPTED' %}&#9746;{% else %}&#9744;{% endif %}
-                            &nbsp; <strong>Accept</strong>
-                        </div>
-                        <div style="margin:4px 0;">
-                            {% if not is_new and object.result == 'REJECTED' %}&#9746;{% else %}&#9744;{% endif %}
-                            &nbsp; <strong>Reject</strong>
-                        </div>
-                        <div style="margin:4px 0;">
-                            {% if not is_new and object.result == 'CONDITIONAL' %}&#9746;{% else %}&#9744;{% endif %}
-                            &nbsp; <strong>Conditional Accept</strong>
-                        </div>
-                    </td>
-                    <td style="border:1px solid #000; padding:6px 10px; vertical-align:top;">
-                        <strong>Remarks:</strong><br>
-                        {% if not is_new %}{{ object.remarks|default:"" }}{% endif %}
-                    </td>
-                </tr>
-            </table>
-        </div>
+        <div class="print-decision"><!-- intentionally empty — QAS/005-1 has no decision section --></div>
 
         <div class="mt-4 no-print">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
@@ -731,64 +686,11 @@
 </div>
 {% endif %}
 
-<!-- ── PRINT: Signatures Section (matches QAS/005-1) ── -->
-<div class="print-signatures">
-    <table style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt; margin-top:0;">
-        <tr>
-            <td style="border:1px solid #000; padding:6px 10px; width:50%; vertical-align:top;">
-                <strong>Inspected By:</strong><br>
-                <table style="width:100%; border:none; font-size:9pt; margin-top:6px;">
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Name:
-                            {% if not is_new and object.inspected_by %}
-                                {{ object.inspected_by.get_full_name|default:object.inspected_by.username }}
-                            {% else %}
-                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Signature: <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Date:
-                            {% if not is_new and object.inspection_date %}
-                                {{ object.inspection_date|date:"d M Y" }}
-                            {% else %}
-                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                </table>
-            </td>
-            <td style="border:1px solid #000; padding:6px 10px; vertical-align:top;">
-                <strong>QC Approval:</strong><br>
-                <table style="width:100%; border:none; font-size:9pt; margin-top:6px;">
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Name:
-                            {% if not is_new and object.qc_approved_by %}
-                                {{ object.qc_approved_by.get_full_name|default:object.qc_approved_by.username }}
-                            {% else %}
-                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Signature: <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:3px 0; border:none;">Date:
-                            {% if not is_new and object.qc_approved_at %}
-                                {{ object.qc_approved_at|date:"d M Y" }}
-                            {% else %}
-                                <span style="display:inline-block; border-bottom:1px solid #999; width:150px;">&nbsp;</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<!-- ── PRINT: Signatures (matches QAS/005-1 — simple label : underline) ── -->
+<div class="print-signatures" style="font-size:10pt; line-height:2.4; margin-top:16px;">
+    <div><strong>Receiving Inspector Name</strong> &nbsp;&nbsp;&nbsp;: &nbsp;{% if not is_new and object.inspector_name %}{{ object.inspector_name }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
+    <div><strong>Receiving Inspector Sign & Date</strong> &nbsp;: &nbsp;<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
+    <div><strong>ARDT Quality Control Sign & Date</strong> &nbsp;: &nbsp;<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
 </div>
 
 <!-- ── ACTION BUTTONS ── -->
@@ -1294,7 +1196,7 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     .dark .cutter-sym-mini { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
 
     /* ── Print-only elements: hidden on screen ── */
-    .print-header, .print-checklist, .print-decision, .print-signatures {
+    .print-header, .print-checklist, .print-checklist-note, .print-decision, .print-signatures {
         display: none;
     }
 
@@ -1307,7 +1209,7 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
         .bg-blue-50, #attachmentsList, #noAttachments { display: none !important; }
 
         /* Show print-only elements */
-        .print-header, .print-checklist, .print-decision, .print-signatures { display: block !important; }
+        .print-header, .print-checklist, .print-checklist-note, .print-decision, .print-signatures { display: block !important; }
 
         /* Base print styles */
         body { background: white !important; font-size: 9pt; color: #000 !important; }
