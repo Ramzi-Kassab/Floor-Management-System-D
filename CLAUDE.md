@@ -1410,6 +1410,8 @@ Then restart the server (kill + start fresh).
 | Receiving inspection form | `templates/workorders/receiving_inspection_form.html` |
 | Receiving inspection list | `templates/workorders/receiving_inspection_list.html` |
 | Receiving inspection views | `apps/workorders/views_jobcard.py` (ReceivingInspectionCreateView, ReceivingInspectionEditView) |
+| Photo module component | `templates/components/photo_module.html` |
+| Photo API views | `apps/workorders/views_photos.py` (8 API endpoints) |
 
 ### Key View Classes
 
@@ -1642,6 +1644,35 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **8 Cutter Symbols (was 5)**: Added C (Chipped), H (Hairline), M (Missing) to existing O/X/R/S/L. Cutter evaluation is now multi-select (toggle buttons like pocket evaluation) instead of single-select. Mutual exclusion: O is exclusive with X/L/M.
 - **Single Blue Color Theme for Cutter Symbols**: Removed per-action colors (green for O, red for X, amber for R, etc.). All marked cutter cells use blue theme (`.cutter-grid-cell-marked`) matching the pocket section's violet pattern. Legend uses `.cutter-sym-mini` with blue styling.
 - **Data Format Unchanged**: `cutterEvalData` still stored as `{blade: {row: {pos: {idx: {action: "OXRC", remarks: ""}}}}}` — the `action` field now stores concatenated multi-select symbols (e.g., "XC" for Replace+Chipped) instead of single letters.
+
+### Recent Enhancements (Mar 2, 2026 — Session 2) — Drill Bit Photo Module
+- **DrillBitPhoto Model** (`apps/workorders/models.py`): New model for drill bit photo management with fields: `drill_bit` FK (CASCADE, `related_name="bit_photos"`), `context_type` (RECEIVING/EVALUATION/WO/GENERAL), `context_id` (nullable, PK of related document), `category` (BLADE/TOP/SIDE/DETAIL/EXTRA), `blade_number`, `photo_number`, `display_name` (e.g., "B1-Ph1", "Top", "Extra-2"), `file` ImageField (`drill_bit_photos/%Y/%m/`), `edited_file` ImageField (nullable, `drill_bit_photos/edited/%Y/%m/`), `original_filename`, `capture_mode` (ADG/CAMERA/FREE), `sort_order`, `uploaded_by` FK, `uploaded_at` auto. Properties: `active_file` (returns edited if exists), `file_url`, `original_url`, `has_edits`. Migration `0033_drillbitphoto.py`.
+- **`build_adg_sequence(blade_count)` Helper**: Returns ordered list of photo slot dicts with `display_name`, `category`, `blade_number`, `photo_number`, `sort_order`. Fixed 3 photos per blade (B1-Ph1 through B{n}-Ph3), then Top, Side, Extra-1 through Extra-9.
+- **8 Photo API Endpoints** (`apps/workorders/views_photos.py`): All under `/work-orders/drill-bits/<bit_pk>/photos/`:
+  - `GET /` — List photos (filter by context_type, context_id)
+  - `POST /upload/` — Upload photo (multipart: file + metadata, client-side resize to max 1920px)
+  - `POST /reorder/` — Reorder photos (JSON: {order: [pk1, pk2...]})
+  - `GET /adg-sequence/` — ADG slot grid with existing photos overlaid (reads blade count from BOM)
+  - `POST /<pk>/delete/` — Delete photo + files from storage
+  - `POST /<pk>/rename/` — Update display_name
+  - `POST /<pk>/save-edit/` — Save Fabric.js canvas as edited_file (base64 → ContentFile)
+  - `POST /<pk>/discard-edit/` — Delete edited_file, revert to original
+- **Reusable Photo Module Component** (`templates/components/photo_module.html`): Self-contained Alpine.js component (~500+ lines) included via `{% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="RECEIVING" context_id=object.pk %}`. Features:
+  - **4 Tabs**: ADG Guided | Camera | Gallery | Free Upload
+  - **ADG Panel**: Slot grid showing B1-Ph1 through B{n}-Ph3, Top, Side, Extra slots. Filled slots show thumbnail + retake/edit buttons. Empty slots show click-to-capture placeholder. Progress counter ("5 of 21 photos taken").
+  - **Camera Panel**: In-browser viewfinder via `getUserMedia({video: {facingMode: 'environment'}})` with capture button and slot selector. Fallback: `<input type="file" accept="image/*" capture="environment">` for native camera.
+  - **Gallery Panel**: Grid of all photos with display_name, edit/delete icons, drag-to-reorder via HTML5 drag events. "Has edits" badge on annotated photos.
+  - **Free Upload Panel**: Drag-and-drop or file picker with custom display name input.
+  - **Fabric.js Photo Editor Modal**: CDN-loaded `fabric.js 5.3.1` with `window.fabric` guard. Photo loaded as background image. Toolbar: Freehand draw | Arrow | Circle | Rectangle | Text | Crop | Undo/Redo | Clear. Non-destructive editing (original preserved). Save: `canvas.toDataURL('image/jpeg', 0.92)` → POST to `/save-edit/`. Discard: POST to `/discard-edit/`.
+  - **Client-Side Image Resize**: Before upload, draws to max-1920px canvas → `toBlob('image/jpeg', 0.85)` to keep uploads under ~1MB.
+- **Integration Points**:
+  - **Receiving Inspection** (`receiving_inspection_form.html`): Section 6 — Photos (only when `not is_new`). `context_type="RECEIVING"`, `context_id=object.pk`. Dynamic section numbering based on `has_bom_data`/`has_pocket_data`.
+  - **Cutter Evaluation Matrix** (`cutter_evaluation_matrix.html`): Collapsible photo section after evaluation grid. Wrapped in own `x-data` scope (page has no Alpine wrapper). `context_type="EVALUATION"`, `context_id=matrix.pk`. Guarded with `{% if work_order.drill_bit %}`.
+  - **Work Order Detail** (`workorder_detail_enhanced.html`): "Photos" tab alongside existing tabs (Overview, Evaluations, Router, History). `context_type="WO"`, `context_id=work_order.pk`. Guarded with `{% if work_order.drill_bit %}`.
+  - **Drill Bit Detail** (`drillbit_detail_enhanced.html`): Foldable "All Photos" section after Event History. `context_type="GENERAL"` (no context_id — shows ALL photos for the bit). Uses existing section toggle pattern (`photosOpen: false`).
+- **Key URLs Added**: 8 patterns in `apps/workorders/urls.py` after receiving inspection URLs.
+- **Admin Registration**: `DrillBitPhotoAdmin` with `list_display`, `list_filter`, `search_fields`, `readonly_fields`.
+- **Key Files**: `apps/workorders/models.py` (model + helper), `apps/workorders/views_photos.py` (NEW — 8 endpoints), `apps/workorders/migrations/0033_drillbitphoto.py` (NEW), `apps/workorders/urls.py` (8 patterns), `apps/workorders/admin.py` (registration), `templates/components/photo_module.html` (NEW — reusable component).
 
 ---
 
