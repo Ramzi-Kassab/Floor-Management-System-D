@@ -8,6 +8,7 @@ from django.urls import path
 from . import views
 from . import views_jobcard
 from . import views_drillbit
+from . import views_photos
 from . import views_receiving
 
 app_name = "workorders"
@@ -136,6 +137,16 @@ urlpatterns = [
     path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/mark-complete/", views_jobcard.api_receiving_inspection_complete, name="receiving_inspection_mark_complete"),
     path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/upload/", views_jobcard.api_receiving_inspection_upload, name="receiving_inspection_upload"),
     path("drill-bits/<int:bit_pk>/receiving-inspection/<int:pk>/attachment/<int:att_pk>/delete/", views_jobcard.api_receiving_inspection_delete_attachment, name="receiving_inspection_delete_attachment"),
+
+    # Drill Bit Photos
+    path("drill-bits/<int:bit_pk>/photos/", views_photos.api_photo_list, name="photo_list"),
+    path("drill-bits/<int:bit_pk>/photos/upload/", views_photos.api_photo_upload, name="photo_upload"),
+    path("drill-bits/<int:bit_pk>/photos/reorder/", views_photos.api_photo_reorder, name="photo_reorder"),
+    path("drill-bits/<int:bit_pk>/photos/adg-sequence/", views_photos.api_adg_sequence, name="photo_adg_sequence"),
+    path("drill-bits/<int:bit_pk>/photos/<int:photo_pk>/delete/", views_photos.api_photo_delete, name="photo_delete"),
+    path("drill-bits/<int:bit_pk>/photos/<int:photo_pk>/rename/", views_photos.api_photo_rename, name="photo_rename"),
+    path("drill-bits/<int:bit_pk>/photos/<int:photo_pk>/save-edit/", views_photos.api_photo_save_edit, name="photo_save_edit"),
+    path("drill-bits/<int:bit_pk>/photos/<int:photo_pk>/discard-edit/", views_photos.api_photo_discard_edit, name="photo_discard_edit"),
 
     # Router Sheet
     path("<int:pk>/router-sheet/", views_jobcard.RouterSheetView.as_view(), name="router_sheet"),

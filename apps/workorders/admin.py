@@ -36,6 +36,7 @@ from .models import (
     InstructionRule,
     InstructionRuleCondition,
     ReceivingInspection,
+    DrillBitPhoto,
     # Production Planning
     ProductionPlanEntry,
     # Receiving Dock
@@ -301,6 +302,20 @@ class ReceivingInspectionAdmin(admin.ModelAdmin):
     list_select_related = ["drill_bit", "inspected_by", "work_order"]
     search_fields = ["drill_bit__serial_number", "po_number"]
     readonly_fields = ["created_at", "updated_at"]
+
+
+# =============================================================================
+# DRILL BIT PHOTO
+# =============================================================================
+
+@admin.register(DrillBitPhoto)
+class DrillBitPhotoAdmin(admin.ModelAdmin):
+    list_display = ["drill_bit", "display_name", "category", "capture_mode", "uploaded_by", "uploaded_at"]
+    list_filter = ["category", "capture_mode", "context_type"]
+    list_select_related = ["drill_bit", "uploaded_by"]
+    search_fields = ["drill_bit__serial_number", "display_name", "original_filename"]
+    readonly_fields = ["uploaded_at"]
+    ordering = ["drill_bit", "sort_order", "uploaded_at"]
 
 
 # =============================================================================

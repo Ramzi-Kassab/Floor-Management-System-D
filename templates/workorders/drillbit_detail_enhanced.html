@@ -149,7 +149,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 gap-6 transition-all duration-300" :class="rightSidebarOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'" x-data="{ bomOpen: true, designOpen: true, woOpen: true, inspectionsOpen: true, eventsOpen: true, rightSidebarOpen: localStorage.getItem('drillbitRightSidebar') !== 'false' }" x-init="$watch('rightSidebarOpen', val => localStorage.setItem('drillbitRightSidebar', val))">
+<div class="grid grid-cols-1 gap-6 transition-all duration-300" :class="rightSidebarOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'" x-data="{ bomOpen: true, designOpen: true, woOpen: true, inspectionsOpen: true, eventsOpen: true, photosOpen: false, rightSidebarOpen: localStorage.getItem('drillbitRightSidebar') !== 'false' }" x-init="$watch('rightSidebarOpen', val => localStorage.setItem('drillbitRightSidebar', val))">
     <!-- Right Sidebar Toggle -->
     <div class="lg:col-span-full flex justify-end">
         <button @click="rightSidebarOpen = !rightSidebarOpen"
@@ -889,6 +889,20 @@
             {% else %}
             <p class="text-gray-500 dark:text-gray-400 text-center py-4">No events recorded</p>
             {% endif %}
+            </div>
+        </div>
+
+        <!-- Photos (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="p-6 pb-0 cursor-pointer section-toggle" :class="{ collapsed: !photosOpen }" @click="photosOpen = !photosOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    <i data-lucide="camera" class="w-5 h-5 mr-2 text-indigo-600"></i>
+                    All Photos
+                </h3>
+            </div>
+            <div class="p-6 pt-4" x-show="photosOpen" x-collapse>
+                {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="GENERAL" %}
             </div>
         </div>
     </div>

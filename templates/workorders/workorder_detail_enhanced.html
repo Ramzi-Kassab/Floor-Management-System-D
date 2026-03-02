@@ -196,6 +196,11 @@
             <button @click="activeTab = 'history'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'history' }">
                 <i data-lucide="history" class="w-4 h-4 inline mr-1.5"></i>History
             </button>
+            {% if work_order.drill_bit %}
+            <button @click="activeTab = 'photos'" class="tab-btn px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap" :class="{ 'active': activeTab === 'photos' }">
+                <i data-lucide="camera" class="w-4 h-4 inline mr-1.5"></i>Photos
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -977,6 +982,15 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- ======================= PHOTOS TAB ======================= -->
+        {% if work_order.drill_bit %}
+        <div x-show="activeTab === 'photos'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-b-xl shadow-sm p-6">
+                {% include "components/photo_module.html" with bit_pk=work_order.drill_bit.pk context_type="WO" context_id=work_order.pk %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

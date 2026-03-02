@@ -372,6 +372,23 @@
             </div>
         </div>
     </div>
+
+    <!-- Photos -->
+    {% if work_order.drill_bit %}
+    <div x-data="{ photosOpen: false }" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <button type="button" @click="photosOpen = !photosOpen"
+                class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="camera" class="w-4 h-4 text-indigo-500"></i>
+                Photos
+            </h3>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="photosOpen ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="photosOpen" x-collapse class="px-4 pb-4">
+            {% include "components/photo_module.html" with bit_pk=work_order.drill_bit.pk context_type="EVALUATION" context_id=matrix.pk %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

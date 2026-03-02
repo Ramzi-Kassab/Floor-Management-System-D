@@ -2071,6 +2071,132 @@ class ReceivingInspectionAttachment(models.Model):
         return self.file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 
 
+def build_adg_sequence(blade_count: int) -> list:
+    """
+    Generate the full ADG photo sequence for a given blade count.
+    Fixed 3 photos per blade, then Top, Side, then Extra slots.
+    Returns: [{'display_name': 'B1-Ph1', 'category': 'BLADE',
+               'blade_number': 1, 'photo_number': 1}, ...]
+    """
+    sequence = []
+    for b in range(1, blade_count + 1):
+        for ph in range(1, 4):
+            sequence.append({
+                'display_name': f'B{b}-Ph{ph}',
+                'category': 'BLADE',
+                'blade_number': b,
+                'photo_number': ph,
+            })
+    sequence.append({'display_name': 'Top', 'category': 'TOP',
+                     'blade_number': None, 'photo_number': 1})
+    sequence.append({'display_name': 'Side', 'category': 'SIDE',
+                     'blade_number': None, 'photo_number': 1})
+    for i in range(1, 10):
+        sequence.append({'display_name': f'Extra-{i}', 'category': 'EXTRA',
+                         'blade_number': None, 'photo_number': i})
+    return sequence
+
+
+class DrillBitPhoto(models.Model):
+    """
+    Photo of a drill bit, taken at any stage (receiving, evaluation, WO, etc.)
+    Always linked to the physical DrillBit. Optional context records which
+    document/evaluation the photo was captured during.
+    """
+
+    class Category(models.TextChoices):
+        BLADE  = "BLADE", "Blade"
+        TOP    = "TOP", "Top View"
+        SIDE   = "SIDE", "Side View"
+        DETAIL = "DETAIL", "Detail / Close-up"
+        EXTRA  = "EXTRA", "Extra"
+
+    class ContextType(models.TextChoices):
+        RECEIVING_INSPECTION = "RECEIVING", "Receiving Inspection"
+        CUTTER_EVALUATION    = "EVALUATION", "Cutter Evaluation"
+        WORK_ORDER           = "WO", "Work Order"
+        GENERAL              = "GENERAL", "General"
+
+    # Core links
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, related_name="bit_photos"
+    )
+    context_type = models.CharField(
+        max_length=20, choices=ContextType.choices,
+        default=ContextType.GENERAL, blank=True
+    )
+    context_id = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="PK of the related document (ReceivingInspection, etc.)"
+    )
+
+    # Photo naming / sequencing
+    category = models.CharField(
+        max_length=10, choices=Category.choices, default=Category.BLADE
+    )
+    blade_number = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Blade number (1-based) for BLADE category photos"
+    )
+    photo_number = models.PositiveSmallIntegerField(
+        default=1, help_text="Sequence within the blade/category"
+    )
+    display_name = models.CharField(
+        max_length=50, blank=True,
+        help_text="Human label: B1-Ph1, Top, Side, Extra-1, etc."
+    )
+
+    # Files
+    original_filename = models.CharField(max_length=255, blank=True)
+    file = models.ImageField(upload_to="drill_bit_photos/%Y/%m/")
+    edited_file = models.ImageField(
+        upload_to="drill_bit_photos/edited/%Y/%m/",
+        null=True, blank=True
+    )
+
+    # Capture metadata
+    capture_mode = models.CharField(
+        max_length=10,
+        choices=[("ADG", "ADG Guided"), ("CAMERA", "Camera"), ("FREE", "Free Upload")],
+        default="FREE"
+    )
+    sort_order = models.PositiveIntegerField(default=0, db_index=True)
+
+    # Audit
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="uploaded_bit_photos"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "drill_bit_photos"
+        ordering = ["drill_bit", "sort_order", "uploaded_at"]
+        verbose_name = "Drill Bit Photo"
+        verbose_name_plural = "Drill Bit Photos"
+
+    def __str__(self):
+        name = self.display_name or f"Photo {self.pk}"
+        return f"{self.drill_bit.serial_number} — {name}"
+
+    @property
+    def active_file(self):
+        """Return edited_file if it exists, else original file."""
+        return self.edited_file if self.edited_file else self.file
+
+    @property
+    def file_url(self):
+        return self.active_file.url if self.active_file else ""
+
+    @property
+    def original_url(self):
+        return self.file.url if self.file else ""
+
+    @property
+    def has_edits(self):
+        return bool(self.edited_file)
+
+
 class InstructionRule(models.Model):
     """
     Rule-based instruction system.
