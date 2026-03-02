@@ -1674,6 +1674,22 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Admin Registration**: `DrillBitPhotoAdmin` with `list_display`, `list_filter`, `search_fields`, `readonly_fields`.
 - **Key Files**: `apps/workorders/models.py` (model + helper), `apps/workorders/views_photos.py` (NEW — 8 endpoints), `apps/workorders/migrations/0033_drillbitphoto.py` (NEW), `apps/workorders/urls.py` (8 patterns), `apps/workorders/admin.py` (registration), `templates/components/photo_module.html` (NEW — reusable component).
 
+### Recent Enhancements (Mar 3, 2026) — Receiving Inspection Fixes & QR Label Overhaul
+- **Fix 1-2: Auto-fill Dates**: `ReceivingInspectionCreateView.get_initial()` now sets `inspection_date` to today and `date_of_receipt` from drill bit's `received_date` (with BitEvent/BackloadItem fallbacks).
+- **Fix 3: Removed Client Name Field**: Removed `client_name` from `ReceivingInspectionForm.Meta.fields` and template. Grid changed from 4-col to 3-col.
+- **Fix 5: Cutter Config Table Columns**: Headers changed from `#, Type, Group, Chamfer, Qty, Color` to `#, Size, Type, Chamfer, Count, MAT`. `_get_bom_blade_data()` now cross-references BOM `source_data` to get `size` and `mat_number` per cutter config.
+- **Fix 6: Blade Labels BB1→B1**: Template changed from `B{{ bn }}` to `{{ bn }}` since BOM data already includes the "B" prefix.
+- **Fix 7: Cutter Legend Symbols**: Changed to `H=Chipped, C=Cracked, M=Misaligned` (was `C=Chipped, H=Hairline, M=Missing`). Updated in `receiving_inspection_form.html` and `cutter_evaluation_matrix.html`.
+- **Fix 4: Pocket Config**: Verified template/view code is correct. Shape shows raw code ("DEFAULT") and Length always shows "Long" because BOM sync (`cutter_map/views.py`) never sets `length_type` and auto-creates `PocketShape` with raw code as name. Data-quality issue, not code bug.
+- **Fix 8: Print Layout Improvement**: Enhanced `@media print` CSS: force Alpine sections open (`[x-show] display:block`, `[x-collapse] height:auto`), smaller page margins, reduced font sizes (9pt body, 8pt config tables), compact grid cells (28px pocket, 30px cutter), dark mode print overrides, signature area grid styling, hidden upload controls/topnav.
+- **Fix 9: QR Code Label Page Overhaul** (`drillbit_qr_labels.html` + `views_drillbit.py`):
+  - **Badge Style**: New 4th label style (3.5" × 1.2" landscape) with QR on left, info on right. Shows serial, size/SMI/bit type, design MAT/connection, and account badge.
+  - **Column Control**: User can choose 1-4 columns or Auto via dropdown. CSS `max-width` classes constrain label container.
+  - **Modernized Toolbar**: Back link, separators, compact controls, bit count display.
+  - **Live Preview**: Size and column changes apply instantly via JS event listeners (no page reload).
+  - **View Updated**: `DrillBitQRLabelsView` now passes `bit_type_display` and `connection_display` (from design's `connection_type_ref` + `connection_size_ref`). Added `select_related` for connection FKs.
+- **Key Files Modified**: `apps/workorders/forms.py`, `apps/workorders/views_jobcard.py`, `apps/workorders/views_drillbit.py`, `templates/workorders/receiving_inspection_form.html`, `templates/workorders/drillbit_qr_labels.html`.
+
 ---
 
 ## Need Help?

@@ -5,226 +5,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ page_title }} - ARDT FMS</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
 
-        body {
-            font-family: Arial, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-        }
-
+        /* ── Controls Toolbar ── */
         .controls {
-            background: white;
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex-wrap: wrap;
+            background: white; padding: 16px 20px; margin-bottom: 20px;
+            border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
         }
+        .controls label { font-size: 13px; color: #374151; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+        .controls input[type="number"] { width: 70px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        .controls select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white; }
+        .controls button { padding: 7px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .back-link { color: #6b7280; text-decoration: none; font-size: 13px; }
+        .back-link:hover { color: #374151; }
+        .sep { width: 1px; height: 28px; background: #e5e7eb; }
 
-        .controls label {
-            font-size: 14px;
-            color: #374151;
-        }
+        /* ── Labels Container ── */
+        .labels-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
 
-        .controls input[type="number"] {
-            width: 80px;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .controls select {
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .controls button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: #2563eb;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
-
-        .btn-secondary {
-            background: #f3f4f6;
-            color: #374151;
-        }
-
-        .btn-secondary:hover {
-            background: #e5e7eb;
-        }
-
-        .back-link {
-            color: #6b7280;
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        .back-link:hover {
-            color: #374151;
-        }
-
-        .labels-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: flex-start;
-        }
-
-        /* ── Label Base ── */
+        /* ── Label Base (vertical centered layout) ── */
         .label {
-            background: white;
-            border: 1px dashed #d1d5db;
-            padding: 8px;
-            text-align: center;
-            page-break-inside: avoid;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            background: white; border: 1px dashed #d1d5db; padding: 8px;
+            text-align: center; page-break-inside: avoid;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
         /* ── Small: QR + Serial only ── */
-        .label-small {
-            width: 1.5in;
-            height: 1in;
-        }
+        .label-small { width: 1.5in; height: 1in; }
+        .label-small img { width: 0.55in; height: 0.55in; }
+        .label-small .serial { font-family: 'Courier New', monospace; font-weight: bold; font-size: 7pt; margin-top: 2px; }
+        .label-small .detail-line, .label-small .detail-extra, .label-small .account-badge { display: none; }
 
-        .label-small img {
-            width: 0.55in;
-            height: 0.55in;
-        }
-
-        .label-small .serial {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 7pt;
-            margin-top: 2px;
-        }
-
-        .label-small .detail-line,
-        .label-small .account-badge {
-            display: none;
-        }
-
-        /* ── Medium: QR + Serial + Size + Type ── */
-        .label-medium {
-            width: 2in;
-            height: 1.2in;
-        }
-
-        .label-medium img {
-            width: 0.7in;
-            height: 0.7in;
-        }
-
-        .label-medium .serial {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 8pt;
-            margin-top: 3px;
-        }
-
-        .label-medium .detail-line {
-            font-size: 6pt;
-            color: #6b7280;
-            margin-top: 1px;
-        }
-
-        .label-medium .detail-extra,
-        .label-medium .account-badge {
-            display: none;
-        }
+        /* ── Medium: QR + Serial + Size/Type ── */
+        .label-medium { width: 2in; height: 1.2in; }
+        .label-medium img { width: 0.7in; height: 0.7in; }
+        .label-medium .serial { font-family: 'Courier New', monospace; font-weight: bold; font-size: 8pt; margin-top: 3px; }
+        .label-medium .detail-line { font-size: 6pt; color: #6b7280; margin-top: 1px; }
+        .label-medium .detail-extra, .label-medium .account-badge { display: none; }
 
         /* ── Large: QR + Serial + all info ── */
-        .label-large {
-            width: 3in;
-            height: 1.5in;
-        }
+        .label-large { width: 3in; height: 1.5in; }
+        .label-large img { width: 1in; height: 1in; }
+        .label-large .serial { font-family: 'Courier New', monospace; font-weight: bold; font-size: 10pt; margin-top: 4px; }
+        .label-large .detail-line { font-size: 7pt; color: #6b7280; margin-top: 1px; }
+        .label-large .detail-extra { font-size: 6pt; color: #9ca3af; margin-top: 1px; }
+        .label-large .account-badge { display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 5pt; margin-top: 2px; background: #dbeafe; color: #1e40af; }
 
-        .label-large img {
-            width: 1in;
-            height: 1in;
+        /* ── Badge: landscape card with QR on left, info on right ── */
+        .label-badge {
+            width: 3.5in; height: 1.2in;
+            flex-direction: row; text-align: left; gap: 10px; padding: 8px 12px;
         }
+        .label-badge img { width: 0.85in; height: 0.85in; flex-shrink: 0; }
+        .label-badge .badge-info { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+        .label-badge .serial { font-family: 'Courier New', monospace; font-weight: bold; font-size: 11pt; margin: 0; }
+        .label-badge .detail-line { font-size: 7pt; color: #374151; margin-top: 3px; }
+        .label-badge .detail-extra { font-size: 6pt; color: #6b7280; margin-top: 1px; }
+        .label-badge .account-badge {
+            display: inline-block; padding: 1px 5px; border-radius: 3px;
+            font-size: 6pt; margin-top: 3px; background: #dbeafe; color: #1e40af; font-weight: 600;
+        }
+        /* Override vertical labels hiding detail elements for badge style */
+        .label-badge .detail-line, .label-badge .detail-extra, .label-badge .account-badge { display: block; }
 
-        .label-large .serial {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 10pt;
-            margin-top: 4px;
-        }
-
-        .label-large .detail-line {
-            font-size: 7pt;
-            color: #6b7280;
-            margin-top: 1px;
-        }
-
-        .label-large .detail-extra {
-            font-size: 6pt;
-            color: #9ca3af;
-            margin-top: 1px;
-        }
-
-        .label-large .account-badge {
-            display: inline-block;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 5pt;
-            margin-top: 2px;
-            background: #dbeafe;
-            color: #1e40af;
-        }
+        /* ── Column Layout Control ── */
+        .cols-1 { max-width: 4in; }
+        .cols-2 { max-width: 8in; }
+        .cols-3 { max-width: 12in; }
+        .cols-4 { max-width: 16in; }
 
         /* ── Print styles ── */
         @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-
-            .controls {
-                display: none !important;
-            }
-
-            .labels-container {
-                gap: 0;
-            }
-
-            .label {
-                border: 1px dashed #ccc;
+            body { background: white; padding: 0; }
+            .controls { display: none !important; }
+            .labels-container { gap: 0; }
+            .label { border: 1px dashed #ccc; }
+            .label-badge .account-badge,
+            .label-large .account-badge {
+                print-color-adjust: exact; -webkit-print-color-adjust: exact;
             }
         }
-
-        @page {
-            margin: 0.25in;
-        }
+        @page { margin: 0.25in; }
     </style>
 </head>
 <body>
     <div class="controls">
         <a href="javascript:history.back()" class="back-link">&larr; Back</a>
+        <div class="sep"></div>
 
         <label>Copies:
             <input type="number" id="copiesInput" value="{{ copies }}" min="1" max="50">
@@ -232,22 +105,58 @@
 
         <label>Size:
             <select id="sizeSelect">
-                <option value="small" {% if size == 'small' %}selected{% endif %}>Small (1.5" x 1")</option>
-                <option value="medium" {% if size == 'medium' %}selected{% endif %}>Medium (2" x 1.2")</option>
-                <option value="large" {% if size == 'large' %}selected{% endif %}>Large (3" x 1.5")</option>
+                <option value="small" {% if size == 'small' %}selected{% endif %}>Small (1.5" &times; 1")</option>
+                <option value="medium" {% if size == 'medium' %}selected{% endif %}>Medium (2" &times; 1.2")</option>
+                <option value="large" {% if size == 'large' %}selected{% endif %}>Large (3" &times; 1.5")</option>
+                <option value="badge" {% if size == 'badge' %}selected{% endif %}>Badge (3.5" &times; 1.2")</option>
             </select>
         </label>
 
+        <label>Columns:
+            <select id="colsSelect">
+                <option value="0">Auto</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+            </select>
+        </label>
+
+        <div class="sep"></div>
+
         <button type="button" class="btn-secondary" onclick="updateLabels()">Update</button>
         <button type="button" class="btn-primary" onclick="window.print()">
-            Print Labels
+            &#x1F5A8; Print Labels
         </button>
+
+        <div style="margin-left: auto; font-size: 12px; color: #9ca3af;">
+            {{ labels|length }} bit{{ labels|length|pluralize }} &times; {{ copies }} cop{{ copies|pluralize:"y,ies" }}
+        </div>
     </div>
 
     <div class="labels-container" id="labelsContainer">
         {% for label_data in labels %}
             {% for i in copy_range %}
             <div class="label label-{{ size }}">
+                {% if size == 'badge' %}
+                <img src="{{ label_data.qr_base64 }}" alt="QR {{ label_data.bit.serial_number }}">
+                <div class="badge-info">
+                    <div class="serial">{{ label_data.bit.serial_number }}</div>
+                    <div class="detail-line">
+                        {% if label_data.size_display %}{{ label_data.size_display }}{% endif %}
+                        {% if label_data.size_display and label_data.smi_display %} &middot; {% endif %}
+                        {% if label_data.smi_display %}{{ label_data.smi_display }}{% endif %}
+                        {% if label_data.bit_type_display %} &middot; {{ label_data.bit_type_display }}{% endif %}
+                    </div>
+                    <div class="detail-extra">
+                        {% if label_data.design_mat %}{{ label_data.design_mat }}{% endif %}
+                        {% if label_data.connection_display %} &middot; {{ label_data.connection_display }}{% endif %}
+                    </div>
+                    {% if label_data.account_name %}
+                    <span class="account-badge">{{ label_data.account_name }}</span>
+                    {% endif %}
+                </div>
+                {% else %}
                 <img src="{{ label_data.qr_base64 }}" alt="QR {{ label_data.bit.serial_number }}">
                 <div class="serial">{{ label_data.bit.serial_number }}</div>
                 <div class="detail-line">
@@ -261,6 +170,7 @@
                 {% if label_data.account_name %}
                 <span class="account-badge">{{ label_data.account_name }}</span>
                 {% endif %}
+                {% endif %}
             </div>
             {% endfor %}
         {% endfor %}
@@ -270,18 +180,30 @@
         function updateLabels() {
             const copies = document.getElementById('copiesInput').value;
             const size = document.getElementById('sizeSelect').value;
+            const cols = document.getElementById('colsSelect').value;
             const currentUrl = new URL(window.location);
             currentUrl.searchParams.set('copies', copies);
             currentUrl.searchParams.set('size', size);
+            if (cols !== '0') currentUrl.searchParams.set('cols', cols);
+            else currentUrl.searchParams.delete('cols');
             window.location = currentUrl.toString();
         }
 
+        // Live size change
         document.getElementById('sizeSelect').addEventListener('change', function() {
             const size = this.value;
             document.querySelectorAll('.label').forEach(label => {
-                label.classList.remove('label-small', 'label-medium', 'label-large');
+                label.classList.remove('label-small', 'label-medium', 'label-large', 'label-badge');
                 label.classList.add('label-' + size);
             });
+        });
+
+        // Column control
+        document.getElementById('colsSelect').addEventListener('change', function() {
+            const cols = this.value;
+            const container = document.getElementById('labelsContainer');
+            container.classList.remove('cols-1', 'cols-2', 'cols-3', 'cols-4');
+            if (cols !== '0') container.classList.add('cols-' + cols);
         });
 
         // Auto-print if requested

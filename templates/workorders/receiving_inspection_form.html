@@ -51,16 +51,16 @@
         </div>
         {% endif %}
     </div>
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 9pt; margin-bottom: 12px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; font-size: 9pt; margin-bottom: 12px; border: 1px solid #ccc; padding: 8px;">
         <div><strong>Report No:</strong> {{ report_number }}</div>
-        <div><strong>Serial:</strong> {{ drill_bit.serial_number }}</div>
+        <div><strong>Serial No:</strong> {{ drill_bit.serial_number }}</div>
         <div><strong>Type:</strong> {{ drill_bit.get_bit_type_display }}</div>
         <div><strong>Size:</strong> {{ drill_bit.design.size|default:"—" }}</div>
         <div><strong>Material No:</strong> {{ drill_bit.design.mat_number|default:"—" }}</div>
         <div><strong>Inspection Date:</strong> {% if not is_new and object.inspection_date %}{{ object.inspection_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
         <div><strong>Date of Receipt:</strong> {% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"M d, Y" }}{% else %}—{% endif %}</div>
-        <div><strong>PO:</strong> {% if not is_new %}{{ object.po_number|default:"—" }}{% else %}—{% endif %}</div>
-        <div><strong>Client:</strong> {% if not is_new %}{{ object.client_name|default:"—" }}{% else %}—{% endif %}</div>
+        <div><strong>PO No:</strong> {% if not is_new %}{{ object.po_number|default:"—" }}{% else %}—{% endif %}</div>
+        <div><strong>Inspector:</strong> {% if not is_new and object.inspector_name %}{{ object.inspector_name }}{% else %}—{% endif %}</div>
         <div><strong>Status:</strong> {% if not is_new and object.is_complete %}COMPLETE{% else %}DRAFT{% endif %}</div>
     </div>
 </div>
@@ -119,7 +119,7 @@
             </div>
         </div>
         <!-- Editable fields -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inspection Date</label>
                 {{ form.inspection_date }}
@@ -131,10 +131,6 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PO Number</label>
                 {{ form.po_number }}
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Name</label>
-                {{ form.client_name }}
             </div>
         </div>
     </div>
@@ -456,24 +452,22 @@
                 <thead>
                     <tr class="border-b border-gray-200 dark:border-gray-600">
                         <th class="py-1 px-2 text-left text-gray-500">#</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Size</th>
                         <th class="py-1 px-2 text-left text-gray-500">Type</th>
-                        <th class="py-1 px-2 text-left text-gray-500">Group</th>
                         <th class="py-1 px-2 text-left text-gray-500">Chamfer</th>
-                        <th class="py-1 px-2 text-center text-gray-500">Qty</th>
-                        <th class="py-1 px-2 text-center text-gray-500">Color</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Count</th>
+                        <th class="py-1 px-2 text-left text-gray-500">MAT</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for cfg in cutter_config_list %}
                     <tr class="border-b border-gray-100 dark:border-gray-700/50">
                         <td class="py-1 px-2 font-mono text-gray-400">{{ cfg.order }}</td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.size|default:"—" }}</td>
                         <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.type|default:"—" }}</td>
-                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.group|default:"—" }}</td>
                         <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.chamfer|default:"—" }}</td>
                         <td class="py-1 px-2 text-center font-semibold">{{ cfg.count }}</td>
-                        <td class="py-1 px-2 text-center">
-                            <span class="inline-block w-4 h-4 rounded" style="background: {{ cfg.color }};"></span>
-                        </td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400 font-mono text-[10px]">{{ cfg.mat_number|default:"—" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -519,7 +513,7 @@
                 <!-- One row per blade -->
                 {% for bn in cutter_blade_names %}
                 <div class="flex items-center mb-0.5">
-                    <div class="cutter-blade-label font-bold text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
+                    <div class="cutter-blade-label font-bold text-indigo-600 dark:text-indigo-400">{{ bn }}</div>
                     <template x-for="col in cutterMaxCol" :key="col">
                         <div class="flex">
                             <template x-if="cutterGridData['{{ bn }}_' + col] !== undefined">
@@ -866,9 +860,9 @@ function inspectionPage() {
             {code: 'R', label: 'Rotate'},
             {code: 'S', label: 'Spin'},
             {code: 'L', label: 'Lost'},
-            {code: 'C', label: 'Chipped'},
-            {code: 'H', label: 'Hairline'},
-            {code: 'M', label: 'Missing'},
+            {code: 'H', label: 'Chipped'},
+            {code: 'C', label: 'Cracked'},
+            {code: 'M', label: 'Misaligned'},
         ],
         cutterModal: { open: false, blade: '', col: 0, selected: [], top: 200, left: 200 },
 
@@ -1223,24 +1217,62 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     /* ── Print styles ── */
     @media print {
         .no-print, nav, .sidebar, header, footer,
-        button[type="submit"], form > .flex.items-center { display: none !important; }
+        button[type="submit"], form > .flex.items-center,
+        .topnav, [data-lucide="chevron-down"] { display: none !important; }
         .print-header, .print-checklist, .print-decision, .print-signatures, .print-only-block { display: block !important; }
-        body { background: white !important; font-size: 10pt; }
-        @page { margin: 0.5in; }
+        body { background: white !important; font-size: 9pt; color: #000 !important; }
+        @page { margin: 0.4in 0.5in; }
+
+        /* Force all Alpine sections open */
+        [x-show] { display: block !important; }
+        [x-collapse] { height: auto !important; overflow: visible !important; }
+
+        /* Section styling for print */
         .print-section {
             background: white !important; border: none !important;
-            box-shadow: none !important; padding: 4px 0 !important;
-            margin-bottom: 4px !important; page-break-inside: avoid;
+            box-shadow: none !important; padding: 2px 0 !important;
+            margin-bottom: 2px !important; page-break-inside: avoid;
         }
-        [x-show] { display: block !important; }
         .print-section > button[type="button"] {
             display: block !important; pointer-events: none;
-            padding: 4px 0 !important; border-bottom: 1px solid #ddd;
+            padding: 3px 0 !important; border-bottom: 1px solid #999;
+            font-size: 11pt; font-weight: bold;
         }
-        .print-section > button[type="button"] i[data-lucide="chevron-down"] { display: none !important; }
+        .print-section > button[type="button"] i[data-lucide="chevron-down"],
+        .print-section > button[type="button"] span { display: none !important; }
+
+        /* Grids: preserve colors */
         .cutter-grid-cell, .pocket-grid-cell, .pocket-sym-mini, .cutter-sym-mini,
         .cutter-grid-cell-marked, .pocket-grid-cell-marked {
             print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        }
+
+        /* Grid cells smaller for print */
+        .pocket-grid-cell, .pocket-grid-cell-marked { width: 28px !important; height: 28px !important; font-size: 8px !important; }
+        .cutter-grid-cell, .cutter-grid-cell-marked { width: 30px !important; height: 30px !important; font-size: 8px !important; }
+
+        /* Config tables compact */
+        .print-section table { font-size: 8pt; }
+
+        /* Attachment section: hide upload controls, show file list only */
+        .print-section [x-show*="uploadArea"] { display: none !important; }
+
+        /* Dark mode overrides for print */
+        .dark * { color: #000 !important; background: white !important; border-color: #ccc !important; }
+
+        /* Page break before grids if needed */
+        .print-section:nth-child(n+3) { page-break-before: auto; }
+
+        /* Signature area for print */
+        .print-signatures {
+            margin-top: 20px; padding-top: 15px;
+            border-top: 1px solid #999;
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px;
+            font-size: 9pt;
+        }
+        .print-signatures div {
+            border-top: 1px solid #333; padding-top: 4px;
+            text-align: center; margin-top: 40px;
         }
     }
 

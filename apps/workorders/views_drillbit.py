@@ -1144,7 +1144,8 @@ class DrillBitQRLabelsView(LoginRequiredMixin, View):
         bit_ids = [x.strip() for x in bit_ids_raw.split(",") if x.strip().isdigit()]
 
         bits = DrillBit.objects.filter(pk__in=bit_ids).select_related(
-            "design", "design__size", "account",
+            "design", "design__size", "design__connection_type_ref",
+            "design__connection_size_ref", "account",
             "brazing_bom", "brazing_bom__smi_type",
             "bom", "bom__smi_type",
             "system_bom", "system_bom__smi_type",
@@ -1164,6 +1165,14 @@ class DrillBitQRLabelsView(LoginRequiredMixin, View):
             design_mat = ""
             if bit.design:
                 design_mat = str(bit.design)
+            # Connection display from design
+            connection_display = ""
+            if bit.design:
+                if bit.design.connection_type_ref and bit.design.connection_size_ref:
+                    connection_display = f"{bit.design.connection_type_ref.code} {bit.design.connection_size_ref.size_inches}"
+                elif bit.design.connection_type_ref:
+                    connection_display = str(bit.design.connection_type_ref.code)
+
             labels.append({
                 "bit": bit,
                 "qr_base64": generate_drill_bit_qr(bit, base_url),
@@ -1171,6 +1180,8 @@ class DrillBitQRLabelsView(LoginRequiredMixin, View):
                 "size_display": size_display,
                 "design_mat": design_mat,
                 "account_name": str(bit.account) if bit.account else "",
+                "bit_type_display": bit.get_bit_type_display() if bit.bit_type else "",
+                "connection_display": connection_display,
             })
 
         copies = int(request.GET.get("copies", "1"))

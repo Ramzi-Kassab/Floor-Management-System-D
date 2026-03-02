@@ -2612,6 +2612,13 @@ def _get_bom_blade_data(drill_bit):
         if rows:
             blade_data.append({"name": blade_name, "rows": rows})
 
+    # Build BOM summary lookup for size and mat_number per cutter type
+    bom_lookup = {}
+    for bom_row in bom_summary:
+        bkey = f"{bom_row.get('type', '')}|{bom_row.get('chamfer', '')}"
+        if bkey not in bom_lookup:
+            bom_lookup[bkey] = bom_row
+
     # Build cutter config list (unique cutter types with colors for the grid)
     CUTTER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
                      '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
@@ -2629,8 +2636,14 @@ def _get_bom_blade_data(drill_bit):
                     key = f"{ct}|{cg}|{cc}"
                     if key not in seen_types:
                         color = CUTTER_COLORS[type_idx % len(CUTTER_COLORS)]
-                        seen_types[key] = {'order': type_idx + 1, 'color': color, 'count': 0,
-                                          'type': ct, 'group': cg, 'chamfer': cc}
+                        # Cross-reference BOM summary for size and mat_number
+                        bom_match = bom_lookup.get(f"{ct}|{cc}", {})
+                        seen_types[key] = {
+                            'order': type_idx + 1, 'color': color, 'count': 0,
+                            'type': ct, 'group': cg, 'chamfer': cc,
+                            'size': bom_match.get('size', ''),
+                            'mat_number': bom_match.get('mat_number', ''),
+                        }
                         type_idx += 1
                     seen_types[key]['count'] += 1
     cutter_config_list = sorted(seen_types.values(), key=lambda x: x['order'])
@@ -2848,6 +2861,31 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
 
     def get_drill_bit(self):
         return get_object_or_404(DrillBit, pk=self.kwargs['bit_pk'])
+
+    def get_initial(self):
+        initial = super().get_initial()
+        bit = self.get_drill_bit()
+        # Fix 2: Default inspection_date to today
+        initial['inspection_date'] = timezone.now().date()
+        # Fix 1: Auto-fill date_of_receipt from drill bit's received_date
+        if bit.received_date:
+            initial['date_of_receipt'] = bit.received_date
+        else:
+            # Fallback: check BitEvent for RECEIVED event
+            evt = BitEvent.objects.filter(
+                bit=bit, event_type=BitEvent.EventType.RECEIVED
+            ).order_by('event_date').first()
+            if evt:
+                initial['date_of_receipt'] = evt.event_date.date() if evt.event_date else None
+            else:
+                # Second fallback: check BackloadItem
+                from .models import BackloadItem
+                bl_item = BackloadItem.objects.filter(
+                    drill_bit=bit, received_date__isnull=False
+                ).order_by('-received_date').first()
+                if bl_item:
+                    initial['date_of_receipt'] = bl_item.received_date.date() if bl_item.received_date else None
+        return initial
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

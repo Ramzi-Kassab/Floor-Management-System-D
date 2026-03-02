@@ -1168,7 +1168,7 @@ class ReceivingInspectionForm(forms.ModelForm):
     class Meta:
         model = ReceivingInspection
         fields = [
-            'inspection_date', 'date_of_receipt', 'po_number', 'client_name',
+            'inspection_date', 'date_of_receipt', 'po_number',
             # Visual inspection checklist (QAS/005-1 — 11 items)
             'vi_pin_connection', 'vi_bit_body', 'vi_bit_breaker', 'vi_blades',
             'vi_nozzles', 'vi_junk_slot', 'vi_gauge_pads', 'vi_bit_face', 'vi_general',
@@ -1185,9 +1185,6 @@ class ReceivingInspectionForm(forms.ModelForm):
             }),
             'po_number': forms.TextInput(attrs={
                 'class': INPUT_CLASS, 'placeholder': 'Purchase order number',
-            }),
-            'client_name': forms.TextInput(attrs={
-                'class': INPUT_CLASS, 'placeholder': 'Client / customer name',
             }),
             # Visual checklist — radio buttons rendered in template, use hidden select as fallback
             'vi_pin_connection': forms.Select(attrs={'class': SELECT_CLASS}),
