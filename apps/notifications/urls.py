@@ -10,6 +10,10 @@ urlpatterns = [
     path("<int:pk>/read/", views.NotificationMarkReadView.as_view(), name="notification_read"),
     path("mark-all-read/", views.NotificationMarkAllReadView.as_view(), name="notification_mark_all_read"),
     path("<int:pk>/delete/", views.NotificationDeleteView.as_view(), name="notification_delete"),
+    # Bell fragment (HTMX polling)
+    path("api/bell/", views.NotificationBellView.as_view(), name="bell_fragment"),
+    path("api/<int:pk>/mark-read/", views.ApiMarkReadView.as_view(), name="api_mark_read"),
+    path("api/mark-all-read/", views.ApiMarkAllReadView.as_view(), name="api_mark_all_read"),
     # Tasks
     path("tasks/", views.TaskListView.as_view(), name="task_list"),
     path("tasks/<int:pk>/", views.TaskDetailView.as_view(), name="task_detail"),

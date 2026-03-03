@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AuditLog, Comment, Notification, NotificationTemplate, Task
+from .models import AuditLog, Comment, FormRevision, Notification, NotificationTemplate, Task
 
 
 @admin.register(NotificationTemplate)
@@ -32,3 +32,10 @@ class AuditLogAdmin(admin.ModelAdmin):
 class CommentAdmin(admin.ModelAdmin):
     list_display = ["entity_type", "entity_id", "created_by", "created_at"]
     list_filter = ["entity_type"]
+
+
+@admin.register(FormRevision)
+class FormRevisionAdmin(admin.ModelAdmin):
+    list_display = ["entity_type", "entity_id", "revision_number", "document_code", "revised_by", "revised_at"]
+    list_filter = ["entity_type", "document_code"]
+    readonly_fields = ["snapshot", "changes"]

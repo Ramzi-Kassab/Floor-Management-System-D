@@ -14,6 +14,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .forms import CommentForm, NotificationTemplateForm, TaskForm, TaskStatusForm
 from .models import AuditLog, Comment, Notification, NotificationTemplate, Task
+from .services import get_recent_unread, get_unread_count
 
 
 # =============================================================================
@@ -94,6 +95,65 @@ class NotificationDeleteView(LoginRequiredMixin, View):
 
         messages.success(request, "Notification deleted.")
         return redirect("notifications:notification_list")
+
+
+# =============================================================================
+# Bell Fragment View (HTMX polling)
+# =============================================================================
+
+
+class NotificationBellView(LoginRequiredMixin, View):
+    """
+    Returns the bell dropdown HTML fragment for HTMX polling.
+    Called every 10s from the topnav.
+    """
+
+    def get(self, request):
+        from django.template.loader import render_to_string
+
+        unread_count = get_unread_count(request.user)
+        recent = get_recent_unread(request.user, limit=5)
+        latest_id = recent[0].pk if recent else ""
+
+        html = render_to_string(
+            "notifications/partials/bell_fragment.html",
+            {
+                "unread_count": unread_count,
+                "recent_notifications": recent,
+                "latest_id": latest_id,
+            },
+            request=request,
+        )
+        from django.http import HttpResponse
+
+        return HttpResponse(html)
+
+
+class ApiMarkReadView(LoginRequiredMixin, View):
+    """Mark a single notification as read. Returns 204 for HTMX."""
+
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notification.is_read = True
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["is_read", "read_at"])
+
+        from django.http import HttpResponse
+
+        return HttpResponse(status=204)
+
+
+class ApiMarkAllReadView(LoginRequiredMixin, View):
+    """Mark all unread notifications as read. Returns 204 for HTMX."""
+
+    def post(self, request):
+        Notification.objects.filter(recipient=request.user, is_read=False).update(
+            is_read=True, read_at=timezone.now()
+        )
+
+        from django.http import HttpResponse
+
+        return HttpResponse(status=204)
 
 
 # =============================================================================

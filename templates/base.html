@@ -317,8 +317,50 @@
         });
 
         // Re-initialize icons after HTMX swaps
-        document.body.addEventListener('htmx:afterSwap', function() {
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
             lucide.createIcons();
+
+            // Notification sound — only for bell container swaps
+            if (evt.detail && evt.detail.target && evt.detail.target.id === 'notification-bell-container') {
+                var el = evt.detail.target.querySelector('[data-unread-count]');
+                if (!el) return;
+                var count = parseInt(el.getAttribute('data-unread-count') || '0', 10);
+                var latestId = el.getAttribute('data-latest-id') || '';
+                var prev = window._lastNotifCount;
+                var prevId = window._lastNotifLatestId || '';
+
+                // First load — just store, don't beep
+                if (prev === undefined) {
+                    window._lastNotifCount = count;
+                    window._lastNotifLatestId = latestId;
+                    return;
+                }
+
+                // New notification arrived (count went up AND different latest)
+                if (count > prev && latestId && latestId !== prevId) {
+                    try {
+                        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        var osc = ctx.createOscillator();
+                        var gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = 800;
+                        osc.type = 'sine';
+                        gain.gain.value = 0.15;
+                        osc.start();
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+                        osc.stop(ctx.currentTime + 0.2);
+                    } catch(e) { /* AudioContext may be blocked before user interaction */ }
+
+                    // Show toast for the new notification
+                    if (window.showToast) {
+                        window.showToast('New notification received', 'info');
+                    }
+                }
+
+                window._lastNotifCount = count;
+                window._lastNotifLatestId = latestId;
+            }
         });
     </script>
     

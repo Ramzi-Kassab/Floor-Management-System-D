@@ -883,6 +883,52 @@
     </div>
 </div>
 
+<!-- ── VERSION HISTORY ── -->
+{% if not is_new and revisions %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden no-print mb-4"
+     x-data="{ vhOpen: false }">
+    <button type="button" @click="vhOpen = !vhOpen"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+        <span class="font-semibold text-sm text-gray-700 dark:text-gray-200">
+            <i data-lucide="history" class="w-4 h-4 inline mr-1 text-indigo-500"></i>
+            Version History
+            <span class="ml-1 text-xs text-gray-400">({{ revisions|length }} revision{{ revisions|length|pluralize }})</span>
+        </span>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="vhOpen ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="vhOpen" x-collapse class="px-5 pb-4">
+        <div class="space-y-3 mt-2">
+            {% for rev in revisions %}
+            <div class="flex items-start gap-3 border-l-2 {% if forloop.first %}border-indigo-400{% else %}border-gray-200 dark:border-gray-600{% endif %} pl-3 py-1">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">Rev {{ rev.revision_number }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ rev.revised_at|timesince }} ago</span>
+                        {% if rev.revised_by %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400">by {{ rev.revised_by.get_short_name|default:rev.revised_by.username }}</span>
+                        {% endif %}
+                    </div>
+                    {% if rev.change_summary %}
+                    <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{{ rev.change_summary }}</p>
+                    {% endif %}
+                    {% if rev.changes %}
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        {% for field, diff in rev.changes.items %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                              title="{{ field }}: {{ diff.old }} → {{ diff.new }}">
+                            {{ field }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- ── PRINT: Signatures ── -->
 <div class="print-signatures" style="font-size:9pt; margin-top:16px;">
     <table style="width:100%; border-collapse:collapse; border:1px solid #000;">

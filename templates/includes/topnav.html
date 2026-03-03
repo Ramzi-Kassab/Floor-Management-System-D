@@ -44,35 +44,22 @@
             <i x-show="darkMode" x-cloak data-lucide="sun" class="w-5 h-5 text-yellow-400"></i>
         </button>
         
-        <!-- Notifications -->
-        <div x-data="{ open: false }" class="relative">
-            <button @click="open = !open" 
-                    class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
-                <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
-                <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            
-            <div x-show="open"
-                 x-cloak
-                 x-transition
-                 @click.outside="open = false"
-                 class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 z-50">
-                <div class="p-4 border-b dark:border-gray-700">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Notifications</h3>
-                </div>
-                <div class="max-h-96 overflow-y-auto">
-                    <div class="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        No new notifications
-                    </div>
-                </div>
-                <div class="p-2 border-t dark:border-gray-700">
-                    <a href="#" class="block text-center text-sm text-blue-600 hover:underline">View All Notifications</a>
-                </div>
+        <!-- Notifications (HTMX polling every 10s) -->
+        {% load humanize %}
+        <div id="notification-bell-container"
+             hx-get="{% url 'notifications:bell_fragment' %}"
+             hx-trigger="load, every 10s"
+             hx-swap="innerHTML">
+            {# Initial render — replaced by HTMX on load #}
+            <div class="relative">
+                <button class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
+                    <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+                </button>
             </div>
         </div>
 
         <!-- Tasks -->
-        <a href="#" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+        <a href="{% url 'notifications:task_list' %}" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <i data-lucide="check-square" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
         </a>
         

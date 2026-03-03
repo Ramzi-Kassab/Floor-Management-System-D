@@ -1,0 +1,118 @@
+{% load humanize %}
+{# HTMX-swapped bell fragment — self-contained Alpine.js component #}
+<div x-data="{ bellOpen: false }" class="relative"
+     data-unread-count="{{ unread_count }}"
+     data-latest-id="{{ latest_id|default:'' }}">
+
+    {# Bell button #}
+    <button @click="bellOpen = !bellOpen"
+            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 relative">
+        <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-300"></i>
+        {% if unread_count > 0 %}
+        <span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center
+                     text-[10px] font-bold text-white bg-red-500 rounded-full px-1 leading-none">
+            {% if unread_count > 99 %}99+{% else %}{{ unread_count }}{% endif %}
+        </span>
+        {% endif %}
+    </button>
+
+    {# Dropdown #}
+    <div x-show="bellOpen"
+         x-cloak
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0 translate-y-1"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-1"
+         @click.outside="bellOpen = false"
+         class="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl
+                border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+
+        {# Header #}
+        <div class="flex items-center justify-between px-4 py-3 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
+            <h3 class="font-semibold text-gray-900 dark:text-white text-sm">
+                Notifications
+                {% if unread_count > 0 %}
+                <span class="ml-1 text-xs font-medium text-blue-600 dark:text-blue-400">({{ unread_count }} unread)</span>
+                {% endif %}
+            </h3>
+            {% if unread_count > 0 %}
+            <form method="post" action="{% url 'notifications:notification_mark_all_read' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                    Mark all read
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {# Notification list #}
+        <div class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+            {% if recent_notifications %}
+                {% for n in recent_notifications %}
+                <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
+                            border-l-3 {% if n.priority == 'URGENT' %}border-l-red-500{% elif n.priority == 'HIGH' %}border-l-amber-500{% elif n.priority == 'LOW' %}border-l-gray-300{% else %}border-l-blue-500{% endif %}"
+                     style="border-left-width: 3px;">
+                    {# Icon based on priority #}
+                    <div class="flex-shrink-0 mt-0.5">
+                        {% if n.priority == 'URGENT' %}
+                        <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                        </div>
+                        {% elif n.priority == 'HIGH' %}
+                        <div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                            <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
+                        </div>
+                        {% else %}
+                        <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <i data-lucide="info" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {# Content #}
+                    <div class="flex-1 min-w-0">
+                        {% if n.action_url %}
+                        <a href="{% url 'notifications:notification_read' pk=n.pk %}"
+                           class="text-sm text-gray-900 dark:text-white font-medium hover:text-blue-600 dark:hover:text-blue-400 block truncate">
+                            {{ n.title }}
+                        </a>
+                        {% else %}
+                        <p class="text-sm text-gray-900 dark:text-white font-medium truncate">{{ n.title }}</p>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {{ n.created_at|timesince }} ago
+                            {% if n.actor %}<span class="text-gray-400 dark:text-gray-500">by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
+                        </p>
+                    </div>
+
+                    {# Mark read button #}
+                    <form method="post" action="{% url 'notifications:notification_read' pk=n.pk %}"
+                          class="flex-shrink-0">
+                        {% csrf_token %}
+                        <button type="submit" title="Mark as read"
+                                class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="px-4 py-8 text-center">
+                    <i data-lucide="bell-off" class="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2"></i>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No new notifications</p>
+                </div>
+            {% endif %}
+        </div>
+
+        {# Footer #}
+        <div class="px-4 py-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
+            <a href="{% url 'notifications:notification_list' %}"
+               class="block text-center text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                View All Notifications
+            </a>
+        </div>
+    </div>
+</div>

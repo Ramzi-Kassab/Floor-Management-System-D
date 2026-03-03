@@ -162,6 +162,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.accounts.context_processors.permissions',
                 'apps.accounts.context_processors.saved_dashboards',
+                'apps.notifications.context_processors.notifications',
             ],
         },
     },

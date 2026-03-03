@@ -1412,6 +1412,11 @@ Then restart the server (kill + start fresh).
 | Receiving inspection views | `apps/workorders/views_jobcard.py` (ReceivingInspectionCreateView, ReceivingInspectionEditView) |
 | Photo module component | `templates/components/photo_module.html` |
 | Photo API views | `apps/workorders/views_photos.py` (8 API endpoints) |
+| Notification service | `apps/notifications/services.py` (notify, get_unread_count, create_form_revision) |
+| Bell fragment template | `templates/notifications/partials/bell_fragment.html` |
+| Notification context processor | `apps/notifications/context_processors.py` |
+| Notification views | `apps/notifications/views.py` (NotificationBellView, ApiMarkReadView) |
+| Notification URLs | `apps/notifications/urls.py` |
 
 ### Key View Classes
 
@@ -1452,6 +1457,9 @@ Then restart the server (kill + start fresh).
 | api_locator_update | `apps/erp_automation/views.py` | `/erp-automation/api/locators/<pk>/update/` |
 | api_locator_detail | `apps/erp_automation/views.py` | `/erp-automation/api/locators/<pk>/detail/` |
 | api_locator_search | `apps/erp_automation/views.py` | `/erp-automation/api/locators/search/` |
+| NotificationBellView | `apps/notifications/views.py` | `/notifications/api/bell/` |
+| ApiMarkReadView | `apps/notifications/views.py` | `/notifications/api/<pk>/mark-read/` |
+| NotificationListView | `apps/notifications/views.py` | `/notifications/` |
 
 ### Database Queries
 ```python
@@ -1712,6 +1720,32 @@ Items noted for future enhancement. These are not bugs — they are improvements
   - **Dark Mode Print Safety**: Forces `color:#000` and `border-color:#000` on all dark mode elements. Preserves `#f8f8f8` backgrounds via `print-color-adjust:exact`.
 - **Photo Module Enhancements** (`templates/components/photo_module.html`): Expanded with improved ADG sequence handling, better error handling for camera access, and refined Fabric.js editor integration.
 - **Key Files Modified**: `templates/workorders/receiving_inspection_form.html` (print layout), `templates/components/photo_module.html`, `apps/workorders/views_jobcard.py`, `apps/workorders/views_photos.py`, `apps/workorders/models.py`.
+
+### Recent Enhancements (Mar 3, 2026 — Session 4) — Real-Time Notification System & Quality Form Version Tracking
+- **HTMX Polling Notification Bell**: Topnav bell icon replaced with live HTMX polling container. `hx-get="/notifications/api/bell/"` with `hx-trigger="load, every 10s"` swaps the bell fragment HTML every 10 seconds. No Django Channels, no Redis, no WebSockets — works with existing HTMX stack. Upgradeable to SSE later.
+- **`notify()` Service** (`apps/notifications/services.py`): Central function for all notification creation. Supports `recipients="all"` (broadcasts to all active users except actor), QuerySet, list, or single User. Auto-generates title from actor + verb + target. Uses `Notification.objects.bulk_create()` for efficiency. Helpers: `get_unread_count(user)`, `get_recent_unread(user, limit=5)`.
+- **`actor` FK on Notification**: New `actor` ForeignKey (User, SET_NULL, nullable) on `Notification` model tracks who triggered the notification. Composite index `(recipient, is_read, -created_at)` added for fast bell polling queries.
+- **Bell Fragment Template** (`templates/notifications/partials/bell_fragment.html`): Self-contained Alpine.js component with: badge (hidden if 0, number if 1-99, "99+" cap), dropdown with header + "Mark all read" button, 5 recent unread items with priority left-border color (red=URGENT, amber=HIGH, blue=NORMAL), timesince + actor name, per-item mark-read button, "View All" footer link. Data attributes `data-unread-count` and `data-latest-id` for sound detection.
+- **Notification Sound** (`templates/base.html`): `htmx:afterSwap` handler on `#notification-bell-container` compares `data-unread-count` and `data-latest-id` to previous values. On new notification: plays 200ms 800Hz sine wave beep via `AudioContext` (no external audio file) and shows toast. First load stores count silently (no beep on page load).
+- **Context Processor** (`apps/notifications/context_processors.py`): Injects `unread_notification_count` into all template contexts. Registered in `ardt_fms/settings.py`.
+- **Bell API Views** (`apps/notifications/views.py`): `NotificationBellView` (GET `/notifications/api/bell/`) renders bell fragment with unread count and recent notifications. `ApiMarkReadView` (POST `/notifications/api/<pk>/mark-read/`) returns 204. `ApiMarkAllReadView` (POST `/notifications/api/mark-all-read/`) returns 204.
+- **Topnav Tasks Link Fixed**: Tasks icon now links to `{% url 'notifications:task_list' %}` (was `#`).
+- **Phase 1 Event Wiring — 7 integration points**:
+  - `start_work_view()` → NORMAL priority, "started work on {wo_number}"
+  - `complete_work_view()` → HIGH priority, "sent to QC {wo_number}"
+  - `update_status_htmx()` → Variable priority (COMPLETED/QC_PASSED/QC_FAILED/ON_HOLD=HIGH, CANCELLED=URGENT, others=NORMAL)
+  - `api_evaluation_mark_complete()` → HIGH priority, "{eval_type} evaluation completed for {wo_number}"
+  - `api_router_step_scan()` action='end' → HIGH priority, only when ALL router steps complete (skips per-step notifications)
+  - `ReceivingInspectionEditView.form_valid()` → HIGH priority on mark_complete=true
+  - `api_receiving_inspection_complete()` → HIGH priority on completion toggle
+  - `GRNPostView.post()` → URGENT priority, "posted GRN {grn_number} ({N} lines)"
+- **FormRevision Model** (`apps/notifications/models.py`): Quality form version tracking with fields: `entity_type`, `entity_id`, `revision_number` (auto-incremented), `document_code` (e.g., "QAS/005-1"), `snapshot` (JSONField — full form state), `changes` (JSONField — `{field: {old, new}}`), `change_summary`, `revised_by` FK, `revised_at`. Unique together on `(entity_type, entity_id, revision_number)`.
+- **`create_form_revision()` Helper** (`apps/notifications/services.py`): Computes next revision number, diffs old vs new snapshots, generates change summary from field names, creates `FormRevision` record.
+- **Receiving Inspection Version Tracking**: `ReceivingInspectionEditView.form_valid()` captures pre-save snapshot of 17 tracked fields (checklist items, result, remarks, evaluation data, completion status), saves the form, then creates a `FormRevision` if anything changed. `get_context_data()` passes `revisions` queryset to template.
+- **Version History UI**: Collapsible "Version History" section on receiving inspection form (between Photos and Print Signatures). Shows timeline of revisions with: Rev number, timesince, author, change summary, and field name badges. Indigo left border on latest revision.
+- **Migration**: `0003_add_actor_formrevision_index.py` — adds `actor` FK to Notification, creates `FormRevision` model, adds composite bell index.
+- **Key Files Created**: `apps/notifications/services.py`, `apps/notifications/context_processors.py`, `templates/notifications/partials/bell_fragment.html`.
+- **Key Files Modified**: `apps/notifications/models.py`, `apps/notifications/views.py`, `apps/notifications/urls.py`, `apps/notifications/admin.py`, `ardt_fms/settings.py`, `templates/includes/topnav.html`, `templates/base.html`, `apps/workorders/views.py`, `apps/workorders/views_jobcard.py`, `apps/inventory/views.py`, `templates/workorders/receiving_inspection_form.html`.
 
 ---
 

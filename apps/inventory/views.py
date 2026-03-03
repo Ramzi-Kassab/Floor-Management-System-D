@@ -74,6 +74,8 @@ from .forms import (
     LandingCostRecordForm,
 )
 
+from apps.notifications.services import notify
+
 
 # =============================================================================
 # Dashboard View
@@ -4770,6 +4772,15 @@ class GRNPostView(LoginRequiredMixin, View):
                         self._update_po_status(grn.purchase_order)
 
                     messages.success(request, f"GRN {grn.grn_number}: {posted_count} lines posted successfully.")
+                    notify(
+                        actor=request.user,
+                        verb="posted GRN",
+                        target=f"{grn.grn_number} ({posted_count} lines)",
+                        priority="URGENT",
+                        action_url=f"/inventory/grn/{grn.pk}/",
+                        entity_type="GoodsReceiptNote",
+                        entity_id=grn.pk,
+                    )
                 else:
                     messages.warning(request, "No lines were posted.")
 

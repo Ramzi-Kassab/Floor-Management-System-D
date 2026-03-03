@@ -40,6 +40,7 @@ from .models import (
     PlannerSettings, PlannerHoliday,
     EvaluationRoute, EvaluationRouteStep
 )
+from apps.notifications.services import notify, create_form_revision
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
 
@@ -916,6 +917,18 @@ def api_evaluation_mark_complete(request, wo_pk, pk):
             pass
         matrix.save(update_fields=update_fields)
 
+    wo = matrix.work_order
+    if mark_complete:
+        notify(
+            actor=request.user,
+            verb=f"completed {matrix.get_evaluation_type_display()} evaluation for",
+            target=wo.wo_number,
+            priority="HIGH",
+            action_url=f"/workorders/enhanced/{wo.pk}/",
+            entity_type="CutterEvaluationMatrix",
+            entity_id=matrix.pk,
+        )
+
     return JsonResponse({
         'success': True,
         'is_complete': matrix.is_complete,
@@ -1063,6 +1076,21 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.qr_scan_end = timezone.now()
         entry.is_complete = True
         entry.save()
+
+        # Notify only when ALL router steps are now complete
+        total = RouterSheetEntry.objects.filter(work_order=wo).count()
+        done = RouterSheetEntry.objects.filter(work_order=wo, is_complete=True).count()
+        if total > 0 and done >= total:
+            notify(
+                actor=request.user,
+                verb="completed all router steps for",
+                target=wo.wo_number,
+                priority="HIGH",
+                action_url=f"/workorders/{wo.pk}/router-sheet/",
+                entity_type="WorkOrder",
+                entity_id=wo.pk,
+            )
+
         return JsonResponse({
             'success': True,
             'step_number': step_number,
@@ -3082,9 +3110,33 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         context['cutter_remark_annotations_json'] = _json.dumps(self.object.cutter_remark_annotations or {})
         # Attachments
         context['attachments'] = self.object.attachments.all()
+        # Version history
+        from apps.notifications.models import FormRevision
+        context['revisions'] = FormRevision.objects.filter(
+            entity_type="ReceivingInspection", entity_id=self.object.pk
+        ).select_related('revised_by').order_by('-revision_number')[:20]
         return context
 
+    def _snapshot_inspection(self, obj):
+        """Build a dict snapshot of key inspection fields for revision tracking."""
+        snapshot = {}
+        for f in ['inspection_date', 'po_number', 'date_of_receipt', 'result', 'remarks',
+                   'vi_pin_connection', 'vi_bit_body', 'vi_bit_breaker', 'vi_blades',
+                   'vi_nozzles', 'vi_junk_slot', 'vi_gauge_pads', 'vi_bit_face',
+                   'vi_general', 'vi_nozzle_liner', 'vi_vendor_note',
+                   'is_complete']:
+            val = getattr(obj, f, None)
+            snapshot[f] = str(val) if val is not None else ""
+        # JSON fields — store as-is
+        for f in ['cutter_evaluation_data', 'pocket_evaluation_data', 'checklist_remarks']:
+            snapshot[f] = getattr(obj, f, {}) or {}
+        return snapshot
+
     def form_valid(self, form):
+        # Capture pre-save state for revision tracking
+        old_obj = ReceivingInspection.objects.filter(pk=form.instance.pk).first()
+        snapshot_old = self._snapshot_inspection(old_obj) if old_obj else None
+
         # Save JSON fields from hidden inputs
         for field, post_key in [
             ('cutter_evaluation_data', 'cutter_evaluation_data'),
@@ -3116,7 +3168,36 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         else:
             messages.success(self.request, "Receiving inspection saved.")
 
-        return super().form_valid(form)
+        # Notify on completion
+        bit = form.instance.drill_bit
+        serial = bit.serial_number if bit else "Unknown"
+        if mark_complete == 'true' and form.instance.is_complete:
+            notify(
+                actor=self.request.user,
+                verb="completed receiving inspection for",
+                target=f"SN {serial}",
+                priority="HIGH",
+                action_url=reverse('workorders:receiving_inspection_edit',
+                                   kwargs={'bit_pk': bit.pk, 'pk': form.instance.pk}) if bit else "",
+                entity_type="ReceivingInspection",
+                entity_id=form.instance.pk,
+            )
+
+        response = super().form_valid(form)
+
+        # Create form revision after save
+        snapshot_new = self._snapshot_inspection(form.instance)
+        if snapshot_old is None or snapshot_old != snapshot_new:
+            create_form_revision(
+                entity_type="ReceivingInspection",
+                entity_id=form.instance.pk,
+                document_code="QAS/005-1",
+                snapshot_new=snapshot_new,
+                snapshot_old=snapshot_old,
+                revised_by=self.request.user,
+            )
+
+        return response
 
     def get_success_url(self):
         return reverse('workorders:receiving_inspection_edit',
@@ -3129,6 +3210,8 @@ def api_receiving_inspection_complete(request, bit_pk, pk):
     """Toggle is_complete on a ReceivingInspection. POST-only."""
     inspection = get_object_or_404(ReceivingInspection, pk=pk, drill_bit__pk=bit_pk)
 
+    bit = inspection.drill_bit
+    serial = bit.serial_number if bit else "Unknown"
     if inspection.is_complete:
         # Reopen
         inspection.is_complete = False
@@ -3142,6 +3225,16 @@ def api_receiving_inspection_complete(request, bit_pk, pk):
         inspection.qc_approved_by = request.user
         inspection.qc_approved_at = timezone.now()
         inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        notify(
+            actor=request.user,
+            verb="completed receiving inspection for",
+            target=f"SN {serial}",
+            priority="HIGH",
+            action_url=reverse('workorders:receiving_inspection_edit',
+                               kwargs={'bit_pk': bit_pk, 'pk': pk}),
+            entity_type="ReceivingInspection",
+            entity_id=pk,
+        )
         return JsonResponse({'success': True, 'is_complete': True, 'message': 'Inspection marked complete.'})
 
 

@@ -20,6 +20,7 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
+from apps.notifications.services import notify
 from .forms import DrillBitForm, WorkOrderForm
 from .models import DrillBit, WorkOrder
 from .utils import generate_drill_bit_qr, generate_work_order_qr
@@ -161,6 +162,15 @@ def start_work_view(request, pk):
             work_order.actual_start = timezone.now()
             work_order.save()
             messages.success(request, f"Started working on {work_order.wo_number}.")
+            notify(
+                actor=request.user,
+                verb="started work on",
+                target=work_order.wo_number,
+                priority="NORMAL",
+                action_url=f"/workorders/enhanced/{work_order.pk}/",
+                entity_type="WorkOrder",
+                entity_id=work_order.pk,
+            )
         else:
             messages.error(request, f"Cannot start work order with status {work_order.get_status_display()}.")
 
@@ -179,6 +189,15 @@ def complete_work_view(request, pk):
             work_order.status = "QC_PENDING"
             work_order.save()
             messages.success(request, f"{work_order.wo_number} sent to QC for inspection.")
+            notify(
+                actor=request.user,
+                verb="sent to QC",
+                target=work_order.wo_number,
+                priority="HIGH",
+                action_url=f"/workorders/enhanced/{work_order.pk}/",
+                entity_type="WorkOrder",
+                entity_id=work_order.pk,
+            )
         else:
             messages.error(request, f"Cannot complete work order with status {work_order.get_status_display()}.")
 
@@ -376,6 +395,21 @@ def update_status_htmx(request, pk):
                 work_order.progress_percent = 100
 
             work_order.save()
+
+            # Notify on significant status changes
+            priority_map = {
+                "COMPLETED": "HIGH", "QC_PASSED": "HIGH", "QC_FAILED": "HIGH",
+                "ON_HOLD": "HIGH", "CANCELLED": "URGENT",
+            }
+            notify(
+                actor=request.user,
+                verb=f"changed status to {work_order.get_status_display()} on",
+                target=work_order.wo_number,
+                priority=priority_map.get(new_status, "NORMAL"),
+                action_url=f"/workorders/enhanced/{work_order.pk}/",
+                entity_type="WorkOrder",
+                entity_id=work_order.pk,
+            )
 
             # Return the partial template for HTMX swap
             return render(

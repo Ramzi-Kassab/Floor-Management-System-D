@@ -58,6 +58,10 @@ class Notification(models.Model):
         URGENT = "URGENT", "Urgent"
 
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="notifications_sent",
+    )
 
     template = models.ForeignKey(NotificationTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications")
 
@@ -81,6 +85,9 @@ class Notification(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Notification"
         verbose_name_plural = "Notifications"
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"], name="notif_bell_idx"),
+        ]
 
     def __str__(self):
         return f"{self.title} -> {self.recipient}"
@@ -272,3 +279,38 @@ class CommentAttachment(models.Model):
 
     def __str__(self):
         return f"Attachment: {self.filename}"
+
+
+class FormRevision(models.Model):
+    """
+    Quality form version tracking — captures snapshots + diffs per save.
+    """
+
+    entity_type = models.CharField(max_length=100)
+    entity_id = models.BigIntegerField()
+    revision_number = models.IntegerField()
+
+    document_code = models.CharField(max_length=50, blank=True, help_text="e.g. QAS/005-1")
+
+    snapshot = models.JSONField(default=dict, help_text="Full form data at this revision")
+    changes = models.JSONField(default=dict, help_text="{field: {old: X, new: Y}}")
+    change_summary = models.CharField(max_length=500, blank=True)
+
+    revised_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="form_revisions",
+    )
+    revised_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "form_revisions"
+        ordering = ["-revision_number"]
+        verbose_name = "Form Revision"
+        verbose_name_plural = "Form Revisions"
+        unique_together = [("entity_type", "entity_id", "revision_number")]
+        indexes = [
+            models.Index(fields=["entity_type", "entity_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.entity_type} #{self.entity_id} Rev {self.revision_number}"
