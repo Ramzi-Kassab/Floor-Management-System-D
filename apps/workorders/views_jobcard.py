@@ -2583,7 +2583,8 @@ def _get_bom_blade_data(drill_bit):
 
     source_data = bom.source_data if isinstance(bom.source_data, dict) else {}
     raw_blades = source_data.get("blades", [])
-    bom_summary = source_data.get("bom", [])
+    # Key is "summary" in current data; fall back to "bom" for legacy records
+    bom_summary = source_data.get("summary", []) or source_data.get("bom", [])
 
     if not raw_blades:
         return [], bom_summary, [], False, {}
@@ -2612,12 +2613,31 @@ def _get_bom_blade_data(drill_bit):
         if rows:
             blade_data.append({"name": blade_name, "rows": rows})
 
-    # Build BOM summary lookup for size and mat_number per cutter type
-    bom_lookup = {}
+    # Build BOM summary lookup by index (the "group" field on each cutter
+    # is a 1-based index into this summary array — the definitive link)
+    summary_by_index = {}
     for bom_row in bom_summary:
-        bkey = f"{bom_row.get('type', '')}|{bom_row.get('chamfer', '')}"
-        if bkey not in bom_lookup:
-            bom_lookup[bkey] = bom_row
+        summary_by_index[bom_row.get('index')] = bom_row
+
+    # Cutter shape images from source_data and InventoryItem fallback
+    cutter_shapes_sd = source_data.get("cutter_shapes", {})
+    # Pre-load InventoryItem shapes keyed by mat_number for fallback
+    mat_numbers = [r.get('mat_number', '') for r in bom_summary if r.get('mat_number')]
+    _item_shapes = {}
+    _item_shape_attrs = {}  # mat_number -> cutter shape text attribute
+    if mat_numbers:
+        from apps.inventory.models import InventoryItem, ItemAttributeValue
+        for item in InventoryItem.objects.filter(
+            mat_number__in=mat_numbers
+        ).exclude(shape_image_base64__isnull=True).exclude(shape_image_base64=''):
+            _item_shapes[item.mat_number] = item.shape_image_base64
+        # Load "Cutter Shape" text attributes (substrate_shape, CategoryAttribute pk=8)
+        for av in ItemAttributeValue.objects.filter(
+            attribute__attribute__name__in=['Cutter Shape', 'Substrate Shape'],
+            item__mat_number__in=mat_numbers,
+        ).select_related('item'):
+            if av.text_value:
+                _item_shape_attrs[av.item.mat_number] = av.text_value
 
     # Build cutter config list (unique cutter types with colors for the grid)
     CUTTER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
@@ -2633,16 +2653,29 @@ def _get_bom_blade_data(drill_bit):
                     ct = cutter.get('type', '')
                     cg = cutter.get('group', '')
                     cc = cutter.get('chamfer', '')
+                    # Fall back to BOM summary chamfer when blade cutter chamfer is empty
+                    bom_match = summary_by_index.get(cg, {})
+                    if not cc:
+                        cc = bom_match.get('chamfer', '')
                     key = f"{ct}|{cg}|{cc}"
                     if key not in seen_types:
                         color = CUTTER_COLORS[type_idx % len(CUTTER_COLORS)]
-                        # Cross-reference BOM summary for size and mat_number
-                        bom_match = bom_lookup.get(f"{ct}|{cc}", {})
+                        mat_no = bom_match.get('mat_number', '')
+                        # Resolve shape: source_data cutter_shapes first, then InventoryItem
+                        shape_data = cutter_shapes_sd.get(str(cg), cutter_shapes_sd.get(cg))
+                        if isinstance(shape_data, dict):
+                            shape_uri = shape_data.get('data', '')
+                        elif isinstance(shape_data, str):
+                            shape_uri = shape_data
+                        else:
+                            shape_uri = _item_shapes.get(mat_no, '')
                         seen_types[key] = {
                             'order': type_idx + 1, 'color': color, 'count': 0,
                             'type': ct, 'group': cg, 'chamfer': cc,
                             'size': bom_match.get('size', ''),
-                            'mat_number': bom_match.get('mat_number', ''),
+                            'mat_number': mat_no,
+                            'shape': shape_uri,
+                            'cutter_shape': _item_shape_attrs.get(mat_no, ''),
                         }
                         type_idx += 1
                     seen_types[key]['count'] += 1
@@ -2682,6 +2715,15 @@ def _get_bom_blade_data(drill_bit):
 
     max_col = col_offset - 1  # total virtual columns
 
+    # Row-suffixed header labels (1a, 2a, 3a | 1b, 2b, ...)
+    _row_suffixes = {rk: chr(ord('a') + idx) for idx, rk in enumerate(all_row_keys)}
+    cutter_header_labels = {}
+    for rk in all_row_keys:
+        suffix = _row_suffixes[rk]
+        for i in range(row_max[rk]):
+            vcol = row_start[rk] + i
+            cutter_header_labels[vcol] = f"{i + 1}{suffix}"
+
     # Build grid data: maps "blade_vcol" -> config_order / cell_ref / cutter_number
     cutter_grid_data = {}
     cutter_cell_ref = {}
@@ -2706,6 +2748,9 @@ def _get_bom_blade_data(drill_bit):
                     ct = c.get('type', '')
                     cg = c.get('group', '')
                     cc = c.get('chamfer', '')
+                    # Fall back to BOM summary chamfer (same as config building loop)
+                    if not cc:
+                        cc = summary_by_index.get(cg, {}).get('chamfer', '')
                     type_key = f"{ct}|{cg}|{cc}"
                     cfg = seen_types.get(type_key)
 
@@ -2718,6 +2763,8 @@ def _get_bom_blade_data(drill_bit):
         'cutter_grid_data_json': _json.dumps(cutter_grid_data),
         'cutter_cell_ref_json': _json.dumps(cutter_cell_ref),
         'cutter_number_data_json': _json.dumps(cutter_number_data),
+        'cutter_header_labels_json': _json.dumps(cutter_header_labels),
+        'cutter_blade_names_json': _json.dumps(all_blade_names),
         'cutter_row_separators_json': _json.dumps(sorted(row_separators)),
         'cutter_max_col': max_col,
         'cutter_blade_names': all_blade_names,
@@ -2787,6 +2834,15 @@ def _get_pocket_grid_context(drill_bit):
 
     max_pos = offset - 1  # total virtual columns
 
+    # Row-suffixed header labels (1a, 2a, 3a | 1b, 2b, ...)
+    _row_suffixes = {row: chr(ord('a') + idx) for idx, row in enumerate(all_rows)}
+    pocket_header_labels = {}
+    for row in all_rows:
+        suffix = _row_suffixes[row]
+        for i in range(row_max[row]):
+            vcol = row_start[row] + i
+            pocket_header_labels[vcol] = f"{i + 1}{suffix}"
+
     # Build grid data using virtual columns
     grid_data = {}
     location_data = {}
@@ -2797,13 +2853,13 @@ def _get_pocket_grid_context(drill_bit):
         if p.blade_location:
             location_data[key] = p.blade_location
 
-    # Config display colors
+    # Config display colors — always use vibrant palette (ignore DB gray values)
     colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
               '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1']
     config_data = {}
     config_list = []
     for i, cfg in enumerate(pocket_configs):
-        dc = cfg.color_code if cfg.color_code else colors[i % len(colors)]
+        dc = colors[i % len(colors)]
         cfg.display_color = dc
         config_data[cfg.pk] = {
             "count": cfg.count,
@@ -2843,6 +2899,8 @@ def _get_pocket_grid_context(drill_bit):
         'pocket_location_data_json': _json.dumps(location_data),
         'pocket_config_data_json': _json.dumps(config_data),
         'pocket_number_data_json': _json.dumps(pocket_number_data),
+        'pocket_header_labels_json': _json.dumps(pocket_header_labels),
+        'pocket_blade_nums_json': _json.dumps(blade_nums),
         'pocket_config_list': config_list,
         'pocket_blade_nums': blade_nums,
         'pocket_max_pos': max_pos,
@@ -2939,6 +2997,8 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
         context['pocket_eval_data_json'] = '{}'
+        context['pocket_remark_annotations_json'] = '{}'
+        context['cutter_remark_annotations_json'] = '{}'
         return context
 
     def _save_json_fields(self, form):
@@ -2947,12 +3007,17 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
             ('cutter_evaluation_data', 'cutter_evaluation_data'),
             ('pocket_evaluation_data', 'pocket_evaluation_data'),
             ('checklist_remarks', 'checklist_remarks'),
+            ('pocket_remark_annotations', 'pocket_remark_annotations'),
+            ('cutter_remark_annotations', 'cutter_remark_annotations'),
         ]:
             raw = self.request.POST.get(post_key, '{}')
             try:
                 setattr(form.instance, field, _json.loads(raw))
             except (ValueError, TypeError):
                 setattr(form.instance, field, {})
+        # Plain-text auto-remarks
+        form.instance.pocket_auto_remarks = self.request.POST.get('pocket_auto_remarks', '')
+        form.instance.cutter_auto_remarks = self.request.POST.get('cutter_auto_remarks', '')
 
     def form_valid(self, form):
         form.instance.drill_bit = self.get_drill_bit()
@@ -3012,6 +3077,9 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         # Pocket grid data
         context.update(_get_pocket_grid_context(bit))
         context['pocket_eval_data_json'] = _json.dumps(self.object.pocket_evaluation_data or {})
+        # Remark annotations (for restoring clickable annotations on edit)
+        context['pocket_remark_annotations_json'] = _json.dumps(self.object.pocket_remark_annotations or {})
+        context['cutter_remark_annotations_json'] = _json.dumps(self.object.cutter_remark_annotations or {})
         # Attachments
         context['attachments'] = self.object.attachments.all()
         return context
@@ -3022,12 +3090,17 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
             ('cutter_evaluation_data', 'cutter_evaluation_data'),
             ('pocket_evaluation_data', 'pocket_evaluation_data'),
             ('checklist_remarks', 'checklist_remarks'),
+            ('pocket_remark_annotations', 'pocket_remark_annotations'),
+            ('cutter_remark_annotations', 'cutter_remark_annotations'),
         ]:
             raw = self.request.POST.get(post_key, '{}')
             try:
                 setattr(form.instance, field, _json.loads(raw))
             except (ValueError, TypeError):
                 setattr(form.instance, field, {})
+        # Plain-text auto-remarks
+        form.instance.pocket_auto_remarks = self.request.POST.get('pocket_auto_remarks', '')
+        form.instance.cutter_auto_remarks = self.request.POST.get('cutter_auto_remarks', '')
         # Check if "mark_complete" was submitted
         mark_complete = self.request.POST.get('mark_complete')
         if mark_complete == 'true' and not form.instance.is_complete:

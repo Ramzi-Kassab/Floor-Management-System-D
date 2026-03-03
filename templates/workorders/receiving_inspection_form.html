@@ -45,55 +45,61 @@
     <!-- Top header: Logo | Company + Subtitle | Document info (4 rows) -->
     <table class="print-hdr-table" style="width:100%; border-collapse:collapse; border:2px solid #000; margin-bottom:0;">
         <tr>
-            <td rowspan="4" style="width:90px; border:1px solid #000; padding:6px; vertical-align:middle; text-align:center;">
-                <div style="font-size:18pt; font-weight:900; letter-spacing:2px; font-family:serif;">ARDT</div>
+            <td rowspan="4" style="width:80px; border:1px solid #000; padding:6px 4px; vertical-align:middle; text-align:center; background:#f8f8f8;">
+                <div style="font-size:20pt; font-weight:900; letter-spacing:3px; font-family:'Georgia',serif; color:#1a1a1a;">ARDT</div>
             </td>
-            <td rowspan="2" style="border:1px solid #000; padding:4px 8px; vertical-align:middle; text-align:center;">
-                <div style="font-size:11pt; font-weight:bold;">ARABIAN ROCKBITS & DRILLING TOOLS CO.LTD</div>
+            <td rowspan="2" style="border:1px solid #000; padding:3px 8px; vertical-align:middle; text-align:center;">
+                <div style="font-size:9.5pt; font-weight:bold; letter-spacing:0.5px;">ARABIAN ROCKBITS & DRILLING TOOLS CO.LTD</div>
             </td>
-            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt; width:220px;">
-                Document No: QAS/005-1
-            </td>
-        </tr>
-        <tr>
-            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
-                Rev No & Date: F & 10/15/2024
+            <td style="border:1px solid #000; padding:2px 8px; font-size:7.5pt; width:190px;">
+                <strong>Document No:</strong> QAS/005-1
             </td>
         </tr>
         <tr>
-            <td rowspan="2" style="border:1px solid #000; padding:4px 8px; vertical-align:middle; text-align:center;">
-                <div style="font-size:10pt;">FC Bit Receiving Inspection</div>
-            </td>
-            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
-                Reviewed by: Javed Umar Lohar
+            <td style="border:1px solid #000; padding:2px 8px; font-size:7.5pt;">
+                <strong>Rev No & Date:</strong> F &mdash; 10/15/2024
             </td>
         </tr>
         <tr>
-            <td style="border:1px solid #000; padding:2px 8px; font-size:8.5pt;">
-                Approved by: Ahmed Faizan Chisti
+            <td rowspan="2" style="border:1px solid #000; padding:3px 8px; vertical-align:middle; text-align:center;">
+                <div style="font-size:9pt; font-weight:600;">FC Bit Receiving Inspection</div>
+            </td>
+            <td style="border:1px solid #000; padding:2px 8px; font-size:7.5pt;">
+                <strong>Reviewed by:</strong> Javed Umar Lohar
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:2px 8px; font-size:7.5pt;">
+                <strong>Approved by:</strong> Ahmed Faizan Chisti
             </td>
         </tr>
     </table>
 
-    <!-- Info fields — label : underline format, 2-column layout (matches QAS/005-1) -->
-    <div style="margin:12px 0 4px; font-size:10pt; line-height:2.2;">
-        <div style="display:flex;">
-            <div style="flex:1;"><strong>Report No</strong> &nbsp;: &nbsp;{% if report_number != 'RI-NEW' %}{{ report_number }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;"><strong>Date of <em>Receipt</em></strong> &nbsp;: &nbsp;{% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"d M Y" }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-        </div>
-        <div style="display:flex;">
-            <div style="flex:1;"><strong>Serial No</strong> &nbsp;: &nbsp;{{ drill_bit.serial_number }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;"><strong>Size</strong> &nbsp;: &nbsp;{{ drill_bit.design.size|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-        </div>
-        <div style="display:flex;">
-            <div style="flex:1;"><strong>Type</strong> &nbsp;: &nbsp;{{ drill_bit.get_bit_type_display }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;"><strong>Design MAT (L3/L4)</strong> &nbsp;: &nbsp;{{ drill_bit.design.mat_no|default:"" }}<span style="display:inline-block; border-bottom:1px solid #000; min-width:100px;">&nbsp;</span></div>
-        </div>
-        <div style="display:flex;">
-            <div style="flex:1;"><strong>System MAT (L5)</strong> &nbsp;: &nbsp;{% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}{{ drill_bit.brazing_bom.system_mat_no }}{% elif drill_bit.bom and drill_bit.bom.system_mat_no %}{{ drill_bit.bom.system_mat_no }}{% elif drill_bit.system_bom and drill_bit.system_bom.system_mat_no %}{{ drill_bit.system_bom.system_mat_no }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:160px;">&nbsp;</span></div>
-            <div style="flex:1;">&nbsp;</div>
-        </div>
-    </div>
+    <!-- Info fields — bordered table, 2-column layout -->
+    <table class="print-info-table" style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt; margin-top:6px;">
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; width:15%; font-weight:bold; background:#f8f8f8;">Report No</td>
+            <td style="border:1px solid #000; padding:3px 8px; width:35%;">{% if report_number != 'RI-NEW' %}{{ report_number }}{% endif %}</td>
+            <td style="border:1px solid #000; padding:3px 8px; width:15%; font-weight:bold; background:#f8f8f8;">Date of Receipt</td>
+            <td style="border:1px solid #000; padding:3px 8px; width:35%;">{% if not is_new and object.date_of_receipt %}{{ object.date_of_receipt|date:"d M Y" }}{% endif %}</td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; font-weight:bold; background:#f8f8f8;">Serial No</td>
+            <td style="border:1px solid #000; padding:3px 8px;">{{ drill_bit.serial_number }}</td>
+            <td style="border:1px solid #000; padding:3px 8px; font-weight:bold; background:#f8f8f8;">Size</td>
+            <td style="border:1px solid #000; padding:3px 8px;">{{ drill_bit.design.size|default:"" }}</td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; font-weight:bold; background:#f8f8f8;">Type</td>
+            <td style="border:1px solid #000; padding:3px 8px;">{{ drill_bit.get_bit_type_display }}</td>
+            <td style="border:1px solid #000; padding:3px 8px; font-weight:bold; background:#f8f8f8;">Design MAT</td>
+            <td style="border:1px solid #000; padding:3px 8px;">{{ drill_bit.design.mat_no|default:"" }}</td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:3px 8px; font-weight:bold; background:#f8f8f8;">System MAT</td>
+            <td style="border:1px solid #000; padding:3px 8px;" colspan="3">{% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}{{ drill_bit.brazing_bom.system_mat_no }}{% elif drill_bit.bom and drill_bit.bom.system_mat_no %}{{ drill_bit.bom.system_mat_no }}{% elif drill_bit.system_bom and drill_bit.system_bom.system_mat_no %}{{ drill_bit.system_bom.system_mat_no }}{% endif %}</td>
+        </tr>
+    </table>
 </div>
 
 <form method="post" id="inspectionForm"
@@ -112,11 +118,26 @@
 <input type="hidden" name="pocket_evaluation_data" value="{}">
 {% endif %}
 <input type="hidden" name="checklist_remarks" :value="JSON.stringify(checklistRemarks)">
+<input type="hidden" name="pocket_remark_annotations" :value="JSON.stringify(pocketRemarkAnnotations)">
+<input type="hidden" name="cutter_remark_annotations" :value="JSON.stringify(cutterRemarkAnnotations)">
+<input type="hidden" name="pocket_auto_remarks" :value="pocketAutoRemarks">
+<input type="hidden" name="cutter_auto_remarks" :value="cutterAutoRemarks">
+
+<!-- Section expand/collapse controls -->
+<div class="flex items-center justify-end gap-2 mb-2 no-print">
+    <button type="button" @click="expandAll()" class="inline-flex items-center px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="chevrons-down" class="w-3.5 h-3.5 mr-1"></i> Expand All
+    </button>
+    <span class="text-gray-300 dark:text-gray-600">|</span>
+    <button type="button" @click="collapseAll()" class="inline-flex items-center px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="chevrons-up" class="w-3.5 h-3.5 mr-1"></i> Collapse All
+    </button>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════════════════
-     SECTION 1: INSPECTION DETAILS (Header)
+     SECTION 1: INSPECTION DETAILS (Header) — hidden on print (print-header shows this info)
      ══════════════════════════════════════════════════════════════════════ -->
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s1 = !s1"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
@@ -238,13 +259,13 @@
             </table>
         </div>
 
-        <!-- Print checklist table (matches QAS/005-1: Sr No | Checkpoint | Condition [inline ☐] | Reason for Not OK | Remarks) -->
+        <!-- Print checklist table -->
         <table class="print-checklist" style="width:100%; border-collapse:collapse; border:1px solid #000; font-size:9pt;">
             <thead>
-                <tr>
-                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; width:40px; font-weight:bold;">Sr No</th>
-                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:140px;">Checkpoint</th>
-                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold;">Condition</th>
+                <tr style="background:#f8f8f8;">
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; width:34px; font-weight:bold;">Sr No</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:left; font-weight:bold;">Checkpoint</th>
+                    <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:180px;">Condition</th>
                     <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:150px;">Reason for Not OK</th>
                     <th style="border:1px solid #000; padding:4px 6px; text-align:center; font-weight:bold; width:100px;">Remarks</th>
                 </tr>
@@ -252,18 +273,48 @@
             <tbody>
                 {% for num, label, field_name, current_value in checklist_items %}
                 <tr>
-                    <td style="border:1px solid #000; padding:4px 6px; text-align:center;">{{ num }}</td>
-                    <td style="border:1px solid #000; padding:4px 6px;">{{ label }}</td>
-                    <td style="border:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">{% if current_value == "OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>OK</strong> &nbsp; {% if current_value == "NOT_OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>Not OK</strong> &nbsp; {% if current_value == "NA" %}&#9746;{% else %}&#9744;{% endif %} <strong>NA</strong></td>
-                    <td style="border:1px solid #000; padding:4px 6px; font-size:8pt;">&nbsp;</td>
-                    <td style="border:1px solid #000; padding:4px 6px; font-size:8pt;">&nbsp;</td>
+                    <td style="border:1px solid #000; padding:3px 6px; text-align:center;">{{ num }}</td>
+                    <td style="border:1px solid #000; padding:3px 6px;">{{ label }}</td>
+                    <td style="border:1px solid #000; padding:3px 6px; text-align:center; white-space:nowrap; font-size:8.5pt;">{% if current_value == "OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>OK</strong> &nbsp; {% if current_value == "NOT_OK" %}&#9746;{% else %}&#9744;{% endif %} <strong>Not OK</strong> &nbsp; {% if current_value == "NA" %}&#9746;{% else %}&#9744;{% endif %} <strong>NA</strong></td>
+                    <td style="border:1px solid #000; padding:3px 6px; font-size:8pt;" x-text="checklistRemarks['{{ field_name }}']?.reason || ''"></td>
+                    <td style="border:1px solid #000; padding:3px 6px; font-size:8pt;" x-text="checklistRemarks['{{ field_name }}']?.remarks || ''"></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         <!-- Note below checklist (matches QAS/005-1) -->
-        <div class="print-checklist-note" style="font-size:9pt; font-weight:bold; margin:8px 0 4px; text-align:center;">
+        <div class="print-checklist-note" style="font-size:8.5pt; font-weight:bold; margin:6px 0 4px; text-align:center;">
             Note: If there is Q-note from HDBS Woodlands get the approval from ARDT Quality Control.
+        </div>
+
+        <!-- Print-only: Pocket remarks, Cutter remarks, Decision/Result -->
+        <div class="print-remarks-block" style="font-size:9pt; margin-top:10px;">
+            {% if has_pocket_data %}
+            <table style="width:100%; border-collapse:collapse; border:1px solid #000; margin-bottom:4px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:4px 8px; font-weight:bold; width:130px; vertical-align:top; background:#f8f8f8;">Pocket Evaluation</td>
+                    <td style="border:1px solid #000; padding:4px 8px; word-wrap:break-word; overflow-wrap:break-word;" x-text="pocketAutoRemarks || 'No pocket issues marked.'"></td>
+                </tr>
+            </table>
+            {% endif %}
+            {% if has_bom_data %}
+            <table style="width:100%; border-collapse:collapse; border:1px solid #000; margin-bottom:4px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:4px 8px; font-weight:bold; width:130px; vertical-align:top; background:#f8f8f8;">Cutter Evaluation</td>
+                    <td style="border:1px solid #000; padding:4px 8px; word-wrap:break-word; overflow-wrap:break-word;" x-text="cutterAutoRemarks || 'No cutter issues marked.'"></td>
+                </tr>
+            </table>
+            {% endif %}
+            <table style="width:100%; border-collapse:collapse; border:1px solid #000;">
+                <tr>
+                    <td style="border:1px solid #000; padding:4px 8px; font-weight:bold; width:130px; background:#f8f8f8;">Result</td>
+                    <td style="border:1px solid #000; padding:4px 8px;">{% if not is_new %}{{ object.get_result_display|default:"—" }}{% else %}—{% endif %}</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:4px 8px; font-weight:bold; vertical-align:top; background:#f8f8f8;">Remarks</td>
+                    <td style="border:1px solid #000; padding:4px 8px; min-height:30px; word-wrap:break-word; overflow-wrap:break-word;">{% if not is_new %}{{ object.remarks|default:"" }}{% endif %}</td>
+                </tr>
+            </table>
         </div>
 
         <!-- ── Attachments Section ── -->
@@ -327,9 +378,9 @@
      SECTION 3: POCKET EVALUATION (Design pockets grid)
      ══════════════════════════════════════════════════════════════════════ -->
 {% if has_pocket_data %}
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s3 = !s3"
-            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="layout-grid" class="w-5 h-5 text-violet-500"></i>
             3. Pocket Evaluation
@@ -347,25 +398,23 @@
             <table class="w-full text-xs border-collapse">
                 <thead>
                     <tr class="border-b border-gray-200 dark:border-gray-600">
-                        <th class="py-1 px-2 text-left text-gray-500">#</th>
+                        <th class="py-1 px-2 text-center text-gray-500">#</th>
                         <th class="py-1 px-2 text-left text-gray-500">Size</th>
                         <th class="py-1 px-2 text-left text-gray-500">Shape</th>
                         <th class="py-1 px-2 text-left text-gray-500">Length</th>
                         <th class="py-1 px-2 text-center text-gray-500">Qty</th>
-                        <th class="py-1 px-2 text-center text-gray-500">Color</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for cfg in pocket_config_list %}
                     <tr class="border-b border-gray-100 dark:border-gray-700/50">
-                        <td class="py-1 px-2 font-mono text-gray-400">{{ cfg.order }}</td>
+                        <td class="py-1 px-2 text-center">
+                            <span class="cfg-num-badge" style="background: {{ cfg.color }};">{{ cfg.order }}</span>
+                        </td>
                         <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.size }}</td>
                         <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.shape }}</td>
                         <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.length_type }}</td>
                         <td class="py-1 px-2 text-center font-semibold">{{ cfg.count }}</td>
-                        <td class="py-1 px-2 text-center">
-                            <span class="inline-block w-4 h-4 rounded" style="background: {{ cfg.color }};"></span>
-                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -386,40 +435,109 @@
         </div>
 
         <!-- Pocket Grid -->
-        <div class="overflow-x-auto">
-            <div class="inline-block min-w-max bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+        <div class="overflow-x-auto mb-3">
+            <div class="inline-block">
                 <!-- Column number headers -->
-                <div class="flex items-end mb-1">
-                    <div class="w-12 flex-shrink-0"></div>
+                <div class="flex items-end mb-0.5">
+                    <div class="cutter-blade-label">&nbsp;</div>
                     <template x-for="col in pocketMaxPos" :key="col">
                         <div class="flex">
-                            <div class="w-10 text-center text-xs font-bold py-1 text-gray-500 dark:text-gray-400" x-text="col"></div>
-                            <div class="w-1.5" x-show="col < pocketMaxPos"></div>
+                            <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-400 dark:text-gray-500 select-none" x-text="pocketHeaderLabels[col] || col"></div>
+                            <div class="w-3 flex items-center justify-center" x-show="col < pocketMaxPos">
+                                <div class="w-0.5 h-3 rounded"
+                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-400' : 'bg-transparent'"></div>
+                            </div>
                         </div>
                     </template>
                 </div>
 
                 <!-- Blade rows -->
                 {% for bn in pocket_blade_nums %}
-                <div class="flex items-center mb-1">
-                    <div class="w-12 flex-shrink-0 font-bold text-sm text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
+                <div class="flex items-center mb-0.5">
+                    <div class="cutter-blade-label font-bold text-indigo-600 dark:text-indigo-400">B{{ bn }}</div>
                     <template x-for="col in pocketMaxPos" :key="col">
                         <div class="flex">
                             <div class="pocket-grid-cell"
                                  :style="getPocketCellStyle({{ bn }}, col)"
                                  :class="getPocketCellClass({{ bn }}, col)"
                                  @click="onPocketCellClick({{ bn }}, col, $event)"
+                                 @keydown="onPocketCellKey({{ bn }}, col, $event)"
                                  :title="getPocketCellTitle({{ bn }}, col)"
-                                 x-text="getPocketCellText({{ bn }}, col)">
+                                 x-text="getPocketCellText({{ bn }}, col)"
+                                 tabindex="0"
+                                 :data-cell="'pocket_' + {{ bn }} + '_' + col">
                             </div>
-                            <div class="w-1.5 flex items-center justify-center" x-show="col < pocketMaxPos">
+                            <div class="w-3 flex items-center justify-center" x-show="col < pocketMaxPos">
                                 <div class="w-0.5 h-10 rounded"
-                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-500' : ''"></div>
+                                     :class="pocketRowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
                             </div>
                         </div>
                     </template>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+
+        <!-- Warning flash (V→P conversion) -->
+        <div x-show="pocketWarning" x-cloak x-transition
+             class="mt-2 px-3 py-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i>
+            <span x-text="pocketWarning"></span>
+        </div>
+        <!-- Auto-generated pocket remarks (clickable segments) -->
+        <div class="mt-2">
+            <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Auto-Generated Remarks</label>
+            <div class="text-xs bg-gray-50 dark:bg-gray-900/50 rounded p-2 min-h-[28px] text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
+                <template x-if="pocketRemarkSegments.length === 0">
+                    <span class="text-gray-400 italic">No pocket issues marked.</span>
+                </template>
+                <template x-for="(seg, si) in pocketRemarkSegments" :key="seg.key">
+                    <span class="remark-seg-wrap">
+                        <!-- Before text -->
+                        <span x-show="seg.before" class="remark-user-text" x-text="seg.before + ' '"></span>
+                        <!-- Clickable segment text -->
+                        <span class="remark-segment"
+                              @click="openPocketSegEditor(si)"
+                              x-text="seg.text"></span>
+                        <!-- Annotation (inline clarification) -->
+                        <span x-show="seg.annotation" class="remark-annotation" x-text="' — ' + seg.annotation"></span>
+                        <!-- After text -->
+                        <span x-show="seg.after" class="remark-user-text" x-text="'. ' + seg.after"></span>
+                        <!-- Separator -->
+                        <span x-text="si < pocketRemarkSegments.length - 1 ? '. ' : '.'"></span>
+                    </span>
+                </template>
+            </div>
+            <!-- Segment editor panel (shown below remarks when editing) -->
+            <div x-show="pocketEditSeg !== null" x-cloak x-transition
+                 class="remark-editor-panel mt-1">
+                <div class="remark-editor-header">
+                    <span class="font-semibold" x-text="pocketEditSeg !== null ? pocketRemarkSegments[pocketEditSeg]?.text : ''"></span>
+                    <button type="button" @click="pocketEditSeg = null" class="remark-editor-close">&times;</button>
+                </div>
+                <div class="remark-editor-fields">
+                    <div class="remark-editor-row">
+                        <label>Insert before:</label>
+                        <input type="text" x-model="pocketEditBefore" placeholder="Text to add before this remark..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Clarification:</label>
+                        <input type="text" x-model="pocketEditText" placeholder="e.g. high, needs grinding, worn..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null"
+                               @keydown.enter="savePocketSegEditor()">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Insert after:</label>
+                        <input type="text" x-model="pocketEditAfter" placeholder="Text to add after this remark..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null">
+                    </div>
+                </div>
+                <div class="remark-editor-actions">
+                    <button type="button" @click="savePocketSegEditor()" class="remark-annot-btn remark-annot-save">Apply</button>
+                    <button type="button" @click="clearPocketSegEditor()" class="remark-annot-btn remark-annot-clear">Clear All</button>
+                    <button type="button" @click="pocketEditSeg = null" class="remark-annot-btn remark-annot-clear">Cancel</button>
+                </div>
             </div>
         </div>
 
@@ -466,9 +584,9 @@
      Click-modal style matching pocket evaluation
      ══════════════════════════════════════════════════════════════════════ -->
 {% if has_bom_data %}
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s4 = !s4"
-            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="grid-3x3" class="w-5 h-5 text-blue-500"></i>
             {% if has_pocket_data %}4{% else %}3{% endif %}. Cutter Evaluation
@@ -486,7 +604,9 @@
             <table class="w-full text-xs border-collapse">
                 <thead>
                     <tr class="border-b border-gray-200 dark:border-gray-600">
-                        <th class="py-1 px-2 text-left text-gray-500">#</th>
+                        <th class="py-1 px-2 text-center text-gray-500">#</th>
+                        <th class="py-1 px-2 text-center text-gray-500">Shape</th>
+                        <th class="py-1 px-2 text-left text-gray-500">Cutter Shape</th>
                         <th class="py-1 px-2 text-left text-gray-500">Size</th>
                         <th class="py-1 px-2 text-left text-gray-500">Type</th>
                         <th class="py-1 px-2 text-left text-gray-500">Chamfer</th>
@@ -497,7 +617,17 @@
                 <tbody>
                     {% for cfg in cutter_config_list %}
                     <tr class="border-b border-gray-100 dark:border-gray-700/50">
-                        <td class="py-1 px-2 font-mono text-gray-400">{{ cfg.order }}</td>
+                        <td class="py-1 px-2 text-center">
+                            <span class="cfg-num-badge" style="background: {{ cfg.color }};">{{ cfg.order }}</span>
+                        </td>
+                        <td class="py-1 px-2 text-center">
+                            {% if cfg.shape %}
+                            <img src="{{ cfg.shape }}" alt="Shape" class="inline-block w-7 h-7 rounded object-contain bg-white border border-gray-200 dark:border-gray-600">
+                            {% else %}
+                            <span class="text-gray-300 dark:text-gray-600">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-1 px-2 text-gray-600 dark:text-gray-400 text-xs">{{ cfg.cutter_shape|default:"—" }}</td>
                         <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.size|default:"—" }}</td>
                         <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.type|default:"—" }}</td>
                         <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.chamfer|default:"—" }}</td>
@@ -536,7 +666,7 @@
                     <template x-for="col in cutterMaxCol" :key="col">
                         <div class="flex">
                             <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-400 dark:text-gray-500 select-none"
-                                 x-text="col"></div>
+                                 x-text="cutterHeaderLabels[col] || col"></div>
                             <div class="w-3 flex items-center justify-center" x-show="col < cutterMaxCol">
                                 <div class="w-0.5 h-3 rounded"
                                      :class="cutterRowSeparators.includes(col) ? 'bg-red-400' : 'bg-transparent'"></div>
@@ -556,8 +686,11 @@
                                      :style="getCutterCellStyle('{{ bn }}', col)"
                                      :class="getCutterCellClass('{{ bn }}', col)"
                                      @click="onCutterCellClick('{{ bn }}', col, $event)"
+                                     @keydown="onCutterCellKey('{{ bn }}', col, $event)"
                                      :title="getCutterCellTitle('{{ bn }}', col)"
-                                     x-text="getCutterCellText('{{ bn }}', col)">
+                                     x-text="getCutterCellText('{{ bn }}', col)"
+                                     tabindex="0"
+                                     :data-cell="'cutter_' + '{{ bn }}' + '_' + col">
                                 </div>
                             </template>
                             <template x-if="cutterGridData['{{ bn }}_' + col] === undefined">
@@ -571,6 +704,57 @@
                     </template>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+
+        <!-- Auto-generated cutter remarks (clickable segments) -->
+        <div class="mt-2">
+            <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Auto-Generated Remarks</label>
+            <div class="text-xs bg-gray-50 dark:bg-gray-900/50 rounded p-2 min-h-[28px] text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
+                <template x-if="cutterRemarkSegments.length === 0">
+                    <span class="text-gray-400 italic">No cutter issues marked.</span>
+                </template>
+                <template x-for="(seg, si) in cutterRemarkSegments" :key="seg.key">
+                    <span class="remark-seg-wrap">
+                        <span x-show="seg.before" class="remark-user-text" x-text="seg.before + ' '"></span>
+                        <span class="remark-segment"
+                              @click="openCutterSegEditor(si)"
+                              x-text="seg.text"></span>
+                        <span x-show="seg.annotation" class="remark-annotation" x-text="' — ' + seg.annotation"></span>
+                        <span x-show="seg.after" class="remark-user-text" x-text="'. ' + seg.after"></span>
+                        <span x-text="si < cutterRemarkSegments.length - 1 ? '. ' : '.'"></span>
+                    </span>
+                </template>
+            </div>
+            <div x-show="cutterEditSeg !== null" x-cloak x-transition
+                 class="remark-editor-panel mt-1">
+                <div class="remark-editor-header">
+                    <span class="font-semibold" x-text="cutterEditSeg !== null ? cutterRemarkSegments[cutterEditSeg]?.text : ''"></span>
+                    <button type="button" @click="cutterEditSeg = null" class="remark-editor-close">&times;</button>
+                </div>
+                <div class="remark-editor-fields">
+                    <div class="remark-editor-row">
+                        <label>Insert before:</label>
+                        <input type="text" x-model="cutterEditBefore" placeholder="Text to add before this remark..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Clarification:</label>
+                        <input type="text" x-model="cutterEditText" placeholder="e.g. severe, needs replacement..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null"
+                               @keydown.enter="saveCutterSegEditor()">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Insert after:</label>
+                        <input type="text" x-model="cutterEditAfter" placeholder="Text to add after this remark..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null">
+                    </div>
+                </div>
+                <div class="remark-editor-actions">
+                    <button type="button" @click="saveCutterSegEditor()" class="remark-annot-btn remark-annot-save">Apply</button>
+                    <button type="button" @click="clearCutterSegEditor()" class="remark-annot-btn remark-annot-clear">Clear All</button>
+                    <button type="button" @click="cutterEditSeg = null" class="remark-annot-btn remark-annot-clear">Cancel</button>
+                </div>
             </div>
         </div>
 
@@ -615,9 +799,9 @@
 <!-- ══════════════════════════════════════════════════════════════════════
      SECTION 5: INSPECTION DECISION
      ══════════════════════════════════════════════════════════════════════ -->
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 print-section">
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s5 = !s5"
-            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition no-print">
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="check-square" class="w-5 h-5 text-green-500"></i>
             {% if has_bom_data and has_pocket_data %}5{% elif has_bom_data or has_pocket_data %}4{% else %}3{% endif %}. Inspection Decision
@@ -669,8 +853,7 @@
             </div>
         </div>
 
-        <!-- Print version of decision (matches QAS/005-1) -->
-        <div class="print-decision"><!-- intentionally empty — QAS/005-1 has no decision section --></div>
+        <!-- Print decision is shown in the print-remarks-block after the checklist -->
 
         <div class="mt-4 no-print">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
@@ -683,7 +866,7 @@
      SECTION 6: PHOTOS
      ══════════════════════════════════════════════════════════════════════ -->
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
-    <button type="button" @click="s6 = !s6"
+    <button type="button" @click="togglePhotos()"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <i data-lucide="camera" class="w-5 h-5 text-indigo-500"></i>
@@ -700,11 +883,30 @@
     </div>
 </div>
 
-<!-- ── PRINT: Signatures (matches QAS/005-1 — simple label : underline) ── -->
-<div class="print-signatures" style="font-size:10pt; line-height:2.4; margin-top:16px;">
-    <div><strong>Receiving Inspector Name</strong> &nbsp;&nbsp;&nbsp;: &nbsp;{% if not is_new and object.inspector_name %}{{ object.inspector_name }}{% endif %}<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
-    <div><strong>Receiving Inspector Sign & Date</strong> &nbsp;: &nbsp;<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
-    <div><strong>ARDT Quality Control Sign & Date</strong> &nbsp;: &nbsp;<span style="display:inline-block; border-bottom:1px solid #000; min-width:300px;">&nbsp;</span></div>
+<!-- ── PRINT: Signatures ── -->
+<div class="print-signatures" style="font-size:9pt; margin-top:16px;">
+    <table style="width:100%; border-collapse:collapse; border:1px solid #000;">
+        <tr style="background:#f8f8f8;">
+            <th style="border:1px solid #000; padding:4px 8px; text-align:left; width:50%;">Receiving Inspector</th>
+            <th style="border:1px solid #000; padding:4px 8px; text-align:left; width:50%;">ARDT Quality Control</th>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:4px 8px;">
+                <div><strong>Name:</strong> {% if not is_new and object.inspector_name %}{{ object.inspector_name }}{% endif %}</div>
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px;">
+                <div><strong>Name:</strong> {% if not is_new and object.qc_approved_by %}{{ object.qc_approved_by.get_full_name }}{% endif %}</div>
+            </td>
+        </tr>
+        <tr>
+            <td style="border:1px solid #000; padding:4px 8px; height:40px;">
+                <div><strong>Sign & Date:</strong></div>
+            </td>
+            <td style="border:1px solid #000; padding:4px 8px; height:40px;">
+                <div><strong>Sign & Date:</strong></div>
+            </td>
+        </tr>
+    </table>
 </div>
 
 <!-- ── ACTION BUTTONS ── -->
@@ -841,6 +1043,17 @@ function inspectionPage() {
 
         // ── Pocket number map (for B2P6 labels) ──
         pocketNumberMap: {},
+        // ── Pocket header labels + blade list (for keyboard nav & row-suffixed headers) ──
+        pocketHeaderLabels: {},
+        pocketBladeList: [],
+        pocketAutoRemarks: '',
+        pocketRemarkSegments: [],       // [{key, text, annotation, before, after}]
+        pocketRemarkAnnotations: {},    // persistent: segKey -> {text, before, after}
+        pocketWarning: '',              // flash warning (e.g. V→P conversion)
+        pocketEditSeg: null,            // index of segment being edited (null = none)
+        pocketEditText: '',             // temp input value
+        pocketEditBefore: '',
+        pocketEditAfter: '',
 
         // ── Cutter evaluation (pocket-style flat grid) ──
         blades: [],
@@ -865,6 +1078,29 @@ function inspectionPage() {
             {code: 'M', label: 'Misaligned'},
         ],
         cutterModal: { open: false, blade: '', col: 0, selected: [], top: 200, left: 200 },
+        // ── Cutter header labels + blade list (for keyboard nav & row-suffixed headers) ──
+        cutterHeaderLabels: {},
+        cutterBladeList: [],
+        cutterAutoRemarks: '',
+        cutterRemarkSegments: [],
+        cutterRemarkAnnotations: {},
+        cutterEditSeg: null,
+        cutterEditText: '',
+        cutterEditBefore: '',
+        cutterEditAfter: '',
+
+        // ── Section helpers ──
+        togglePhotos() {
+            if (!this.s6) {
+                // Opening photos — collapse all others
+                this.s1 = false; this.s2 = false; this.s3 = false; this.s4 = false; this.s5 = false;
+                this.s6 = true;
+            } else {
+                this.s6 = false;
+            }
+        },
+        expandAll() { this.s1 = true; this.s2 = true; this.s3 = true; this.s4 = true; this.s5 = true; this.s6 = true; },
+        collapseAll() { this.s1 = false; this.s2 = false; this.s3 = false; this.s4 = false; this.s5 = false; this.s6 = false; },
 
         init() {
             this.checklistRemarks = {{ checklist_remarks|safe }};
@@ -877,7 +1113,11 @@ function inspectionPage() {
             this.pocketEvalData = {{ pocket_eval_data_json|safe }};
             this.pocketMaxPos = {{ pocket_max_pos }};
             this.pocketNumberMap = {{ pocket_number_data_json|safe }};
+            this.pocketHeaderLabels = {{ pocket_header_labels_json|safe }};
+            this.pocketBladeList = {{ pocket_blade_nums_json|safe }};
+            this.pocketRemarkAnnotations = {{ pocket_remark_annotations_json|safe }};
             this.recalcPocketCount();
+            this.buildPocketRemarks();
             {% endif %}
 
             {% if has_bom_data %}
@@ -887,9 +1127,13 @@ function inspectionPage() {
             this.cutterGridData = {{ cutter_grid_data_json|safe }};
             this.cutterCellRef = {{ cutter_cell_ref_json|safe }};
             this.cutterNumberMap = {{ cutter_number_data_json|safe }};
+            this.cutterHeaderLabels = {{ cutter_header_labels_json|safe }};
+            this.cutterBladeList = {{ cutter_blade_names_json|safe }};
             this.cutterRowSeparators = {{ cutter_row_separators_json|safe }};
             this.cutterMaxCol = {{ cutter_max_col|default:"0" }};
+            this.cutterRemarkAnnotations = {{ cutter_remark_annotations_json|safe }};
             this.recalcCutterCounts();
+            this.buildCutterRemarks();
             {% endif %}
         },
 
@@ -906,7 +1150,12 @@ function inspectionPage() {
             if (!cfgId) return '';
             const cfg = this.pocketConfigData[cfgId];
             if (!cfg) return '';
-            return 'background-color: ' + cfg.color + '20; border-color: ' + cfg.color + ';';
+            const syms = this.pocketEvalData[key] || '';
+            if (syms) {
+                // Marked cell: deeper tint + bold border in config color
+                return 'background-color: ' + cfg.color + '35; border-color: ' + cfg.color + '; color: ' + cfg.color + ';';
+            }
+            return 'background-color: ' + cfg.color + '15; border-color: ' + cfg.color + '80;';
         },
 
         getPocketCellClass(blade, col) {
@@ -973,9 +1222,51 @@ function inspectionPage() {
             }
         },
 
+        // Determine which row group a vcol belongs to (based on pocketRowSeparators)
+        _getPocketRowGroup(vcol) {
+            let group = 0;
+            for (const sep of this.pocketRowSeparators) {
+                if (vcol > sep) group++;
+            }
+            return group;
+        },
+
+        // Check if a pocket is the last valid pocket in its ROW for that blade
+        _isLastPocketInRow(blade, col) {
+            const vcol = parseInt(col);
+            const myGroup = this._getPocketRowGroup(vcol);
+            // Find max vcol in same blade+rowGroup that has a valid grid entry
+            let maxVcol = vcol;
+            for (const k of Object.keys(this.pocketGridData)) {
+                if (!this.pocketGridData[k]) continue;
+                const parts = k.split('_');
+                if (parseInt(parts[0]) !== parseInt(blade)) continue;
+                const kVcol = parseInt(parts[1]);
+                if (this._getPocketRowGroup(kVcol) === myGroup && kVcol > maxVcol) {
+                    maxVcol = kVcol;
+                }
+            }
+            return vcol >= maxVcol;
+        },
+
+        // Convert V→P on last pocket in a row with warning
+        _handleFinOnLastPocket(selected, blade, col) {
+            if (!selected.includes('V')) return selected;
+            if (!this._isLastPocketInRow(blade, col)) return selected;
+            // Convert V to P
+            const out = selected.filter(s => s !== 'V');
+            if (!out.includes('P')) out.push('P');
+            const pNum = this.pocketNumberMap[blade + '_' + col] || col;
+            this.pocketWarning = `B${blade}P${pNum} is the last pocket in its row — Fin (V) converted to Pocket build-up (P).`;
+            setTimeout(() => { this.pocketWarning = ''; }, 6000);
+            return out;
+        },
+
         savePocketCell() {
             const key = this.pocketModal.blade + '_' + this.pocketModal.pos;
-            const syms = this.pocketModal.selected.join('');
+            let selected = this._handleFinOnLastPocket(
+                [...this.pocketModal.selected], this.pocketModal.blade, this.pocketModal.pos);
+            const syms = selected.join('');
             if (syms) {
                 this.pocketEvalData[key] = syms;
             } else {
@@ -983,6 +1274,7 @@ function inspectionPage() {
             }
             this.pocketModal.open = false;
             this.recalcPocketCount();
+            this.buildPocketRemarks();
         },
 
         clearPocketCell() {
@@ -991,10 +1283,215 @@ function inspectionPage() {
             this.pocketModal.selected = [];
             this.pocketModal.open = false;
             this.recalcPocketCount();
+            this.buildPocketRemarks();
         },
 
         recalcPocketCount() {
             this.pocketEvalCount = Object.keys(this.pocketEvalData).length;
+        },
+
+        // ── Pocket keyboard navigation ──
+        onPocketCellKey(blade, col, $event) {
+            const key = blade + '_' + col;
+            if (!this.pocketGridData[key]) return;
+            const k = $event.key;
+            if (k === 'Enter' || k === ' ') {
+                $event.preventDefault();
+                this.onPocketCellClick(blade, col, $event);
+                return;
+            }
+            if (k.startsWith('Arrow')) {
+                $event.preventDefault();
+                this.movePocketFocus(blade, col, k);
+                return;
+            }
+            const code = k.toUpperCase();
+            if ('IPVTWDN'.includes(code) && code.length === 1) {
+                $event.preventDefault();
+                this.directTogglePocketSym(blade, col, code);
+            }
+        },
+
+        movePocketFocus(blade, col, direction) {
+            let newBlade = blade, newCol = col;
+            const blades = this.pocketBladeList;
+            const bi = blades.indexOf(blade);
+            if (direction === 'ArrowRight') {
+                for (let c = col + 1; c <= this.pocketMaxPos; c++) {
+                    if (this.pocketGridData[blade + '_' + c]) { newCol = c; break; }
+                }
+            } else if (direction === 'ArrowLeft') {
+                for (let c = col - 1; c >= 1; c--) {
+                    if (this.pocketGridData[blade + '_' + c]) { newCol = c; break; }
+                }
+            } else if (direction === 'ArrowDown') {
+                if (bi < blades.length - 1) newBlade = blades[bi + 1];
+            } else if (direction === 'ArrowUp') {
+                if (bi > 0) newBlade = blades[bi - 1];
+            }
+            const el = document.querySelector(`[data-cell="pocket_${newBlade}_${newCol}"]`);
+            if (el) el.focus();
+        },
+
+        directTogglePocketSym(blade, col, code) {
+            const key = blade + '_' + col;
+            let current = (this.pocketEvalData[key] || '').split('').filter(Boolean);
+            const idx = current.indexOf(code);
+            if (idx >= 0) {
+                current.splice(idx, 1);
+            } else {
+                // Exclusion rules: T↔W, D↔N
+                if (code === 'T' && current.includes('W')) return;
+                if (code === 'W' && current.includes('T')) return;
+                if (code === 'D' && current.includes('N')) return;
+                if (code === 'N' && current.includes('D')) return;
+                current.push(code);
+            }
+            // V→P conversion on last pocket
+            current = this._handleFinOnLastPocket(current, blade, col);
+            if (current.length) {
+                this.pocketEvalData[key] = current.join('');
+            } else {
+                delete this.pocketEvalData[key];
+            }
+            this.recalcPocketCount();
+            this.buildPocketRemarks();
+        },
+
+        // ── Pocket auto-remarks builder (grouped by symbol, natural language) ──
+        // Produces both plain-text pocketAutoRemarks and clickable pocketRemarkSegments.
+        buildPocketRemarks() {
+            const symNames = {
+                I: 'Impact arrestor', P: 'Pocket build-up', V: 'Fin build-up',
+                T: 'tight', W: 'wide', D: 'deep', N: 'narrow',
+            };
+            const symOrder = ['V', 'I', 'P', 'T', 'W', 'D', 'N'];
+            // Collect cells per symbol
+            const bySymbol = {};
+            for (const [key, syms] of Object.entries(this.pocketEvalData)) {
+                if (!syms) continue;
+                const parts = key.split('_');
+                const blade = parseInt(parts[0]);
+                const pNum = parseInt(this.pocketNumberMap[key] || parts[1]);
+                for (const ch of syms) {
+                    if (!bySymbol[ch]) bySymbol[ch] = [];
+                    bySymbol[ch].push({ blade, pNum, label: 'B' + blade + 'P' + pNum, key });
+                }
+            }
+            const segments = [];  // {key, text} — key is used for annotation lookup
+
+            for (const sym of symOrder) {
+                const cells = bySymbol[sym];
+                if (!cells || !cells.length) continue;
+                cells.sort((a, b) => a.blade - b.blade || a.pNum - b.pNum);
+
+                if (sym === 'V') {
+                    // ── Fins: each V-marked pocket pairs with its NEXT pocket ──
+                    // Group by blade first
+                    const byBlade = {};
+                    for (const c of cells) {
+                        if (!byBlade[c.blade]) byBlade[c.blade] = [];
+                        byBlade[c.blade].push(c);
+                    }
+                    // Build pairs per blade. Consecutive V pockets chain:
+                    // V on P3,P4,P5 → "between B1P3 & B1P4, B1P4 & B1P5"
+                    const allPairs = [];
+                    for (const bl of Object.keys(byBlade).sort((a, b) => a - b)) {
+                        const bc = byBlade[bl].sort((a, b) => a.pNum - b.pNum);
+                        for (const c of bc) {
+                            const nextP = c.pNum + 1;
+                            const pairLabel = c.label + ' & B' + c.blade + 'P' + nextP;
+                            allPairs.push(pairLabel);
+                        }
+                    }
+                    if (allPairs.length) {
+                        const segKey = 'pocket_V';
+                        const text = 'Fins between ' + allPairs.join(', ');
+                        segments.push({ key: segKey, text });
+                    }
+                } else if (sym === 'I' || sym === 'P') {
+                    // I / P — "Impact arrestor next to B1P2, B3P2"
+                    const labels = cells.map(c => c.label);
+                    const segKey = 'pocket_' + sym;
+                    const text = symNames[sym] + ' next to ' + labels.join(', ');
+                    segments.push({ key: segKey, text });
+                } else {
+                    // T, W, D, N — adjective style: "B2P3 is tight"
+                    const labels = cells.map(c => c.label);
+                    const segKey = 'pocket_' + sym;
+                    let text;
+                    if (labels.length === 1) {
+                        text = labels[0] + ' is ' + symNames[sym];
+                    } else {
+                        text = labels.join(', ') + ' are ' + symNames[sym];
+                    }
+                    segments.push({ key: segKey, text });
+                }
+            }
+
+            // Build final segments with annotations from persistent store
+            this.pocketRemarkSegments = segments.map(s => {
+                const saved = this.pocketRemarkAnnotations[s.key] || {};
+                // Support legacy string format and new {text, before, after} format
+                const ann = (typeof saved === 'string') ? { text: saved } : saved;
+                return {
+                    key: s.key,
+                    text: s.text,
+                    annotation: ann.text || '',
+                    before: ann.before || '',
+                    after: ann.after || '',
+                };
+            });
+
+            // Build plain-text version (for form submission / print)
+            const parts = this.pocketRemarkSegments.map(s => {
+                let t = '';
+                if (s.before) t += s.before + ' ';
+                t += s.text;
+                if (s.annotation) t += ' — ' + s.annotation;
+                if (s.after) t += '. ' + s.after;
+                return t;
+            });
+            this.pocketAutoRemarks = parts.join('. ') + (parts.length ? '.' : '');
+        },
+
+        openPocketSegEditor(si) {
+            const seg = this.pocketRemarkSegments[si];
+            if (!seg) return;
+            this.pocketEditSeg = si;
+            const saved = this.pocketRemarkAnnotations[seg.key] || {};
+            this.pocketEditText = (typeof saved === 'string') ? saved : (saved.text || '');
+            this.pocketEditBefore = saved.before || '';
+            this.pocketEditAfter = saved.after || '';
+            this.$nextTick(() => {
+                const panel = this.$el.querySelector('.remark-editor-panel input');
+                if (panel) panel.focus();
+            });
+        },
+        savePocketSegEditor() {
+            if (this.pocketEditSeg === null) return;
+            const seg = this.pocketRemarkSegments[this.pocketEditSeg];
+            if (!seg) return;
+            const t = this.pocketEditText.trim();
+            const b = this.pocketEditBefore.trim();
+            const a = this.pocketEditAfter.trim();
+            if (t || b || a) {
+                this.pocketRemarkAnnotations[seg.key] = { text: t, before: b, after: a };
+            } else {
+                delete this.pocketRemarkAnnotations[seg.key];
+            }
+            this.pocketEditSeg = null;
+            this.buildPocketRemarks();
+        },
+        clearPocketSegEditor() {
+            if (this.pocketEditSeg === null) return;
+            const seg = this.pocketRemarkSegments[this.pocketEditSeg];
+            if (seg) delete this.pocketRemarkAnnotations[seg.key];
+            this.pocketEditText = '';
+            this.pocketEditBefore = '';
+            this.pocketEditAfter = '';
+            this.pocketEditSeg = null;
+            this.buildPocketRemarks();
         },
 
         // ════════════ CUTTER EVALUATION (Pocket-Style Flat Grid) ════════════
@@ -1005,7 +1502,12 @@ function inspectionPage() {
             const cfgOrder = this.cutterGridData[key];
             const cfg = this.cutterConfigColors[cfgOrder];
             if (!cfg) return '';
-            return 'background-color: ' + cfg.color + '20; border-color: ' + cfg.color + ';';
+            const syms = this.getCutterSymbols(blade, col);
+            if (syms) {
+                // Marked cell: deeper tint + bold border in config color
+                return 'background-color: ' + cfg.color + '35; border-color: ' + cfg.color + '; color: ' + cfg.color + ';';
+            }
+            return 'background-color: ' + cfg.color + '15; border-color: ' + cfg.color + '80;';
         },
 
         getCutterCellClass(blade, col) {
@@ -1072,6 +1574,7 @@ function inspectionPage() {
             const syms = this.cutterModal.selected.join('');
             this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, syms);
             this.cutterModal.open = false;
+            this.buildCutterRemarks();
         },
 
         clearCutterCell() {
@@ -1079,6 +1582,7 @@ function inspectionPage() {
             if (ref) this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, '');
             this.cutterModal.selected = [];
             this.cutterModal.open = false;
+            this.buildCutterRemarks();
         },
 
         // ── Read/write eval data using original blade/row/pos/idx keys ──
@@ -1129,6 +1633,166 @@ function inspectionPage() {
             this.cutterTotal = total;
             this.cutterEvalCount = evaluated;
         },
+
+        // ── Cutter keyboard navigation ──
+        onCutterCellKey(blade, col, $event) {
+            const key = blade + '_' + col;
+            if (this.cutterGridData[key] === undefined) return;
+            const k = $event.key;
+            if (k === 'Enter' || k === ' ') {
+                $event.preventDefault();
+                this.onCutterCellClick(blade, col, $event);
+                return;
+            }
+            if (k.startsWith('Arrow')) {
+                $event.preventDefault();
+                this.moveCutterFocus(blade, col, k);
+                return;
+            }
+            const code = k.toUpperCase();
+            if ('OXRSLHCM'.includes(code) && code.length === 1) {
+                $event.preventDefault();
+                this.directToggleCutterSym(blade, col, code);
+            }
+        },
+
+        moveCutterFocus(blade, col, direction) {
+            let newBlade = blade, newCol = col;
+            const blades = this.cutterBladeList;
+            const bi = blades.indexOf(blade);
+            if (direction === 'ArrowRight') {
+                for (let c = col + 1; c <= this.cutterMaxCol; c++) {
+                    if (this.cutterGridData[blade + '_' + c] !== undefined) { newCol = c; break; }
+                }
+            } else if (direction === 'ArrowLeft') {
+                for (let c = col - 1; c >= 1; c--) {
+                    if (this.cutterGridData[blade + '_' + c] !== undefined) { newCol = c; break; }
+                }
+            } else if (direction === 'ArrowDown') {
+                if (bi < blades.length - 1) newBlade = blades[bi + 1];
+            } else if (direction === 'ArrowUp') {
+                if (bi > 0) newBlade = blades[bi - 1];
+            }
+            const el = document.querySelector(`[data-cell="cutter_${newBlade}_${newCol}"]`);
+            if (el) el.focus();
+        },
+
+        directToggleCutterSym(blade, col, code) {
+            const key = blade + '_' + col;
+            const ref = this.cutterCellRef[key];
+            if (!ref) return;
+            const currentSyms = this.getCutterSymbols(blade, col);
+            let current = currentSyms ? currentSyms.split('') : [];
+            const idx = current.indexOf(code);
+            if (idx >= 0) {
+                current.splice(idx, 1);
+            } else {
+                // Exclusion rules: O exclusive with X, L, M
+                if (code === 'O' && (current.includes('X') || current.includes('L') || current.includes('M'))) return;
+                if ((code === 'X' || code === 'L' || code === 'M') && current.includes('O')) return;
+                current.push(code);
+            }
+            this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, current.join(''));
+            this.buildCutterRemarks();
+        },
+
+        // ── Cutter auto-remarks builder (grouped by symbol, natural language) ──
+        buildCutterRemarks() {
+            const symNames = {
+                O: 'OK', X: 'Replace', R: 'Rotate', S: 'Spin',
+                L: 'Lost', H: 'Chipped', C: 'Cracked', M: 'Misaligned',
+            };
+            const symOrder = ['X', 'L', 'H', 'C', 'M', 'R', 'S', 'O'];
+            const bySymbol = {};
+            for (const key of Object.keys(this.cutterGridData)) {
+                const parts = key.split('_');
+                const blade = parts[0];
+                const col = parseInt(parts[1]);
+                const syms = this.getCutterSymbols(blade, col);
+                if (!syms) continue;
+                const cNum = parseInt(this.cutterNumberMap[key] || parts[1]);
+                const bladeNum = parseInt(blade.replace(/\D/g, '')) || 0;
+                for (const ch of syms) {
+                    if (!bySymbol[ch]) bySymbol[ch] = [];
+                    bySymbol[ch].push({ bladeNum, cNum, label: blade + 'C' + cNum });
+                }
+            }
+            const segments = [];
+            for (const sym of symOrder) {
+                const cells = bySymbol[sym];
+                if (!cells || !cells.length) continue;
+                cells.sort((a, b) => a.bladeNum - b.bladeNum || a.cNum - b.cNum);
+                const labels = cells.map(c => c.label);
+                const name = symNames[sym];
+                const segKey = 'cutter_' + sym;
+                let text;
+                if (sym === 'O') {
+                    if (labels.length > 3) {
+                        text = labels.length + ' cutters OK';
+                    } else {
+                        text = labels.join(', ') + (labels.length === 1 ? ' is' : ' are') + ' OK';
+                    }
+                } else {
+                    text = name + ': ' + labels.join(', ');
+                }
+                segments.push({ key: segKey, text });
+            }
+            this.cutterRemarkSegments = segments.map(s => {
+                const saved = this.cutterRemarkAnnotations[s.key] || {};
+                const ann = (typeof saved === 'string') ? { text: saved } : saved;
+                return {
+                    key: s.key,
+                    text: s.text,
+                    annotation: ann.text || '',
+                    before: ann.before || '',
+                    after: ann.after || '',
+                };
+            });
+            const parts = this.cutterRemarkSegments.map(s => {
+                let t = '';
+                if (s.before) t += s.before + ' ';
+                t += s.text;
+                if (s.annotation) t += ' — ' + s.annotation;
+                if (s.after) t += '. ' + s.after;
+                return t;
+            });
+            this.cutterAutoRemarks = parts.join('. ') + (parts.length ? '.' : '');
+        },
+
+        openCutterSegEditor(si) {
+            const seg = this.cutterRemarkSegments[si];
+            if (!seg) return;
+            this.cutterEditSeg = si;
+            const saved = this.cutterRemarkAnnotations[seg.key] || {};
+            this.cutterEditText = (typeof saved === 'string') ? saved : (saved.text || '');
+            this.cutterEditBefore = saved.before || '';
+            this.cutterEditAfter = saved.after || '';
+        },
+        saveCutterSegEditor() {
+            if (this.cutterEditSeg === null) return;
+            const seg = this.cutterRemarkSegments[this.cutterEditSeg];
+            if (!seg) return;
+            const t = this.cutterEditText.trim();
+            const b = this.cutterEditBefore.trim();
+            const a = this.cutterEditAfter.trim();
+            if (t || b || a) {
+                this.cutterRemarkAnnotations[seg.key] = { text: t, before: b, after: a };
+            } else {
+                delete this.cutterRemarkAnnotations[seg.key];
+            }
+            this.cutterEditSeg = null;
+            this.buildCutterRemarks();
+        },
+        clearCutterSegEditor() {
+            if (this.cutterEditSeg === null) return;
+            const seg = this.cutterRemarkSegments[this.cutterEditSeg];
+            if (seg) delete this.cutterRemarkAnnotations[seg.key];
+            this.cutterEditText = '';
+            this.cutterEditBefore = '';
+            this.cutterEditAfter = '';
+            this.cutterEditSeg = null;
+            this.buildCutterRemarks();
+        },
     };
 }
 
@@ -1139,31 +1803,38 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
 
 {% block extra_css %}
 <style>
-    /* ── Pocket grid cells ── */
+    /* ── Config number badge (colored # in config tables) ── */
+    .cfg-num-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; border-radius: 4px;
+        font-size: 11px; font-weight: 800; color: #fff;
+        line-height: 1; text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+    }
+
+    /* ── Pocket grid cells (matches cutter grid style) ── */
     .pocket-grid-cell {
         width: 40px; min-width: 40px; height: 40px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 10px; font-weight: 700; text-align: center;
-        border: 2px solid #9ca3af; border-radius: 5px;
+        font-size: 11px; font-weight: 700; text-align: center;
+        border: 2px solid #a78bfa; border-radius: 4px;
         cursor: pointer; user-select: none; transition: all 0.15s;
         background: white;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
     }
-    .dark .pocket-grid-cell { border-color: #6b7280; background: #374151; color: #f9fafb; }
-    .pocket-grid-cell:hover { transform: scale(1.08); box-shadow: 0 2px 6px rgba(0,0,0,0.2); border-color: #6366f1; }
-    .dark .pocket-grid-cell:hover { border-color: #818cf8; }
+    .dark .pocket-grid-cell { border-color: #7c3aed; background: #374151; color: #f9fafb; }
+    .pocket-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .pocket-grid-cell:focus { outline: 2px solid #6366f1; outline-offset: 1px; z-index: 10; }
+    .dark .pocket-grid-cell:focus { outline-color: #818cf8; }
     .pocket-grid-cell-empty {
-        background: #f3f4f6 !important; border: 2px dashed #d1d5db !important;
-        cursor: default; color: transparent; box-shadow: none !important;
+        width: 40px; min-width: 40px; height: 40px;
+        background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 4px;
+        cursor: default; color: transparent;
     }
-    .dark .pocket-grid-cell-empty { background: #1f2937 !important; border-color: #4b5563 !important; }
+    .dark .pocket-grid-cell-empty { background: #1f2937 !important; border-color: #374151 !important; }
     .pocket-grid-cell-marked {
         font-weight: 900 !important; font-size: 9px !important;
-        color: #7c3aed !important; border-color: #7c3aed !important;
-        background: #ede9fe !important; border-width: 2.5px !important;
+        border-width: 2.5px !important;
         box-shadow: 0 0 0 1px rgba(124,58,237,0.15) !important;
     }
-    .dark .pocket-grid-cell-marked { color: #c4b5fd !important; border-color: #8b5cf6 !important; background: #4c1d95 !important; }
 
     /* ── Pocket symbol mini (legend) ── */
     .pocket-sym-mini {
@@ -1189,19 +1860,19 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     }
     .dark .cutter-grid-cell { border-color: #4b5563; background: #374151; color: #f9fafb; }
     .cutter-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .cutter-grid-cell:focus { outline: 2px solid #3b82f6; outline-offset: 1px; z-index: 10; }
+    .dark .cutter-grid-cell:focus { outline-color: #60a5fa; }
     .cutter-grid-cell-empty {
         width: 40px; min-width: 40px; height: 40px;
         background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 4px;
     }
     .dark .cutter-grid-cell-empty { background: #1f2937; border-color: #374151; }
 
-    /* ── Cutter grid cell marked (single blue theme for all symbols) ── */
+    /* ── Cutter grid cell marked (keeps config color, bolder text) ── */
     .cutter-grid-cell-marked {
         font-weight: 900 !important; font-size: 9px !important;
-        color: #1d4ed8 !important; border-color: #3b82f6 !important;
-        background: #dbeafe !important;
+        border-width: 2.5px !important;
     }
-    .dark .cutter-grid-cell-marked { color: #93c5fd !important; border-color: #3b82f6 !important; background: #1e3a5f !important; }
 
     /* ── Cutter symbol mini (legend) ── */
     .cutter-sym-mini {
@@ -1213,11 +1884,11 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     .dark .cutter-sym-mini { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
 
     /* ── Print-only elements: hidden on screen ── */
-    .print-header, .print-checklist, .print-checklist-note, .print-decision, .print-signatures {
+    .print-header, .print-checklist, .print-checklist-note, .print-remarks-block, .print-signatures {
         display: none;
     }
 
-    /* ── Print styles — matches QAS/005-1 form ── */
+    /* ── Print styles ── */
     @media print {
         /* Hide screen-only elements */
         .no-print, nav, .sidebar, header, footer,
@@ -1226,73 +1897,118 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
         .bg-blue-50, #attachmentsList, #noAttachments { display: none !important; }
 
         /* Show print-only elements */
-        .print-header, .print-checklist, .print-checklist-note, .print-decision, .print-signatures { display: block !important; }
+        .print-header, .print-checklist, .print-checklist-note, .print-remarks-block, .print-signatures { display: block !important; }
 
         /* Base print styles */
-        body { background: white !important; font-size: 9pt; color: #000 !important; }
-        @page { margin: 0.5in; size: A4; }
+        body { background: white !important; font-size: 9pt; color: #000 !important; margin: 0 !important; padding: 0 !important; }
+        @page { margin: 0.4in 0.5in; size: A4; }
 
-        /* Force all Alpine sections open */
+        /* Reset base layout offsets (sidebar margin, topnav offset, content padding) */
+        main, main > div { margin: 0 !important; padding: 0 !important; margin-left: 0 !important; margin-top: 0 !important; }
+        main { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; }
+
+        /* Force Alpine sections open */
         [x-show] { display: block !important; }
         [x-collapse] { height: auto !important; overflow: visible !important; }
 
-        /* Section cards: remove web styling, keep clean for print */
+        /* Section cards: remove web styling */
         .print-section {
             background: white !important; border: none !important;
             box-shadow: none !important; padding: 0 !important;
-            margin-bottom: 6px !important; page-break-inside: avoid;
+            margin: 0 !important;
         }
+        .print-section > div[x-show] { padding: 0 !important; }
+        .print-section > button[type="button"] { display: none !important; }
 
-        /* Section header buttons: show as section titles with QAS/005-1 numbering */
-        .print-section > button[type="button"] {
-            display: block !important; pointer-events: none;
-            padding: 4px 0 2px !important; border: none !important;
-            border-bottom: 1px solid #000 !important;
-            font-size: 10pt; font-weight: bold; color: #000 !important;
-            background: white !important;
-        }
-        /* Hide chevron icons and count badges from section headers */
-        .print-section > button[type="button"] i[data-lucide="chevron-down"],
-        .print-section > button[type="button"] i[data-lucide],
-        .print-section > button[type="button"] span[x-text] { display: none !important; }
+        /* Hide modals, remark editors, fixed overlays */
+        .fixed, .remark-editor-panel { display: none !important; }
 
-        /* Hide screen info grid (replaced by print header info table) */
-        .print-section .grid.grid-cols-2.md\\:grid-cols-5,
-        .print-section .grid.grid-cols-1.md\\:grid-cols-3 { display: none !important; }
-
-        /* Grids: preserve colors */
-        .cutter-grid-cell, .pocket-grid-cell, .pocket-sym-mini, .cutter-sym-mini,
-        .cutter-grid-cell-marked, .pocket-grid-cell-marked,
-        .print-hdr-table td {
+        /* Preserve background colors in print */
+        .print-hdr-table, .print-hdr-table td,
+        .print-info-table, .print-info-table td,
+        .print-checklist th, .print-remarks-block td,
+        .print-signatures th, .print-signatures td {
             print-color-adjust: exact; -webkit-print-color-adjust: exact;
         }
 
-        /* Grid cells compact for print */
-        .pocket-grid-cell, .pocket-grid-cell-empty,
-        .pocket-grid-cell-marked { width: 24px !important; min-width: 24px !important; height: 24px !important; font-size: 7px !important; border-radius: 2px !important; }
-        .cutter-grid-cell, .cutter-grid-cell-empty,
-        .cutter-grid-cell-marked { width: 26px !important; min-width: 26px !important; height: 26px !important; font-size: 7px !important; border-radius: 2px !important; }
-        .cutter-blade-label { width: 22px !important; min-width: 22px !important; font-size: 8px !important; line-height: 26px !important; }
-
-        /* Separators thinner */
-        .w-3 { width: 4px !important; }
-        .w-3 .w-0\\.5 { width: 1px !important; }
-
-        /* Config tables: bordered for print */
-        .print-section table.text-xs { font-size: 8pt; border-collapse: collapse; }
-        .print-section table.text-xs th,
-        .print-section table.text-xs td { border: 1px solid #000 !important; padding: 2px 4px !important; }
-
-        /* Legend compact */
-        .pocket-sym-mini, .cutter-sym-mini { width: 14px !important; height: 14px !important; font-size: 8px !important; line-height: 14px !important; }
+        /* Flexible text in all print table cells — grow vertically to fit content */
+        .print-checklist td, .print-checklist th,
+        .print-remarks-block td, .print-info-table td,
+        .print-signatures td {
+            overflow: visible !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            white-space: normal !important;
+            height: auto !important;
+        }
 
         /* Dark mode overrides for print */
-        .dark, .dark * { color: #000 !important; background: white !important; border-color: #000 !important; }
-
-        /* Print signatures — already styled inline */
-        .print-signatures { margin-top: 0; }
+        .dark, .dark * { color: #000 !important; border-color: #000 !important; }
+        .dark td[style*="background:#f8f8f8"] { background: #f8f8f8 !important; }
     }
 
     [x-cloak] { display: none !important; }
+
+    /* ── Remark segment styling ── */
+    .remark-seg-wrap { display: inline; }
+    .remark-segment {
+        cursor: pointer;
+        border-bottom: 1.5px dashed #a78bfa;
+        transition: background-color 0.15s;
+        padding: 1px 2px;
+        border-radius: 2px;
+    }
+    .remark-segment:hover { background-color: #ede9fe; }
+    .dark .remark-segment { border-bottom-color: #7c3aed; }
+    .dark .remark-segment:hover { background-color: #2e1065; }
+    .remark-annotation { color: #6d28d9; font-style: italic; font-weight: 500; }
+    .dark .remark-annotation { color: #a78bfa; }
+    .remark-user-text { color: #059669; font-weight: 500; }
+    .dark .remark-user-text { color: #34d399; }
+
+    /* Editor panel */
+    .remark-editor-panel {
+        background: white; border: 1.5px solid #c4b5fd; border-radius: 8px;
+        padding: 10px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .dark .remark-editor-panel { background: #1e1b4b; border-color: #5b21b6; }
+    .remark-editor-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 8px; font-size: 11px; color: #4c1d95;
+    }
+    .dark .remark-editor-header { color: #c4b5fd; }
+    .remark-editor-close {
+        background: none; border: none; font-size: 16px; cursor: pointer;
+        color: #9ca3af; line-height: 1; padding: 0 2px;
+    }
+    .remark-editor-close:hover { color: #ef4444; }
+    .remark-editor-fields { display: flex; flex-direction: column; gap: 5px; }
+    .remark-editor-row { display: flex; align-items: center; gap: 6px; }
+    .remark-editor-row label {
+        font-size: 10px; font-weight: 600; color: #6b7280;
+        min-width: 80px; text-align: right; white-space: nowrap;
+    }
+    .dark .remark-editor-row label { color: #9ca3af; }
+    .remark-editor-input {
+        flex: 1; font-size: 11px; border: 1px solid #d1d5db; border-radius: 4px;
+        padding: 3px 8px; outline: none; background: white;
+    }
+    .remark-editor-input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+    .dark .remark-editor-input { background: #111827; border-color: #374151; color: #e5e7eb; }
+    .remark-editor-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .remark-annot-btn {
+        font-size: 10px; padding: 3px 10px; border-radius: 4px;
+        cursor: pointer; border: none; font-weight: 600;
+    }
+    .remark-annot-save { background: #7c3aed; color: white; }
+    .remark-annot-save:hover { background: #6d28d9; }
+    .remark-annot-clear { background: #e5e7eb; color: #374151; }
+    .remark-annot-clear:hover { background: #d1d5db; }
+    .dark .remark-annot-clear { background: #374151; color: #d1d5db; }
+
+    @media print {
+        .remark-segment { border-bottom: none; cursor: default; }
+        .remark-editor-panel { display: none !important; }
+    }
 </style>
 {% endblock extra_css %}

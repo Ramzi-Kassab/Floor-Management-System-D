@@ -1979,6 +1979,21 @@ class ReceivingInspection(models.Model):
         default=dict, blank=True,
         help_text="Per-pocket condition: {blade_pos: symbols_string} e.g. {'1_3': 'IPV', '2_5': 'TD'}"
     )
+    # ── Remark annotations (user clarifications on auto-generated remarks) ──
+    pocket_remark_annotations = models.JSONField(
+        default=dict, blank=True,
+        help_text="User annotations per pocket remark segment: {segKey: text}"
+    )
+    cutter_remark_annotations = models.JSONField(
+        default=dict, blank=True,
+        help_text="User annotations per cutter remark segment: {segKey: text}"
+    )
+    pocket_auto_remarks = models.TextField(
+        blank=True, help_text="Auto-generated pocket remarks text"
+    )
+    cutter_auto_remarks = models.TextField(
+        blank=True, help_text="Auto-generated cutter remarks text"
+    )
 
     # ── Decision ──
     result = models.CharField(
@@ -2071,30 +2086,39 @@ class ReceivingInspectionAttachment(models.Model):
         return self.file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 
 
-def build_adg_sequence(blade_count: int) -> list:
+def build_adg_sequence(blade_count: int, serial_number: str = '',
+                       set_name: str = '') -> list:
     """
-    Generate the full ADG photo sequence for a given blade count.
+    Generate the full photo sequence for a given blade count and set name.
     Fixed 3 photos per blade, then Top, Side, then Extra slots.
-    Returns: [{'display_name': 'B1-Ph1', 'category': 'BLADE',
-               'blade_number': 1, 'photo_number': 1}, ...]
+    Format: {serial}_{set}_B1_P1 (e.g. 14414030R2_Before_B1_P1)
+    Returns: [{'display_name': '14414030R2_Before_B1_P1', 'short_label': 'B1-P1',
+               'category': 'BLADE', 'blade_number': 1, 'photo_number': 1}, ...]
     """
+    parts = [p for p in [serial_number, set_name] if p]
+    prefix = '_'.join(parts) + '_' if parts else ''
     sequence = []
     for b in range(1, blade_count + 1):
         for ph in range(1, 4):
             sequence.append({
-                'display_name': f'B{b}-Ph{ph}',
+                'display_name': f'{prefix}B{b}_P{ph}',
+                'short_label': f'B{b}-P{ph}',
                 'category': 'BLADE',
                 'blade_number': b,
                 'photo_number': ph,
             })
-    sequence.append({'display_name': 'Top', 'category': 'TOP',
-                     'blade_number': None, 'photo_number': 1})
-    sequence.append({'display_name': 'Side', 'category': 'SIDE',
-                     'blade_number': None, 'photo_number': 1})
+    sequence.append({'display_name': f'{prefix}Top', 'short_label': 'Top',
+                     'category': 'TOP', 'blade_number': None, 'photo_number': 1})
+    sequence.append({'display_name': f'{prefix}Side', 'short_label': 'Side',
+                     'category': 'SIDE', 'blade_number': None, 'photo_number': 1})
     for i in range(1, 10):
-        sequence.append({'display_name': f'Extra-{i}', 'category': 'EXTRA',
-                         'blade_number': None, 'photo_number': i})
+        sequence.append({'display_name': f'{prefix}Extra_{i}', 'short_label': f'Extra-{i}',
+                         'category': 'EXTRA', 'blade_number': None, 'photo_number': i})
     return sequence
+
+
+# Default photo sets — each gets its own slot grid
+PHOTO_SETS = ['Before', 'After', 'ADG']
 
 
 class DrillBitPhoto(models.Model):

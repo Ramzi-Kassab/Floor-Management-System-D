@@ -14,7 +14,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import DrillBit, DrillBitPhoto, build_adg_sequence
+from .models import DrillBit, DrillBitPhoto, build_adg_sequence, PHOTO_SETS
 
 
 def _photo_to_dict(photo):
@@ -216,7 +216,7 @@ def api_photo_discard_edit(request, bit_pk, photo_pk):
 def api_adg_sequence(request, bit_pk):
     """
     GET /work-orders/drill-bits/<bit_pk>/photos/adg-sequence/
-    Returns the full ADG sequence with existing photos overlaid.
+    Returns photo sets (Before, After, ADG) each with their own slot grid.
     Blade count from BOM source_data.blades, default 6.
     """
     bit = get_object_or_404(DrillBit, pk=bit_pk)
@@ -229,26 +229,70 @@ def api_adg_sequence(request, bit_pk):
         if blades:
             blade_count = len(blades)
 
-    sequence = build_adg_sequence(blade_count)
+    serial = bit.serial_number or ''
 
-    # Load existing photos for this bit
+    # Load ALL existing photos for this bit (once)
     existing = DrillBitPhoto.objects.filter(drill_bit=bit).select_related('uploaded_by')
     photo_map = {}
     for p in existing:
-        key = p.display_name
-        if key:
-            photo_map[key] = _photo_to_dict(p)
+        if p.display_name:
+            photo_map[p.display_name] = _photo_to_dict(p)
 
-    # Overlay existing photos onto sequence
-    result = []
-    for slot in sequence:
-        name = slot['display_name']
-        slot['photo'] = photo_map.get(name, None)
-        result.append(slot)
+    # Build backward-compat map for old format (B1-Ph1 → first set)
+    # Old photos without set prefix match to the first set (Before)
+    old_compat_map = {}  # old_name → new_name (first set only)
+
+    sets = []
+    for idx, set_name in enumerate(PHOTO_SETS):
+        sequence = build_adg_sequence(blade_count, serial, set_name)
+
+        # Build old-format compat map for first set only
+        if idx == 0:
+            for slot in sequence:
+                cat = slot['category']
+                if cat == 'BLADE':
+                    old_name = f"B{slot['blade_number']}-Ph{slot['photo_number']}"
+                elif cat == 'TOP':
+                    old_name = 'Top'
+                elif cat == 'SIDE':
+                    old_name = 'Side'
+                else:
+                    old_name = f"Extra-{slot['photo_number']}"
+                old_compat_map[old_name] = slot['display_name']
+                # Also map no-set-prefix format (serial_B1_P1 without set)
+                parts = [p for p in [serial] if p]
+                no_set_prefix = '_'.join(parts) + '_' if parts else ''
+                if cat == 'BLADE':
+                    old_compat_map[f"{no_set_prefix}B{slot['blade_number']}_P{slot['photo_number']}"] = slot['display_name']
+                elif cat == 'TOP':
+                    old_compat_map[f"{no_set_prefix}Top"] = slot['display_name']
+                elif cat == 'SIDE':
+                    old_compat_map[f"{no_set_prefix}Side"] = slot['display_name']
+                else:
+                    old_compat_map[f"{no_set_prefix}Extra_{slot['photo_number']}"] = slot['display_name']
+
+        # Overlay existing photos
+        filled = 0
+        for slot in sequence:
+            slot['photo'] = photo_map.get(slot['display_name'], None)
+            # Backward compat for first set
+            if not slot['photo'] and idx == 0:
+                for old_name, new_name in old_compat_map.items():
+                    if new_name == slot['display_name'] and old_name in photo_map:
+                        slot['photo'] = photo_map[old_name]
+                        break
+            if slot['photo']:
+                filled += 1
+
+        sets.append({
+            'name': set_name,
+            'sequence': sequence,
+            'total_slots': len(sequence),
+            'filled_slots': filled,
+        })
 
     return JsonResponse({
-        'sequence': result,
+        'sets': sets,
         'blade_count': blade_count,
-        'total_slots': len(result),
-        'filled_slots': sum(1 for s in result if s['photo']),
+        'set_names': PHOTO_SETS,
     })

@@ -1700,6 +1700,19 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Design MAT & System MAT in Inspection Header**: Section 1 info grid expanded from 5 to 6 columns. Single "Material No." replaced with "Design MAT (L3/L4)" (from `drill_bit.design.mat_number`) and "System MAT (L5)" (from `drill_bit.system_bom.system_mat_no`, falls back to `brazing_bom`). Print header also updated with both MAT fields. Both Create and Edit views now `select_related` system_bom and brazing_bom.
 - **Key Files Modified**: `apps/workorders/views_jobcard.py`, `apps/workorders/views_receiving.py`, `templates/components/toast.html`, `templates/workorders/receiving_dashboard.html`, `templates/workorders/receiving_inspection_form.html`.
 
+### Recent Enhancements (Mar 3, 2026 — Session 3) — QAS/005-1 Print Report & Photo Module Fixes
+- **QAS/005-1 Print Report Implementation**: Complete CSS `@media print` layout for the Receiving Inspection form matching the QAS/005-1 standard. Print-only HTML sections rendered via `display:none` on screen and `display:block !important` in print.
+  - **Print Header**: Professional bordered table with Georgia serif "ARDT" logo cell (`background:#f8f8f8`), company name, document subtitle, and 4-row document info (Document No, Revision, Effective Date, Page). Below: 4×4 info table with gray label cells showing Report No, Date of Receipt, Serial No, Size, Type, Design MAT, System MAT.
+  - **Print Checklist**: Full checklist table with Sr No, Checkpoint, Condition (checkbox symbols ☒/☐ for OK/Not OK/NA), Reason for Not OK, and Remarks columns. Reason and Remarks cells use Alpine.js `x-text` bindings to pull from `checklistRemarks` dict — previously were empty `&nbsp;`.
+  - **Print Remarks Block**: After checklist — Pocket Evaluation remarks (`x-text="pocketAutoRemarks"`), Cutter Evaluation remarks (`x-text="cutterAutoRemarks"`), Result (`object.get_result_display`), and free-text Remarks. All in bordered tables with gray label cells.
+  - **Print Signatures**: 2-column table (Receiving Inspector | ARDT Quality Control) with Name and Sign & Date rows.
+  - **Sections Hidden on Print**: Sections 1 (Inspection Details), 3 (Pocket Evaluation grid), 4 (Cutter Evaluation grid), 5 (Decision form), and 6 (Photos) all use `no-print` class.
+  - **Layout Reset**: Base template offsets (sidebar `ml-64`, topnav `mt-16`, content `p-6`) all zeroed for print. Page margins: 0.4in top/bottom, 0.5in left/right. A4 page size.
+  - **Flexible Text Boxes**: All print table cells have `word-wrap:break-word; overflow-wrap:break-word; white-space:normal; height:auto` to grow vertically and accommodate any amount of text without clipping.
+  - **Dark Mode Print Safety**: Forces `color:#000` and `border-color:#000` on all dark mode elements. Preserves `#f8f8f8` backgrounds via `print-color-adjust:exact`.
+- **Photo Module Enhancements** (`templates/components/photo_module.html`): Expanded with improved ADG sequence handling, better error handling for camera access, and refined Fabric.js editor integration.
+- **Key Files Modified**: `templates/workorders/receiving_inspection_form.html` (print layout), `templates/components/photo_module.html`, `apps/workorders/views_jobcard.py`, `apps/workorders/views_photos.py`, `apps/workorders/models.py`.
+
 ---
 
 ## Need Help?
