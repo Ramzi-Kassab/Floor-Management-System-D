@@ -2460,19 +2460,36 @@ class DebugExecutor(WorkflowExecutor):
 
     # ── Chain Debug Mode ──────────────────────────────────────────────
 
-    def start_debug_chain(self, chain, job_data, chain_execution, credentials, erp_url):
+    def start_debug_chain(self, chain, job_data, chain_execution, credentials, erp_url,
+                          job_data_list=None):
         """Entry point for debug chain execution. Runs in background thread.
+
+        Supports batch mode: when job_data_list is provided, executes the chain
+        for each job sequentially, sharing one browser. WF-0 (login) runs only
+        for the first job; subsequent jobs skip the first link.
 
         Iterates over chain links, handling conditions/preconditions/navigation,
         then delegates each workflow to _debug_step_loop() for step-by-step
         debugging with auto-heal and pause-on-error.
         """
         import re as regex
-        from ..models import WorkflowExecution, ExecutionStatus
+        from django.db import close_old_connections
+        from ..models import WorkflowExecution, ChainExecution, ExecutionStatus, ERPJobData
+
+        # Build the job list (single job or batch)
+        if job_data_list and len(job_data_list) > 1:
+            all_jobs = list(job_data_list)
+            batch_mode = True
+        else:
+            all_jobs = [job_data]
+            batch_mode = False
+
+        batch_total = len(all_jobs)
+        logger.info(f"[DebugChain] Batch mode={batch_mode}, {batch_total} job(s)")
 
         try:
-            links = list(chain.get_active_links())
-            total_links = len(links)
+            all_links = list(chain.get_active_links())
+            total_links = len(all_links)
 
             if total_links == 0:
                 self._update_state(status="failed", error={"message": "No active links in chain"})
@@ -2482,46 +2499,7 @@ class DebugExecutor(WorkflowExecutor):
                 chain_execution.save()
                 return
 
-            # Build row_data
-            row_data = job_data.get_row_data() if job_data else {}
-            # Inject ERP credentials into row_data so WF-0 login steps can
-            # use {{ERP_USERNAME}} and {{ERP_PASSWORD}} templates
-            if credentials:
-                row_data['ERP_USERNAME'] = credentials.get('username', '')
-                row_data['ERP_PASSWORD'] = credentials.get('password', '')
-            accumulated_context = {}
-            # Inject ERP URL into context so goto_url steps can use {{ERP_URL}} template
-            if erp_url:
-                accumulated_context["ERP_URL"] = erp_url
-
-            # Initialize chain execution record
-            chain_execution.status = "running"
-            chain_execution.started_at = timezone.now()
-            chain_execution.total_links = total_links
-            chain_execution.row_data = row_data
-            chain_execution.save()
-
-            # Initialize chain-level debug state
-            self._update_state(
-                status="running",
-                chain_mode=True,
-                chain_name=chain.name,
-                total_links=total_links,
-                current_link_index=0,
-                current_link=None,
-                completed_links=[],
-                skipped_links=[],
-                row_data=row_data,
-                execution_id=chain_execution.pk,
-            )
-
             # Start browser — DON'T auto-login or auto-navigate.
-            # The chain's first link (WF-0) handles login explicitly via its
-            # own steps. This matches ChainExecutor.execute_chain() behaviour
-            # which skips auto-login for the first link (completed_links == 0).
-            # Passing url=None and credentials=None means we just open a blank
-            # browser; WF-0's goto_url step navigates to ERP and its fill steps
-            # handle the login form using {{ERP_USERNAME}} / {{ERP_PASSWORD}}.
             logger.info("[DebugChain] Starting browser (no auto-login, WF-0 handles it)...")
             if not self.start_browser(url=None, headless=False, credentials=None):
                 self._update_state(status="failed", error={"message": "Failed to start browser"})
@@ -2532,260 +2510,394 @@ class DebugExecutor(WorkflowExecutor):
                 return
 
             self.ready_event.set()
-            logger.info(f"[DebugChain] Browser ready, executing {total_links} links")
+            logger.info(f"[DebugChain] Browser ready, {total_links} links, {batch_total} job(s)")
 
-            completed_link_count = 0
-
-            link_idx = 0
-            while link_idx < len(links):
-                link = links[link_idx]
-                if self.should_stop:
-                    logger.info(f"[DebugChain] Stopped by user at link #{link.order}")
+            # ── Outer job loop (batch mode) ──────────────────────────────
+            batch_abort = False
+            for job_idx, cur_job_stub in enumerate(all_jobs):
+                if self.should_stop or batch_abort:
                     break
 
-                link_display = link.get_display_name()
+                is_first_job = (job_idx == 0)
 
-                # --- Check data condition ---
-                if link.condition_field and link.condition_value:
-                    actual_value = row_data.get(link.condition_field, "")
-                    actual_norm = regex.sub(r'[\s_.-]+', '-', str(actual_value).upper().strip())
-                    expected_norm = regex.sub(r'[\s_.-]+', '-', str(link.condition_value).upper().strip())
-                    if actual_norm != expected_norm:
-                        reason = f"{link.condition_field}='{actual_value}' != '{link.condition_value}'"
-                        logger.info(f"[DebugChain] Skipping link #{link.order} '{link_display}': {reason}")
-                        with self._lock:
-                            self._debug_state["skipped_links"].append({
-                                "order": link.order, "name": link_display, "reason": reason,
-                                "workflow_id": link.workflow_id,
-                            })
-                        link_idx += 1
-                        continue
+                # Reload job from DB (fresh connection for long-running threads)
+                close_old_connections()
+                cur_job = ERPJobData.objects.select_related('route').get(pk=cur_job_stub.pk)
 
-                # --- Update chain progress ---
-                link_info = {
-                    "order": link.order,
-                    "name": link_display,
-                    "workflow_name": link.workflow.name,
-                    "workflow_id": link.workflow_id,
-                }
-                self._update_state(
-                    current_link_index=link_idx,
-                    current_link=link_info,
-                    _running_link_order=link.order,
-                )
-                chain_execution.current_link_order = link.order
-                chain_execution.save(update_fields=["current_link_order"])
+                # First job: ALL links. Subsequent: skip WF-0 (first link = login)
+                links = all_links if is_first_job else all_links[1:]
+                links_count = len(links)
 
-                # --- Merge context into row_data ---
-                merged_row_data = dict(row_data)
-                # Always merge accumulated_context (e.g. ERP_URL, item_number)
-                # so template vars like {{ERP_URL}} resolve in all links
-                if accumulated_context:
-                    for ctx_key, ctx_val in accumulated_context.items():
-                        if ctx_key not in merged_row_data:
-                            merged_row_data[ctx_key] = ctx_val
-                # Apply explicit context_mapping (can override/rename keys)
-                if link.context_mapping and accumulated_context:
-                    for target_key, source_key in link.context_mapping.items():
-                        if source_key in accumulated_context:
-                            merged_row_data[target_key] = accumulated_context[source_key]
-                            logger.info(f"[DebugChain] Context mapped: {source_key} → {target_key}")
+                # Build row_data for this job
+                row_data = cur_job.get_row_data() if cur_job else {}
+                if credentials:
+                    row_data['ERP_USERNAME'] = credentials.get('username', '')
+                    row_data['ERP_PASSWORD'] = credentials.get('password', '')
+                accumulated_context = {}
+                if erp_url:
+                    accumulated_context["ERP_URL"] = erp_url
 
-                # --- Navigate if link has a specific URL ---
-                if link.navigate_url and self.page:
-                    try:
-                        url = link.navigate_url.strip()
-                        if url and not url.startswith(('http://', 'https://')):
-                            url = 'https://' + url
-                        self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                        self.page.wait_for_timeout(link.wait_before_ms)
-                    except Exception as e:
-                        logger.warning(f"[DebugChain] Navigation to {link.navigate_url} failed: {e}")
-                elif link.wait_before_ms > 0 and self.page:
-                    self.page.wait_for_timeout(link.wait_before_ms)
-
-                # --- Browser health check ---
-                if not self.is_browser_alive():
-                    error_msg = f"Browser closed unexpectedly before link #{link.order} '{link_display}'"
-                    logger.error(f"[DebugChain] {error_msg}")
-                    self._update_state(status="failed", error={"message": error_msg})
-                    chain_execution.status = "failed"
-                    chain_execution.error_message = error_msg
-                    chain_execution.completed_at = timezone.now()
-                    chain_execution.save()
-                    return
-
-                # --- Page precondition check ---
-                if link.precondition_type and link.precondition_selector:
-                    precondition_met = self._check_chain_precondition(link)
-                    should_skip = (
-                        (precondition_met and link.skip_if_found) or
-                        (not precondition_met and not link.skip_if_found)
+                # For first job reuse provided chain_execution; for subsequent create new
+                if is_first_job:
+                    ce = chain_execution
+                else:
+                    close_old_connections()
+                    ce = ChainExecution.objects.create(
+                        chain=chain,
+                        job_data=cur_job,
+                        status=ExecutionStatus.RUNNING,
+                        started_at=timezone.now(),
+                        total_links=links_count,
+                        row_data=row_data,
                     )
-                    if should_skip:
-                        reason_word = "found" if precondition_met else "not found"
-                        reason = (
-                            f"Precondition: '{link.precondition_selector[:60]}' {reason_word} → "
-                            f"{'skip_if_found' if link.skip_if_found else 'skip_if_not_found'}"
-                        )
-                        logger.info(f"[DebugChain] Skipping link #{link.order} '{link_display}': {reason}")
-                        # Store in context
-                        accumulated_context[f"_precondition_{link.order}"] = "skipped"
-                        accumulated_context[f"_precondition_{link.order}_found"] = precondition_met
-                        chain_execution.context = accumulated_context
-                        chain_execution.save(update_fields=["context"])
-                        with self._lock:
-                            self._debug_state["skipped_links"].append({
-                                "order": link.order, "name": link_display, "reason": reason,
-                                "workflow_id": link.workflow_id,
-                            })
-                        link_idx += 1
-                        continue
 
-                # --- Create WorkflowExecution record for this link ---
-                wf_execution = WorkflowExecution.objects.create(
-                    workflow=link.workflow,
-                    job_data=job_data,
-                    chain_execution=chain_execution,
-                    status=ExecutionStatus.PENDING,
-                    row_data=merged_row_data,
-                )
+                # Initialize chain execution record
+                ce.status = "running"
+                ce.started_at = timezone.now()
+                ce.total_links = links_count
+                ce.row_data = row_data
+                ce.save()
 
-                # --- Reset step-level state for this link's workflow ---
+                # Mark job as SENT
+                cur_job.status = 'SENT'
+                cur_job.save(update_fields=['status', 'updated_at'])
+
+                # Build batch state for debug polling
+                batch_state = {}
+                if batch_mode:
+                    batch_state = dict(
+                        batch_mode=True,
+                        batch_total=batch_total,
+                        batch_current=job_idx + 1,
+                        batch_job_pk=cur_job.pk,
+                        batch_job_name=cur_job.get_display_name(),
+                        batch_jobs=[{
+                            'pk': j.pk,
+                            'name': j.get_display_name() if hasattr(j, 'get_display_name') else str(j.pk),
+                            'status': 'pending',
+                        } for j in all_jobs],
+                    )
+                    for bi in range(job_idx):
+                        batch_state['batch_jobs'][bi]['status'] = 'completed'
+                    batch_state['batch_jobs'][job_idx]['status'] = 'running'
+
                 self._update_state(
                     status="running",
-                    workflow_name=link.workflow.name,
-                    total_steps=0,
-                    current_step_index=0,
-                    current_step=None,
-                    completed_steps=[],
-                    error=None,
-                    screenshot_base64=None,
-                    auto_heal_attempts=[],
-                    row_data=merged_row_data,
-                    execution_id=wf_execution.pk,
+                    chain_mode=True,
+                    chain_name=chain.name,
+                    total_links=links_count,
+                    current_link_index=0,
+                    current_link=None,
+                    completed_links=[],
+                    skipped_links=[],
+                    row_data=row_data,
+                    execution_id=ce.pk,
+                    **batch_state,
                 )
 
-                logger.info(f"[DebugChain] Running link #{link.order}: '{link_display}' ({link.workflow.name})")
+                logger.info(
+                    f"[DebugChain] ═══ Job {job_idx+1}/{batch_total}: "
+                    f"{cur_job.get_display_name()} "
+                    f"({'all links' if is_first_job else 'skip WF-0'}) ═══"
+                )
 
-                # --- Execute the workflow's steps via debug loop ---
-                loop_result = self._debug_step_loop(link.workflow, merged_row_data, wf_execution)
+                completed_link_count = 0
+                job_failed = False
 
-                # Handle jump-to-link command (from step-by-step Go or Run Segment)
-                if loop_result == "JUMP_LINK":
-                    target_link_order = self._debug_state.get("_rerun_from_link_order")
-                    if target_link_order is not None:
-                        target_idx = next((i for i, l in enumerate(links) if l.order == target_link_order), link_idx)
-                        logger.info(f"[DebugChain] Jumping to link index {target_idx} (order {target_link_order})")
-                        link_idx = target_idx
-                        self._update_state(status="running", error=None, screenshot_base64=None)
+                # ── Inner link loop for this job ─────────────────────────
+                link_idx = 0
+                while link_idx < len(links):
+                    link = links[link_idx]
+                    if self.should_stop:
+                        logger.info(f"[DebugChain] Stopped by user at link #{link.order}")
+                        break
+
+                    link_display = link.get_display_name()
+
+                    # --- Check data condition ---
+                    if link.condition_field and link.condition_value:
+                        actual_value = row_data.get(link.condition_field, "")
+                        actual_norm = regex.sub(r'[\s_.-]+', '-', str(actual_value).upper().strip())
+                        expected_norm = regex.sub(r'[\s_.-]+', '-', str(link.condition_value).upper().strip())
+                        if actual_norm != expected_norm:
+                            reason = f"{link.condition_field}='{actual_value}' != '{link.condition_value}'"
+                            logger.info(f"[DebugChain] Skipping link #{link.order} '{link_display}': {reason}")
+                            with self._lock:
+                                self._debug_state["skipped_links"].append({
+                                    "order": link.order, "name": link_display, "reason": reason,
+                                    "workflow_id": link.workflow_id,
+                                })
+                            link_idx += 1
+                            continue
+
+                    # --- Update chain progress ---
+                    link_info = {
+                        "order": link.order,
+                        "name": link_display,
+                        "workflow_name": link.workflow.name,
+                        "workflow_id": link.workflow_id,
+                    }
+                    self._update_state(
+                        current_link_index=link_idx,
+                        current_link=link_info,
+                        _running_link_order=link.order,
+                    )
+                    ce.current_link_order = link.order
+                    ce.save(update_fields=["current_link_order"])
+
+                    # --- Merge context into row_data ---
+                    merged_row_data = dict(row_data)
+                    if accumulated_context:
+                        for ctx_key, ctx_val in accumulated_context.items():
+                            if ctx_key not in merged_row_data:
+                                merged_row_data[ctx_key] = ctx_val
+                    if link.context_mapping and accumulated_context:
+                        for target_key, source_key in link.context_mapping.items():
+                            if source_key in accumulated_context:
+                                merged_row_data[target_key] = accumulated_context[source_key]
+                                logger.info(f"[DebugChain] Context mapped: {source_key} → {target_key}")
+
+                    # --- Skip link if required template variables are empty ---
+                    skip_link = False
+                    for step in link.workflow.steps.filter(is_active=True):
+                        templates = [step.value_template or '', step.value_static or '']
+                        for tmpl in templates:
+                            if '{{ROUTE}}' in tmpl and not merged_row_data.get('ROUTE', ''):
+                                reason = "step requires ROUTE but it is empty (scrap job)"
+                                logger.info(f"[DebugChain] Skipping link #{link.order} '{link_display}': {reason}")
+                                with self._lock:
+                                    self._debug_state["skipped_links"].append({
+                                        "order": link.order, "name": link_display,
+                                        "reason": reason, "workflow_id": link.workflow_id,
+                                    })
+                                skip_link = True
+                                break
+                        if skip_link:
+                            break
+                    if skip_link:
+                        link_idx += 1
                         continue
 
-                # Check result
-                wf_execution.refresh_from_db()
-                if wf_execution.status == "success":
-                    completed_link_count += 1
-                    chain_execution.completed_links = completed_link_count
-                    chain_execution.save(update_fields=["completed_links"])
+                    # --- Navigate if link has a specific URL ---
+                    if link.navigate_url and self.page:
+                        try:
+                            url = link.navigate_url.strip()
+                            if url and not url.startswith(('http://', 'https://')):
+                                url = 'https://' + url
+                            self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                            self.page.wait_for_timeout(link.wait_before_ms)
+                        except Exception as e:
+                            logger.warning(f"[DebugChain] Navigation to {link.navigate_url} failed: {e}")
+                    elif link.wait_before_ms > 0 and self.page:
+                        self.page.wait_for_timeout(link.wait_before_ms)
 
-                    # Get workflow context from execution
-                    wf_context = wf_execution.context or {}
-                    if wf_context:
-                        accumulated_context.update(wf_context)
-                        chain_execution.context = accumulated_context
-                        chain_execution.save(update_fields=["context"])
-
-                    # Get step counts from debug state
-                    with self._lock:
-                        step_info = {
-                            "total": self._debug_state.get("total_steps", 0),
-                            "completed": len(self._debug_state.get("completed_steps", [])),
-                        }
-
-                    with self._lock:
-                        self._debug_state["completed_links"].append({
-                            "order": link.order,
-                            "name": link_display,
-                            "workflow_name": link.workflow.name,
-                            "workflow_id": link.workflow_id,
-                            "status": "success",
-                            "steps_completed": step_info["completed"],
-                            "steps_total": step_info["total"],
-                        })
-
-                    logger.info(f"[DebugChain] Link #{link.order} completed ({completed_link_count}/{total_links})")
-
-                elif wf_execution.status == "cancelled":
-                    # User stopped during this link
-                    logger.info(f"[DebugChain] Link #{link.order} stopped by user")
-                    break
-
-                else:
-                    # Failed
-                    error_msg = (
-                        f"Link #{link.order} '{link_display}' failed: "
-                        f"{wf_execution.error_message or 'Unknown error'}"
-                    )
-                    logger.error(f"[DebugChain] {error_msg}")
-
-                    with self._lock:
-                        self._debug_state["completed_links"].append({
-                            "order": link.order,
-                            "name": link_display,
-                            "workflow_name": link.workflow.name,
-                            "workflow_id": link.workflow_id,
-                            "status": "failed",
-                            "steps_completed": 0,
-                            "steps_total": 0,
-                        })
-
-                    if chain.stop_on_failure:
-                        chain_execution.status = "failed"
-                        chain_execution.error_message = error_msg
-                        chain_execution.completed_at = timezone.now()
-                        chain_execution.save()
+                    # --- Browser health check ---
+                    if not self.is_browser_alive():
+                        error_msg = f"Browser closed unexpectedly before link #{link.order} '{link_display}'"
+                        logger.error(f"[DebugChain] {error_msg}")
                         self._update_state(status="failed", error={"message": error_msg})
-                        return
+                        ce.status = "failed"
+                        ce.error_message = error_msg
+                        ce.completed_at = timezone.now()
+                        ce.save()
+                        batch_abort = True
+                        break
+
+                    # --- Page precondition check ---
+                    if link.precondition_type and link.precondition_selector:
+                        precondition_met = self._check_chain_precondition(link)
+                        should_skip = (
+                            (precondition_met and link.skip_if_found) or
+                            (not precondition_met and not link.skip_if_found)
+                        )
+                        if should_skip:
+                            reason_word = "found" if precondition_met else "not found"
+                            reason = (
+                                f"Precondition: '{link.precondition_selector[:60]}' {reason_word} → "
+                                f"{'skip_if_found' if link.skip_if_found else 'skip_if_not_found'}"
+                            )
+                            logger.info(f"[DebugChain] Skipping link #{link.order} '{link_display}': {reason}")
+                            accumulated_context[f"_precondition_{link.order}"] = "skipped"
+                            accumulated_context[f"_precondition_{link.order}_found"] = precondition_met
+                            ce.context = accumulated_context
+                            ce.save(update_fields=["context"])
+                            with self._lock:
+                                self._debug_state["skipped_links"].append({
+                                    "order": link.order, "name": link_display, "reason": reason,
+                                    "workflow_id": link.workflow_id,
+                                })
+                            link_idx += 1
+                            continue
+
+                    # --- Create WorkflowExecution record for this link ---
+                    wf_execution = WorkflowExecution.objects.create(
+                        workflow=link.workflow,
+                        job_data=cur_job,
+                        chain_execution=ce,
+                        status=ExecutionStatus.PENDING,
+                        row_data=merged_row_data,
+                    )
+
+                    # --- Reset step-level state for this link's workflow ---
+                    self._update_state(
+                        status="running",
+                        workflow_name=link.workflow.name,
+                        total_steps=0,
+                        current_step_index=0,
+                        current_step=None,
+                        completed_steps=[],
+                        error=None,
+                        screenshot_base64=None,
+                        auto_heal_attempts=[],
+                        row_data=merged_row_data,
+                        execution_id=wf_execution.pk,
+                    )
+
+                    logger.info(f"[DebugChain] Running link #{link.order}: '{link_display}' ({link.workflow.name})")
+
+                    # --- Execute the workflow's steps via debug loop ---
+                    loop_result = self._debug_step_loop(link.workflow, merged_row_data, wf_execution)
+
+                    # Handle jump-to-link command
+                    if loop_result == "JUMP_LINK":
+                        target_link_order = self._debug_state.get("_rerun_from_link_order")
+                        if target_link_order is not None:
+                            target_idx = next((i for i, l in enumerate(links) if l.order == target_link_order), link_idx)
+                            logger.info(f"[DebugChain] Jumping to link index {target_idx} (order {target_link_order})")
+                            link_idx = target_idx
+                            self._update_state(status="running", error=None, screenshot_base64=None)
+                            continue
+
+                    # Check result
+                    wf_execution.refresh_from_db()
+                    if wf_execution.status == "success":
+                        completed_link_count += 1
+                        ce.completed_links = completed_link_count
+                        ce.save(update_fields=["completed_links"])
+
+                        wf_context = wf_execution.context or {}
+                        if wf_context:
+                            accumulated_context.update(wf_context)
+                            ce.context = accumulated_context
+                            ce.save(update_fields=["context"])
+
+                        with self._lock:
+                            step_info = {
+                                "total": self._debug_state.get("total_steps", 0),
+                                "completed": len(self._debug_state.get("completed_steps", [])),
+                            }
+
+                        with self._lock:
+                            self._debug_state["completed_links"].append({
+                                "order": link.order,
+                                "name": link_display,
+                                "workflow_name": link.workflow.name,
+                                "workflow_id": link.workflow_id,
+                                "status": "success",
+                                "steps_completed": step_info["completed"],
+                                "steps_total": step_info["total"],
+                            })
+
+                        logger.info(f"[DebugChain] Link #{link.order} completed ({completed_link_count}/{links_count})")
+
+                    elif wf_execution.status == "cancelled":
+                        logger.info(f"[DebugChain] Link #{link.order} stopped by user")
+                        break
+
                     else:
-                        logger.warning("[DebugChain] Continuing after failure (stop_on_failure=False)")
+                        # Failed
+                        error_msg = (
+                            f"Link #{link.order} '{link_display}' failed: "
+                            f"{wf_execution.error_message or 'Unknown error'}"
+                        )
+                        logger.error(f"[DebugChain] {error_msg}")
 
-                link_idx += 1
+                        with self._lock:
+                            self._debug_state["completed_links"].append({
+                                "order": link.order,
+                                "name": link_display,
+                                "workflow_name": link.workflow.name,
+                                "workflow_id": link.workflow_id,
+                                "status": "failed",
+                                "steps_completed": 0,
+                                "steps_total": 0,
+                            })
 
-            # --- Chain complete ---
-            if self.should_stop:
-                chain_execution.status = "cancelled"
-                chain_execution.completed_at = timezone.now()
-                chain_execution.save()
-                self._update_state(status="stopped")
-            else:
-                chain_execution.status = "success"
-                chain_execution.completed_at = timezone.now()
-                chain_execution.context = accumulated_context
-                chain_execution.save()
+                        if chain.stop_on_failure:
+                            ce.status = "failed"
+                            ce.error_message = error_msg
+                            ce.completed_at = timezone.now()
+                            ce.save()
+                            job_failed = True
+                            batch_abort = True
+                            self._update_state(status="failed", error={"message": error_msg})
+                            break
+                        else:
+                            logger.warning("[DebugChain] Continuing after failure (stop_on_failure=False)")
 
-                # Save captured values back to job_data
-                if job_data and accumulated_context:
-                    update_fields = ['updated_at']
+                    link_idx += 1
+                # ── End inner link loop ──────────────────────────────────
+
+                # ── Per-job finalization ──────────────────────────────────
+                if not job_failed and not self.should_stop:
+                    ce.status = "success"
+                    ce.completed_at = timezone.now()
+                    ce.context = accumulated_context
+                    ce.save()
+
+                    # Save captured values to job_data immediately
+                    close_old_connections()
+                    cur_job.refresh_from_db()
+                    update_fields = ['status', 'updated_at']
+                    cur_job.status = 'COMPLETED'
                     if accumulated_context.get("ITEM_NO"):
-                        job_data.item_number = accumulated_context["ITEM_NO"]
+                        cur_job.item_number = accumulated_context["ITEM_NO"]
                         update_fields.append('item_number')
                     if accumulated_context.get("JOURNAL_NUMBER"):
-                        job_data.movement_journal_number = accumulated_context["JOURNAL_NUMBER"]
+                        cur_job.movement_journal_number = accumulated_context["JOURNAL_NUMBER"]
                         update_fields.append('movement_journal_number')
-                    if len(update_fields) > 1:
-                        job_data.save(update_fields=update_fields)
-                        logger.info(f"[DebugChain] Saved captured values to job_data: {update_fields}")
+                    cur_job.save(update_fields=update_fields)
+                    logger.info(f"[DebugChain] Job {job_idx+1}/{batch_total} COMPLETED: {cur_job.get_display_name()} saved={update_fields}")
 
+                elif self.should_stop:
+                    ce.status = "cancelled"
+                    ce.completed_at = timezone.now()
+                    ce.save()
+                    cur_job.status = 'ERROR'
+                    cur_job.save(update_fields=['status', 'updated_at'])
+                    logger.info(f"[DebugChain] Job {job_idx+1}/{batch_total} CANCELLED by user")
+
+                elif job_failed:
+                    cur_job.status = 'ERROR'
+                    cur_job.save(update_fields=['status', 'updated_at'])
+                    logger.info(f"[DebugChain] Job {job_idx+1}/{batch_total} FAILED")
+
+                # Update batch_jobs status in debug state
+                if batch_mode:
+                    with self._lock:
+                        bj = self._debug_state.get("batch_jobs", [])
+                        if job_idx < len(bj):
+                            bj[job_idx]['status'] = 'completed' if not job_failed else 'failed'
+
+            # ── All jobs done ────────────────────────────────────────────
+            if self.should_stop:
+                self._update_state(status="stopped")
+            elif batch_abort:
+                self._update_state(status="failed")
+            else:
                 self._update_state(status="completed")
-                logger.info(f"[DebugChain] Chain completed: {completed_link_count}/{total_links} links")
+                logger.info(f"[DebugChain] Batch complete: {batch_total} job(s) processed")
 
         except Exception as e:
             logger.exception(f"[DebugChain] Fatal error: {e}")
             self._update_state(status="failed", error={"message": str(e)})
-            chain_execution.status = "failed"
-            chain_execution.error_message = str(e)[:500]
-            chain_execution.completed_at = timezone.now()
-            chain_execution.save()
+            try:
+                chain_execution.status = "failed"
+                chain_execution.error_message = str(e)[:500]
+                chain_execution.completed_at = timezone.now()
+                chain_execution.save()
+            except Exception:
+                pass
         finally:
             self.is_running = False
 

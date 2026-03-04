@@ -15,7 +15,7 @@ from django.views import View
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
@@ -1492,6 +1492,7 @@ class JobDataListView(LoginRequiredMixin, ListView):
         context['status_choices'] = ERPJobData.Status.choices
         context['current_status'] = self.request.GET.get('status', '')
         context['current_search'] = self.request.GET.get('search', '')
+        context['chains'] = WorkflowChain.objects.filter(status='active').order_by('name')
         return context
 
 
@@ -1513,6 +1514,8 @@ class JobDataUploadView(LoginRequiredMixin, View):
             return redirect('erp_automation:job_data_list')
 
         success_count = 0
+        created_pks = []
+        skipped = []
         for uploaded_file in files:
             if not uploaded_file.name.endswith('.xlsx'):
                 messages.error(request, f"Skipped '{uploaded_file.name}' — only .xlsx files are supported.")
@@ -1531,6 +1534,19 @@ class JobDataUploadView(LoginRequiredMixin, View):
                 # Parse the job card
                 parsed = parse_job_card(tmp_path)
 
+                # Check for duplicate by work_order_number
+                wo_number = parsed.get('work_order_number', '')
+                if wo_number:
+                    existing = ERPJobData.objects.filter(work_order_number=wo_number).first()
+                    if existing:
+                        skipped.append({
+                            'file': uploaded_file.name,
+                            'wo': wo_number,
+                            'pk': existing.pk,
+                            'status': existing.get_status_display(),
+                        })
+                        continue
+
                 # Auto-select route
                 route = select_route(
                     size_inches=parsed.get('size_inches'),
@@ -1540,11 +1556,13 @@ class JobDataUploadView(LoginRequiredMixin, View):
                     has_crush_shear=parsed.get('has_crush_shear', False),
                     is_rerun=parsed.get('is_rerun', False),
                     is_inspection_only=parsed.get('is_inspection_only', False),
+                    is_scrap=parsed.get('is_scrap', False),
                     bit_type='FC',
+                    account=parsed.get('account', ''),
                 )
 
                 # Create ERPJobData record
-                ERPJobData.objects.create(
+                job = ERPJobData.objects.create(
                     work_order_number=parsed.get('work_order_number', ''),
                     serial_number=parsed.get('serial_number', ''),
                     size_raw=parsed.get('size_raw', ''),
@@ -1572,11 +1590,13 @@ class JobDataUploadView(LoginRequiredMixin, View):
                     cutter_bom_data=parsed.get('cutter_bom_data', []),
                     modified_cutters_data=parsed.get('modified_cutters_data', []),
                     source_file=parsed.get('source_file', uploaded_file.name),
+                    price=parsed.get('price'),
                     route=route,
                     route_override=False,
                     status='READY',
                     created_by=request.user,
                 )
+                created_pks.append(job.pk)
                 success_count += 1
                 messages.success(request, f"Parsed '{uploaded_file.name}' successfully.")
 
@@ -1590,7 +1610,298 @@ class JobDataUploadView(LoginRequiredMixin, View):
         if success_count > 0:
             messages.success(request, f"Created {success_count} job data record(s).")
 
+        # Report skipped duplicates
+        for s in skipped:
+            messages.warning(
+                request,
+                f"Skipped '{s['file']}' — WO {s['wo']} already exists (ID #{s['pk']}, status: {s['status']})."
+            )
+
+        # Redirect to batch result page if any jobs were created
+        if created_pks:
+            request.session['batch_job_ids'] = created_pks
+            return redirect('erp_automation:job_data_batch_result')
+
+        if skipped and not created_pks:
+            messages.info(request, "All uploaded jobs already exist — no new records created.")
+
         return redirect('erp_automation:job_data_list')
+
+
+class JobDataBatchResultView(LoginRequiredMixin, View):
+    """Show results of a batch upload — parsed jobs with summary."""
+    template_name = "erp_automation/job_data_batch_result.html"
+
+    def get(self, request):
+        batch_ids = request.session.pop('batch_job_ids', [])
+        jobs = ERPJobData.objects.filter(pk__in=batch_ids).select_related('route').order_by('pk')
+        total = len(batch_ids)
+        success = jobs.count()
+        ready_count = jobs.filter(status='READY').count()
+        return render(request, self.template_name, {
+            'jobs': jobs,
+            'total_count': total,
+            'success_count': success,
+            'error_count': total - success,
+            'ready_count': ready_count,
+        })
+
+
+@login_required
+@require_POST
+def job_data_start_batch(request):
+    """Start batch execution. Two modes:
+
+    1. Chain mode (chain_id provided): Redirect to chain debug page with
+       batch_jobs param. The debug page starts a shared browser session
+       where WF-0 login runs only for the first job.
+    2. Legacy mode (no chain_id): Store queue in session and redirect to
+       first job's detail page for manual per-job execution.
+    """
+    job_ids = request.POST.getlist('job_ids')
+    job_ids = [int(pk) for pk in job_ids if pk.isdigit()]
+    if not job_ids:
+        messages.error(request, "No jobs selected for batch execution.")
+        return redirect('erp_automation:job_data_list')
+
+    chain_id = request.POST.get('chain_id', '').strip()
+
+    # --- Chain mode: shared browser batch execution ---
+    if chain_id and chain_id.isdigit():
+        chain_id = int(chain_id)
+        try:
+            chain = WorkflowChain.objects.get(pk=chain_id, status="active")
+        except WorkflowChain.DoesNotExist:
+            messages.error(request, "Selected chain not found or not active.")
+            return redirect('erp_automation:job_data_list')
+
+        # Get credentials
+        credentials = get_credentials(request)
+        if not credentials:
+            messages.error(request, "No ERP credentials set. Please set credentials first.")
+            return redirect('erp_automation:credentials')
+
+        # Load job data records
+        job_data_list = list(
+            ERPJobData.objects.filter(pk__in=job_ids, status__in=('READY', 'ERROR', 'SENT'))
+            .select_related('route')
+            .order_by('pk')
+        )
+
+        if not job_data_list:
+            messages.error(request, "No eligible jobs found (must be READY, ERROR, or SENT).")
+            return redirect('erp_automation:job_data_list')
+
+        # Redirect to chain debug page with batch params.
+        # The chain detail page will start the debug session with all jobs.
+        first_pk = job_data_list[0].pk
+        batch_pks = ','.join(str(j.pk) for j in job_data_list)
+        return redirect(
+            f"/erp-automation/chains/{chain.pk}/"
+            f"?start_debug={first_pk}&batch_jobs={batch_pks}"
+        )
+
+    # --- Legacy mode: per-job redirect ---
+    request.session['batch_queue'] = job_ids[1:] if len(job_ids) > 1 else []
+    request.session['batch_total'] = len(job_ids)
+    request.session['batch_current'] = 1
+
+    # Redirect to first job's detail page
+    return redirect('erp_automation:job_data_detail', pk=job_ids[0])
+
+
+@login_required
+def job_data_next_in_batch(request):
+    """Advance to next job in batch queue."""
+    batch_queue = request.session.get('batch_queue', [])
+    if not batch_queue:
+        request.session.pop('batch_queue', None)
+        request.session.pop('batch_total', None)
+        request.session.pop('batch_current', None)
+        messages.success(request, "Batch execution complete! All jobs processed.")
+        return redirect('erp_automation:job_data_list')
+
+    next_pk = batch_queue.pop(0)
+    request.session['batch_queue'] = batch_queue
+    request.session['batch_current'] = request.session.get('batch_current', 1) + 1
+    return redirect('erp_automation:job_data_detail', pk=next_pk)
+
+
+@login_required
+def api_batch_queue(request):
+    """GET: Return current batch queue state as JSON.
+    POST: Update the queue (remove, reorder, stop)."""
+    if request.method == 'GET':
+        batch_queue = request.session.get('batch_queue', [])
+        batch_total = request.session.get('batch_total', 0)
+        batch_current = request.session.get('batch_current', 0)
+        if not batch_total:
+            return JsonResponse({'active': False})
+
+        # Get job details for queue items
+        current_job_pk = request.GET.get('current_pk')
+        all_pks = ([int(current_job_pk)] if current_job_pk else []) + batch_queue
+        jobs = ERPJobData.objects.filter(pk__in=all_pks).select_related('route')
+        job_map = {j.pk: j for j in jobs}
+
+        queue_items = []
+        for pk in batch_queue:
+            j = job_map.get(pk)
+            if j:
+                queue_items.append({
+                    'pk': j.pk,
+                    'wo': j.work_order_number,
+                    'serial': j.serial_number or '--',
+                    'account': j.account or '--',
+                    'job_type': j.job_type,
+                    'status': j.status,
+                    'status_display': j.get_status_display(),
+                })
+
+        return JsonResponse({
+            'active': True,
+            'batch_total': batch_total,
+            'batch_current': batch_current,
+            'queue': queue_items,
+        })
+
+    elif request.method == 'POST':
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'stop':
+            # Clear entire batch
+            request.session.pop('batch_queue', None)
+            request.session.pop('batch_total', None)
+            request.session.pop('batch_current', None)
+            return JsonResponse({'success': True, 'message': 'Batch stopped.'})
+
+        elif action == 'remove':
+            # Remove a specific job from the queue
+            remove_pk = int(data.get('pk', 0))
+            batch_queue = request.session.get('batch_queue', [])
+            if remove_pk in batch_queue:
+                batch_queue.remove(remove_pk)
+                request.session['batch_queue'] = batch_queue
+                request.session['batch_total'] = request.session.get('batch_total', 1) - 1
+                request.session.modified = True
+            return JsonResponse({'success': True, 'remaining': len(batch_queue)})
+
+        elif action == 'reorder':
+            # Replace queue with new order
+            new_order = [int(pk) for pk in data.get('order', [])]
+            request.session['batch_queue'] = new_order
+            request.session.modified = True
+            return JsonResponse({'success': True})
+
+        elif action == 'skip':
+            # Skip current job, move to next
+            batch_queue = request.session.get('batch_queue', [])
+            if batch_queue:
+                next_pk = batch_queue.pop(0)
+                request.session['batch_queue'] = batch_queue
+                request.session['batch_current'] = request.session.get('batch_current', 1) + 1
+                return JsonResponse({'success': True, 'next_pk': next_pk})
+            else:
+                request.session.pop('batch_queue', None)
+                request.session.pop('batch_total', None)
+                request.session.pop('batch_current', None)
+                return JsonResponse({'success': True, 'next_pk': None, 'done': True})
+
+        return JsonResponse({'success': False, 'message': 'Unknown action.'}, status=400)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+class JobDataExportView(LoginRequiredMixin, View):
+    """Export job data to Excel."""
+    def get(self, request):
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        qs = ERPJobData.objects.select_related('route').all().order_by('-created_at')
+
+        # Optional filters from query params
+        status = request.GET.get('status', '')
+        if status and status in dict(ERPJobData.Status.choices):
+            qs = qs.filter(status=status)
+        account = request.GET.get('account', '')
+        if account:
+            qs = qs.filter(account=account)
+        search = request.GET.get('search', '').strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(work_order_number__icontains=search) |
+                Q(serial_number__icontains=search) |
+                Q(account__icontains=search)
+            )
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "ERP Job Data"
+
+        headers = ['WO #', 'Serial', 'Size', 'Type', 'MAT', 'Job Type', 'Price',
+                   'Item Number', 'Movement Journal #', 'Account', 'Route', 'Status']
+
+        # Style
+        header_font = Font(bold=True, color="FFFFFF", size=10)
+        header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+        header_align = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style='thin', color='D1D5DB'),
+            right=Side(style='thin', color='D1D5DB'),
+            top=Side(style='thin', color='D1D5DB'),
+            bottom=Side(style='thin', color='D1D5DB'),
+        )
+
+        # Write headers
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            cell.border = thin_border
+
+        # Freeze top row
+        ws.freeze_panes = 'A2'
+
+        # Write data rows
+        for row_idx, job in enumerate(qs, 2):
+            values = [
+                job.work_order_number or '',
+                job.serial_number or '',
+                job._format_size(),
+                job.smi_type or '',
+                job.l5_mat_full or '',
+                job.job_type,
+                float(job.price) if job.price else None,
+                job.item_number or '',
+                job.movement_journal_number or '',
+                job.account or '',
+                job.route.route_number if job.route else '',
+                job.get_status_display(),
+            ]
+            for col_idx, val in enumerate(values, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.border = thin_border
+
+        # Auto-width columns
+        for col_idx in range(1, len(headers) + 1):
+            max_len = len(str(headers[col_idx - 1]))
+            for row in ws.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+                for cell in row:
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len + 3, 40)
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="erp_job_data_{today}.xlsx"'
+        wb.save(response)
+        return response
 
 
 class JobDataDetailView(LoginRequiredMixin, DetailView):
@@ -1615,6 +1926,41 @@ class JobDataDetailView(LoginRequiredMixin, DetailView):
             job_data=self.object
         ).select_related('chain').order_by('-started_at')[:10]
         context['has_credentials'] = 'erp_credentials' in self.request.session
+
+        # Active execution state (for button display)
+        exec_type, active_exec = self.object.get_active_execution()
+        context['active_execution_type'] = exec_type
+        context['active_execution_url'] = self.object.get_active_execution_url() if active_exec else ''
+
+        # Batch queue info (if executing jobs in sequence)
+        batch_queue = self.request.session.get('batch_queue', [])
+        batch_total = self.request.session.get('batch_total', 0)
+        batch_current = self.request.session.get('batch_current', 0)
+        if batch_queue or batch_total:
+            context['batch_queue'] = batch_queue
+            context['batch_total'] = batch_total
+            context['batch_current'] = batch_current
+            if batch_queue:
+                context['batch_next_pk'] = batch_queue[0]
+            # Fetch queue job objects for the management panel
+            queue_jobs = ERPJobData.objects.filter(pk__in=batch_queue).select_related('route')
+            # Preserve queue order
+            queue_map = {j.pk: j for j in queue_jobs}
+            context['batch_queue_jobs'] = [queue_map[pk] for pk in batch_queue if pk in queue_map]
+            # JSON for Alpine.js
+            import json as _json
+            context['batch_queue_jobs_json'] = _json.dumps([
+                {
+                    'pk': j.pk,
+                    'wo': j.work_order_number,
+                    'serial': j.serial_number or '--',
+                    'account': j.account or '--',
+                    'job_type': j.job_type,
+                    'status': j.status,
+                }
+                for j in context['batch_queue_jobs']
+            ])
+
         return context
 
 
@@ -1828,6 +2174,16 @@ def api_execute_job_data(request, pk):
             "success": False,
             "message": f"Job data must be in READY, ERROR, or SENT status to execute. Current: {job_data.get_status_display()}"
         }, status=400)
+
+    # Check for already-running execution
+    exec_type, active_exec = job_data.get_active_execution()
+    if active_exec:
+        return JsonResponse({
+            "success": False,
+            "already_running": True,
+            "redirect": job_data.get_active_execution_url(),
+            "message": "An execution is already running for this job.",
+        })
 
     # Get credentials from session
     credentials = get_credentials(request)
@@ -2211,6 +2567,16 @@ def api_start_debug_execution(request, pk):
                 "message": f"Job data status is '{job_data.status}', must be READY, ERROR, or SENT"
             }, status=400)
 
+        # Check for already-running execution
+        exec_type, active_exec = job_data.get_active_execution()
+        if active_exec:
+            return JsonResponse({
+                "success": False,
+                "already_running": True,
+                "redirect": job_data.get_active_execution_url(),
+                "message": "An execution is already running for this job.",
+            })
+
         # Get credentials
         credentials = request.session.get("erp_credentials")
         if not credentials:
@@ -2480,9 +2846,11 @@ def api_debug_update_locator(request, pk):
 # DEBUG CHAIN EXECUTION MODE
 # =============================================================================
 
-def _debug_chain_thread(debug_executor, chain, job_data, chain_execution, credentials, erp_url):
+def _debug_chain_thread(debug_executor, chain, job_data, chain_execution, credentials, erp_url,
+                        job_data_list=None):
     """Thread target function for debug chain execution."""
-    debug_executor.start_debug_chain(chain, job_data, chain_execution, credentials, erp_url)
+    debug_executor.start_debug_chain(chain, job_data, chain_execution, credentials, erp_url,
+                                     job_data_list=job_data_list)
 
 
 @login_required
@@ -2519,11 +2887,36 @@ def api_start_debug_chain(request, pk):
     try:
         job_data = get_object_or_404(ERPJobData, pk=pk)
 
-        if job_data.status not in ('READY', 'ERROR', 'SENT'):
-            return JsonResponse({
-                "success": False,
-                "message": f"Job data status is '{job_data.status}', must be READY, ERROR, or SENT"
-            }, status=400)
+        # Parse body for chain_id and optional batch job_ids
+        body = json.loads(request.body) if request.body else {}
+        chain_id = body.get("chain_id")
+        extra_job_ids = body.get("job_ids", [])  # additional job PKs for batch
+
+        if not chain_id:
+            return JsonResponse({"success": False, "message": "chain_id is required"}, status=400)
+
+        # Build the full job list: primary job (from URL pk) + any extras
+        job_data_list = [job_data]
+        if extra_job_ids:
+            for jid in extra_job_ids:
+                if int(jid) != job_data.pk:
+                    try:
+                        extra_job = ERPJobData.objects.get(pk=jid)
+                        job_data_list.append(extra_job)
+                    except ERPJobData.DoesNotExist:
+                        pass
+
+        # Validate all jobs
+        for jd in job_data_list:
+            if jd.status not in ('READY', 'ERROR', 'SENT'):
+                return JsonResponse({
+                    "success": False,
+                    "message": f"Job #{jd.pk} status is '{jd.status}', must be READY, ERROR, or SENT"
+                }, status=400)
+
+        is_batch = len(job_data_list) > 1
+        print(f"[api_start_debug_chain] Starting {'batch' if is_batch else 'single'} debug: "
+              f"{[j.pk for j in job_data_list]}")
 
         # Get credentials
         credentials = request.session.get("erp_credentials")
@@ -2533,12 +2926,6 @@ def api_start_debug_chain(request, pk):
                 "message": "No ERP credentials. Please set them first.",
                 "redirect": "/erp-automation/credentials/"
             })
-
-        # Get chain
-        body = json.loads(request.body) if request.body else {}
-        chain_id = body.get("chain_id")
-        if not chain_id:
-            return JsonResponse({"success": False, "message": "chain_id is required"}, status=400)
 
         try:
             chain = WorkflowChain.objects.get(pk=chain_id, status="active")
@@ -2557,11 +2944,10 @@ def api_start_debug_chain(request, pk):
             except Exception:
                 pass
             _debug_executor = None
-            # Brief sleep to let old Playwright processes fully terminate
             import time as _time
             _time.sleep(1)
 
-        # Create chain execution record
+        # Create chain execution record for the FIRST job
         chain_execution = ChainExecution.objects.create(
             chain=chain,
             job_data=job_data,
@@ -2569,10 +2955,6 @@ def api_start_debug_chain(request, pk):
             total_links=active_links.count(),
             executed_by=request.user,
         )
-
-        # Mark job as SENT
-        job_data.status = 'SENT'
-        job_data.save(update_fields=['status', 'updated_at'])
 
         # Determine ERP URL
         first_link = active_links.first()
@@ -2582,12 +2964,13 @@ def api_start_debug_chain(request, pk):
         from .services.executor import DebugExecutor
         _debug_executor = DebugExecutor()
 
-        # Start the debug chain thread
+        # Start the debug chain thread (pass job_data_list for batch)
         thread = threading.Thread(
             target=_debug_chain_thread,
             args=(_debug_executor, chain, job_data, chain_execution,
                   {"username": credentials["username"], "password": credentials["password"]},
                   erp_url),
+            kwargs={"job_data_list": job_data_list if is_batch else None},
             daemon=True,
             name=f"debug-chain-{pk}",
         )
@@ -2604,11 +2987,13 @@ def api_start_debug_chain(request, pk):
         return JsonResponse({
             "success": True,
             "chain_execution_id": chain_execution.pk,
+            "batch_mode": is_batch,
+            "batch_total": len(job_data_list),
             "redirect": f"/erp-automation/chains/{chain.pk}/?debug={chain_execution.pk}",
         })
 
     except Exception as e:
-        logger.exception(f"Failed to start debug chain execution: {e}")
+        logging.getLogger(__name__).exception(f"Failed to start debug chain execution: {e}")
         # Cleanup on error so stale executor doesn't block future runs
         if _debug_executor is not None:
             try:
@@ -2767,14 +3152,23 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
                 pass
 
         # Start debug mode: ?start_debug=<job_data_pk> — page will fire API call to start debug
+        # Optional: ?batch_jobs=31,32,33 — comma-separated PKs for batch execution
         start_debug_job_pk = self.request.GET.get("start_debug")
         if start_debug_job_pk:
             try:
                 job_pk = int(start_debug_job_pk)
                 ctx["start_debug_job_pk"] = job_pk
-                # Also set debug_job_data_pk for "Back to Job" link
                 if "debug_job_data_pk" not in ctx:
                     ctx["debug_job_data_pk"] = job_pk
+            except (ValueError, TypeError):
+                pass
+
+        batch_jobs_param = self.request.GET.get("batch_jobs", "")
+        if batch_jobs_param:
+            try:
+                batch_pks = [int(x) for x in batch_jobs_param.split(",") if x.strip().isdigit()]
+                if batch_pks:
+                    ctx["batch_job_pks_json"] = json.dumps(batch_pks)
             except (ValueError, TypeError):
                 pass
 
@@ -2824,6 +3218,16 @@ def api_execute_chain(request, pk):
             "success": False,
             "message": f"Job data must be in READY, ERROR, or SENT status. Current: {job_data.get_status_display()}"
         }, status=400)
+
+    # Check for already-running execution
+    exec_type, active_exec = job_data.get_active_execution()
+    if active_exec:
+        return JsonResponse({
+            "success": False,
+            "already_running": True,
+            "redirect": job_data.get_active_execution_url(),
+            "message": "An execution is already running for this job.",
+        })
 
     # Get credentials
     credentials = get_credentials(request)
@@ -2928,23 +3332,158 @@ def api_execute_chain(request, pk):
 
 
 @login_required
+@require_POST
+def api_batch_execute_chain(request):
+    """Execute a chain for multiple jobs in a single browser session.
+
+    POST JSON: { "chain_id": int, "job_ids": [int, ...] }
+
+    Opens browser once, runs WF-0 (login) for the first job only,
+    then skips WF-0 for subsequent jobs, reusing the authenticated session.
+
+    Returns: { "success": true, "message": str, "job_count": int }
+    """
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    chain_id = body.get("chain_id")
+    job_ids = body.get("job_ids", [])
+
+    if not chain_id:
+        return JsonResponse({"success": False, "message": "chain_id is required"}, status=400)
+    if not job_ids:
+        return JsonResponse({"success": False, "message": "job_ids is required"}, status=400)
+
+    # Validate chain
+    try:
+        chain = WorkflowChain.objects.get(pk=chain_id, status="active")
+    except WorkflowChain.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Chain not found or not active."}, status=404)
+
+    if not chain.get_active_links().exists():
+        return JsonResponse({"success": False, "message": "Chain has no active links."}, status=400)
+
+    # Get credentials
+    credentials = get_credentials(request)
+    if not credentials:
+        return JsonResponse({
+            "success": False,
+            "message": "No ERP credentials set. Please set credentials first.",
+            "redirect": "/erp-automation/credentials/"
+        }, status=401)
+
+    erp_url = get_erp_url(credentials)
+
+    # Load job data records (only eligible statuses)
+    job_data_list = list(
+        ERPJobData.objects.filter(pk__in=job_ids, status__in=('READY', 'ERROR', 'SENT'))
+        .select_related('route')
+        .order_by('pk')
+    )
+
+    if not job_data_list:
+        return JsonResponse({
+            "success": False,
+            "message": "No eligible jobs found (must be READY, ERROR, or SENT)."
+        }, status=400)
+
+    # Launch batch execution in background thread
+    def _run_batch():
+        from .services.chain_executor import ChainExecutor
+        executor = ChainExecutor()
+        try:
+            executor.execute_batch(
+                chain=chain,
+                job_data_list=job_data_list,
+                credentials=credentials,
+                erp_url=erp_url,
+            )
+        except Exception as e:
+            import traceback
+            logging.getLogger(__name__).error(
+                f"Batch chain execution error: {traceback.format_exc()}"
+            )
+        finally:
+            executor.cleanup()
+
+    thread = threading.Thread(target=_run_batch, daemon=True)
+    thread.start()
+
+    return JsonResponse({
+        "success": True,
+        "message": (
+            f"Batch execution started: {len(job_data_list)} jobs with '{chain.name}'. "
+            f"WF-0 login runs only for the first job."
+        ),
+        "job_count": len(job_data_list),
+        "first_job_pk": job_data_list[0].pk,
+        "redirect": f"/erp-automation/job-data/{job_data_list[0].pk}/",
+    })
+
+
+@login_required
+@require_GET
+def api_check_active_execution(request, pk):
+    """Check if a job data record has an active (running/pending) execution.
+
+    GET /erp-automation/api/job-data/<pk>/active-execution/
+    Returns: { already_running: bool, redirect: str, message: str }
+    """
+    job_data = get_object_or_404(ERPJobData, pk=pk)
+    exec_type, active_exec = job_data.get_active_execution()
+    if active_exec:
+        return JsonResponse({
+            "already_running": True,
+            "redirect": job_data.get_active_execution_url(),
+            "message": "An execution is already running for this job.",
+        })
+    return JsonResponse({"already_running": False})
+
+
+@login_required
 @require_GET
 def api_poll_chain_execution(request, pk):
-    """Poll chain execution status."""
+    """Poll chain execution status with per-step detail."""
     try:
-        execution = ChainExecution.objects.get(pk=pk)
+        execution = ChainExecution.objects.prefetch_related(
+            'workflow_executions__workflow',
+            'workflow_executions__step_executions__step',
+        ).get(pk=pk)
     except ChainExecution.DoesNotExist:
         return JsonResponse({"error": "Not found"}, status=404)
 
-    # Get per-link workflow execution status
+    # Get per-link workflow execution status with step-level detail
     wf_executions = []
-    for wfe in execution.workflow_executions.select_related("workflow").order_by("started_at"):
+    for wfe in execution.workflow_executions.order_by("started_at"):
+        # Build step execution list
+        steps = []
+        for se in wfe.step_executions.order_by("step__order"):
+            steps.append({
+                "step_id": se.step.pk,
+                "step_order": se.step.order,
+                "step_name": se.step.name or f"Step {se.step.order}",
+                "action_type": se.step.action_type,
+                "status": se.status,
+                "started_at": se.started_at.isoformat() if se.started_at else None,
+                "completed_at": se.completed_at.isoformat() if se.completed_at else None,
+                "error_message": (se.error_message or "")[:200],
+            })
+
+        total_steps = len(steps)
+        completed_steps = sum(1 for s in steps if s["status"] == "success")
+
         wf_executions.append({
+            "id": wfe.pk,
             "workflow_name": wfe.workflow.name,
             "status": wfe.status,
             "started_at": wfe.started_at.isoformat() if wfe.started_at else None,
             "completed_at": wfe.completed_at.isoformat() if wfe.completed_at else None,
             "error_message": wfe.error_message[:200] if wfe.error_message else "",
+            "step_executions": steps,
+            "total_steps": total_steps,
+            "completed_steps": completed_steps,
         })
 
     return JsonResponse({

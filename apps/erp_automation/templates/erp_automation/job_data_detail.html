@@ -52,6 +52,121 @@
 {% endblock %}
 
 {% block content %}
+{% if batch_total %}
+<!-- Batch Execution Progress Bar + Queue Manager -->
+<div x-data="batchManager()" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl mb-6 overflow-hidden">
+    <!-- Header Row -->
+    <div class="p-4">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+                <i data-lucide="layers" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                <span class="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                    Batch Execution — Job <span x-text="batchCurrent">{{ batch_current }}</span> of <span x-text="batchTotal">{{ batch_total }}</span>
+                </span>
+                <span class="text-xs text-blue-600 dark:text-blue-400" x-show="queueJobs.length > 0"
+                      x-text="'(' + queueJobs.length + ' remaining)'"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Toggle Queue Panel -->
+                <button type="button" @click="showQueue = !showQueue"
+                        class="inline-flex items-center px-3 py-1.5 text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800/50 rounded-lg text-xs font-medium hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">
+                    <i data-lucide="list" class="w-3.5 h-3.5 mr-1.5"></i>
+                    <span x-text="showQueue ? 'Hide Queue' : 'Manage Queue'">Manage Queue</span>
+                </button>
+                <!-- Skip Current -->
+                {% if batch_next_pk %}
+                <a href="{% url 'erp_automation:job_data_next_in_batch' %}"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium">
+                    <i data-lucide="skip-forward" class="w-3.5 h-3.5 mr-1.5"></i>
+                    Next Job
+                </a>
+                {% else %}
+                <a href="{% url 'erp_automation:job_data_next_in_batch' %}"
+                   class="inline-flex items-center px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-xs font-medium">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1.5"></i>
+                    Finish Batch
+                </a>
+                {% endif %}
+                <!-- Stop Batch -->
+                <button type="button" @click="stopBatch()"
+                        class="inline-flex items-center px-3 py-1.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-200 dark:hover:bg-red-800 transition-colors">
+                    <i data-lucide="square" class="w-3.5 h-3.5 mr-1.5"></i>
+                    Stop Batch
+                </button>
+            </div>
+        </div>
+        <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div class="bg-blue-600 h-2 rounded-full transition-all" :style="'width:' + Math.round((batchCurrent / batchTotal) * 100) + '%'"></div>
+        </div>
+    </div>
+
+    <!-- Queue Management Panel (collapsible) -->
+    <div x-show="showQueue" x-collapse class="border-t border-blue-200 dark:border-blue-700">
+        <div class="px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="text-xs font-semibold text-blue-800 dark:text-blue-200 uppercase tracking-wider">Upcoming Jobs</h4>
+                <span class="text-xs text-blue-500 dark:text-blue-400">Drag to reorder</span>
+            </div>
+
+            <!-- Current Job Indicator -->
+            <div class="flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-800/60 rounded-lg mb-2">
+                <i data-lucide="play-circle" class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                <span class="text-xs font-semibold text-blue-800 dark:text-blue-200 flex-1">
+                    Current: {{ job.work_order_number }} — {{ job.serial_number|default:"--" }}
+                    {% if job.account %}<span class="ml-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded text-[10px]">{{ job.account }}</span>{% endif %}
+                </span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium
+                    {% if job.is_scrap %}bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300
+                    {% elif job.is_rerun %}bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300
+                    {% else %}bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-300{% endif %}">
+                    {{ job.job_type }}
+                </span>
+            </div>
+
+            <!-- Queue List (draggable) -->
+            <div id="batchQueueList" class="space-y-1">
+                <template x-for="(item, idx) in queueJobs" :key="item.pk">
+                    <div class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg group cursor-grab active:cursor-grabbing"
+                         draggable="true"
+                         @dragstart="dragStart($event, idx)"
+                         @dragover.prevent="dragOver($event, idx)"
+                         @drop="drop($event, idx)"
+                         @dragend="dragEnd()"
+                         :class="{'ring-2 ring-blue-400': dragOverIdx === idx}">
+                        <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0"></i>
+                        <span class="text-[10px] text-gray-400 w-4" x-text="idx + 1"></span>
+                        <span class="text-xs font-medium text-gray-800 dark:text-gray-200 flex-1" x-text="item.wo"></span>
+                        <span class="text-[10px] text-gray-500 dark:text-gray-400" x-text="item.serial"></span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                              :class="{
+                                  'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300': item.account !== '--',
+                                  'text-gray-400': item.account === '--'
+                              }"
+                              x-text="item.account"></span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                              :class="{
+                                  'bg-red-100 text-red-700': item.job_type === 'Scrap',
+                                  'bg-amber-100 text-amber-700': item.job_type === 'Rerun',
+                                  'bg-blue-100 text-blue-700': item.job_type === 'Repair'
+                              }"
+                              x-text="item.job_type"></span>
+                        <button type="button" @click="removeJob(item.pk, idx)"
+                                class="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
+                                title="Remove from batch">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="queueJobs.length === 0" class="text-center py-3">
+                <span class="text-xs text-blue-500 dark:text-blue-400">No more jobs in queue. This is the last one.</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <form method="post" action="{% url 'erp_automation:job_data_update' job.pk %}"
       x-data="jobDataDetail()" class="space-y-6">
     {% csrf_token %}
@@ -92,6 +207,27 @@
                         class="inline-flex items-center px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors">
                     <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i>Reset to Ready
                 </button>
+            </div>
+        </div>
+    </div>
+    {% elif job.status == 'SENT' and active_execution_url %}
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+            <svg class="animate-spin h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <div class="flex-1">
+                <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-300">Execution In Progress</h4>
+                <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    A {{ active_execution_type }} execution is currently running for this job.
+                </p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <a href="{{ active_execution_url }}"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors">
+                    <i data-lucide="activity" class="w-3 h-3 mr-1"></i>View Progress
+                </a>
             </div>
         </div>
     </div>
@@ -770,6 +906,24 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="flex items-center gap-3 flex-wrap">
 
+                <!-- Active execution banner — shown when an execution is currently running -->
+                {% if active_execution_url %}
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <svg class="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span class="text-sm text-blue-700 dark:text-blue-300 font-medium">Execution in progress</span>
+                    </div>
+                    <a href="{{ active_execution_url }}"
+                       class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm">
+                        <i data-lucide="activity" class="w-4 h-4 mr-2"></i>
+                        View Running Execution
+                    </a>
+                </div>
+                {% else %}
+
                 <!-- Execute Workflow — show for READY, ERROR, and SENT (retry) -->
                 {% if job.status == 'READY' or job.status == 'ERROR' or job.status == 'SENT' %}
                 <div class="flex items-center gap-2">
@@ -816,6 +970,7 @@
                         Debug Chain
                     </button>
                 </div>
+                {% endif %}
                 {% endif %}
                 {% endif %}
 
@@ -897,6 +1052,67 @@ function jobDataDetail() {
     return {};
 }
 
+function batchManager() {
+    return {
+        showQueue: false,
+        batchTotal: {{ batch_total|default:"0" }},
+        batchCurrent: {{ batch_current|default:"0" }},
+        queueJobs: {{ batch_queue_jobs_json|default:"[]"|safe }},
+        dragIdx: null,
+        dragOverIdx: null,
+
+        dragStart(e, idx) {
+            this.dragIdx = idx;
+            e.dataTransfer.effectAllowed = 'move';
+        },
+        dragOver(e, idx) {
+            this.dragOverIdx = idx;
+        },
+        dragEnd() {
+            this.dragIdx = null;
+            this.dragOverIdx = null;
+        },
+        drop(e, targetIdx) {
+            if (this.dragIdx === null || this.dragIdx === targetIdx) return;
+            const item = this.queueJobs.splice(this.dragIdx, 1)[0];
+            this.queueJobs.splice(targetIdx, 0, item);
+            this.dragIdx = null;
+            this.dragOverIdx = null;
+            // Persist new order to server
+            const order = this.queueJobs.map(j => j.pk);
+            this._api('POST', { action: 'reorder', order });
+        },
+
+        removeJob(pk, idx) {
+            if (!confirm('Remove this job from the batch queue?')) return;
+            this.queueJobs.splice(idx, 1);
+            this.batchTotal = Math.max(1, this.batchTotal - 1);
+            this._api('POST', { action: 'remove', pk });
+        },
+
+        stopBatch() {
+            if (!confirm('Stop the entire batch? You can still execute individual jobs from the list page.')) return;
+            this._api('POST', { action: 'stop' }).then(() => {
+                window.location.reload();
+            });
+        },
+
+        _api(method, body) {
+            const opts = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+            };
+            if (body) opts.body = JSON.stringify(body);
+            return fetch('{% url "erp_automation:api_batch_queue" %}', opts)
+                .then(r => r.json())
+                .catch(err => console.error('Batch API error:', err));
+        }
+    };
+}
+
 function executeWorkflow(jobPk) {
     // Disable all execute/retry buttons (bottom bar + top banner)
     const allExecBtns = document.querySelectorAll('#executeBtn, #executeBtnTop');
@@ -945,6 +1161,10 @@ function executeWorkflow(jobPk) {
         return response.json();
     })
     .then(data => {
+        if (data.already_running && data.redirect) {
+            window.location.href = data.redirect;
+            return;
+        }
         if (data.success && data.redirect) {
             // Redirect to the live execution progress page
             window.location.href = data.redirect;
@@ -1053,6 +1273,10 @@ function executeChain(jobPk) {
         return response.json();
     })
     .then(data => {
+        if (data.already_running && data.redirect) {
+            window.location.href = data.redirect;
+            return;
+        }
         if (data.success && data.redirect) {
             modalContent.innerHTML = `
                 <div class="text-center">
@@ -1167,6 +1391,10 @@ function startDebugExecution(jobPk) {
         return response.json();
     })
     .then(data => {
+        if (data.already_running && data.redirect) {
+            window.location.href = data.redirect;
+            return;
+        }
         if (data.success && data.redirect) {
             // Redirect to the debug execution page
             window.location.href = data.redirect;
@@ -1233,8 +1461,23 @@ function startDebugChain(jobPk) {
         debugChainBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
-    // Navigate directly to the chain editor page — it will handle starting the debug session
-    window.location.href = `/erp-automation/chains/${chainId}/?start_debug=${jobPk}`;
+    // Pre-check: if an execution is already running, redirect to its progress page
+    fetch(`/erp-automation/api/job-data/${jobPk}/active-execution/`, {
+        headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.already_running && data.redirect) {
+            window.location.href = data.redirect;
+        } else {
+            // Navigate to the chain editor page — it will handle starting the debug session
+            window.location.href = `/erp-automation/chains/${chainId}/?start_debug=${jobPk}`;
+        }
+    })
+    .catch(() => {
+        // On error, proceed normally
+        window.location.href = `/erp-automation/chains/${chainId}/?start_debug=${jobPk}`;
+    });
 }
 </script>
 {% endblock %}

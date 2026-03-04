@@ -62,6 +62,11 @@ urlpatterns = [
     # Job Data Preparation
     path("job-data/", views.JobDataListView.as_view(), name="job_data_list"),
     path("job-data/upload/", views.JobDataUploadView.as_view(), name="job_data_upload"),
+    path("job-data/batch-result/", views.JobDataBatchResultView.as_view(), name="job_data_batch_result"),
+    path("job-data/start-batch/", views.job_data_start_batch, name="job_data_start_batch"),
+    path("job-data/next-in-batch/", views.job_data_next_in_batch, name="job_data_next_in_batch"),
+    path("api/batch-queue/", views.api_batch_queue, name="api_batch_queue"),
+    path("job-data/export/", views.JobDataExportView.as_view(), name="job_data_export"),
     path("job-data/<int:pk>/", views.JobDataDetailView.as_view(), name="job_data_detail"),
     path("job-data/<int:pk>/update/", views.job_data_update, name="job_data_update"),
     path("job-data/<int:pk>/delete/", views.job_data_delete, name="job_data_delete"),
@@ -74,6 +79,7 @@ urlpatterns = [
     path("api/routes/select/", views.api_select_route, name="api_select_route"),
     path("api/job-data/<int:pk>/generate-item-number/", views.api_generate_item_number, name="api_generate_item_number"),
     path("api/job-data/<int:pk>/execute/", views.api_execute_job_data, name="api_execute_job_data"),
+    path("api/job-data/<int:pk>/active-execution/", views.api_check_active_execution, name="api_check_active_execution"),
 
     # Workflow Chains
     path("chains/", views.ChainListView.as_view(), name="chain_list"),
@@ -86,6 +92,7 @@ urlpatterns = [
     path("api/chains/<int:pk>/save/", views.api_chain_save, name="api_chain_save"),
     path("api/chains/<int:pk>/delete/", views.api_chain_delete, name="api_chain_delete"),
     path("api/job-data/<int:pk>/execute-chain/", views.api_execute_chain, name="api_execute_chain"),
+    path("api/batch-execute-chain/", views.api_batch_execute_chain, name="api_batch_execute_chain"),
     path("api/chain-executions/<int:pk>/poll/", views.api_poll_chain_execution, name="api_poll_chain_execution"),
 
     # Live Execution Progress

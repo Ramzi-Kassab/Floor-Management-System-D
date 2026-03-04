@@ -1747,6 +1747,16 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Key Files Created**: `apps/notifications/services.py`, `apps/notifications/context_processors.py`, `templates/notifications/partials/bell_fragment.html`.
 - **Key Files Modified**: `apps/notifications/models.py`, `apps/notifications/views.py`, `apps/notifications/urls.py`, `apps/notifications/admin.py`, `ardt_fms/settings.py`, `templates/includes/topnav.html`, `templates/base.html`, `apps/workorders/views.py`, `apps/workorders/views_jobcard.py`, `apps/inventory/views.py`, `templates/workorders/receiving_inspection_form.html`.
 
+### Recent Enhancements (Mar 5, 2026) — Batch Chain Execution with Shared Browser
+- **Batch Chain Execution via Debug Page**: Multiple ERP jobs can now run through a workflow chain sharing one browser session. WF-0 (login) runs only for the first job; subsequent jobs skip WF-0 and reuse the authenticated browser session. This eliminates redundant D365 logins for batches of 10+ jobs.
+- **`DebugExecutor.start_debug_chain()` Batch Mode**: Method signature extended with `job_data_list=None` parameter. When provided, wraps the inner link loop in an outer job loop. First job runs all links; subsequent jobs get `links = all_links[1:]` (skip WF-0). Per-job: creates new `ChainExecution` record, builds fresh `row_data` from `cur_job.get_row_data()`, resets `accumulated_context`, saves captured values (ITEM_NO → `item_number`, JOURNAL_NUMBER → `movement_journal_number`) immediately after each job completes.
+- **Batch State in Debug Polling**: `_update_state()` pushes batch fields: `batch_mode`, `batch_total`, `batch_current`, `batch_job_pk`, `batch_job_name`, `batch_jobs` (list of `{pk, name, status}`). Frontend `debugPoll()` reads these to show batch progress UI.
+- **Batch Progress Panel in chain_detail.html**: Above link progress bar — shows job pills with status colors (gray=pending, blue/pulse=running, green=done, red=error), batch progress bar with "Job 2 of 3" counter. Auto-advances to next job after each completes.
+- **`job_data_start_batch()` Chain Mode**: When a chain is selected on the job data list page, redirects to chain debug page with batch params: `/erp-automation/chains/{chain_pk}/?start_debug={first_pk}&batch_jobs={pk1,pk2,pk3}`. Old headless `_run_batch()` function removed (~300 lines).
+- **`api_start_debug_chain()` Batch Support**: Reads `job_ids` array from POST body, builds full job list (primary from URL pk + extras from body), validates all jobs, passes `job_data_list` to `_debug_chain_thread()`.
+- **`ChainDetailView.get_context_data()`**: Reads `batch_jobs` URL param, passes `batch_job_pks_json` to template context for Alpine.js initialization.
+- **Key Files Modified**: `apps/erp_automation/services/executor.py` (batch outer loop in `start_debug_chain`), `apps/erp_automation/views.py` (batch API + redirect), `apps/erp_automation/templates/erp_automation/chain_detail.html` (batch UI), `apps/erp_automation/templates/erp_automation/job_data_list.html` (chain selector in batch toolbar).
+
 ---
 
 ## Need Help?

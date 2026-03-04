@@ -130,6 +130,47 @@
         </div>
     </div>
 
+    <!-- Batch progress panel (shown during batch debug) -->
+    <template x-if="debugState.active && debugState.batchMode">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
+            <div class="flex items-center justify-between text-xs mb-2">
+                <span class="font-semibold text-emerald-700 dark:text-emerald-400">
+                    <i data-lucide="layers" class="w-3.5 h-3.5 inline-block mr-1"></i>
+                    Batch: Job <span x-text="debugState.batchCurrent"></span> of <span x-text="debugState.batchTotal"></span>
+                </span>
+                <span class="text-gray-400" x-text="debugState.batchJobName"></span>
+            </div>
+            <!-- Batch job pills -->
+            <div class="flex flex-wrap gap-1.5 mb-2">
+                <template x-for="(bj, bi) in debugState.batchJobs" :key="bj.pk">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                          :class="{
+                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400': bj.status === 'completed',
+                              'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': bj.status === 'running',
+                              'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400': bj.status === 'pending',
+                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400': bj.status === 'failed',
+                          }">
+                        <template x-if="bj.status === 'running'">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        </template>
+                        <template x-if="bj.status === 'completed'">
+                            <i data-lucide="check" class="w-3 h-3"></i>
+                        </template>
+                        <template x-if="bj.status === 'failed'">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </template>
+                        <span x-text="bj.name"></span>
+                    </span>
+                </template>
+            </div>
+            <!-- Batch progress bar -->
+            <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                     :style="`width: ${debugState.batchTotal ? Math.round((debugState.batchJobs.filter(j => j.status === 'completed').length / debugState.batchTotal) * 100) : 0}%`"></div>
+            </div>
+        </div>
+    </template>
+
     <!-- Debug progress bar (shown during debug) -->
     <template x-if="debugState.active">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3">
@@ -1228,17 +1269,17 @@
                                 </template>
                                 <!-- Normal error message (red) -->
                                 <div class="text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
-                                     x-text="debugState.errorInfo.message" x-show="!debugState.errorInfo.is_breakpoint && !debugState.errorInfo.is_step_pause && debugState.errorInfo.error_type !== 'd365_dialog'"></div>
+                                     x-text="debugState.errorInfo?.message" x-show="!debugState.errorInfo?.is_breakpoint && !debugState.errorInfo?.is_step_pause && debugState.errorInfo?.error_type !== 'd365_dialog'"></div>
                                 <!-- Locator info -->
-                                <template x-if="debugState.errorInfo.locator_name">
+                                <template x-if="debugState.errorInfo?.locator_name">
                                     <div class="flex items-center gap-1">
                                         <i data-lucide="target" class="w-3 h-3 text-blue-500"></i>
                                         <span class="text-gray-400">Locator:</span>
-                                        <span class="text-blue-600 dark:text-blue-400 font-medium" x-text="debugState.errorInfo.locator_name"></span>
+                                        <span class="text-blue-600 dark:text-blue-400 font-medium" x-text="debugState.errorInfo?.locator_name"></span>
                                     </div>
                                 </template>
                                 <!-- Strategies tried -->
-                                <template x-if="debugState.errorInfo.strategies_tried && debugState.errorInfo.strategies_tried.length > 0">
+                                <template x-if="debugState.errorInfo?.strategies_tried?.length > 0">
                                     <div class="mt-1 space-y-0.5">
                                         <div class="text-[10px] text-gray-400 uppercase">Strategies tried:</div>
                                         <template x-for="st in debugState.errorInfo.strategies_tried" :key="st.type + st.value">
@@ -1401,6 +1442,13 @@ function chainEditor() {
             _skippedLinkOrders: new Set(),
             _failedLinkOrder: null,
             _runningLinkOrder: null,
+            // Batch mode
+            batchMode: false,
+            batchTotal: 0,
+            batchCurrent: 0,
+            batchJobPk: null,
+            batchJobName: '',
+            batchJobs: [],  // [{pk, name, status}, ...]
         },
 
         // Undo/Redo stacks (max 30 entries)
@@ -1488,10 +1536,15 @@ function chainEditor() {
             {% endif %}
 
             // Start debug mode (?start_debug=<job_pk>) — fire API to start, then poll
+            // Optional: batch_job_pks_json provides extra job PKs for batch execution
             {% if start_debug_job_pk %}
             this.debugState.active = true;
             this.debugState.status = 'starting';
+            {% if batch_job_pks_json %}
+            this.startDebugSession({{ start_debug_job_pk }}, {{ batch_job_pks_json }});
+            {% else %}
             this.startDebugSession({{ start_debug_job_pk }});
+            {% endif %}
             {% endif %}
 
             // Load environments for recording
@@ -1519,7 +1572,7 @@ function chainEditor() {
 
         // ================ DEBUG METHODS ================
 
-        async startDebugSession(jobPk) {
+        async startDebugSession(jobPk, batchJobPks) {
             // Guard against double invocation (e.g., double-click, page reload race)
             if (this._debugStarting) {
                 console.warn('[Debug] startDebugSession already in progress, ignoring duplicate call');
@@ -1528,12 +1581,19 @@ function chainEditor() {
             this._debugStarting = true;
 
             // Fire API to start debug chain session, then switch to polling
+            // batchJobPks: optional array of all job PKs for batch mode (including primary)
             try {
                 const chainId = {{ chain.pk }};
+                const payload = { chain_id: chainId };
+                // Pass extra job_ids for batch (excluding primary jobPk — it's in the URL)
+                if (batchJobPks && batchJobPks.length > 1) {
+                    payload.job_ids = batchJobPks.filter(pk => pk !== jobPk);
+                    console.log(`[Debug] Batch mode: ${batchJobPks.length} jobs, primary=${jobPk}`);
+                }
                 const resp = await fetch(`/erp-automation/api/job-data/${jobPk}/debug-chain/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-                    body: JSON.stringify({ chain_id: chainId }),
+                    body: JSON.stringify(payload),
                 });
                 const data = await resp.json();
                 if (data.success && data.chain_execution_id) {
@@ -1598,6 +1658,14 @@ function chainEditor() {
                 this.debugState.currentLink = data.current_link || null;
                 this.debugState.completedLinks = data.completed_links || [];
                 this.debugState.skippedLinks = data.skipped_links || [];
+
+                // Batch-level (from executor batch_state)
+                this.debugState.batchMode = data.batch_mode || false;
+                this.debugState.batchTotal = data.batch_total || 0;
+                this.debugState.batchCurrent = data.batch_current || 0;
+                this.debugState.batchJobPk = data.batch_job_pk || null;
+                this.debugState.batchJobName = data.batch_job_name || '';
+                this.debugState.batchJobs = data.batch_jobs || [];
 
                 // Step-level
                 this.debugState.totalSteps = data.total_steps || 0;

@@ -107,7 +107,7 @@ def determine_size_class(size_inches):
 
 def select_route(size_inches, has_port=None, has_usr=False, has_hardfacing=False,
                  has_crush_shear=False, is_rerun=False, is_inspection_only=False,
-                 bit_type='FC', account=None):
+                 is_scrap=False, bit_type='FC', account=None):
     """Select the best matching ERPRoute for a repair job.
 
     Implements the full binary encoding decision matrix:
@@ -143,13 +143,18 @@ def select_route(size_inches, has_port=None, has_usr=False, has_hardfacing=False
         f"Route selection: bit_type={bit_type}, size={size}\", "
         f"size_class={size_class}, port={has_port}, "
         f"usr={has_usr}, hf={has_hardfacing}, cs={has_crush_shear}, "
-        f"rerun={is_rerun}, inspection={is_inspection_only}, "
+        f"rerun={is_rerun}, scrap={is_scrap}, inspection={is_inspection_only}, "
         f"account={account}"
     )
 
     # ===================================================================
     # SPECIAL CASES (handled first, before standard selection)
     # ===================================================================
+
+    # Scrap — no route needed
+    if is_scrap:
+        logger.info("Scrap job — no route assigned")
+        return None
 
     # Inspection Only
     if is_inspection_only:
@@ -165,14 +170,19 @@ def select_route(size_inches, has_port=None, has_usr=False, has_hardfacing=False
 
     # Re-Run
     if is_rerun:
-        if size_class == 'JUMBO':
-            route = ERPRoute.objects.filter(route_number='ROUTE-0125', is_active=True).first()
+        acct_upper = str(account or '').strip().upper()
+        if acct_upper == 'RC-LSTK':
+            # RC-LSTK rerun exception
+            route_number = 'ROUTE-0134'
+        elif size_class == 'JUMBO':
+            route_number = 'ROUTE-0125'
         else:
-            route = ERPRoute.objects.filter(route_number='ROUTE-0124', is_active=True).first()
+            route_number = 'ROUTE-0124'
+        route = ERPRoute.objects.filter(route_number=route_number, is_active=True).first()
         if route:
-            logger.info(f"Selected re-run route: {route}")
+            logger.info(f"Selected re-run route: {route} (account={account})")
         else:
-            logger.warning(f"No re-run route found for size_class={size_class}")
+            logger.warning(f"No re-run route found: {route_number} for size_class={size_class}, account={account}")
         return route
 
     # ===================================================================
@@ -284,6 +294,7 @@ def select_route_for_job_data(job_data):
         has_crush_shear=job_data.has_crush_shear,
         is_rerun=job_data.is_rerun,
         is_inspection_only=job_data.is_inspection_only,
+        is_scrap=job_data.is_scrap,
         bit_type='FC',  # TODO: detect from smi_type or account
         account=job_data.account,
     )

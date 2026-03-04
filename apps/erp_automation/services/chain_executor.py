@@ -10,11 +10,13 @@ Key features:
 - Conditional link skipping
 - Stop-on-failure or continue mode
 - Full execution tracking via ChainExecution + WorkflowExecution records
+- Batch execution: run same chain for multiple jobs, skipping WF-0 login after first
 """
 import logging
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Callable
 
+from django.db import close_old_connections
 from django.utils import timezone
 
 from .executor import WorkflowExecutor
@@ -55,8 +57,6 @@ class ChainExecutor:
         Returns:
             {"success": bool, "message": str, "completed_links": int}
         """
-        from ..models import WorkflowExecution, ExecutionStatus
-
         links = list(chain.get_active_links())
         total_links = len(links)
 
@@ -69,13 +69,10 @@ class ChainExecutor:
 
         # Initialize tracking
         row_data = job_data.get_row_data() if job_data else {}
-        # Inject ERP credentials into row_data so login workflow steps
-        # can use {{ERP_USERNAME}} and {{ERP_PASSWORD}} templates
         if credentials:
             row_data['ERP_USERNAME'] = credentials.get('username', '')
             row_data['ERP_PASSWORD'] = credentials.get('password', '')
         accumulated_context = {}
-        # Inject ERP URL into context so goto_url steps can use {{ERP_URL}} template
         if erp_url:
             accumulated_context["ERP_URL"] = erp_url
         chain_execution.status = "running"
@@ -84,8 +81,219 @@ class ChainExecutor:
         chain_execution.row_data = row_data
         chain_execution.save()
 
-        completed_links = 0
         self.should_stop = False
+
+        result = self._execute_links(
+            links=links,
+            job_data=job_data,
+            row_data=row_data,
+            credentials=credentials,
+            chain=chain,
+            chain_execution=chain_execution,
+            erp_url=erp_url,
+            accumulated_context=accumulated_context,
+            save_to_job_data=True,
+        )
+
+        # Save captured values back to job_data (belt-and-suspenders; _execute_links does it too)
+        if result.get("success") and job_data and result.get("context"):
+            self._save_captured_values(job_data, result["context"])
+
+        return result
+
+    def execute_batch(
+        self,
+        chain,                              # WorkflowChain model
+        job_data_list: List,                # List of ERPJobData models
+        credentials: Dict[str, str],
+        erp_url: str = "",
+        on_job_complete: Optional[Callable] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute a chain for multiple jobs sequentially, sharing one browser.
+
+        First job: runs ALL links (including WF-0 login).
+        Subsequent jobs: skips the first link (WF-0 login) — browser already authenticated.
+
+        Saves captured ERP values (Item Number, Journal Number) to each job_data
+        immediately after that job completes.
+
+        Args:
+            chain: WorkflowChain instance
+            job_data_list: List of ERPJobData records to process
+            credentials: {"username": str, "password": str} for ERP login
+            erp_url: Default ERP URL
+            on_job_complete: Optional callback(job_index, job_data, result) called after each job
+
+        Returns:
+            List of result dicts, one per job.
+        """
+        from ..models import ChainExecution, ExecutionStatus
+
+        all_links = list(chain.get_active_links())
+        if not all_links:
+            return [{"success": False, "message": "No active links in chain", "completed_links": 0}]
+
+        results = []
+        self.should_stop = False
+
+        print(f"[BATCH] Starting batch loop: {len(job_data_list)} jobs, {len(all_links)} links per job")
+
+        for idx, job_data in enumerate(job_data_list):
+            print(f"\n[BATCH] --- Loop iteration {idx + 1}/{len(job_data_list)} (job pk={job_data.pk}) ---")
+
+            if self.should_stop:
+                print(f"[BATCH] Stopped by user at job {idx + 1}")
+                for remaining_idx in range(idx, len(job_data_list)):
+                    results.append({
+                        "success": False,
+                        "message": "Batch stopped by user",
+                        "completed_links": 0,
+                    })
+                break
+
+            is_first_job = (idx == 0)
+            links = all_links if is_first_job else all_links[1:]
+
+            print(f"[BATCH] Job {idx + 1}: {job_data.get_display_name()}, "
+                  f"{'all links' if is_first_job else 'skip WF-0'}, "
+                  f"{len(links)} links to run")
+
+            # Refresh DB connections (critical for long-running background threads)
+            close_old_connections()
+
+            try:
+                # Reload job_data from DB to avoid stale state
+                from ..models import ERPJobData
+                job_data = ERPJobData.objects.get(pk=job_data.pk)
+                print(f"[BATCH] Job {idx + 1}: reloaded from DB, status={job_data.status}")
+
+                # Build row_data for this specific job
+                row_data = job_data.get_row_data() if job_data else {}
+                if credentials:
+                    row_data['ERP_USERNAME'] = credentials.get('username', '')
+                    row_data['ERP_PASSWORD'] = credentials.get('password', '')
+
+                accumulated_context = {}
+                if erp_url:
+                    accumulated_context["ERP_URL"] = erp_url
+
+                # Create ChainExecution record for this job
+                chain_execution = ChainExecution.objects.create(
+                    chain=chain,
+                    job_data=job_data,
+                    status=ExecutionStatus.RUNNING,
+                    started_at=timezone.now(),
+                    total_links=len(links),
+                    row_data=row_data,
+                )
+                print(f"[BATCH] Job {idx + 1}: CE#{chain_execution.pk} created")
+
+                # Mark job as SENT
+                job_data.status = 'SENT'
+                job_data.save(update_fields=['status', 'updated_at'])
+                print(f"[BATCH] Job {idx + 1}: status set to SENT")
+
+                # Run links for this job (reusing the shared browser)
+                print(f"[BATCH] Job {idx + 1}: calling _execute_links()...")
+                result = self._execute_links(
+                    links=links,
+                    job_data=job_data,
+                    row_data=row_data,
+                    credentials=credentials,
+                    chain=chain,
+                    chain_execution=chain_execution,
+                    erp_url=erp_url,
+                    accumulated_context=accumulated_context,
+                    save_to_job_data=False,
+                )
+
+                print(f"[BATCH] Job {idx + 1}: _execute_links() returned: "
+                      f"success={result.get('success')}, "
+                      f"completed_links={result.get('completed_links')}, "
+                      f"msg={result.get('message', '')[:60]}")
+
+                # Refresh connection before saving results
+                close_old_connections()
+
+                # Save captured values and update status
+                if result.get("success"):
+                    job_data.status = 'COMPLETED'
+                    ctx = result.get("context", {})
+                    self._save_captured_values(job_data, ctx)
+                    job_data.save(update_fields=['status', 'updated_at'])
+                    print(f"[BATCH] Job {idx + 1}: COMPLETED successfully")
+                else:
+                    job_data.status = 'ERROR'
+                    job_data.save(update_fields=['status', 'updated_at'])
+                    print(f"[BATCH] Job {idx + 1}: FAILED — {result.get('message', 'Unknown error')[:80]}")
+
+            except Exception as e:
+                import traceback
+                print(f"[BATCH] Job {idx + 1}: EXCEPTION: {e}")
+                print(traceback.format_exc())
+                logger.exception(
+                    f"[BatchExec] Exception in job {idx + 1}/{len(job_data_list)} "
+                    f"(pk={job_data.pk}): {e}"
+                )
+                result = {
+                    "success": False,
+                    "message": f"Batch job exception: {e}",
+                    "completed_links": 0,
+                }
+                try:
+                    close_old_connections()
+                    job_data.status = 'ERROR'
+                    job_data.save(update_fields=['status', 'updated_at'])
+                except Exception as save_err:
+                    print(f"[BATCH] Job {idx + 1}: Failed to save ERROR status: {save_err}")
+
+            results.append(result)
+
+            if on_job_complete:
+                on_job_complete(idx, job_data, result)
+
+            # If job failed and browser died, abort entire batch
+            if not result["success"] and result.get("browser_dead"):
+                print(f"[BATCH] Browser died — aborting batch")
+                break
+
+            # If job failed and stop_on_failure, abort batch
+            if not result["success"] and chain.stop_on_failure:
+                print(f"[BATCH] Job failed + stop_on_failure=True — stopping batch")
+                break
+
+            print(f"[BATCH] Job {idx + 1}: done, continuing to next job...")
+
+        print(f"\n[BATCH] Batch loop finished: "
+              f"{sum(1 for r in results if r.get('success'))}/{len(results)} succeeded")
+        return results
+
+    def _execute_links(
+        self,
+        links: list,
+        job_data,
+        row_data: Dict[str, Any],
+        credentials: Dict[str, str],
+        chain,
+        chain_execution,
+        erp_url: str,
+        accumulated_context: Dict[str, Any],
+        save_to_job_data: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Execute a list of chain links sequentially.
+
+        This is the core link-iteration logic, extracted so both execute_chain()
+        and execute_batch() can reuse it.
+
+        Returns:
+            {"success": bool, "message": str, "completed_links": int, "context": dict}
+        """
+        from ..models import WorkflowExecution, ExecutionStatus
+
+        total_links = len(links)
+        completed_links = 0
 
         try:
             for link in links:
@@ -136,6 +344,25 @@ class ChainExecutor:
                                 f"[ChainExec] Context mapped: "
                                 f"{source_key} → {target_key} = {accumulated_context[source_key]}"
                             )
+
+                # --- Skip link if required template variables are empty ---
+                # e.g. WF-9 uses {{ROUTE}} — skip if ROUTE is empty (scrap jobs)
+                skip_link = False
+                for step in link.workflow.steps.filter(is_active=True):
+                    templates = [step.value_template or '', step.value_static or '']
+                    for tmpl in templates:
+                        if '{{ROUTE}}' in tmpl and not merged_row_data.get('ROUTE', ''):
+                            logger.info(
+                                f"[ChainExec] Skipping link #{link.order} "
+                                f"'{link.get_display_name()}': step '{step.name}' "
+                                f"requires ROUTE but it is empty (scrap job)"
+                            )
+                            skip_link = True
+                            break
+                    if skip_link:
+                        break
+                if skip_link:
+                    continue
 
                 # --- Ensure browser is alive ---
                 # On the first link, don't auto-navigate or auto-login —
@@ -317,18 +544,9 @@ class ChainExecutor:
             chain_execution.context = accumulated_context
             chain_execution.save()
 
-            # Save captured values back to job_data
-            if job_data and accumulated_context:
-                update_fields = ['updated_at']
-                if accumulated_context.get("ITEM_NO"):
-                    job_data.item_number = accumulated_context["ITEM_NO"]
-                    update_fields.append('item_number')
-                if accumulated_context.get("JOURNAL_NUMBER"):
-                    job_data.movement_journal_number = accumulated_context["JOURNAL_NUMBER"]
-                    update_fields.append('movement_journal_number')
-                if len(update_fields) > 1:
-                    job_data.save(update_fields=update_fields)
-                    logger.info(f"[ChainExec] Saved captured values to job_data: {update_fields}")
+            # Save captured values back to job_data (skip when called from batch mode)
+            if save_to_job_data and job_data and accumulated_context:
+                self._save_captured_values(job_data, accumulated_context)
 
             msg = f"Chain completed: {completed_links}/{total_links} links"
             logger.info(f"[ChainExec] {msg}")
@@ -350,6 +568,19 @@ class ChainExecutor:
                 "message": str(e),
                 "completed_links": completed_links,
             }
+
+    def _save_captured_values(self, job_data, context: Dict[str, Any]):
+        """Save captured ERP values (ITEM_NO, JOURNAL_NUMBER) to job_data immediately."""
+        update_fields = ['updated_at']
+        if context.get("ITEM_NO"):
+            job_data.item_number = context["ITEM_NO"]
+            update_fields.append('item_number')
+        if context.get("JOURNAL_NUMBER"):
+            job_data.movement_journal_number = context["JOURNAL_NUMBER"]
+            update_fields.append('movement_journal_number')
+        if len(update_fields) > 1:
+            job_data.save(update_fields=update_fields)
+            logger.info(f"[ChainExec] Saved captured values to job_data: {update_fields}")
 
     def _ensure_browser(
         self,

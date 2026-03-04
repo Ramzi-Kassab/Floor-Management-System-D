@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load erp_filters %}
+
+{% block title %}Batch Upload Results - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Batch Upload Results</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ success_count }} of {{ total_count }} job card{{ total_count|pluralize }} parsed successfully</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'erp_automation:job_data_upload' %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>Upload More
+        </a>
+        <a href="{% url 'erp_automation:job_data_list' %}"
+           class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm">
+            <i data-lucide="list" class="w-4 h-4 mr-2"></i>Job Data List
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <i data-lucide="files" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_count }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Files Uploaded</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ success_count }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Parsed Successfully</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 {% if total_count != success_count %}bg-red-100 dark:bg-red-900/30{% else %}bg-gray-100 dark:bg-gray-700{% endif %} rounded-lg">
+                <i data-lucide="{% if total_count != success_count %}alert-circle{% else %}minus-circle{% endif %}" class="w-5 h-5 {% if total_count != success_count %}text-red-600 dark:text-red-400{% else %}text-gray-400{% endif %}"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ error_count }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Errors</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if jobs %}
+<div x-data="batchSelector()">
+    <!-- Batch Execution Controls -->
+    {% if ready_count > 0 %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white">Batch ERP Entry</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <span x-text="selectedCount">{{ ready_count }}</span> job<span x-show="selectedCount !== 1">s</span> selected for sequential execution
+                </p>
+            </div>
+            <form method="post" action="{% url 'erp_automation:job_data_start_batch' %}" @submit="injectSelected($event)">
+                {% csrf_token %}
+                <div id="batchHiddenInputs"></div>
+                <button type="submit" :disabled="selectedCount === 0"
+                        :class="selectedCount === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-700'"
+                        class="inline-flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium">
+                    <i data-lucide="play-circle" class="w-4 h-4 mr-2"></i>
+                    Start Batch ERP Entry (<span x-text="selectedCount">{{ ready_count }}</span> jobs)
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Parsed Jobs Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Parsed Jobs</h2>
+            <div class="flex items-center gap-3">
+                <button type="button" @click="selectAll()"
+                        class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Select All READY</button>
+                <span class="text-gray-300 dark:text-gray-600">|</span>
+                <button type="button" @click="deselectAll()"
+                        class="text-xs text-gray-500 dark:text-gray-400 hover:underline">Deselect All</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-4 py-3 font-medium w-10">
+                            <input type="checkbox" @change="toggleAll($event.target.checked)"
+                                   :checked="allSelected" :indeterminate.prop="someSelected && !allSelected"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                        </th>
+                        <th class="px-4 py-3 font-medium">#</th>
+                        <th class="px-4 py-3 font-medium">WO #</th>
+                        <th class="px-4 py-3 font-medium">Serial</th>
+                        <th class="px-4 py-3 font-medium">Size</th>
+                        <th class="px-4 py-3 font-medium">Type</th>
+                        <th class="px-4 py-3 font-medium">Account</th>
+                        <th class="px-4 py-3 font-medium">Job Type</th>
+                        <th class="px-4 py-3 font-medium">Price</th>
+                        <th class="px-4 py-3 font-medium">Route</th>
+                        <th class="px-4 py-3 font-medium">Status</th>
+                        <th class="px-4 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for job in jobs %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                        :class="selected[{{ job.pk }}] ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''">
+                        <td class="px-4 py-3">
+                            {% if job.status == 'READY' %}
+                            <input type="checkbox" x-model="selected[{{ job.pk }}]"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                            {% else %}
+                            <span class="block w-4 h-4"></span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-400">{{ forloop.counter }}</td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'erp_automation:job_data_detail' job.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                {{ job.work_order_number }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 font-mono text-xs">{{ job.serial_number|default:"--" }}</td>
+                        <td class="px-4 py-3">{% if job.size_inches %}{{ job.size_inches|size_fraction }}"{% else %}--{% endif %}</td>
+                        <td class="px-4 py-3">{{ job.smi_type|default:"--" }}</td>
+                        <td class="px-4 py-3">
+                            {% if job.account %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                {{ job.account }}
+                            </span>
+                            {% else %}--{% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if job.is_scrap %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                {% elif job.is_rerun %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                                {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% endif %}">
+                                {{ job.job_type }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if job.price %}
+                            <span class="font-mono text-xs">${{ job.price|floatformat:2 }}</span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if job.route %}
+                            <span class="font-mono text-xs">{{ job.route.route_number }}</span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                {% if job.status == 'READY' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                {% elif job.status == 'ERROR' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                {{ job.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <a href="{% url 'erp_automation:job_data_detail' job.pk %}"
+                               class="inline-flex items-center px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors"
+                               title="View / Execute">
+                                <i data-lucide="play" class="w-3 h-3 mr-1"></i>Execute
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
+    <i data-lucide="alert-circle" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No jobs were created</h3>
+    <p class="text-gray-500 dark:text-gray-400 mb-4">Check the error messages above and try again.</p>
+    <a href="{% url 'erp_automation:job_data_upload' %}"
+       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <i data-lucide="upload" class="w-4 h-4 mr-2"></i>Upload Again
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function batchSelector() {
+    // Initialize: all READY jobs pre-selected
+    const readyPks = [{% for job in jobs %}{% if job.status == 'READY' %}{{ job.pk }},{% endif %}{% endfor %}];
+    const sel = {};
+    readyPks.forEach(pk => sel[pk] = true);
+
+    return {
+        selected: sel,
+        readyPks: readyPks,
+
+        get selectedCount() {
+            return this.readyPks.filter(pk => this.selected[pk]).length;
+        },
+        get allSelected() {
+            return this.readyPks.length > 0 && this.readyPks.every(pk => this.selected[pk]);
+        },
+        get someSelected() {
+            return this.readyPks.some(pk => this.selected[pk]);
+        },
+
+        selectAll() {
+            this.readyPks.forEach(pk => this.selected[pk] = true);
+        },
+        deselectAll() {
+            this.readyPks.forEach(pk => this.selected[pk] = false);
+        },
+        toggleAll(checked) {
+            this.readyPks.forEach(pk => this.selected[pk] = checked);
+        },
+
+        injectSelected(e) {
+            // Build hidden inputs for the selected jobs before form submit
+            const container = document.getElementById('batchHiddenInputs');
+            container.innerHTML = '';
+            const selectedPks = this.readyPks.filter(pk => this.selected[pk]);
+            if (selectedPks.length === 0) {
+                e.preventDefault();
+                return;
+            }
+            selectedPks.forEach(pk => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'job_ids';
+                input.value = pk;
+                container.appendChild(input);
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

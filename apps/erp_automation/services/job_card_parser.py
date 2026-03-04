@@ -777,6 +777,24 @@ def parse_job_card(file_path):
     # --- Extract evaluation summaries ---
     evaluations = _extract_evaluations(wb)
 
+    # --- Extract price based on account ---
+    price = None
+    account_upper = (account or '').upper()
+    if account_upper == 'ARAMCO' and 'Eval & Quot-AR' in wb.sheetnames:
+        price = wb['Eval & Quot-AR']['Z56'].value
+    elif account_upper == 'LSTK' and 'Quotation' in wb.sheetnames:
+        price = wb['Quotation']['Y58'].value
+    elif account_upper == 'HALLIBURTON' and 'Qut. HALL.' in wb.sheetnames:
+        price = wb['Qut. HALL.']['AD56'].value
+    # RC-LSTK: no price sheet (leave None)
+
+    # Sanitize price to numeric
+    if price is not None:
+        try:
+            price = float(str(price).replace(',', '').replace('$', '').strip())
+        except (ValueError, TypeError):
+            price = None
+
     wb.close()
 
     # --- Handle date_received ---
@@ -829,6 +847,8 @@ def parse_job_card(file_path):
         'usr_pin_size': str(usr_pin_size or '').strip(),
         # --- Evaluation summaries ---
         'evaluations': evaluations,
+        # --- Pricing ---
+        'price': price,
         # --- Source ---
         'source_file': os.path.basename(file_path),
     }

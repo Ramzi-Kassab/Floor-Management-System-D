@@ -30,6 +30,12 @@
         <p class="text-gray-600 dark:text-gray-400">Job card data prepared for ERP automation</p>
     </div>
     <div class="flex items-center gap-3">
+        <a href="{% url 'erp_automation:job_data_export' %}"
+           class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+           id="exportBtn">
+            <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+            Export Excel
+        </a>
         <a href="{% url 'erp_automation:job_data_upload' %}"
            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
             <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
@@ -110,6 +116,11 @@
                        x-model="searchQuery" @input="applyAllFilters()">
             </div>
             <div class="flex items-center gap-3">
+                <button @click="toggleBatchMode()" class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                        :class="batchMode ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'">
+                    <i data-lucide="check-square" class="w-3 h-3 inline mr-1"></i>
+                    <span x-text="batchMode ? 'Exit Batch' : 'Select for Batch'"></span>
+                </button>
                 <button @click="clearAll()" class="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
                     <i data-lucide="x" class="w-3 h-3 inline mr-1"></i>Clear All
                 </button>
@@ -117,6 +128,35 @@
                     <span x-text="visibleCount"></span> / <span x-text="totalCount"></span> rows
                 </span>
             </div>
+        </div>
+        <!-- Batch toolbar (visible only in batch mode) -->
+        <div x-show="batchMode" x-transition class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
+            <button @click="selectAllReady()" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">Select All READY</button>
+            <span class="text-gray-300 dark:text-gray-600">|</span>
+            <button @click="deselectAll()" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">Deselect All</button>
+            <span class="ml-auto flex items-center gap-3">
+                <span class="text-sm font-medium" :class="selectedCount > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-400'">
+                    <span x-text="selectedCount"></span> selected
+                </span>
+                <!-- Chain selector -->
+                <select x-model="selectedChain"
+                        class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Manual (per-job)</option>
+                    {% for chain in chains %}
+                    <option value="{{ chain.pk }}">{{ chain.name }}</option>
+                    {% endfor %}
+                </select>
+                <form method="post" action="{% url 'erp_automation:job_data_start_batch' %}" id="batchForm" @submit="injectAndSubmit($event)">
+                    {% csrf_token %}
+                    <div id="batchHiddenInputs"></div>
+                    <button type="submit" :disabled="selectedCount === 0"
+                            :class="selectedCount === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-700'"
+                            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium">
+                        <i data-lucide="play-circle" class="w-4 h-4 mr-2"></i>
+                        <span x-text="selectedChain ? 'Run Chain (' + selectedCount + ')' : 'Start Batch (' + selectedCount + ')'">Start Batch (0)</span>
+                    </button>
+                </form>
+            </span>
         </div>
     </div>
 
@@ -127,11 +167,20 @@
             <table class="w-full text-sm" id="jobDataTable">
                 <thead>
                     <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                        <th x-show="batchMode" class="px-3 py-3 font-medium w-10">
+                            <input type="checkbox" @change="toggleAllVisible($event.target.checked)"
+                                   :checked="allVisibleSelected" :indeterminate.prop="someVisibleSelected && !allVisibleSelected"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                        </th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="wo" onclick="toggleFilterDropdown(event, 'wo')">WO #<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="serial" onclick="toggleFilterDropdown(event, 'serial')">Serial<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="size" onclick="toggleFilterDropdown(event, 'size')">Size<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="type" onclick="toggleFilterDropdown(event, 'type')">Type<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="account" onclick="toggleFilterDropdown(event, 'account')">Account<span class="sort-icon"></span></th>
+                        <th class="px-4 py-3 font-medium th-filter" data-col="jobtype" onclick="toggleFilterDropdown(event, 'jobtype')">Job Type<span class="sort-icon"></span></th>
+                        <th class="px-4 py-3 font-medium th-filter" data-col="price" onclick="toggleFilterDropdown(event, 'price')">Price<span class="sort-icon"></span></th>
+                        <th class="px-4 py-3 font-medium th-filter" data-col="itemno" onclick="toggleFilterDropdown(event, 'itemno')">Item #<span class="sort-icon"></span></th>
+                        <th class="px-4 py-3 font-medium th-filter" data-col="journal" onclick="toggleFilterDropdown(event, 'journal')">Journal #<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="itemgroup" onclick="toggleFilterDropdown(event, 'itemgroup')">Item Group<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="body" onclick="toggleFilterDropdown(event, 'body')">Body Material<span class="sort-icon"></span></th>
                         <th class="px-4 py-3 font-medium th-filter" data-col="route" onclick="toggleFilterDropdown(event, 'route')">Route<span class="sort-icon"></span></th>
@@ -142,7 +191,16 @@
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="jobDataBody">
                     {% for job in jobs %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors data-row"
-                        data-status="{{ job.status }}">
+                        data-status="{{ job.status }}" data-pk="{{ job.pk }}"
+                        :class="batchMode && selected[{{ job.pk }}] ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''">
+                        <td x-show="batchMode" class="px-3 py-3">
+                            {% if job.status == 'READY' or job.status == 'ERROR' %}
+                            <input type="checkbox" x-model="selected[{{ job.pk }}]"
+                                   class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                            {% else %}
+                            <span class="block w-4 h-4"></span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3" data-col="wo" data-val="{{ job.work_order_number }}">
                             <a href="{% url 'erp_automation:job_data_detail' job.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                                 {{ job.work_order_number }}
@@ -162,6 +220,35 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
                                 {{ job.account }}
                             </span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3" data-col="jobtype" data-val="{{ job.job_type }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if job.is_scrap %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                                {% elif job.is_rerun %}bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200
+                                {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200{% endif %}">
+                                {{ job.job_type }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3" data-col="price" data-val="{{ job.price|default:'' }}">
+                            {% if job.price %}
+                            <span class="font-mono text-xs">${{ job.price|floatformat:2 }}</span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3" data-col="itemno" data-val="{{ job.item_number|default:'' }}">
+                            {% if job.item_number %}
+                            <span class="font-mono text-xs text-emerald-700 dark:text-emerald-400">{{ job.item_number }}</span>
+                            {% else %}
+                            <span class="text-gray-400">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3" data-col="journal" data-val="{{ job.movement_journal_number|default:'' }}">
+                            {% if job.movement_journal_number %}
+                            <span class="font-mono text-xs text-emerald-700 dark:text-emerald-400">{{ job.movement_journal_number }}</span>
                             {% else %}
                             <span class="text-gray-400">--</span>
                             {% endif %}
@@ -262,6 +349,73 @@ function jobDataList() {
         totalCount: 0,
         counts: { all: 0, DRAFT: 0, READY: 0, SENT: 0, COMPLETED: 0, ERROR: 0 },
 
+        // Batch selection
+        batchMode: false,
+        selected: {},
+        selectedChain: '',
+
+        get selectedCount() {
+            return Object.values(this.selected).filter(v => v).length;
+        },
+
+        get allVisibleSelected() {
+            const readyPks = this._getVisibleReadyPks();
+            return readyPks.length > 0 && readyPks.every(pk => this.selected[pk]);
+        },
+
+        get someVisibleSelected() {
+            const readyPks = this._getVisibleReadyPks();
+            return readyPks.some(pk => this.selected[pk]);
+        },
+
+        _getVisibleReadyPks() {
+            const pks = [];
+            document.querySelectorAll('#jobDataBody .data-row').forEach(tr => {
+                if (tr.style.display !== 'none' && (tr.dataset.status === 'READY' || tr.dataset.status === 'ERROR') && tr.dataset.pk) {
+                    pks.push(tr.dataset.pk);
+                }
+            });
+            return pks;
+        },
+
+        toggleBatchMode() {
+            this.batchMode = !this.batchMode;
+            if (!this.batchMode) { this.selected = {}; this.selectedChain = ''; }
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        selectAllReady() {
+            this._getVisibleReadyPks().forEach(pk => { this.selected[pk] = true; });
+        },
+
+        deselectAll() {
+            this.selected = {};
+        },
+
+        toggleAllVisible(checked) {
+            this._getVisibleReadyPks().forEach(pk => { this.selected[pk] = checked; });
+        },
+
+        injectAndSubmit(e) {
+            const container = document.getElementById('batchHiddenInputs');
+            container.innerHTML = '';
+            const selectedPks = Object.entries(this.selected).filter(([, v]) => v).map(([pk]) => pk);
+            if (selectedPks.length === 0) { e.preventDefault(); return; }
+            selectedPks.forEach(pk => {
+                const input = document.createElement('input');
+                input.type = 'hidden'; input.name = 'job_ids'; input.value = pk;
+                container.appendChild(input);
+            });
+            // Include chain_id if a chain is selected
+            if (this.selectedChain) {
+                const chainInput = document.createElement('input');
+                chainInput.type = 'hidden';
+                chainInput.name = 'chain_id';
+                chainInput.value = this.selectedChain;
+                container.appendChild(chainInput);
+            }
+        },
+
         init() {
             const rows = document.querySelectorAll('#jobDataBody .data-row');
             this.totalCount = rows.length;
@@ -287,6 +441,9 @@ function jobDataList() {
         clearAll() {
             this.statusFilter = 'all';
             this.searchQuery = '';
+            this.batchMode = false;
+            this.selected = {};
+            this.selectedChain = '';
             activeFilters.clear();
             currentPage = 1;
             applyAllClientFilters();
@@ -540,6 +697,21 @@ function changePageSize() {
     currentPage = 1;
     applyAllClientFilters();
 }
+
+// ── Export with filters ──
+document.getElementById('exportBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    const alpineData = Alpine.$data(document.querySelector('[x-data]'));
+    const params = new URLSearchParams();
+    if (alpineData?.statusFilter && alpineData.statusFilter !== 'all') {
+        params.set('status', alpineData.statusFilter);
+    }
+    if (alpineData?.searchQuery) {
+        params.set('search', alpineData.searchQuery);
+    }
+    const qs = params.toString();
+    window.location.href = "{% url 'erp_automation:job_data_export' %}" + (qs ? '?' + qs : '');
+});
 
 // ── Close dropdown on outside click ──
 document.addEventListener('click', function(e) {

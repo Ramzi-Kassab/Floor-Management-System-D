@@ -1121,6 +1121,8 @@ class ERPJobData(models.Model):
     transfer_order_number = models.CharField(max_length=50, blank=True)
     movement_journal_number = models.CharField(max_length=50, blank=True,
         help_text="Movement Journal number captured from D365")
+    price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Repair price from quotation sheet")
 
     # --- Metadata ---
     source_file = models.CharField(max_length=500, blank=True,
@@ -1168,9 +1170,45 @@ class ERPJobData(models.Model):
                                   f"Allowed transitions: {', '.join(allowed) or 'none (terminal state)'}."
                     })
 
+    def get_active_execution(self):
+        """Return (type, execution) for any running/pending execution, or (None, None).
+
+        Checks chain executions first (most common), then standalone workflow executions.
+        """
+        ce = self.chain_executions.filter(
+            status__in=['pending', 'running']
+        ).order_by('-started_at').first()
+        if ce:
+            return ('chain', ce)
+        we = self.executions.filter(
+            status__in=['pending', 'running'],
+            chain_execution__isnull=True,
+        ).order_by('-started_at').first()
+        if we:
+            return ('workflow', we)
+        return (None, None)
+
+    def get_active_execution_url(self):
+        """Return the redirect URL for the active execution, or empty string."""
+        exec_type, active_exec = self.get_active_execution()
+        if exec_type == 'chain':
+            return f'/erp-automation/chain-executions/{active_exec.pk}/'
+        if exec_type == 'workflow':
+            return f'/erp-automation/live/{active_exec.pk}/'
+        return ''
+
     def get_display_name(self):
         """Short display name for UI."""
         return f"WO {self.work_order_number}" if self.work_order_number else f"Job #{self.pk}"
+
+    @property
+    def job_type(self):
+        """Return job type: Scrap, Rerun, or Repair."""
+        if self.is_scrap:
+            return 'Scrap'
+        if self.is_rerun:
+            return 'Rerun'
+        return 'Repair'
 
     def _format_size(self):
         """Format size as clean fraction string.
@@ -1223,18 +1261,27 @@ class ERPJobData(models.Model):
             'ROUTE': self.route.route_number if self.route else '',
             'ROUTE_NAME': self.route.name if self.route else '',
             'WO_NUMBER': self.work_order_number or '',
+            'PRICE': str(self.price or ''),
+
+            # --- Job type flags (for conditional chain/workflow execution) ---
+            'IS_SCRAP': 'true' if self.is_scrap else 'false',
+            'IS_RERUN': 'true' if self.is_rerun else 'false',
+            'JOB_TYPE': 'Scrap' if self.is_scrap else ('Rerun' if self.is_rerun else 'Repair'),
+            'HAS_ROUTE': 'true' if self.route else 'false',
         }
 
         # --- Flatten cutter BOM variants into BOM_LINE_N_ITEM / BOM_LINE_N_QTY ---
         # Each variant with an ERP item number becomes a separate BOM line.
         # Supports up to 8 lines (covers all observed ARAMCO recordings: 3-5 lines).
+        # For scrap/rerun: skip BOM lines — WF-7B deletes existing lines but adds none.
         flat_lines = []
-        for group in (self.cutter_bom_data or []):
-            for v in (group.get('variants') or []):
-                erp_no = v.get('erp_item_no', '')
-                qty = v.get('qty', 0)
-                if erp_no and qty:
-                    flat_lines.append((erp_no, str(qty)))
+        if not self.is_scrap and not self.is_rerun:
+            for group in (self.cutter_bom_data or []):
+                for v in (group.get('variants') or []):
+                    erp_no = v.get('erp_item_no', '')
+                    qty = v.get('qty', 0)
+                    if erp_no and qty:
+                        flat_lines.append((erp_no, str(qty)))
         for i in range(8):
             if i < len(flat_lines):
                 row[f'BOM_LINE_{i+1}_ITEM'] = flat_lines[i][0]
@@ -1244,6 +1291,7 @@ class ERPJobData(models.Model):
                 row[f'BOM_LINE_{i+1}_QTY'] = ''
 
         # BOM_LINES: list of dicts for repeat-group loop iteration (unlimited)
+        # Empty for scrap/rerun — repeat group produces 0 iterations (no lines added)
         row['BOM_LINES'] = [
             {'ITEM': item, 'QTY': qty}
             for item, qty in flat_lines
