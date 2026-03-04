@@ -752,6 +752,11 @@ class WorkflowExecutor:
                 result = self._execute_step(step, step_row_data)
 
                 if result["success"]:
+                    # Post-fill verification for fill steps in repeat groups
+                    if step.action_type == "fill" and step.repeat_group and step.locator and loop_ctx:
+                        fill_value = step.get_value(step_row_data, self.context_vars)
+                        if fill_value:
+                            self._verify_and_retry_fill(step, fill_value)
                     steps_completed += 1
                     self._create_step_record(execution_record, step, "success", result, step_started)
                     if self.on_step_complete:
@@ -984,6 +989,12 @@ class WorkflowExecutor:
                 if step.wait_after > 0:
                     logger.info(f"[type_text] Waiting {step.wait_after}ms after action")
                     self.page.wait_for_timeout(step.wait_after)
+
+                # --- Post-fill verification & retry (for repeat group accuracy) ---
+                if step.locator and step.repeat_group:
+                    vr = self._verify_and_retry_fill(step, value)
+                    if not vr["verified"]:
+                        logger.warning(f"[type_text] Could not verify value in field after retries")
 
                 return {"success": True, "message": f"Typed '{value}' into {target_info}"}
             except Exception as e:
@@ -1854,6 +1865,50 @@ class WorkflowExecutor:
             logger.info(f"Browser zoom: {zoom_steps}x Ctrl+Minus applied (~{pct}%)")
         except Exception as e:
             logger.warning(f"Keyboard zoom failed: {e}")
+
+    def _verify_and_retry_fill(self, step, value: str, max_retries: int = 2) -> dict:
+        """After a fill/type_text in a repeat group, read the field value back
+        and retry if it doesn't match.  Returns {'verified': bool, 'actual': str}."""
+        if not step.locator or not self.page:
+            return {"verified": False, "actual": "", "reason": "no locator or page"}
+        for attempt in range(max_retries):
+            try:
+                el = self.locator_engine.find_element(step.locator, timeout=3000)
+                if not el:
+                    return {"verified": False, "actual": "", "reason": "locator not found"}
+                actual = ""
+                try:
+                    actual = (el.input_value() or "").strip()
+                except Exception:
+                    pass
+                if not actual:
+                    logger.warning(f"[verify_fill] attempt {attempt+1}: field EMPTY, expected '{value}'")
+                elif value.lower() in actual.lower() or actual.lower() in value.lower():
+                    logger.info(f"[verify_fill] OK: field='{actual}' matches expected='{value}'")
+                    return {"verified": True, "actual": actual}
+                else:
+                    logger.warning(f"[verify_fill] attempt {attempt+1}: field='{actual}' != expected='{value}'")
+                # Retry: click, clear, retype
+                try:
+                    el.click(timeout=3000)
+                    self.page.wait_for_timeout(300)
+                    self.page.keyboard.press("Control+a")
+                    self.page.keyboard.press("Delete")
+                    self.page.wait_for_timeout(200)
+                    if step.action_type == "type_text":
+                        self.page.keyboard.insert_text(value)
+                    else:
+                        el.fill(value, timeout=5000)
+                    if step.press_key_after:
+                        self.page.wait_for_timeout(100)
+                        self.page.keyboard.press(step.press_key_after)
+                    if step.wait_after > 0:
+                        self.page.wait_for_timeout(step.wait_after)
+                except Exception as re_err:
+                    logger.warning(f"[verify_fill] retry fill failed: {re_err}")
+            except Exception as e:
+                logger.debug(f"[verify_fill] check error: {e}")
+        return {"verified": False, "actual": "", "reason": "exhausted retries"}
 
     def _perform_action(
         self,
@@ -3167,6 +3222,12 @@ class DebugExecutor(WorkflowExecutor):
                     logger.debug(f"[PageState] Debug state capture failed: {pa_err}")
 
             if result["success"]:
+                # Post-fill verification for fill steps in repeat groups
+                if step.action_type == "fill" and step.repeat_group and step.locator and loop_ctx:
+                    fill_value = step.get_value(step_row_data, self.context_vars)
+                    if fill_value:
+                        self._verify_and_retry_fill(step, fill_value)
+
                 steps_completed += 1
                 self._create_step_record(execution_record, step, "success", result, step_started)
                 completed_entry = {
