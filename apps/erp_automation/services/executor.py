@@ -711,10 +711,17 @@ class WorkflowExecutor:
             total_steps = len(expanded_steps)
             logger.info(f"Executing workflow '{workflow.name}' with {total_steps} steps (expanded)")
 
+            skipped_groups = set()  # skip_group names where first step failed
+
             for step, loop_ctx in expanded_steps:
                 if self.should_stop:
                     logger.info("Workflow stopped by user")
                     break
+
+                # ── Skip group: if this group was already marked failed, skip ──
+                if step.skip_group and step.skip_group in skipped_groups:
+                    logger.info(f"[skip_group] Skipping step {step.order} '{step.name}' — group '{step.skip_group}' already failed")
+                    continue
 
                 # Merge loop context
                 if loop_ctx:
@@ -775,6 +782,11 @@ class WorkflowExecutor:
 
                     if self.on_step_error:
                         self.on_step_error(step, result)
+
+                    # Mark skip_group as failed so subsequent steps in group are skipped
+                    if step.skip_group:
+                        skipped_groups.add(step.skip_group)
+                        logger.info(f"[skip_group] Group '{step.skip_group}' marked for skip (step {step.order} failed)")
 
                     if not step.continue_on_error:
                         # Try error handler if defined
@@ -3108,9 +3120,26 @@ class DebugExecutor(WorkflowExecutor):
         total_steps = len(steps)
         self._update_state(total_steps=total_steps)
 
+        skipped_groups = set()  # skip_group names where first step failed
+
         idx = 0
         while idx < len(steps):
             step, loop_ctx = steps[idx]
+
+            # ── Skip group: if this group was already marked failed, skip ──
+            if step.skip_group and step.skip_group in skipped_groups:
+                logger.info(f"[DebugExec] [skip_group] Skipping step {step.order} '{step.name}' — group '{step.skip_group}' already failed")
+                with self._lock:
+                    self._debug_state["completed_steps"].append({
+                        "id": step.pk, "order": step.order, "name": step.name,
+                        "status": "skipped",
+                        "duration_ms": 0,
+                    })
+                self._create_step_record(execution_record, step, "skipped",
+                    {"success": False, "message": f"Skip group '{step.skip_group}' — prior step failed"},
+                    timezone.now())
+                idx += 1
+                continue
 
             # Merge loop context into row_data for template resolution
             if loop_ctx:
@@ -3282,6 +3311,20 @@ class DebugExecutor(WorkflowExecutor):
 
             # ── STEP FAILED ──────────────────────────────────────
             logger.warning(f"[DebugExec] Step {step.order} failed: {result['message']}")
+
+            # ── Skip group: COE step with skip_group → mark group & skip immediately ──
+            if step.continue_on_error and step.skip_group:
+                skipped_groups.add(step.skip_group)
+                logger.info(f"[DebugExec] [skip_group] Group '{step.skip_group}' marked for skip (step {step.order} failed)")
+                self._create_step_record(execution_record, step, "skipped", result, step_started)
+                with self._lock:
+                    self._debug_state["completed_steps"].append({
+                        "id": step.pk, "order": step.order, "name": step.name,
+                        "status": "skipped",
+                        "duration_ms": int((timezone.now() - step_started).total_seconds() * 1000),
+                    })
+                idx += 1
+                continue
 
             # Collect strategies that were tried
             strategies_tried = []

@@ -145,6 +145,11 @@
                                                       :title="'Repeat group: ' + step.repeat_group + (step.repeat_data_source ? ' (source: ' + step.repeat_data_source + ')' : '')"
                                                       x-text="'LOOP: ' + step.repeat_group"></span>
                                             </template>
+                                            <template x-if="step.skip_group">
+                                                <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                                                      :title="'Skip group: when first COE step fails, remaining steps in group are skipped'"
+                                                      x-text="'SKIP: ' + step.skip_group"></span>
+                                            </template>
                                         </div>
                                     </template>
                                     <template x-if="editingStep === step.id">
@@ -159,6 +164,8 @@
                                                 <input type="text" x-model="editForm.repeat_data_source" placeholder="Data source (e.g. BOM_LINES)"
                                                        class="w-1/2 px-2 py-1 text-xs border border-purple-200 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300">
                                             </div>
+                                            <input type="text" x-model="editForm.skip_group" placeholder="Skip group (e.g. delete_existing)"
+                                                   class="w-full px-2 py-1 text-xs border border-amber-200 dark:border-amber-600 rounded bg-white dark:bg-gray-700 text-amber-700 dark:text-amber-300">
                                         </div>
                                     </template>
                                 </td>
@@ -583,6 +590,13 @@
                     </div>
                     <p class="col-span-2 text-xs text-purple-500 dark:text-purple-400">Steps with the same repeat group will loop over the data source array. Use {{LOOP_ITEM}}, {{LOOP_QTY}}, {{LOOP_INDEX}} in templates.</p>
                 </div>
+                <!-- Skip Group -->
+                <div class="p-3 border border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50/50 dark:bg-amber-900/10">
+                    <label class="block text-xs font-medium text-amber-600 dark:text-amber-400 uppercase mb-1">Skip Group</label>
+                    <input type="text" x-model="addModal.data.skip_group" placeholder="e.g. delete_existing"
+                           class="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-gray-700 text-amber-700 dark:text-amber-300">
+                    <p class="mt-1 text-xs text-amber-500 dark:text-amber-400">When a COE step with this group fails, all subsequent steps in the same group are skipped.</p>
+                </div>
                 <div class="flex items-center gap-4">
                     <label class="flex items-center gap-2 text-sm">
                         <input type="checkbox" x-model="addModal.data.continue_on_error" class="rounded">
@@ -838,6 +852,7 @@ function workflowEditor() {
                 clear_before_fill: step.clear_before_fill || false,
                 repeat_group: step.repeat_group || '',
                 repeat_data_source: step.repeat_data_source || '',
+                skip_group: step.skip_group || '',
             };
             this.locatorSearch.query = '';
             this.locatorSearch.results = [];
@@ -899,6 +914,7 @@ function workflowEditor() {
                 clear_before_fill: false,
                 repeat_group: '',
                 repeat_data_source: '',
+                skip_group: '',
             };
             this.locatorSearch.query = '';
             this.locatorSearch.results = [];
@@ -982,6 +998,7 @@ function workflowEditor() {
                 check_for_errors: step.check_for_errors || false,
                 repeat_group: step.repeat_group || '',
                 repeat_data_source: step.repeat_data_source || '',
+                skip_group: step.skip_group || '',
             };
             try {
                 const d = await this._apiFetch(`/erp-automation/api/workflows/${WF_PK}/steps/create/`, {

@@ -442,6 +442,14 @@ class WorkflowStep(models.Model):
         help_text="Save step result to context with this key"
     )
 
+    # Skip group — when the first COE step in a group fails, skip the rest
+    skip_group = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Skip group name. When a COE step with this group fails, all subsequent steps with the same group are skipped."
+    )
+
     # Repeat group — loop a group of steps over an array in row_data
     repeat_group = models.CharField(
         max_length=50,

@@ -463,6 +463,11 @@
                                                           :title="'Repeat group: ' + step.repeat_group + (step.repeat_data_source ? ' (source: ' + step.repeat_data_source + ')' : '')"
                                                           x-text="'LOOP: ' + step.repeat_group"></span>
                                                 </template>
+                                                <template x-if="step.skip_group">
+                                                    <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                                                          :title="'Skip group: when first COE step fails, rest are skipped'"
+                                                          x-text="'SKIP: ' + step.skip_group"></span>
+                                                </template>
                                                 <!-- Show loop iteration during debug -->
                                                 <template x-if="debugState.active && debugState.currentStep && debugState.currentStep.id === step.id && debugState.currentStep.loop_iteration">
                                                     <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-600 text-white font-medium"

@@ -3094,6 +3094,7 @@ class ChainDetailView(LoginRequiredMixin, DetailView):
             "interaction_mode": s.interaction_mode or "auto",
             "repeat_group": s.repeat_group or "",
             "repeat_data_source": s.repeat_data_source or "",
+            "skip_group": s.skip_group or "",
         }
 
     def get_context_data(self, **kwargs):
@@ -3804,6 +3805,7 @@ def _step_to_dict(step):
         "interaction_mode": step.interaction_mode or "auto",
         "repeat_group": step.repeat_group or "",
         "repeat_data_source": step.repeat_data_source or "",
+        "skip_group": step.skip_group or "",
     }
 
 
@@ -3868,6 +3870,7 @@ def api_step_create(request, wf_pk):
             interaction_mode=data.get("interaction_mode") or "auto",
             repeat_group=data.get("repeat_group") or "",
             repeat_data_source=data.get("repeat_data_source") or "",
+            skip_group=data.get("skip_group") or "",
         )
 
         # Renumber all steps sequentially (1, 2, 3, ...)
@@ -3909,7 +3912,8 @@ def api_step_update(request, wf_pk, step_pk):
     # Update fields if provided
     for field in ["name", "action_type", "value_static", "value_field",
                   "value_template", "condition_value", "press_key_after",
-                  "interaction_mode", "repeat_group", "repeat_data_source"]:
+                  "interaction_mode", "repeat_group", "repeat_data_source",
+                  "skip_group"]:
         if field in data:
             setattr(step, field, data[field])
 
@@ -4122,6 +4126,7 @@ def api_workflow_steps(request, wf_pk):
             "interaction_mode": s.interaction_mode or "auto",
             "repeat_group": s.repeat_group or "",
             "repeat_data_source": s.repeat_data_source or "",
+            "skip_group": s.skip_group or "",
         })
     return JsonResponse({"steps": steps})
 
@@ -4277,6 +4282,7 @@ def api_chain_all_steps(request, pk):
                 "interaction_mode": s.interaction_mode or "auto",
                 "repeat_group": s.repeat_group or "",
                 "repeat_data_source": s.repeat_data_source or "",
+                "skip_group": s.skip_group or "",
             })
         segments.append({
             "link_id": link.pk,
