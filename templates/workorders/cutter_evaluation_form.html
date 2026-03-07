@@ -72,19 +72,54 @@
             </div>
         </div>
 
-        <!-- Matrix Buildup -->
+        <!-- Sections & Buildup -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Matrix/Buildup</h3>
-            <div class="space-y-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sections &amp; Options</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Sections are auto-configured from the evaluation type. Override here if needed.
+            </p>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_checklist" id="id_include_checklist" value="true" checked
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_checklist" class="text-sm text-gray-700 dark:text-gray-300">Checklist</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_cutter_grid" id="id_include_cutter_grid" value="true" checked
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_cutter_grid" class="text-sm text-gray-700 dark:text-gray-300">Cutter Grid</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_die_check" id="id_include_die_check" value="true"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_die_check" class="text-sm text-gray-700 dark:text-gray-300">Die Check</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_pressure_test" id="id_include_pressure_test" value="true"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_pressure_test" class="text-sm text-gray-700 dark:text-gray-300">LPT (Pressure Test)</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_thread_inspection" id="id_include_thread_inspection" value="true"
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_thread_inspection" class="text-sm text-gray-700 dark:text-gray-300">API Thread Inspection</label>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="include_pocket_eval" id="id_include_pocket_eval" value="true" checked
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
+                    <label for="id_include_pocket_eval" class="text-sm text-gray-700 dark:text-gray-300">Pocket Evaluation</label>
+                </div>
+            </div>
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
                 <div class="flex items-center gap-3">
                     <input type="checkbox" name="ardt_matrix_buildup" id="id_ardt_matrix_buildup" value="true"
                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    <label for="id_ardt_matrix_buildup" class="text-sm font-medium text-gray-700 dark:text-gray-300">ARDT Matrix Build Up Required</label>
+                    <label for="id_ardt_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">ARDT Matrix Build Up Required</label>
                 </div>
                 <div class="flex items-center gap-3">
                     <input type="checkbox" name="eng_matrix_buildup" id="id_eng_matrix_buildup" value="true"
                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    <label for="id_eng_matrix_buildup" class="text-sm font-medium text-gray-700 dark:text-gray-300">Engineering Matrix Build Up Required</label>
+                    <label for="id_eng_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">Engineering Matrix Build Up Required</label>
                 </div>
             </div>
         </div>
@@ -137,4 +172,40 @@
         </button>
     </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Section defaults per evaluation type (mirrors model SECTION_DEFAULTS)
+const SECTION_DEFAULTS = {
+    'RECEIVING':         { checklist: true,  cutter_grid: true,  pocket_eval: true,  die_check: false, pressure_test: false, thread_inspection: false },
+    'PDC_EVAL':          { checklist: true,  cutter_grid: true,  pocket_eval: true,  die_check: true,  pressure_test: false, thread_inspection: false },
+    'QC':                { checklist: true,  cutter_grid: true,  pocket_eval: true,  die_check: false, pressure_test: false, thread_inspection: false },
+    'ENGINEER':          { checklist: false, cutter_grid: true,  pocket_eval: false, die_check: false, pressure_test: false, thread_inspection: false },
+    'ARAMCO_REP':        { checklist: false, cutter_grid: true,  pocket_eval: false, die_check: false, pressure_test: false, thread_inspection: false },
+    'DIE_CHECK':         { checklist: false, cutter_grid: false, pocket_eval: false, die_check: true,  pressure_test: false, thread_inspection: false },
+    'FINAL_DIE_CHECK':   { checklist: false, cutter_grid: false, pocket_eval: false, die_check: true,  pressure_test: false, thread_inspection: false },
+    'FINAL_QC':          { checklist: true,  cutter_grid: true,  pocket_eval: true,  die_check: false, pressure_test: false, thread_inspection: false },
+    'FINAL_INSPECTION':  { checklist: true,  cutter_grid: true,  pocket_eval: true,  die_check: false, pressure_test: false, thread_inspection: true },
+    'REWORK':            { checklist: true,  cutter_grid: true,  pocket_eval: false, die_check: false, pressure_test: false, thread_inspection: false },
+};
+
+function applySectionDefaults(evalType) {
+    const defaults = SECTION_DEFAULTS[evalType] || {};
+    Object.entries(defaults).forEach(([key, val]) => {
+        const cb = document.getElementById('id_include_' + key);
+        if (cb) cb.checked = val;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.querySelector('[name="evaluation_type"]');
+    if (typeSelect) {
+        applySectionDefaults(typeSelect.value);
+        typeSelect.addEventListener('change', function() {
+            applySectionDefaults(this.value);
+        });
+    }
+});
+</script>
 {% endblock %}

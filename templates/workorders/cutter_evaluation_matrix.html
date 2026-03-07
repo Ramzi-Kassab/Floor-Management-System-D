@@ -72,11 +72,25 @@
         padding-bottom: 2px;
     }
 
+    /* Die check tab buttons */
+    .die-check-tab {
+        background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+        cursor: pointer; transition: all 0.15s;
+    }
+    .die-check-tab.active {
+        background: #7c3aed; color: #fff; border-color: #7c3aed;
+    }
+    .dark .die-check-tab { background: #374151; color: #d1d5db; border-color: #4b5563; }
+    .dark .die-check-tab.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+
     /* Print styles */
     @media print {
         .no-print { display: none !important; }
         .eval-cell { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-size: 10px; }
+        /* Show both die check grids in print */
+        .die-check-panel { display: block !important; }
+        .die-check-panel + .die-check-panel { margin-top: 12px; }
     }
 
     /* Landscape toggle */
@@ -92,6 +106,24 @@
         <p class="text-sm text-gray-500 dark:text-gray-400">Form: QAS/1001-1 &mdash; {{ work_order.wo_number }}</p>
     </div>
     <div class="mt-2 md:mt-0 flex flex-wrap gap-2">
+        <div class="relative" x-data="{ sectionsOpen: false }">
+            <button type="button" @click="sectionsOpen = !sectionsOpen"
+                    class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 mr-1"></i>Sections
+            </button>
+            <div x-show="sectionsOpen" @click.outside="sectionsOpen = false" x-transition
+                 class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 p-3">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2 font-semibold uppercase">Toggle Sections</p>
+                {% for sec_key, sec_label in section_toggles %}
+                <label class="flex items-center gap-2 py-1 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                           {% if sec_key in active_sections %}checked{% endif %}
+                           onchange="toggleSection('{{ sec_key }}', this.checked)">
+                    {{ sec_label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
         <button type="button" id="toggleLayoutBtn" onclick="toggleLayout()"
                 class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
             <i data-lucide="maximize-2" class="w-4 h-4 mr-1"></i>
@@ -218,6 +250,58 @@
     </div>
     {% endif %}
 
+    <!-- Evaluation Checklist (QAS/1002 pattern) -->
+    {% if has_checklist %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-blue-500"></i>
+                Evaluation Checklist
+            </h3>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400"></i>
+        </div>
+        <div>
+            <table class="w-full text-xs border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-gray-700">
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-10 text-center">Sr.</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">Evaluation Step Description</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-12 text-center">OK</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-16 text-center">Not OK</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-10 text-center">N/A</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-2 py-1" style="min-width:120px">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody id="checklistBody">
+                    {% for item in checklist_items %}
+                    <tr>
+                        <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center text-gray-500">{{ item.number }}</td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-900 dark:text-gray-100">{{ item.item }}</td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                            <input type="radio" name="cl_{{ item.number }}" value="OK" class="cl-radio" data-idx="{{ item.number }}"
+                                   {% if item.status == 'OK' %}checked{% endif %}>
+                        </td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                            <input type="radio" name="cl_{{ item.number }}" value="NOT_OK" class="cl-radio" data-idx="{{ item.number }}"
+                                   {% if item.status == 'NOT_OK' %}checked{% endif %}>
+                        </td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                            <input type="radio" name="cl_{{ item.number }}" value="NA" class="cl-radio" data-idx="{{ item.number }}"
+                                   {% if item.status == 'NA' %}checked{% endif %}>
+                        </td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                            <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 cl-remarks"
+                                   data-idx="{{ item.number }}" value="{{ item.remarks }}">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if include_cutter_grid %}
     <!-- Instructions -->
     <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 mb-3 text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
         <strong>Instructions:</strong> Clearly mark the #1 blade with permanent marker or pen. Begin with the inner most cutter on the blade, mark each cutter with <strong>X</strong> if needs to be replaced, <strong>R</strong> if needs to be rotated, and <strong>O</strong> if okay. Then go for the next blade in a clockwise direction and do the same. Also: <strong>P</strong> if pocket needs build up, <strong>I</strong> if Impact Arrestor needs build up, <strong>V</strong> surrounding the fin needs build up, <strong>F</strong> fill, <strong>S</strong> spin, <strong>L</strong> lost. After checking and marking cutters through all the blades, transfer marks to the table below.
@@ -304,11 +388,332 @@
         </div>
     </div>
 
-    <!-- Remarks -->
+    {% endif %}{# include_cutter_grid #}
+
+    <!-- Remarks (always visible) -->
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Remarks:</label>
         <textarea id="remarks" rows="2" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 dark:text-white">{{ matrix.general_remark|default:"" }}</textarea>
     </div>
+
+    <!-- Die Check Grid -->
+    {% if include_die_check %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                <i data-lucide="scan" class="w-3.5 h-3.5 text-purple-500"></i>
+                Die Check Evaluation
+            </h3>
+            <div class="flex gap-1 no-print">
+                <button type="button" onclick="switchDieCheck(1)"
+                        class="px-2 py-0.5 text-xs rounded die-check-tab" id="dieCheckTab1">Die Check 1</button>
+                <button type="button" onclick="switchDieCheck(2)"
+                        class="px-2 py-0.5 text-xs rounded die-check-tab" id="dieCheckTab2">Die Check 2</button>
+            </div>
+        </div>
+
+        <div id="dieCheckGrid1" class="die-check-panel">
+            <p class="text-[10px] font-semibold text-purple-600 dark:text-purple-400 mb-0.5 hidden print:block">Die Check 1</p>
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">Cutter's number from ID to Gauge area &rarr;</p>
+            <div class="overflow-x-auto">
+                <div class="inline-block">
+                    <div class="flex items-end mb-0.5">
+                        <div class="blade-label">&nbsp;</div>
+                        <div class="blade-label">&nbsp;</div>
+                        {% for pos in cutter_positions %}
+                        <div class="pos-header">{{ pos }}</div>
+                        {% endfor %}
+                    </div>
+                    {% for row in rows %}
+                    <div class="flex items-center" style="height: 30px;">
+                        <div class="blade-label">&nbsp;</div>
+                        <div class="blade-label">{{ row.blade }}</div>
+                        {% for cutter in row.cutters %}
+                        <input type="text" class="eval-cell dc-cell" maxlength="3"
+                               data-dc="1" data-blade="{{ row.blade }}" data-pos="{{ cutter.position }}"
+                               onfocus="this.select()" oninput="this.value=this.value.toUpperCase()">
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="mt-2">
+                <label class="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">Remark:</label>
+                <textarea id="dieCheckRemark1" rows="2" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white"></textarea>
+            </div>
+        </div>
+
+        <div id="dieCheckGrid2" class="die-check-panel hidden">
+            <p class="text-[10px] font-semibold text-purple-600 dark:text-purple-400 mb-0.5 hidden print:block">Die Check 2</p>
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">Cutter's number from ID to Gauge area &rarr;</p>
+            <div class="overflow-x-auto">
+                <div class="inline-block">
+                    <div class="flex items-end mb-0.5">
+                        <div class="blade-label">&nbsp;</div>
+                        <div class="blade-label">&nbsp;</div>
+                        {% for pos in cutter_positions %}
+                        <div class="pos-header">{{ pos }}</div>
+                        {% endfor %}
+                    </div>
+                    {% for row in rows %}
+                    <div class="flex items-center" style="height: 30px;">
+                        <div class="blade-label">&nbsp;</div>
+                        <div class="blade-label">{{ row.blade }}</div>
+                        {% for cutter in row.cutters %}
+                        <input type="text" class="eval-cell dc-cell" maxlength="3"
+                               data-dc="2" data-blade="{{ row.blade }}" data-pos="{{ cutter.position }}"
+                               onfocus="this.select()" oninput="this.value=this.value.toUpperCase()">
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="mt-2">
+                <label class="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">Remark:</label>
+                <textarea id="dieCheckRemark2" rows="2" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white"></textarea>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pressure Test (LPT Report) — QAS/1004-1 -->
+    {% if include_pressure_test %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-rose-500"></i>
+                Liquid Penetrant Testing (LPT) — QAS/1004-1
+            </h3>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400"></i>
+        </div>
+        <div>
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">Technique: Fluorescent Washable Technique &mdash; Procedure: SA-PP-1013</p>
+
+            {% for lpt_round in "12" %}
+            <div class="{% if not forloop.first %}mt-4 pt-3 border-t border-gray-200 dark:border-gray-700{% endif %}">
+                <h4 class="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mb-2 uppercase">
+                    {% if forloop.first %}Before Brazing{% else %}After (Tip Grinding / Brazing){% endif %}
+                </h4>
+
+                <!-- Materials Table -->
+                <table class="w-full text-xs border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-gray-700">
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left w-24">Material</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">Product Name</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left w-28">Batch No</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left w-32">Chemical Expiry</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Cleaner</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="0" data-field="product" value="Water"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="0" data-field="batch" value="----"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="0" data-field="expiry" value="----"></td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Penetrant</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="1" data-field="product"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="1" data-field="batch"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="1" data-field="expiry"></td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 font-medium text-gray-700 dark:text-gray-300">Developer</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="2" data-field="product"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="2" data-field="batch"></td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 lpt-field" data-round="{{ lpt_round }}" data-mat="2" data-field="expiry"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Parameters -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Surface Temperature</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="surface_temp">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Light Intensity</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="light_intensity">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Penetrant Dwell Time</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="penetrant_dwell">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Developer Dwell Time</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="developer_dwell">
+                    </div>
+                </div>
+
+                <!-- Operator & Result -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">LPT Operator</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="operator">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Result</label>
+                        <select class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                                data-round="{{ lpt_round }}" data-field="result">
+                            <option value="">— Select —</option>
+                            <option value="ACCEPT">Accept</option>
+                            <option value="REJECT">Reject</option>
+                            <option value="CONDITIONAL">Conditional</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Disposition / Remarks</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white lpt-field"
+                               data-round="{{ lpt_round }}" data-field="remarks">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- API Thread Inspection -->
+    {% if include_thread_inspection %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="flex items-center justify-between mb-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-cyan-500"></i>
+                API Thread Inspection
+            </h3>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400"></i>
+        </div>
+        <div>
+            {% for ti_round in "12" %}
+            <div class="{% if not forloop.first %}mt-4 pt-3 border-t border-gray-200 dark:border-gray-700{% endif %}">
+                <h4 class="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 mb-2 uppercase">
+                    {% if forloop.first %}Evaluation (Before Repair){% else %}After Repair{% endif %}
+                </h4>
+
+                <!-- Checkpoints Table -->
+                <table class="w-full text-xs border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-gray-700">
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left">Check Point</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-12 text-center">OK</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-16 text-center">Not OK</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-1" style="min-width:120px">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">Pin Face</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_0" value="OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="0">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_0" value="NOT_OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="0">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 ti-field" data-round="{{ ti_round }}" data-cp="0" data-field="remarks">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">Thread</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_1" value="OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="1">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_1" value="NOT_OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="1">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 ti-field" data-round="{{ ti_round }}" data-cp="1" data-field="remarks">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">Pitch Gauge</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_2" value="OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="2">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_2" value="NOT_OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="2">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 ti-field" data-round="{{ ti_round }}" data-cp="2" data-field="remarks">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">Mud Seal</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_3" value="OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="3">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_3" value="NOT_OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="3">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 ti-field" data-round="{{ ti_round }}" data-cp="3" data-field="remarks">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">Other Observation</td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_4" value="OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="4">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-1 text-center">
+                                <input type="radio" name="ti_{{ ti_round }}_4" value="NOT_OK" class="ti-radio" data-round="{{ ti_round }}" data-cp="4">
+                            </td>
+                            <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                <input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0 ti-field" data-round="{{ ti_round }}" data-cp="4" data-field="remarks">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Pin Height & Repair Decision -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Pin Height</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white ti-field"
+                               data-round="{{ ti_round }}" data-field="pin_height">
+                    </div>
+                    {% if forloop.first %}
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Thread Repair</label>
+                        <select class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white ti-field"
+                                data-round="{{ ti_round }}" data-field="repair_required">
+                            <option value="">— Select —</option>
+                            <option value="NOT_REQUIRED">Not Required</option>
+                            <option value="REQUIRED">Required</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Repair Operation</label>
+                        <select class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white ti-field"
+                                data-round="{{ ti_round }}" data-field="repair_op">
+                            <option value="">— Select —</option>
+                            <option value="REPAIR_BRUSH">Repair / Brush</option>
+                            <option value="USR">Upper Section Replacement</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <label class="block text-[10px] text-gray-500 dark:text-gray-400">Inspector Remarks</label>
+                        <input type="text" class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-white ti-field"
+                               data-round="{{ ti_round }}" data-field="inspector_remarks">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Conformance Statement -->
+            <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 italic">This is to certify that the product detailed here conforms to the API requirements and has satisfactorily passed our quality control procedures.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Reviewed/Approved -->
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
@@ -424,7 +829,7 @@ function handleCellKeydown(e, el) {
         else if (key === 'ArrowDown' || key === 'Enter') nextBlade++;
         else if (key === 'ArrowUp') nextBlade--;
 
-        const next = document.querySelector(`input[data-blade="${nextBlade}"][data-pos="${nextPos}"]`);
+        const next = document.querySelector(`input.eval-cell:not(.dc-cell)[data-blade="${nextBlade}"][data-pos="${nextPos}"]`);
         if (next) next.focus();
     }
     // Delete/Backspace clears
@@ -439,7 +844,8 @@ function updateTotals() {
     let total = 0;
     const counts = {};
     VALID_ACTIONS.forEach(a => counts[a] = 0);
-    document.querySelectorAll('.eval-cell').forEach(cell => {
+    // Only count main eval grid cells, not die check cells
+    document.querySelectorAll('.eval-cell:not(.dc-cell)').forEach(cell => {
         const v = cell.value.trim().toUpperCase();
         if (v) { total++; counts[v] = (counts[v] || 0) + 1; }
     });
@@ -452,6 +858,21 @@ function updateTotals() {
     });
     const bdEl = document.getElementById('actionBreakdown');
     if (bdEl) bdEl.textContent = breakdown.join(' | ');
+}
+
+async function toggleSection(sectionKey, enabled) {
+    try {
+        const resp = await fetch(window.location.href, {
+            method: 'POST',
+            body: JSON.stringify({ toggle_section: sectionKey, enabled: enabled }),
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        });
+        if (resp.ok) {
+            window.location.reload();
+        }
+    } catch (err) {
+        console.error('Toggle section error:', err);
+    }
 }
 
 function toggleLayout() {
@@ -470,7 +891,8 @@ function toggleLayout() {
  */
 async function doSave(markComplete) {
     const entries = [];
-    document.querySelectorAll('.eval-cell').forEach(cell => {
+    // Only collect main eval grid cells, not die check cells
+    document.querySelectorAll('.eval-cell:not(.dc-cell)').forEach(cell => {
         const val = cell.value.trim().toUpperCase();
         if (val) {
             entries.push({
@@ -498,7 +920,21 @@ async function doSave(markComplete) {
         }
     }
 
-    const payload = { entries, remarks, decision, cutters_details };
+    // Collect checklist data (only if checklist section exists)
+    const checklistBody = document.getElementById('checklistBody');
+    const checklist_data = checklistBody ? collectChecklistData() : null;
+
+    // Collect die check data (only if die check section exists)
+    const dcGrid1 = document.getElementById('dieCheckGrid1');
+    const die_check_data = dcGrid1 ? collectDieCheckData() : null;
+
+    // Collect pressure test data (only if LPT section exists)
+    const pressure_test_data = document.querySelector('.lpt-field') ? collectPressureTestData() : null;
+
+    // Collect thread inspection data (only if thread section exists)
+    const thread_inspection_data = document.querySelector('.ti-radio') ? collectThreadInspectionData() : null;
+
+    const payload = { entries, remarks, decision, cutters_details, checklist_data, die_check_data, pressure_test_data, thread_inspection_data };
     if (markComplete === true) payload.mark_complete = true;
     else if (markComplete === 'reopen') payload.mark_complete = false;
 
@@ -596,6 +1032,173 @@ function applyCutterStateTooltips() {
     });
 }
 
+// ---- Die Check Tab Toggle ----
+function switchDieCheck(num) {
+    const grid1 = document.getElementById('dieCheckGrid1');
+    const grid2 = document.getElementById('dieCheckGrid2');
+    const tab1 = document.getElementById('dieCheckTab1');
+    const tab2 = document.getElementById('dieCheckTab2');
+    if (!grid1 || !grid2) return;
+    if (num === 1) {
+        grid1.classList.remove('hidden');
+        grid2.classList.add('hidden');
+        tab1.classList.add('active');
+        tab2.classList.remove('active');
+    } else {
+        grid1.classList.add('hidden');
+        grid2.classList.remove('hidden');
+        tab1.classList.remove('active');
+        tab2.classList.add('active');
+    }
+}
+
+// ---- Collect Checklist Data ----
+function collectChecklistData() {
+    const items = [];
+    const rows = document.querySelectorAll('#checklistBody tr');
+    rows.forEach(tr => {
+        const idx = tr.querySelector('.cl-radio')?.dataset.idx;
+        if (!idx) return;
+        const checked = tr.querySelector(`.cl-radio[data-idx="${idx}"]:checked`);
+        const remarksEl = tr.querySelector(`.cl-remarks[data-idx="${idx}"]`);
+        const labelCell = tr.querySelectorAll('td')[1];
+        items.push({
+            item: labelCell?.textContent?.trim() || '',
+            status: checked?.value || '',
+            remarks: remarksEl?.value || '',
+        });
+    });
+    return items;
+}
+
+// ---- Collect Die Check Data ----
+function collectDieCheckData() {
+    const data = {};
+    [1, 2].forEach(dcNum => {
+        const grid = {};
+        document.querySelectorAll(`.dc-cell[data-dc="${dcNum}"]`).forEach(cell => {
+            const blade = cell.dataset.blade;
+            const pos = cell.dataset.pos;
+            const val = cell.value.trim();
+            if (val) {
+                if (!grid[blade]) grid[blade] = {};
+                grid[blade][pos] = val;
+            }
+        });
+        data['die_check_' + dcNum] = grid;
+        const remarkEl = document.getElementById('dieCheckRemark' + dcNum);
+        data['remarks_' + dcNum] = remarkEl?.value || '';
+    });
+    return data;
+}
+
+// ---- Collect Pressure Test (LPT) Data ----
+const MATERIAL_NAMES = ['Cleaner', 'Penetrant', 'Developer'];
+
+function collectPressureTestData() {
+    const data = {};
+    ['1', '2'].forEach(round => {
+        const roundData = { materials: [] };
+        for (let m = 0; m < 3; m++) {
+            const mat = { name: MATERIAL_NAMES[m] };
+            ['product', 'batch', 'expiry'].forEach(field => {
+                const el = document.querySelector(`.lpt-field[data-round="${round}"][data-mat="${m}"][data-field="${field}"]`);
+                mat[field] = el ? el.value : '';
+            });
+            roundData.materials.push(mat);
+        }
+        ['surface_temp', 'light_intensity', 'penetrant_dwell', 'developer_dwell', 'operator', 'result', 'remarks'].forEach(field => {
+            const el = document.querySelector(`.lpt-field[data-round="${round}"][data-field="${field}"]:not([data-mat])`);
+            roundData[field] = el ? el.value : '';
+        });
+        data['round_' + round] = roundData;
+    });
+    return data;
+}
+
+function populatePressureTest(data) {
+    if (!data) return;
+    ['1', '2'].forEach(round => {
+        const roundData = data['round_' + round];
+        if (!roundData) return;
+        (roundData.materials || []).forEach((mat, m) => {
+            ['product', 'batch', 'expiry'].forEach(field => {
+                const el = document.querySelector(`.lpt-field[data-round="${round}"][data-mat="${m}"][data-field="${field}"]`);
+                if (el) el.value = mat[field] || '';
+            });
+        });
+        ['surface_temp', 'light_intensity', 'penetrant_dwell', 'developer_dwell', 'operator', 'result', 'remarks'].forEach(field => {
+            const el = document.querySelector(`.lpt-field[data-round="${round}"][data-field="${field}"]:not([data-mat])`);
+            if (el) el.value = roundData[field] || '';
+        });
+    });
+}
+
+// ---- Collect Thread Inspection Data ----
+const CHECKPOINT_NAMES = ['Pin Face', 'Thread', 'Pitch Gauge', 'Mud Seal', 'Other Observation'];
+
+function collectThreadInspectionData() {
+    const data = {};
+    ['1', '2'].forEach(round => {
+        const roundData = { checkpoints: [] };
+        for (let cp = 0; cp < 5; cp++) {
+            const checked = document.querySelector(`.ti-radio[data-round="${round}"][data-cp="${cp}"]:checked`);
+            const remarksEl = document.querySelector(`.ti-field[data-round="${round}"][data-cp="${cp}"][data-field="remarks"]`);
+            roundData.checkpoints.push({
+                name: CHECKPOINT_NAMES[cp],
+                status: checked ? checked.value : '',
+                remarks: remarksEl ? remarksEl.value : '',
+            });
+        }
+        ['pin_height', 'repair_required', 'repair_op', 'inspector_remarks'].forEach(field => {
+            const el = document.querySelector(`.ti-field[data-round="${round}"][data-field="${field}"]:not([data-cp])`);
+            roundData[field] = el ? el.value : '';
+        });
+        data['round_' + round] = roundData;
+    });
+    return data;
+}
+
+function populateThreadInspection(data) {
+    if (!data) return;
+    ['1', '2'].forEach(round => {
+        const roundData = data['round_' + round];
+        if (!roundData) return;
+        (roundData.checkpoints || []).forEach((cp, idx) => {
+            if (cp.status) {
+                const radio = document.querySelector(`.ti-radio[data-round="${round}"][data-cp="${idx}"][value="${cp.status}"]`);
+                if (radio) radio.checked = true;
+            }
+            const remarksEl = document.querySelector(`.ti-field[data-round="${round}"][data-cp="${idx}"][data-field="remarks"]`);
+            if (remarksEl) remarksEl.value = cp.remarks || '';
+        });
+        ['pin_height', 'repair_required', 'repair_op', 'inspector_remarks'].forEach(field => {
+            const el = document.querySelector(`.ti-field[data-round="${round}"][data-field="${field}"]:not([data-cp])`);
+            if (el) el.value = roundData[field] || '';
+        });
+    });
+}
+
+// ---- Populate Die Check from Saved Data ----
+const savedDieCheck = {{ die_check_json|safe }};
+const savedPressureTest = {{ pressure_test_json|safe }};
+const savedThreadInspection = {{ thread_inspection_json|safe }};
+
+function populateDieCheck(data) {
+    if (!data) return;
+    [1, 2].forEach(dcNum => {
+        const grid = data['die_check_' + dcNum] || {};
+        Object.entries(grid).forEach(([blade, positions]) => {
+            Object.entries(positions).forEach(([pos, val]) => {
+                const cell = document.querySelector(`.dc-cell[data-dc="${dcNum}"][data-blade="${blade}"][data-pos="${pos}"]`);
+                if (cell) cell.value = val;
+            });
+        });
+        const remarkEl = document.getElementById('dieCheckRemark' + dcNum);
+        if (remarkEl) remarkEl.value = data['remarks_' + dcNum] || '';
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     updateTotals();
     if (savedDetails && savedDetails.length > 0) {
@@ -604,6 +1207,17 @@ document.addEventListener('DOMContentLoaded', function() {
         populateCutterDetails(bomLines);
     }
     applyCutterStateTooltips();
+
+    // Initialize die check: set tab 1 active, populate saved data
+    const tab1 = document.getElementById('dieCheckTab1');
+    if (tab1) tab1.classList.add('active');
+    populateDieCheck(savedDieCheck);
+
+    // Initialize pressure test from saved data
+    populatePressureTest(savedPressureTest);
+
+    // Initialize thread inspection from saved data
+    populateThreadInspection(savedThreadInspection);
 });
 </script>
 {% endblock %}

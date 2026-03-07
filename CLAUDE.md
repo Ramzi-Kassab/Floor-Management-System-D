@@ -1773,6 +1773,32 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **UI: Amber SKIP Badge**: Workflow editor and chain editor show amber `SKIP: group_name` badge on steps with skip_group. Inline edit and Add Step modal include skip_group input field. Duplicate step copies skip_group.
 - **Step CRUD APIs Updated**: `api_workflow_steps`, `api_step_create`, `api_step_update`, chain detail steps API all serialize/deserialize `skip_group` field.
 
+### Recent Enhancements (Mar 7, 2026) — Evaluation System Phase 1: Multi-Section Evaluation Form
+- **Expanded CutterEvaluationMatrix Model** (`apps/workorders/models.py`): 13 new fields via migration `0036_add_evaluation_sections_lpt_thread_status.py`:
+  - **Section visibility flags**: `include_checklist` (default True), `include_cutter_grid` (default True), `include_pocket_eval` (default True), `include_die_check` (default False), `include_pressure_test` (default False), `include_thread_inspection` (default False). Per-instance booleans controlling which sections appear on the evaluation form.
+  - **JSONFields**: `pressure_test_data` (LPT report data: 2 rounds × materials table + parameters + result), `thread_inspection_data` (API Thread Inspection: 2 rounds × 5 checkpoints + pin height + repair decision).
+  - **Status flow**: `Status` TextChoices (DRAFT → IN_PROGRESS → COMPLETED → APPROVED → REJECTED). Field `status` with default DRAFT. Keeps `is_complete` for backward compat.
+  - **Auto-generated number**: `inspection_number` CharField (EV-YYYY-NNNN format), generated in CreateView.
+  - **Schedule & approval**: `scheduled_date` DateField, `approved_by` FK (User), `approved_at` DateTimeField, `fi_report_number` CharField.
+- **`SECTION_DEFAULTS` Dict on Model**: Maps each of 10 evaluation types to default `include_*` flags. E.g., `PDC_EVAL` enables checklist+grid+pocket+die_check; `DIE_CHECK` enables only die_check; `FINAL_INSPECTION` enables checklist+grid+pocket+thread_inspection.
+- **`MANUFACTURE_OVERRIDES` Dict**: Overrides for manufacture workflow — e.g., `PDC_EVAL` disables die_check for manufacture.
+- **`apply_section_defaults(workflow_type)`**: Model method that sets `include_*` flags from `SECTION_DEFAULTS` + applies `MANUFACTURE_OVERRIDES` if workflow_type is MANUFACTURE. Called during evaluation creation.
+- **LPT Pressure Test Section** (`cutter_evaluation_matrix.html`): Gated by `{% if include_pressure_test %}`. QAS/1004-1 format with 2 rounds (Before Brazing / After Tip Grinding). Each round has: Materials table (Cleaner/Penetrant/Developer with product name, batch no, expiry), parameters (surface temp, light intensity, penetrant/developer dwell times), operator, result (Accept/Reject/Conditional), disposition/remarks. All fields use `.lpt-field` class with `data-round` and `data-field` attributes for JS collection.
+- **API Thread Inspection Section** (`cutter_evaluation_matrix.html`): Gated by `{% if include_thread_inspection %}`. 2 rounds (Evaluation Before Repair / After Repair). Each round has: 5 hardcoded checkpoint rows (Pin Face, Thread, Pitch Gauge, Mud Seal, Other Observation) with OK/Not OK radios + remarks. Plus pin_height, thread repair decision (Not Required/Required), repair operation (Repair/Brush, USR), inspector remarks. All fields use `.ti-radio`/`.ti-field` classes with `data-round`, `data-cp`, `data-field` attributes.
+- **JS Save/Load for All Sections**: 4 new JS functions in `cutter_evaluation_matrix.html`:
+  - `collectPressureTestData()` — reads all `.lpt-field` inputs, returns `{round_1: {materials: [...], surface_temp, ...}, round_2: {...}}`
+  - `populatePressureTest(data)` — populates LPT fields from saved JSON
+  - `collectThreadInspectionData()` — reads `.ti-radio`/`.ti-field` inputs, returns `{round_1: {checkpoints: [...], pin_height, ...}, round_2: {...}}`
+  - `populateThreadInspection(data)` — populates thread fields from saved JSON
+  - `doSave()` extended to collect and POST `pressure_test_data` and `thread_inspection_data` (guarded by DOM element existence)
+  - `DOMContentLoaded` calls `populatePressureTest()` and `populateThreadInspection()` with saved data
+- **Section Toggle on Edit Page**: "Sections" dropdown button in evaluation toolbar. Shows 6 checkboxes (Checklist, Cutter Grid, Pocket Eval, Die Check, LPT, Thread Inspection). Toggling a checkbox POSTs `{toggle_section, enabled}` to the edit view and reloads the page. View handler validates section key against whitelist and updates the model field.
+- **Section Checkboxes on Create Form** (`cutter_evaluation_form.html`): 6 section checkboxes (Checklist, Cutter Grid, Pocket Eval, Die Check, LPT, Thread Inspection) in "Sections & Options" panel. Auto-configured from `SECTION_DEFAULTS` when evaluation type dropdown changes (JS mirrors the model dict). User can override any default before submitting. CreateView reads checkboxes from POST after `apply_section_defaults()`.
+- **Django `split` Filter Fix**: Thread Inspection originally used `{% for cp_name in "Pin Face,..."|split:"," %}` which doesn't exist in Django. Fixed by hardcoding 5 `<tr>` rows with explicit `data-cp="0"` through `data-cp="4"`.
+- **Test Data Created**: WO pk=31 `TEST-EVAL-001` with 3 evaluations: pk=1 (PDC_EVAL: grid+checklist+die), pk=2 (FINAL_INSPECTION: grid+checklist+thread), pk=3 (DIE_CHECK with ALL sections enabled for testing).
+- **Key Files Modified**: `apps/workorders/models.py` (model expansion), `apps/workorders/views_jobcard.py` (CreateView section overrides, EditView section toggle POST handler, context data), `templates/workorders/cutter_evaluation_matrix.html` (LPT section, Thread section, JS functions, Sections dropdown), `templates/workorders/cutter_evaluation_form.html` (section checkboxes, JS auto-toggle).
+- **Key URLs**: `/work-orders/<wo_pk>/cutter-evaluation/create/` (create with section selection), `/work-orders/<wo_pk>/cutter-evaluation/<pk>/` (edit with all sections + toggle).
+
 ---
 
 ## Need Help?

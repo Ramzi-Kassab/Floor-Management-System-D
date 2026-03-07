@@ -1737,6 +1737,97 @@ class CutterEvaluationMatrix(models.Model):
         # Legacy support
         ARDT = "ARDT", "ARDT Evaluation (Legacy)"
 
+    # Checklist items per evaluation type
+    # Key: evaluation_type value, Value: list of checklist item labels
+    CHECKLIST_ITEMS = {
+        # Pre-repair evaluation checklist (QAS/1002)
+        'PDC_EVAL': [
+            'Bit Cleanliness (Washing & Sand Blasting)',
+            'Paperwork',
+            'Bit Stamping',
+            'Die Check',
+            'Ring Gauge (Go Gauge)',
+            'Ring Gauge (No Go Gauge)',
+            'Nozzle BoreLiner (Where Applicable)',
+            'Nozzle Threads',
+            'Apex',
+            'Junk Slot',
+            'Breaker Slot',
+            'Body Condition',
+            'Mud Seal Surface',
+            'API Pin',
+            'Inner Diameter',
+            'Pressure Test (Where Applicable)',
+            'Photos Update To The Server',
+            'Other Comments (If Any)',
+        ],
+        # Receiving inspection checklist (QAS/005-1)
+        'RECEIVING': [
+            'Bit Cleanliness',
+            'Ring Gage GO',
+            'Ring Gage NO GO',
+            'Nozzle Threads',
+            'Breaker Slot',
+            'Junk Slot',
+            'API Pin',
+            'Cutters',
+            'No Body Damage',
+            'Nozzle Liner Fit',
+            'Q-Note from Vendor',
+        ],
+        # QC evaluation
+        'QC': [
+            'Bit Cleanliness',
+            'Ring Gauge (Go Gauge)',
+            'Ring Gauge (No Go Gauge)',
+            'Nozzle Threads',
+            'Nozzle BoreLiner',
+            'Breaker Slot',
+            'Junk Slot',
+            'Body Condition',
+            'API Pin',
+            'Cutters Condition',
+            'Gauge Pads',
+            'Bit Face',
+            'Pressure Test (Where Applicable)',
+        ],
+        # Final Inspection
+        'FINAL_INSPECTION': [
+            'Bit Cleanliness',
+            'Ring Gauge (Go Gauge)',
+            'Ring Gauge (No Go Gauge)',
+            'Nozzle Threads',
+            'Nozzle BoreLiner',
+            'Breaker Slot',
+            'Junk Slot',
+            'Body Condition',
+            'API Pin',
+            'Cutters Condition',
+            'Gauge Pads',
+            'Bit Face',
+            'Mud Seal Surface',
+            'Bit Stamping',
+            'Pressure Test (Where Applicable)',
+            'Photos Update To The Server',
+        ],
+        # Final QC
+        'FINAL_QC': [
+            'Bit Cleanliness',
+            'Ring Gauge (Go Gauge)',
+            'Ring Gauge (No Go Gauge)',
+            'Nozzle Threads',
+            'Nozzle BoreLiner',
+            'Breaker Slot',
+            'Junk Slot',
+            'Body Condition',
+            'API Pin',
+            'Cutters Condition',
+            'Gauge Pads',
+            'Bit Face',
+            'Pressure Test (Where Applicable)',
+        ],
+    }
+
     class Decision(models.TextChoices):
         REPAIR = "REPAIR", "For Repair"
         RERUN = "RERUN", "For Rerun"
@@ -1788,11 +1879,161 @@ class CutterEvaluationMatrix(models.Model):
         help_text="Cutters details for plant use: [{qty, size_mm, part_no, description, remarks}]"
     )
 
-    # Status
+    # Checklist data: [{item: str, status: 'OK'|'NOT_OK'|'NA'|'', remarks: str}]
+    checklist_data = models.JSONField(
+        null=True, blank=True,
+        help_text="Evaluation checklist items with OK/Not OK/NA status and remarks"
+    )
+
+    # Pocket evaluation data (same format as ReceivingInspection.pocket_evaluation_data)
+    pocket_evaluation_data = models.JSONField(
+        null=True, blank=True,
+        help_text="Pocket evaluation grid: {blade: {row: {pos: {shape: str, length: str}}}}"
+    )
+
+    # Die check grids: {die_check_1: {blade: {pos: value}}, die_check_2: {...}, remarks_1: str, remarks_2: str}
+    die_check_data = models.JSONField(
+        null=True, blank=True,
+        help_text="Die check evaluation grids (two rounds) with remarks"
+    )
+
+    # Pressure test (LPT) data — QAS/1004-1
+    # {before: {timing, materials: [{type, product, batch, expiry}], surface_temp, light_intensity,
+    #           penetrant_dwell, developer_dwell, operator, result, remarks},
+    #  after: {same structure}}
+    pressure_test_data = models.JSONField(
+        null=True, blank=True,
+        help_text="Liquid Penetrant Testing data (QAS/1004-1) — before/after rounds"
+    )
+
+    # API Thread Inspection data
+    # {evaluation: {checkpoints: [{item, ok, remarks}], pin_height, repair_required, repair_ops: [],
+    #               inspector, remarks},
+    #  after_repair: {same structure}}
+    thread_inspection_data = models.JSONField(
+        null=True, blank=True,
+        help_text="API Thread Inspection data — evaluation and after-repair rounds"
+    )
+
+    # Section visibility flags — defaults computed from evaluation_type at creation
+    include_checklist = models.BooleanField(default=True)
+    include_cutter_grid = models.BooleanField(default=True)
+    include_pocket_eval = models.BooleanField(default=True)
+    include_die_check = models.BooleanField(default=False)
+    include_pressure_test = models.BooleanField(default=False)
+    include_thread_inspection = models.BooleanField(default=False)
+
+    # FI Report Number — auto-assigned when Final Inspection is approved
+    fi_report_number = models.CharField(
+        max_length=30, blank=True,
+        help_text="Final Inspection Report number, auto-assigned on FI approval"
+    )
+
+    # Auto-generated evaluation number (e.g., EV-2026-0001)
+    inspection_number = models.CharField(
+        max_length=30, blank=True,
+        help_text="Auto-generated evaluation reference number"
+    )
+
+    # Schedule
+    scheduled_date = models.DateField(
+        null=True, blank=True,
+        help_text="Scheduled date for this evaluation"
+    )
+
+    # Status flow: DRAFT → IN_PROGRESS → COMPLETED → APPROVED
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        COMPLETED = "COMPLETED", "Completed"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+    # Keep is_complete for backward compatibility (derived from status)
     is_complete = models.BooleanField(default=False)
+
+    # Approval (separate from QC sign-off)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="approved_cutter_evaluations"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Default section visibility per evaluation type
+    SECTION_DEFAULTS = {
+        'RECEIVING': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': True, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'PDC_EVAL': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': True, 'include_die_check': True,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'QC': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': True, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'ENGINEER': {
+            'include_checklist': False, 'include_cutter_grid': True,
+            'include_pocket_eval': False, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'ARAMCO_REP': {
+            'include_checklist': False, 'include_cutter_grid': True,
+            'include_pocket_eval': False, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'DIE_CHECK': {
+            'include_checklist': False, 'include_cutter_grid': False,
+            'include_pocket_eval': False, 'include_die_check': True,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'FINAL_DIE_CHECK': {
+            'include_checklist': False, 'include_cutter_grid': False,
+            'include_pocket_eval': False, 'include_die_check': True,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'FINAL_QC': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': True, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+        'FINAL_INSPECTION': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': True, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': True,
+        },
+        'REWORK': {
+            'include_checklist': True, 'include_cutter_grid': True,
+            'include_pocket_eval': False, 'include_die_check': False,
+            'include_pressure_test': False, 'include_thread_inspection': False,
+        },
+    }
+
+    # Manufacture override: PDC_EVAL without die check by default
+    MANUFACTURE_OVERRIDES = {
+        'PDC_EVAL': {'include_die_check': False},
+    }
+
+    def apply_section_defaults(self, workflow_type=None):
+        """Set include_* flags from evaluation type defaults + workflow overrides."""
+        defaults = self.SECTION_DEFAULTS.get(self.evaluation_type, {})
+        for field, value in defaults.items():
+            setattr(self, field, value)
+        # Apply manufacture overrides
+        if workflow_type == 'MANUFACTURE':
+            overrides = self.MANUFACTURE_OVERRIDES.get(self.evaluation_type, {})
+            for field, value in overrides.items():
+                setattr(self, field, value)
 
     class Meta:
         db_table = "cutter_evaluation_matrices"

@@ -685,6 +685,35 @@ class CutterEvaluationCreateView(LoginRequiredMixin, CreateView):
         ).count()
         form.instance.evaluation_number = existing + 1
 
+        # Apply section defaults based on eval type + account workflow type
+        workflow_type = None
+        if wo.account and hasattr(wo.account, 'workflow_type'):
+            workflow_type = wo.account.workflow_type
+        form.instance.apply_section_defaults(workflow_type=workflow_type)
+
+        # Apply user overrides from section checkboxes (override defaults)
+        section_fields = [
+            'include_checklist', 'include_cutter_grid', 'include_pocket_eval',
+            'include_die_check', 'include_pressure_test', 'include_thread_inspection',
+        ]
+        for field in section_fields:
+            setattr(form.instance, field, field in self.request.POST)
+
+        # Generate inspection number (EV-YYYY-NNNN)
+        from django.utils import timezone as tz
+        year = tz.now().year
+        last = CutterEvaluationMatrix.objects.filter(
+            inspection_number__startswith=f'EV-{year}-'
+        ).order_by('-inspection_number').first()
+        if last and last.inspection_number:
+            try:
+                seq = int(last.inspection_number.split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        else:
+            seq = 1
+        form.instance.inspection_number = f'EV-{year}-{seq:04d}'
+
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -821,6 +850,60 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
             cutter_state_serializable[f"{blade},{pos}"] = val
         context['cutter_state_json'] = _json.dumps(cutter_state_serializable)
 
+        # Section visibility from model flags
+        context['include_checklist'] = matrix.include_checklist
+        context['include_cutter_grid'] = matrix.include_cutter_grid
+        context['include_pocket_eval'] = matrix.include_pocket_eval
+        context['include_die_check'] = matrix.include_die_check
+        context['include_pressure_test'] = matrix.include_pressure_test
+        context['include_thread_inspection'] = matrix.include_thread_inspection
+
+        # Backward compat aliases used in template
+        context['has_checklist'] = matrix.include_checklist
+        context['has_die_check'] = matrix.include_die_check
+
+        # Section toggle data for dropdown
+        context['section_toggles'] = [
+            ('include_checklist', 'Checklist'),
+            ('include_cutter_grid', 'Cutter Grid'),
+            ('include_pocket_eval', 'Pocket Evaluation'),
+            ('include_die_check', 'Die Check'),
+            ('include_pressure_test', 'LPT (Pressure Test)'),
+            ('include_thread_inspection', 'API Thread Inspection'),
+        ]
+        context['active_sections'] = [
+            k for k, _ in context['section_toggles'] if getattr(matrix, k, False)
+        ]
+
+        # Checklist items for this evaluation type
+        checklist_items = CutterEvaluationMatrix.CHECKLIST_ITEMS.get(
+            matrix.evaluation_type, []
+        )
+        saved_checklist = matrix.checklist_data or []
+        saved_map = {}
+        for item in saved_checklist:
+            saved_map[item.get('item', '')] = item
+        checklist_for_template = []
+        for idx, item_label in enumerate(checklist_items, 1):
+            saved = saved_map.get(item_label, {})
+            checklist_for_template.append({
+                'number': idx,
+                'item': item_label,
+                'status': saved.get('status', ''),
+                'remarks': saved.get('remarks', ''),
+            })
+        context['checklist_items'] = checklist_for_template
+        context['checklist_json'] = _json.dumps(checklist_for_template)
+
+        # Die check data
+        context['die_check_json'] = _json.dumps(matrix.die_check_data or {})
+
+        # Pressure test data (LPT)
+        context['pressure_test_json'] = _json.dumps(matrix.pressure_test_data or {})
+
+        # Thread inspection data
+        context['thread_inspection_json'] = _json.dumps(matrix.thread_inspection_data or {})
+
         return context
 
     def post(self, request, *args, **kwargs):
@@ -830,10 +913,28 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
         content_type = request.content_type or ''
         if 'application/json' in content_type:
             data = _json.loads(request.body)
+
+            # Handle section toggle
+            if 'toggle_section' in data:
+                section_key = data['toggle_section']
+                enabled = data.get('enabled', False)
+                valid_sections = {
+                    'include_checklist', 'include_cutter_grid', 'include_pocket_eval',
+                    'include_die_check', 'include_pressure_test', 'include_thread_inspection',
+                }
+                if section_key in valid_sections:
+                    setattr(matrix, section_key, bool(enabled))
+                    matrix.save(update_fields=[section_key, 'updated_at'])
+                return JsonResponse({'success': True})
+
             entries_data = data.get('entries', [])
             remarks = data.get('remarks', '')
             decision = data.get('decision', '')
             cutters_details = data.get('cutters_details', None)
+            checklist_data = data.get('checklist_data', None)
+            die_check_data = data.get('die_check_data', None)
+            pressure_test_data = data.get('pressure_test_data', None)
+            thread_inspection_data = data.get('thread_inspection_data', None)
             mark_complete = data.get('mark_complete', None)
 
             with transaction.atomic():
@@ -853,6 +954,18 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
                 matrix.decision = decision
                 if cutters_details is not None:
                     matrix.cutters_details = cutters_details
+                if checklist_data is not None:
+                    matrix.checklist_data = checklist_data
+                    update_fields.append('checklist_data')
+                if die_check_data is not None:
+                    matrix.die_check_data = die_check_data
+                    update_fields.append('die_check_data')
+                if pressure_test_data is not None:
+                    matrix.pressure_test_data = pressure_test_data
+                    update_fields.append('pressure_test_data')
+                if thread_inspection_data is not None:
+                    matrix.thread_inspection_data = thread_inspection_data
+                    update_fields.append('thread_inspection_data')
 
                 # Mark complete / reopen support
                 if mark_complete is True:
