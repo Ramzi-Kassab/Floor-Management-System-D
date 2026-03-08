@@ -3767,3 +3767,174 @@ class BOMPendingRequest(models.Model):
     def __str__(self):
         return f"BOM Request: {self.drill_bit.serial_number} ({self.get_status_display()})"
 
+
+# =============================================================================
+# STANDALONE TEST REPORTS — Die Check, LPT, API Thread Inspection
+# These are separate pages linked to evaluations, with auto-fill to checklists.
+# =============================================================================
+
+class DieCheckReport(models.Model):
+    """
+    Standalone Die Check report linked to WO or DrillBit.
+    Required before pre-repair evaluation can be completed.
+    Grid data stores blade × cutter position die check results.
+    """
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="die_check_reports"
+    )
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="die_check_reports"
+    )
+    evaluation = models.ForeignKey(
+        CutterEvaluationMatrix, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="die_check_reports",
+        help_text="Linked evaluation (auto-fills checklist item when completed)"
+    )
+
+    report_number = models.CharField(max_length=30, blank=True)
+
+    # Grid data: {blade: {position: {value: 'OK'|'NG'|'', remarks: ''}}}
+    grid_data = models.JSONField(
+        null=True, blank=True,
+        help_text="Die check grid: blade → position → result"
+    )
+
+    result = models.CharField(
+        max_length=10, blank=True,
+        choices=[('PASS', 'Pass'), ('FAIL', 'Fail'), ('PARTIAL', 'Partial')],
+    )
+    remarks = models.TextField(blank=True)
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="die_checks_performed"
+    )
+    performed_at = models.DateTimeField(null=True, blank=True)
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "die_check_reports"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        ref = self.work_order.wo_number if self.work_order else (
+            self.drill_bit.serial_number if self.drill_bit else "?")
+        return f"Die Check {self.report_number} — {ref}"
+
+
+class StandaloneLPTReport(models.Model):
+    """
+    Standalone Liquid Penetrant Testing (LPT/Pressure Test) report per QAS/1004-1.
+    Linked to WO or DrillBit. Auto-fills checklist item when completed.
+    Separate from legacy LPTReport which is WO-only.
+    """
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="standalone_lpt_reports"
+    )
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="standalone_lpt_reports"
+    )
+    evaluation = models.ForeignKey(
+        CutterEvaluationMatrix, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="standalone_lpt_reports",
+        help_text="Linked evaluation (auto-fills checklist item when completed)"
+    )
+
+    report_number = models.CharField(max_length=30, blank=True)
+
+    # LPT data (JSON): {timing, materials: [{type, product, batch, expiry}],
+    #   surface_temp, light_intensity, penetrant_dwell, developer_dwell,
+    #   operator, result, remarks, indications: [{location, size, type}]}
+    test_data = models.JSONField(
+        null=True, blank=True,
+        help_text="LPT test parameters and results per QAS/1004-1"
+    )
+
+    result = models.CharField(
+        max_length=15, blank=True,
+        choices=[('PASS', 'Pass'), ('FAIL', 'Fail'), ('INCONCLUSIVE', 'Inconclusive')],
+    )
+    remarks = models.TextField(blank=True)
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="standalone_lpt_tests_performed"
+    )
+    performed_at = models.DateTimeField(null=True, blank=True)
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "standalone_lpt_reports"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        ref = self.work_order.wo_number if self.work_order else (
+            self.drill_bit.serial_number if self.drill_bit else "?")
+        return f"LPT {self.report_number} — {ref}"
+
+
+class StandaloneThreadReport(models.Model):
+    """
+    Standalone API Thread Inspection report.
+    Linked to WO or DrillBit. Optional — visual inspection may suffice.
+    Separate from legacy APIThreadInspection which is WO-only.
+    """
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="standalone_thread_reports"
+    )
+    drill_bit = models.ForeignKey(
+        DrillBit, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="standalone_thread_reports"
+    )
+    evaluation = models.ForeignKey(
+        CutterEvaluationMatrix, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="standalone_thread_reports",
+        help_text="Linked evaluation (auto-fills checklist item when completed)"
+    )
+
+    report_number = models.CharField(max_length=30, blank=True)
+
+    # Inspection data (JSON): {checkpoints: [{item, ok, remarks}],
+    #   pin_height, connection_type, connection_size,
+    #   repair_required, repair_ops: [], inspector, remarks}
+    inspection_data = models.JSONField(
+        null=True, blank=True,
+        help_text="API Thread checkpoints and measurements"
+    )
+
+    result = models.CharField(
+        max_length=10, blank=True,
+        choices=[('PASS', 'Pass'), ('FAIL', 'Fail')],
+    )
+    remarks = models.TextField(blank=True)
+
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="standalone_thread_inspections_performed"
+    )
+    performed_at = models.DateTimeField(null=True, blank=True)
+    is_complete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "standalone_thread_reports"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        ref = self.work_order.wo_number if self.work_order else (
+            self.drill_bit.serial_number if self.drill_bit else "?")
+        return f"Thread Inspection {self.report_number} — {ref}"
+

@@ -34,6 +34,7 @@ from .models import (
     ReceivingInspectionAttachment,
     RouterSheetEntry, EvaluationChecklist,
     LPTReport, APIThreadInspection,
+    DieCheckReport, StandaloneLPTReport, StandaloneThreadReport,
     InstructionRule, InstructionRuleCondition,
     ProcessRoute, ProcessRouteOperation,
     RepairEvaluation, WorkOrderCost, ProductionPlanEntry,
@@ -717,6 +718,12 @@ class CutterEvaluationCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
+        # PDC_EVAL uses the new pre-repair evaluation page
+        if self.object.evaluation_type == 'PDC_EVAL':
+            return reverse('workorders:pre_repair_eval_edit', kwargs={
+                'wo_pk': self.kwargs['wo_pk'],
+                'pk': self.object.pk
+            })
         return reverse('workorders:cutter_evaluation_edit', kwargs={
             'wo_pk': self.kwargs['wo_pk'],
             'pk': self.object.pk
@@ -3417,4 +3424,503 @@ class EvaluationAutoCreateView(LoginRequiredMixin, View):
         )
         if created:
             messages.info(request, f"Created new {matrix.get_evaluation_type_display()}")
+        # PDC_EVAL uses the new pre-repair evaluation page
+        if type_code == 'PDC_EVAL':
+            return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=matrix.pk)
         return redirect('workorders:cutter_evaluation_edit', wo_pk=wo.pk, pk=matrix.pk)
+
+
+# ========================================================================
+# PRE-REPAIR EVALUATION (PDC_EVAL) — Cloned from Receiving Inspection
+# ========================================================================
+
+class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
+    """
+    Pre-repair evaluation page (QAS/1002) — cloned from ReceivingInspection.
+    Uses CutterEvaluationMatrix model with JSON-based checklist.
+    Features: checklist, pocket grid, cutter grid, photos, decision,
+    plus 3 icon buttons for standalone Die Check / LPT / Thread pages.
+    """
+    template_name = "workorders/pre_repair_evaluation.html"
+
+    def _get_wo_and_matrix(self):
+        wo = get_object_or_404(
+            WorkOrder.objects.select_related(
+                'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+                'drill_bit__bom', 'drill_bit__system_bom', 'drill_bit__brazing_bom',
+                'account',
+            ),
+            pk=self.kwargs['wo_pk'],
+        )
+        matrix = get_object_or_404(CutterEvaluationMatrix, pk=self.kwargs['pk'])
+        return wo, matrix
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo, matrix = self._get_wo_and_matrix()
+        bit = wo.drill_bit
+
+        context['work_order'] = wo
+        context['matrix'] = matrix
+        context['drill_bit'] = bit
+        context['page_title'] = f"Internal Evaluation Sheet — {wo.wo_number}"
+        context['is_new'] = False
+        context['report_number'] = matrix.inspection_number or f'EV-{matrix.pk:04d}'
+
+        # Checklist items for PDC_EVAL (18 items from model constant)
+        checklist_items_labels = CutterEvaluationMatrix.CHECKLIST_ITEMS.get('PDC_EVAL', [])
+        saved_checklist = matrix.checklist_data or []
+        saved_map = {}
+        for item in saved_checklist:
+            saved_map[item.get('item', '')] = item
+
+        # Build tuples matching receiving inspection format: (num, label, field_key, current_value)
+        checklist_for_template = []
+        for idx, label in enumerate(checklist_items_labels, 1):
+            saved = saved_map.get(label, {})
+            field_key = f'cl_{idx}'
+            status = saved.get('status', '')
+            checklist_for_template.append((idx, label, field_key, status))
+        context['checklist_items'] = checklist_for_template
+        context['checklist_remarks'] = {}
+        # Rebuild remarks dict from saved checklist data
+        for idx, label in enumerate(checklist_items_labels, 1):
+            saved = saved_map.get(label, {})
+            field_key = f'cl_{idx}'
+            if saved.get('remarks') or saved.get('reason'):
+                context['checklist_remarks'][field_key] = {
+                    'reason': saved.get('reason', ''),
+                    'remarks': saved.get('remarks', ''),
+                }
+
+        # Decision choices
+        context['decision_choices'] = CutterEvaluationMatrix.Decision.choices
+
+        # Standalone test reports linked to this evaluation
+        context['die_check_reports'] = DieCheckReport.objects.filter(
+            evaluation=matrix
+        ).order_by('-created_at')
+        context['lpt_reports'] = StandaloneLPTReport.objects.filter(
+            evaluation=matrix
+        ).order_by('-created_at')
+        context['thread_reports'] = StandaloneThreadReport.objects.filter(
+            evaluation=matrix
+        ).order_by('-created_at')
+
+        # BOM blade data for cutter evaluation grid
+        if bit:
+            blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = _get_bom_blade_data(bit)
+            context['has_bom_data'] = has_bom
+            context['blade_data_json'] = _json.dumps(blade_data)
+            context['bom_summary_json'] = _json.dumps(bom_summary)
+            context['cutter_config_list'] = cutter_config_list
+            context['cutter_config_json'] = _json.dumps({
+                cfg['order']: {'color': cfg['color'], 'type': cfg['type'], 'group': cfg['group']}
+                for cfg in cutter_config_list
+            })
+            context.update(cutter_grid_ctx)
+
+            # Pocket grid data
+            context.update(_get_pocket_grid_context(bit))
+        else:
+            context['has_bom_data'] = False
+            context['has_pocket_data'] = False
+
+        # Existing eval data from matrix JSONFields
+        context['eval_data_json'] = _json.dumps(matrix.die_check_data or {})
+        # Use pocket_evaluation_data on CutterEvaluationMatrix
+        context['pocket_eval_data_json'] = _json.dumps(matrix.pocket_evaluation_data or {})
+        context['pocket_remark_annotations_json'] = '{}'
+        context['cutter_remark_annotations_json'] = '{}'
+
+        # Version history
+        from apps.notifications.models import FormRevision
+        context['revisions'] = FormRevision.objects.filter(
+            entity_type="CutterEvaluationMatrix", entity_id=matrix.pk
+        ).select_related('revised_by').order_by('-revision_number')[:20]
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle saves via AJAX JSON or form POST."""
+        wo, matrix = self._get_wo_and_matrix()
+
+        content_type = request.content_type or ''
+        if 'application/json' in content_type:
+            data = _json.loads(request.body)
+            return self._handle_json_save(request, matrix, data)
+
+        # Standard form POST (Save / Mark Complete)
+        return self._handle_form_save(request, wo, matrix)
+
+    def _handle_json_save(self, request, matrix, data):
+        """Handle AJAX JSON save (grid updates, checklist, etc.)."""
+        update_fields = ['updated_at']
+
+        # Checklist data: convert from field-based format to list-of-dicts
+        checklist_post = data.get('checklist_data')
+        if checklist_post is not None:
+            matrix.checklist_data = checklist_post
+            update_fields.append('checklist_data')
+
+        # Cutter eval entries (blade/row/pos/idx format)
+        cutter_eval_data = data.get('cutter_eval_data')
+        if cutter_eval_data is not None:
+            matrix.die_check_data = cutter_eval_data
+            update_fields.append('die_check_data')
+
+        # Pocket eval data
+        pocket_eval_data = data.get('pocket_eval_data')
+        if pocket_eval_data is not None:
+            matrix.pocket_evaluation_data = pocket_eval_data
+            update_fields.append('pocket_evaluation_data')
+
+        # Decision
+        decision = data.get('decision')
+        if decision is not None:
+            matrix.decision = decision
+            update_fields.append('decision')
+
+        # General remark
+        remarks = data.get('remarks')
+        if remarks is not None:
+            matrix.general_remark = remarks
+            update_fields.append('general_remark')
+
+        # Mark complete
+        mark_complete = data.get('mark_complete')
+        if mark_complete is True:
+            matrix.is_complete = True
+            matrix.qc_by = request.user
+            matrix.qc_at = timezone.now()
+            update_fields.extend(['is_complete', 'qc_by', 'qc_at'])
+        elif mark_complete is False:
+            matrix.is_complete = False
+            update_fields.append('is_complete')
+
+        matrix.save(update_fields=update_fields)
+
+        return JsonResponse({
+            'success': True,
+            'is_complete': matrix.is_complete,
+        })
+
+    def _handle_form_save(self, request, wo, matrix):
+        """Handle standard form POST (Save button)."""
+        # Build checklist_data from POST radio buttons and remarks
+        checklist_labels = CutterEvaluationMatrix.CHECKLIST_ITEMS.get('PDC_EVAL', [])
+        checklist_data = []
+        checklist_remarks_raw = {}
+        try:
+            checklist_remarks_raw = _json.loads(request.POST.get('checklist_remarks', '{}'))
+        except (ValueError, TypeError):
+            pass
+
+        for idx, label in enumerate(checklist_labels, 1):
+            field_key = f'cl_{idx}'
+            status = request.POST.get(field_key, '')
+            remark_data = checklist_remarks_raw.get(field_key, {})
+            checklist_data.append({
+                'item': label,
+                'status': status,
+                'reason': remark_data.get('reason', ''),
+                'remarks': remark_data.get('remarks', ''),
+            })
+
+        update_fields = ['checklist_data', 'updated_at']
+        matrix.checklist_data = checklist_data
+
+        # Cutter eval data from hidden input
+        raw_cutter = request.POST.get('cutter_evaluation_data', '{}')
+        try:
+            matrix.die_check_data = _json.loads(raw_cutter)
+            update_fields.append('die_check_data')
+        except (ValueError, TypeError):
+            pass
+
+        # Pocket eval data from hidden input
+        raw_pocket = request.POST.get('pocket_evaluation_data', '{}')
+        try:
+            matrix.pocket_evaluation_data = _json.loads(raw_pocket)
+            update_fields.append('pocket_evaluation_data')
+        except (ValueError, TypeError):
+            pass
+
+        # Decision
+        decision = request.POST.get('decision', '')
+        if decision:
+            matrix.decision = decision
+            update_fields.append('decision')
+
+        # Remarks
+        remarks = request.POST.get('general_remark', '')
+        matrix.general_remark = remarks
+        update_fields.append('general_remark')
+
+        # Auto-remarks
+        pocket_auto = request.POST.get('pocket_auto_remarks', '')
+        cutter_auto = request.POST.get('cutter_auto_remarks', '')
+
+        # Remark annotations
+        for field, post_key in [
+            ('pocket_remark_annotations', 'pocket_remark_annotations'),
+            ('cutter_remark_annotations', 'cutter_remark_annotations'),
+        ]:
+            raw = request.POST.get(post_key, '{}')
+            try:
+                # Store in pressure_test_data and thread_inspection_data temporarily
+                # (reusing existing JSON fields for remark annotations)
+                pass
+            except (ValueError, TypeError):
+                pass
+
+        # Mark complete
+        mark_complete = request.POST.get('mark_complete')
+        if mark_complete == 'true' and not matrix.is_complete:
+            matrix.is_complete = True
+            matrix.qc_by = request.user
+            matrix.qc_at = timezone.now()
+            update_fields.extend(['is_complete', 'qc_by', 'qc_at'])
+            messages.success(request, "Evaluation marked as complete.")
+            # Notify
+            serial = wo.drill_bit.serial_number if wo.drill_bit else wo.wo_number
+            notify(
+                actor=request.user,
+                verb="completed PDC evaluation for",
+                target=f"SN {serial}",
+                priority="HIGH",
+                action_url=reverse('workorders:pre_repair_eval_edit',
+                                   kwargs={'wo_pk': wo.pk, 'pk': matrix.pk}),
+                entity_type="CutterEvaluationMatrix",
+                entity_id=matrix.pk,
+            )
+        elif mark_complete == 'false' and matrix.is_complete:
+            matrix.is_complete = False
+            update_fields.append('is_complete')
+            messages.success(request, "Evaluation reopened.")
+        else:
+            messages.success(request, "Evaluation saved.")
+
+        matrix.save(update_fields=update_fields)
+
+        # Version tracking
+        create_form_revision(
+            entity_type="CutterEvaluationMatrix",
+            entity_id=matrix.pk,
+            document_code="QAS/1002",
+            snapshot_new={'checklist_data': matrix.checklist_data, 'decision': matrix.decision,
+                          'is_complete': matrix.is_complete, 'general_remark': matrix.general_remark},
+            snapshot_old=None,
+            revised_by=request.user,
+        )
+
+        return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=matrix.pk)
+
+
+# ── Standalone Test Page Views (Placeholders) ──
+
+class DieCheckReportView(LoginRequiredMixin, TemplateView):
+    """Standalone Die Check test page."""
+    template_name = "workorders/die_check_report.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = get_object_or_404(WorkOrder.objects.select_related(
+            'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+        ), pk=self.kwargs['wo_pk'])
+        context['work_order'] = wo
+        context['drill_bit'] = wo.drill_bit
+        context['page_title'] = f"Die Check — {wo.wo_number}"
+
+        # Get or create report
+        eval_pk = self.kwargs.get('eval_pk')
+        evaluation = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            context['report'] = get_object_or_404(DieCheckReport, pk=report_pk)
+            context['is_new'] = False
+        else:
+            context['report'] = None
+            context['is_new'] = True
+        context['evaluation'] = evaluation
+        return context
+
+    def post(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=self.kwargs['wo_pk'])
+        eval_pk = self.kwargs.get('eval_pk')
+        evaluation = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            report = get_object_or_404(DieCheckReport, pk=report_pk)
+        else:
+            report = DieCheckReport(
+                work_order=wo,
+                drill_bit=wo.drill_bit,
+                evaluation=evaluation,
+                performed_by=request.user,
+            )
+
+        # Save grid data from POST
+        try:
+            grid_data = _json.loads(request.POST.get('grid_data', '{}'))
+        except (ValueError, TypeError):
+            grid_data = {}
+        report.grid_data = grid_data
+        report.result = request.POST.get('result', '')
+        report.remarks = request.POST.get('remarks', '')
+
+        mark_complete = request.POST.get('mark_complete') == 'true'
+        if mark_complete:
+            report.is_complete = True
+            report.performed_at = timezone.now()
+
+        report.save()
+
+        # If completed and linked to evaluation, auto-fill checklist item #4
+        if report.is_complete and evaluation:
+            self._auto_fill_checklist(evaluation, report)
+
+        messages.success(request, "Die check report saved.")
+        if eval_pk:
+            return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=eval_pk)
+        return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+    def _auto_fill_checklist(self, evaluation, report):
+        """Auto-fill checklist item #4 (Die Check) with result."""
+        checklist = evaluation.checklist_data or []
+        for item in checklist:
+            if item.get('item') == 'Die Check':
+                item['status'] = 'OK' if report.result == 'PASS' else 'NOT_OK'
+                item['remarks'] = f"Die Check: {report.get_result_display()} (Report #{report.pk})"
+                break
+        evaluation.checklist_data = checklist
+        evaluation.save(update_fields=['checklist_data', 'updated_at'])
+
+
+class StandaloneLPTReportView(LoginRequiredMixin, TemplateView):
+    """Standalone LPT (Pressure Test) page."""
+    template_name = "workorders/standalone_lpt_report.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = get_object_or_404(WorkOrder.objects.select_related(
+            'drill_bit', 'drill_bit__design',
+        ), pk=self.kwargs['wo_pk'])
+        context['work_order'] = wo
+        context['drill_bit'] = wo.drill_bit
+        context['page_title'] = f"Pressure Test (LPT) — {wo.wo_number}"
+        eval_pk = self.kwargs.get('eval_pk')
+        context['evaluation'] = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            context['report'] = get_object_or_404(StandaloneLPTReport, pk=report_pk)
+            context['is_new'] = False
+        else:
+            context['report'] = None
+            context['is_new'] = True
+        return context
+
+    def post(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=self.kwargs['wo_pk'])
+        eval_pk = self.kwargs.get('eval_pk')
+        evaluation = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            report = get_object_or_404(StandaloneLPTReport, pk=report_pk)
+        else:
+            report = StandaloneLPTReport(
+                work_order=wo, drill_bit=wo.drill_bit,
+                evaluation=evaluation, performed_by=request.user,
+            )
+        try:
+            report.test_data = _json.loads(request.POST.get('test_data', '{}'))
+        except (ValueError, TypeError):
+            report.test_data = {}
+        report.result = request.POST.get('result', '')
+        report.remarks = request.POST.get('remarks', '')
+        if request.POST.get('mark_complete') == 'true':
+            report.is_complete = True
+            report.performed_at = timezone.now()
+        report.save()
+
+        # Auto-fill checklist item #16 (Pressure Test)
+        if report.is_complete and evaluation:
+            checklist = evaluation.checklist_data or []
+            for item in checklist:
+                if 'Pressure Test' in item.get('item', ''):
+                    item['status'] = 'OK' if report.result == 'PASS' else 'NOT_OK'
+                    item['remarks'] = f"LPT: {report.get_result_display()} (Report #{report.pk})"
+                    break
+            evaluation.checklist_data = checklist
+            evaluation.save(update_fields=['checklist_data', 'updated_at'])
+
+        messages.success(request, "LPT report saved.")
+        if eval_pk:
+            return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=eval_pk)
+        return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+
+class StandaloneThreadReportView(LoginRequiredMixin, TemplateView):
+    """Standalone API Thread Inspection page."""
+    template_name = "workorders/standalone_thread_report.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = get_object_or_404(WorkOrder.objects.select_related(
+            'drill_bit', 'drill_bit__design',
+        ), pk=self.kwargs['wo_pk'])
+        context['work_order'] = wo
+        context['drill_bit'] = wo.drill_bit
+        context['page_title'] = f"API Thread Inspection — {wo.wo_number}"
+        eval_pk = self.kwargs.get('eval_pk')
+        context['evaluation'] = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            context['report'] = get_object_or_404(StandaloneThreadReport, pk=report_pk)
+            context['is_new'] = False
+        else:
+            context['report'] = None
+            context['is_new'] = True
+        return context
+
+    def post(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=self.kwargs['wo_pk'])
+        eval_pk = self.kwargs.get('eval_pk')
+        evaluation = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+        report_pk = self.kwargs.get('pk')
+        if report_pk:
+            report = get_object_or_404(StandaloneThreadReport, pk=report_pk)
+        else:
+            report = StandaloneThreadReport(
+                work_order=wo, drill_bit=wo.drill_bit,
+                evaluation=evaluation, performed_by=request.user,
+            )
+        try:
+            report.inspection_data = _json.loads(request.POST.get('inspection_data', '{}'))
+        except (ValueError, TypeError):
+            report.inspection_data = {}
+        report.result = request.POST.get('result', '')
+        report.remarks = request.POST.get('remarks', '')
+        if request.POST.get('mark_complete') == 'true':
+            report.is_complete = True
+            report.performed_at = timezone.now()
+        report.save()
+
+        # Auto-fill checklist item #14 (API Pin) — optional
+        if report.is_complete and evaluation:
+            checklist = evaluation.checklist_data or []
+            for item in checklist:
+                if 'API Pin' in item.get('item', ''):
+                    item['status'] = 'OK' if report.result == 'PASS' else 'NOT_OK'
+                    item['remarks'] = f"API Thread: {report.get_result_display()} (Report #{report.pk})"
+                    break
+            evaluation.checklist_data = checklist
+            evaluation.save(update_fields=['checklist_data', 'updated_at'])
+
+        messages.success(request, "API Thread inspection saved.")
+        if eval_pk:
+            return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=eval_pk)
+        return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)

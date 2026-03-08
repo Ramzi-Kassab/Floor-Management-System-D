@@ -128,6 +128,17 @@ urlpatterns = [
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/", views_jobcard.CutterEvaluationEditView.as_view(), name="cutter_evaluation_edit"),
     path("<int:wo_pk>/cutter-evaluation/<int:pk>/mark-complete/", views_jobcard.api_evaluation_mark_complete, name="cutter_evaluation_mark_complete"),
 
+    # Pre-Repair Evaluation (PDC_EVAL — new page cloned from receiving inspection)
+    path("<int:wo_pk>/pre-repair-eval/<int:pk>/", views_jobcard.PreRepairEvalEditView.as_view(), name="pre_repair_eval_edit"),
+
+    # Standalone Test Pages (Die Check, LPT, API Thread)
+    path("<int:wo_pk>/die-check/create/<int:eval_pk>/", views_jobcard.DieCheckReportView.as_view(), name="die_check_create"),
+    path("<int:wo_pk>/die-check/<int:pk>/edit/<int:eval_pk>/", views_jobcard.DieCheckReportView.as_view(), name="die_check_edit"),
+    path("<int:wo_pk>/lpt/create/<int:eval_pk>/", views_jobcard.StandaloneLPTReportView.as_view(), name="lpt_report_standalone_create"),
+    path("<int:wo_pk>/lpt/<int:pk>/edit/<int:eval_pk>/", views_jobcard.StandaloneLPTReportView.as_view(), name="lpt_report_standalone_edit"),
+    path("<int:wo_pk>/thread/create/<int:eval_pk>/", views_jobcard.StandaloneThreadReportView.as_view(), name="thread_report_create"),
+    path("<int:wo_pk>/thread/<int:pk>/edit/<int:eval_pk>/", views_jobcard.StandaloneThreadReportView.as_view(), name="thread_report_edit"),
+
     # Evaluation Auto-Create (standalone per-type URL)
     path("<int:wo_pk>/evaluation/<str:type_code>/", views_jobcard.EvaluationAutoCreateView.as_view(), name="evaluation_auto"),
 
