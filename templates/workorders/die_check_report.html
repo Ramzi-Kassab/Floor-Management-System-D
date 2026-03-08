@@ -5,7 +5,7 @@
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Die Check Report
+            Die Check Report — QAS/1004-1
             {% if report %}<span class="ml-2 font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">DC-{{ report.pk|stringformat:"04d" }}</span>{% endif %}
         </p>
     </div>
@@ -26,12 +26,15 @@
 {% endblock page_header %}
 
 {% block content %}
-<form method="post" x-data="{ result: '{{ report.result|default:"" }}', remarks: '{{ report.remarks|default:""|escapejs }}' }">
+<div x-data="dieCheckPage()">
+<form method="post">
     {% csrf_token %}
+    <input type="hidden" name="grid_data" :value="JSON.stringify({findings: cutterEvalData, decisions: decisions})">
+    <input type="hidden" name="materials_data" :value="JSON.stringify(materialsData)">
 
-    <!-- Bit Info -->
+    <!-- ══════ SECTION 1: Header Info ══════ -->
     <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
                 <p class="text-gray-500 dark:text-gray-400">WO Number</p>
                 <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
@@ -48,54 +51,438 @@
                 <p class="text-gray-500 dark:text-gray-400">Design</p>
                 <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.mat_no|default:"—" }}{% else %}—{% endif %}</p>
             </div>
-        </div>
-    </div>
-
-    <!-- Die Check Grid Placeholder -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            <i data-lucide="ruler" class="w-5 h-5 inline mr-2 text-orange-500"></i>
-            Die Check Grid
-        </h3>
-        <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
-            <div class="flex items-start">
-                <i data-lucide="info" class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3 mt-0.5 flex-shrink-0"></i>
-                <p class="text-sm text-gray-600 dark:text-gray-400">
-                    Die check grid will be implemented here. For now, use the Result and Remarks fields below.
-                </p>
-            </div>
-        </div>
-        <input type="hidden" name="grid_data" value="{}">
-    </div>
-
-    <!-- Result & Remarks -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Result</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
-                <select name="result" x-model="result"
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
-                    <option value="">— Select —</option>
-                    <option value="PASS">Pass</option>
-                    <option value="FAIL">Fail</option>
-                    <option value="PARTIAL">Partial</option>
+                <p class="text-gray-500 dark:text-gray-400">Stage</p>
+                <select name="stage" x-model="stage"
+                        class="mt-0.5 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm font-medium dark:text-white">
+                    {% for val, label in stage_choices %}
+                    <option value="{{ val }}" {% if stage == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
-                <textarea name="remarks" x-model="remarks" rows="3"
-                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"></textarea>
+        </div>
+    </div>
+
+    <!-- ══════ SECTION 2: Materials ══════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+        <button type="button" @click="s2 = !s2"
+                class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="flask-conical" class="w-5 h-5 text-rose-500"></i>
+                2. Materials Used
+            </h2>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s2 ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="s2" x-collapse class="px-5 pb-4">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Fluorescent Washable Technique — Procedure: SA-PP-1013.
+                Scan barcode / QR code on can to auto-fill, or enter manually.
+            </p>
+
+            <!-- Scan Button -->
+            <div class="mb-3 flex items-center gap-2">
+                <button type="button" @click="startScan()"
+                        class="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition">
+                    <i data-lucide="scan-barcode" class="w-4 h-4"></i> Scan Can Barcode / QR
+                </button>
+                <span x-show="scanStatus" x-text="scanStatus" class="text-xs text-gray-500 dark:text-gray-400"></span>
+            </div>
+
+            <!-- Camera viewfinder -->
+            <div x-show="scanActive" x-cloak class="mb-3 relative">
+                <div class="bg-black rounded-lg overflow-hidden" style="max-width:480px;">
+                    <video x-ref="scanVideo" autoplay playsinline muted class="w-full"></video>
+                    <canvas x-ref="scanCanvas" class="hidden"></canvas>
+                </div>
+                <div class="absolute top-2 right-2 flex gap-2">
+                    <button type="button" @click="captureAndDecode()"
+                            class="px-3 py-1 bg-green-600 text-white text-xs rounded shadow hover:bg-green-700">
+                        <i data-lucide="camera" class="w-3 h-3 inline mr-1"></i> Capture
+                    </button>
+                    <button type="button" @click="stopScan()"
+                            class="px-3 py-1 bg-red-600 text-white text-xs rounded shadow hover:bg-red-700">Stop</button>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Point camera at barcode/QR on penetrant or developer can.</p>
+            </div>
+
+            <!-- Scan result toast -->
+            <div x-show="scanResult" x-cloak x-transition
+                 class="mb-3 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                 :class="scanResultOk ? 'bg-green-50 dark:bg-green-900/30 border border-green-300 text-green-800 dark:text-green-200'
+                                      : 'bg-amber-50 dark:bg-amber-900/30 border border-amber-300 text-amber-800 dark:text-amber-200'">
+                <span x-text="scanResult"></span>
+                <button type="button" @click="scanResult=''" class="ml-auto text-xs underline">Dismiss</button>
+            </div>
+
+            <!-- Materials Table -->
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-gray-700">
+                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-28">Material</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left">Product Name</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-32">Batch No</th>
+                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-36">Chemical Expiry</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50">Cleaner</td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.product" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.batch" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20">Penetrant</td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.penetrant.product" placeholder="e.g. ZYGLO ZL-60D" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.penetrant.batch" placeholder="Batch #" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="date" x-model="materialsData.penetrant.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/20">Developer</td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.developer.product" placeholder="e.g. ZYGLO ZP-9F" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.developer.batch" placeholder="Batch #" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="date" x-model="materialsData.developer.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Surface Temperature</label>
+                    <input type="text" x-model="materialsData.surface_temp" placeholder="e.g. 25°C" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Light Intensity</label>
+                    <input type="text" x-model="materialsData.light_intensity" placeholder="e.g. 1000 µW/cm²" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Penetrant Dwell Time</label>
+                    <input type="text" x-model="materialsData.penetrant_dwell" placeholder="e.g. 20 min" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Developer Dwell Time</label>
+                    <input type="text" x-model="materialsData.developer_dwell" placeholder="e.g. 10 min" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Actions -->
-    <div class="flex justify-end gap-3 py-4">
+    <!-- ══════ SECTION 3: Die Check Cutter Grid ══════ -->
+    {% if has_bom_data %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+        <button type="button" @click="s3 = !s3"
+                class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="ruler" class="w-5 h-5 text-orange-500"></i>
+                3. Die Check Grid
+            </h2>
+            <span class="text-xs px-2 py-0.5 rounded-full ml-2"
+                  :class="cutterEvalCount > 0 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
+                  x-text="cutterEvalCount + '/' + cutterTotal"></span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s3 ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="s3" x-collapse class="px-5 pb-4">
+
+            <!-- Cutter config table -->
+            {% if cutter_config_list %}
+            <div class="mb-3">
+                <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Cutter Configurations (from BOM)</h3>
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 dark:border-gray-600">
+                            <th class="py-1 px-2 text-center text-gray-500">#</th>
+                            <th class="py-1 px-2 text-left text-gray-500">Size</th>
+                            <th class="py-1 px-2 text-left text-gray-500">Type</th>
+                            <th class="py-1 px-2 text-left text-gray-500">Chamfer</th>
+                            <th class="py-1 px-2 text-center text-gray-500">Count</th>
+                            <th class="py-1 px-2 text-left text-gray-500">MAT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cfg in cutter_config_list %}
+                        <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                            <td class="py-1 px-2 text-center"><span class="cfg-num-badge" style="background: {{ cfg.color }};">{{ cfg.order }}</span></td>
+                            <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.size|default:"—" }}</td>
+                            <td class="py-1 px-2 font-medium text-gray-700 dark:text-gray-300">{{ cfg.type|default:"—" }}</td>
+                            <td class="py-1 px-2 text-gray-600 dark:text-gray-400">{{ cfg.chamfer|default:"—" }}</td>
+                            <td class="py-1 px-2 text-center font-semibold">{{ cfg.count }}</td>
+                            <td class="py-1 px-2 text-gray-600 dark:text-gray-400 font-mono text-[10px]">{{ cfg.mat_number|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Legend -->
+            <div class="flex flex-wrap gap-2 items-center text-xs mb-3 p-2 bg-gray-50 dark:bg-gray-900/50 rounded">
+                <span class="font-semibold text-gray-600 dark:text-gray-400 mr-1">Findings:</span>
+                <template x-for="sym in cutterSymbols" :key="sym.code">
+                    <span class="inline-flex items-center gap-0.5">
+                        <span class="cutter-sym-mini" x-text="sym.code"></span>
+                        <span x-text="sym.label"></span>
+                    </span>
+                </template>
+                <span class="ml-auto font-semibold text-gray-600 dark:text-gray-300">
+                    <span x-text="cutterEvalCount + '/' + cutterTotal" class="text-orange-600 dark:text-orange-400"></span>
+                    <template x-for="sym in cutterSymbols" :key="'c'+sym.code">
+                        <span x-show="cutterCounts[sym.code] > 0" class="ml-1 text-gray-400" x-text="sym.code + ':' + cutterCounts[sym.code]"></span>
+                    </template>
+                </span>
+            </div>
+
+            <!-- Cutter Grid -->
+            <div class="overflow-x-auto mb-3">
+                <div class="inline-block">
+                    <div class="flex items-end mb-0.5">
+                        <div class="cutter-blade-label">&nbsp;</div>
+                        <template x-for="col in cutterMaxCol" :key="col">
+                            <div class="flex">
+                                <div class="w-10 text-center text-[8px] font-semibold py-1 text-gray-400 dark:text-gray-500 select-none"
+                                     x-text="cutterHeaderLabels[col] || col"></div>
+                                <div class="w-3 flex items-center justify-center" x-show="col < cutterMaxCol">
+                                    <div class="w-0.5 h-3 rounded"
+                                         :class="cutterRowSeparators.includes(col) ? 'bg-red-400' : 'bg-transparent'"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    {% for bn in cutter_blade_names %}
+                    <div class="flex items-center mb-0.5">
+                        <div class="cutter-blade-label font-bold text-indigo-600 dark:text-indigo-400">{{ bn }}</div>
+                        <template x-for="col in cutterMaxCol" :key="col">
+                            <div class="flex">
+                                <template x-if="cutterGridData['{{ bn }}_' + col] !== undefined">
+                                    <div class="cutter-grid-cell"
+                                         :style="getCutterCellStyle('{{ bn }}', col)"
+                                         :class="getCutterCellClass('{{ bn }}', col)"
+                                         @click="onCutterCellClick('{{ bn }}', col, $event)"
+                                         :title="getCutterCellTitle('{{ bn }}', col)"
+                                         x-text="getCutterCellText('{{ bn }}', col)"
+                                         tabindex="0"></div>
+                                </template>
+                                <template x-if="cutterGridData['{{ bn }}_' + col] === undefined">
+                                    <div class="cutter-grid-cell-empty"></div>
+                                </template>
+                                <div class="w-3 flex items-center justify-center" x-show="col < cutterMaxCol">
+                                    <div class="w-0.5 h-10 rounded"
+                                         :class="cutterRowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4 p-5">
+        <div class="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+            <i data-lucide="info" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+            No BOM data available for cutter grid. Assign a BOM to the drill bit first.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cutter symbol modal -->
+    <div x-show="cutterModal.open" x-cloak
+         class="fixed z-50 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 w-80"
+         :style="`top: ${cutterModal.top}px; left: ${cutterModal.left}px;`"
+         @click.outside="cutterModal.open = false"
+         @keydown.escape.window="cutterModal.open = false">
+        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2"
+            x-text="cutterModal.blade + 'C' + (cutterNumberMap[cutterModal.blade + '_' + cutterModal.col] || cutterModal.col)"></h3>
+        <div class="flex flex-wrap gap-1.5 mb-3">
+            <template x-for="sym in cutterSymbols" :key="sym.code">
+                <button type="button"
+                        :class="cutterModal.selected.includes(sym.code)
+                            ? 'bg-orange-600 text-white border-orange-600'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-500 hover:bg-gray-200'"
+                        :disabled="!canToggleCutterSym(sym.code)"
+                        class="px-2.5 py-1.5 text-xs font-bold rounded border transition"
+                        @click="toggleCutterSym(sym.code)" x-text="sym.code" :title="sym.label"></button>
+            </template>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Selected: <span class="font-mono font-bold" x-text="cutterModal.selected.join('') || '—'"></span>
+        </div>
+        <div class="flex justify-between">
+            <button type="button" @click="clearCutterCell()" class="px-3 py-1 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">Clear</button>
+            <button type="button" @click="cutterModal.open = false" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-600 rounded">Cancel</button>
+            <button type="button" @click="saveCutterCell()" class="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700">Apply</button>
+        </div>
+    </div>
+
+    <!-- ══════ SECTION 4: Decisions Table ══════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
+         x-show="flaggedCutters.length > 0">
+        <button type="button" @click="s4 = !s4"
+                class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="list-checks" class="w-5 h-5 text-amber-500"></i>
+                4. Cutter Decisions
+            </h2>
+            <span class="text-xs px-2 py-0.5 rounded-full ml-2 bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                  x-text="flaggedCutters.length + ' flagged'"></span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s4 ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="s4" x-collapse class="px-5 pb-4">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Each cutter with a finding (non-OK) requires a decision. Select "Waiting Quality Decision" to escalate.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-gray-700 text-xs">
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left w-20">Location</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left w-16">Finding</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left">Cutter Details</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left w-48">Decision</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left">Remarks</th>
+                            <th class="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center w-16">Photo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="fc in flaggedCutters" :key="fc.key">
+                            <tr class="border-b border-gray-200 dark:border-gray-700"
+                                :class="decisions[fc.key]?.decision === 'WAITING_QD' ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''">
+                                <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5 font-mono font-bold text-sm"
+                                    :style="'color:' + fc.color" x-text="fc.label"></td>
+                                <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5">
+                                    <span class="font-mono font-bold text-orange-600 dark:text-orange-400" x-text="fc.finding"></span>
+                                </td>
+                                <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400">
+                                    <span x-text="fc.details"></span>
+                                </td>
+                                <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                    <select class="w-full border-0 bg-transparent text-sm py-1.5 px-1 focus:ring-0 dark:text-white"
+                                            :class="decisions[fc.key]?.decision === 'WAITING_QD' ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : ''"
+                                            @change="setDecision(fc.key, $event.target.value)">
+                                        <option value="" :selected="!decisions[fc.key]?.decision">— Select —</option>
+                                        <option value="ACCEPTED" :selected="decisions[fc.key]?.decision === 'ACCEPTED'">Accepted</option>
+                                        <option value="ROTATE" :selected="decisions[fc.key]?.decision === 'ROTATE'">Rotate</option>
+                                        <option value="SPIN" :selected="decisions[fc.key]?.decision === 'SPIN'">Spin</option>
+                                        <option value="REPLACE" :selected="decisions[fc.key]?.decision === 'REPLACE'">Replace</option>
+                                        <option value="WAITING_QD" :selected="decisions[fc.key]?.decision === 'WAITING_QD'">Waiting Quality Decision</option>
+                                    </select>
+                                </td>
+                                <td class="border border-gray-300 dark:border-gray-600 px-1 py-0">
+                                    <input type="text" class="w-full border-0 bg-transparent text-xs py-1.5 px-1 focus:ring-0 dark:text-white"
+                                           placeholder="Notes..."
+                                           :value="decisions[fc.key]?.remarks || ''"
+                                           @input="setDecisionRemarks(fc.key, $event.target.value)">
+                                </td>
+                                <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5 text-center">
+                                    <button type="button" @click="openCutterPhoto(fc)"
+                                            class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                                            :class="(decisions[fc.key]?.photo_name) ? 'text-green-600 border-green-300' : 'text-gray-500'">
+                                        <i data-lucide="camera" class="w-3 h-3"></i>
+                                        <span x-text="(decisions[fc.key]?.photo_name) ? '1' : ''"></span>
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Waiting Quality Decision alert -->
+            <div x-show="hasWaitingQD" x-cloak x-transition
+                 class="mt-3 px-3 py-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-sm text-yellow-800 dark:text-yellow-200 flex items-start gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+                <div>
+                    <p class="font-semibold">Quality Decision Required</p>
+                    <p class="text-xs mt-0.5">Some cutters are marked "Waiting Quality Decision". On save, a notification will be sent to the Quality team for review.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ SECTION 5: Result & Remarks ══════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+        <button type="button" @click="s5 = !s5"
+                class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="clipboard-check" class="w-5 h-5 text-green-500"></i>
+                5. Result & Remarks
+            </h2>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s5 ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="s5" x-collapse class="px-5 pb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
+                    <select name="result" x-model="result"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white">
+                        <option value="">— Select —</option>
+                        <option value="PASS">Pass</option>
+                        <option value="FAIL">Fail</option>
+                        <option value="PARTIAL">Partial</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">LPT Operator</label>
+                    <input type="text" x-model="materialsData.operator" placeholder="Operator name"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
+                <textarea name="remarks" x-model="remarks" rows="3"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white"
+                          placeholder="Observations, indications found, disposition..."></textarea>
+            </div>
+
+            <!-- Auto-generated summary -->
+            <div class="mt-4 bg-gray-50 dark:bg-gray-900/40 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
+                        Auto-Generated Summary
+                    </label>
+                    <button type="button" @click="copyAutoRemark()"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 transition">
+                        <i data-lucide="clipboard-copy" class="w-3 h-3"></i> Copy
+                    </button>
+                </div>
+                <div class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 min-h-[2rem]"
+                     x-text="autoRemark"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ SECTION 6: Photos ══════ -->
+    {% if drill_bit %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4 no-print">
+        <button type="button" @click="s6 = !s6"
+                class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <i data-lucide="camera" class="w-5 h-5 text-indigo-500"></i>
+                6. Photos
+            </h2>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s6 ? '' : '-rotate-90'"></i>
+        </button>
+        <div x-show="s6" x-collapse class="px-5 pb-4" data-section="photos">
+            {% if report %}
+            {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="EVALUATION" context_id=report.pk %}
+            {% else %}
+            {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="EVALUATION" %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════ ACTIONS ══════ -->
+    <div class="flex justify-end gap-3 py-4 no-print">
         {% if evaluation %}
         <a href="{% url 'workorders:pre_repair_eval_edit' wo_pk=work_order.pk pk=evaluation.pk %}"
            class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">Cancel</a>
         {% endif %}
+        <button type="button" onclick="window.print()"
+                class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="printer" class="w-4 h-4 inline mr-1"></i> Print
+        </button>
         <button type="submit" name="action" value="save"
                 class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
             <i data-lucide="save" class="w-4 h-4 inline mr-1"></i> Save
@@ -106,5 +493,610 @@
             <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
         </button>
     </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- PRINT-ONLY SECTIONS (hidden on screen, visible when printing)        -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Print Header — QAS/1004-1 -->
+    <div class="print-header">
+        <table class="print-hdr-table" style="width:100%;border:2px solid #000;border-collapse:collapse;margin-bottom:6px;">
+            <tr>
+                <td rowspan="4" style="width:80px;border:1px solid #000;text-align:center;vertical-align:middle;background:#f8f8f8;font-family:Georgia,serif;font-size:20pt;font-weight:bold;letter-spacing:2px;">ARDT</td>
+                <td rowspan="2" style="border:1px solid #000;text-align:center;font-weight:bold;font-size:10pt;padding:4px;">ARABIAN ROCKBITS &amp; DRILLING TOOLS CO.LTD</td>
+                <td style="border:1px solid #000;padding:3px 6px;font-size:8pt;width:180px;">Document No: <b>QAS/1004-1</b></td>
+            </tr>
+            <tr><td style="border:1px solid #000;padding:3px 6px;font-size:8pt;">Rev No: <b>A</b></td></tr>
+            <tr>
+                <td rowspan="2" style="border:1px solid #000;text-align:center;font-size:9pt;padding:4px;">Liquid Penetrant Test — Die Check Report</td>
+                <td style="border:1px solid #000;padding:3px 6px;font-size:8pt;">Effective Date: <b>01-Jan-2025</b></td>
+            </tr>
+            <tr><td style="border:1px solid #000;padding:3px 6px;font-size:8pt;">Page: <b>1 of 1</b></td></tr>
+        </table>
+
+        <table class="print-info-table" style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-bottom:8px;">
+            <tr>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;width:15%;">Report No</td>
+                <td style="border:1px solid #000;padding:3px 6px;width:35%;">{% if report %}DC-{{ report.pk|stringformat:"04d" }}{% else %}—{% endif %}</td>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;width:15%;">WO Number</td>
+                <td style="border:1px solid #000;padding:3px 6px;width:35%;">{{ work_order.wo_number }}</td>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Serial No</td>
+                <td style="border:1px solid #000;padding:3px 6px;">{% if drill_bit %}{{ drill_bit.serial_number }}{% else %}—{% endif %}</td>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Size</td>
+                <td style="border:1px solid #000;padding:3px 6px;">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.size|default:"—" }}{% else %}—{% endif %}</td>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Design MAT</td>
+                <td style="border:1px solid #000;padding:3px 6px;">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.mat_no|default:"—" }}{% else %}—{% endif %}</td>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Stage</td>
+                <td style="border:1px solid #000;padding:3px 6px;" x-text="stage === 'BEFORE_BRAZE' ? 'Before Braze' : stage === 'AFTER_REPAIR' ? 'After Repair' : 'Other'"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Print Materials Table -->
+    <div class="print-materials">
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-bottom:8px;">
+            <thead>
+                <tr style="background:#f8f8f8;">
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;">Material</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;">Product</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;">Batch No</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;">Expiry Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border:1px solid #000;padding:3px 6px;font-weight:bold;">Cleaner</td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.cleaner.product"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.cleaner.batch"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.cleaner.expiry"></td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000;padding:3px 6px;font-weight:bold;">Penetrant</td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.penetrant.product"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.penetrant.batch"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.penetrant.expiry"></td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000;padding:3px 6px;font-weight:bold;">Developer</td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.developer.product"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.developer.batch"></td>
+                    <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.developer.expiry"></td>
+                </tr>
+            </tbody>
+        </table>
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:8.5pt;margin-bottom:8px;">
+            <tr>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;width:25%;">Surface Temp</td>
+                <td style="border:1px solid #000;padding:3px 6px;width:25%;" x-text="materialsData.surface_temp || '—'"></td>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;width:25%;">Light Intensity</td>
+                <td style="border:1px solid #000;padding:3px 6px;width:25%;" x-text="materialsData.light_intensity || '—'"></td>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Penetrant Dwell</td>
+                <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.penetrant_dwell || '—'"></td>
+                <td style="border:1px solid #000;padding:3px 6px;background:#f8f8f8;font-weight:bold;">Developer Dwell</td>
+                <td style="border:1px solid #000;padding:3px 6px;" x-text="materialsData.developer_dwell || '—'"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Print Decisions Table -->
+    <div class="print-decisions">
+        <h3 style="font-size:10pt;font-weight:bold;margin:6px 0 4px;">Cutter Findings &amp; Decisions</h3>
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:8.5pt;margin-bottom:4px;">
+            <thead>
+                <tr style="background:#f8f8f8;">
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;width:12%;">Location</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;width:18%;">Finding</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;">Cutter Details</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;width:20%;">Decision</th>
+                    <th style="border:1px solid #000;padding:3px 6px;text-align:left;width:20%;">Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="fc in flaggedCutters" :key="'p'+fc.key">
+                    <tr>
+                        <td style="border:1px solid #000;padding:2px 6px;font-weight:bold;" x-text="fc.label"></td>
+                        <td style="border:1px solid #000;padding:2px 6px;" x-text="fc.finding"></td>
+                        <td style="border:1px solid #000;padding:2px 6px;font-size:8pt;" x-text="fc.details"></td>
+                        <td style="border:1px solid #000;padding:2px 6px;" x-text="_decisionLabel(decisions[fc.key]?.decision)"></td>
+                        <td style="border:1px solid #000;padding:2px 6px;" x-text="decisions[fc.key]?.remarks || ''"></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+        <template x-if="flaggedCutters.length === 0">
+            <p style="font-size:9pt;font-style:italic;">No indications found — all cutters OK.</p>
+        </template>
+    </div>
+
+    <!-- Print Auto-Remark -->
+    <div class="print-remark-block">
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-top:6px;">
+            <tr>
+                <td style="border:1px solid #000;padding:4px 8px;background:#f8f8f8;font-weight:bold;width:15%;vertical-align:top;">Summary</td>
+                <td style="border:1px solid #000;padding:4px 8px;white-space:pre-wrap;word-wrap:break-word;" x-text="autoRemark"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Print Result & Remarks -->
+    <div class="print-result-block">
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-top:6px;">
+            <tr>
+                <td style="border:1px solid #000;padding:4px 8px;background:#f8f8f8;font-weight:bold;width:15%;">Result</td>
+                <td style="border:1px solid #000;padding:4px 8px;width:35%;" x-text="result === 'PASS' ? 'Pass' : result === 'FAIL' ? 'Fail' : result === 'PARTIAL' ? 'Partial' : '—'"></td>
+                <td style="border:1px solid #000;padding:4px 8px;background:#f8f8f8;font-weight:bold;width:15%;">Operator</td>
+                <td style="border:1px solid #000;padding:4px 8px;width:35%;" x-text="materialsData.operator || '—'"></td>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:4px 8px;background:#f8f8f8;font-weight:bold;vertical-align:top;">Remarks</td>
+                <td colspan="3" style="border:1px solid #000;padding:4px 8px;white-space:pre-wrap;word-wrap:break-word;min-height:30px;" x-text="remarks || '—'"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Print Signatures -->
+    <div class="print-signatures">
+        <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-top:12px;">
+            <tr style="background:#f8f8f8;">
+                <th style="border:1px solid #000;padding:4px 8px;width:50%;text-align:center;">LPT Operator</th>
+                <th style="border:1px solid #000;padding:4px 8px;width:50%;text-align:center;">ARDT Quality Control</th>
+            </tr>
+            <tr style="height:40px;">
+                <td style="border:1px solid #000;padding:4px 8px;">Name: ___________________</td>
+                <td style="border:1px solid #000;padding:4px 8px;">Name: ___________________</td>
+            </tr>
+            <tr style="height:40px;">
+                <td style="border:1px solid #000;padding:4px 8px;">Sign &amp; Date: ___________________</td>
+                <td style="border:1px solid #000;padding:4px 8px;">Sign &amp; Date: ___________________</td>
+            </tr>
+        </table>
+    </div>
+
 </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+function dieCheckPage() {
+    return {
+        // Section toggles
+        s2: true, s3: true, s4: true, s5: true, s6: false,
+
+        stage: '{{ stage }}',
+        result: '{{ report.result|default:"" }}',
+        remarks: '{{ report.remarks|default:""|escapejs }}',
+
+        // Materials
+        materialsData: {
+            cleaner:   { product: 'Water', batch: '----', expiry: '----' },
+            penetrant: { product: '', batch: '', expiry: '' },
+            developer: { product: '', batch: '', expiry: '' },
+            surface_temp: '', light_intensity: '',
+            penetrant_dwell: '', developer_dwell: '', operator: '',
+        },
+
+        // Cutter grid (same structure as receiving inspection)
+        cutterEvalData: {},
+        cutterConfigColors: {},
+        cutterGridData: {},
+        cutterCellRef: {},
+        cutterNumberMap: {},
+        cutterRowSeparators: [],
+        cutterMaxCol: 0,
+        cutterHeaderLabels: {},
+        cutterCounts: {},
+        cutterTotal: 0,
+        cutterEvalCount: 0,
+        cutterSymbols: [
+            {code: 'O', label: 'OK (No Indication)'},
+            {code: 'C', label: 'Cracked'},
+            {code: 'H', label: 'Chipped'},
+            {code: 'P', label: 'Porosity'},
+        ],
+        cutterModal: { open: false, blade: '', col: 0, selected: [], top: 200, left: 200 },
+
+        // Decisions table
+        decisions: {},  // key -> {decision, remarks, photo_name}
+        flaggedCutters: [],  // computed: [{key, label, finding, details, color}]
+
+        // Scanner
+        scanActive: false, scanStatus: '', scanResult: '', scanResultOk: false,
+        _stream: null, _scanInterval: null,
+
+        get hasWaitingQD() {
+            return Object.values(this.decisions).some(d => d.decision === 'WAITING_QD');
+        },
+
+        get autoRemark() {
+            const wo = '{{ work_order.wo_number }}';
+            const sn = '{% if drill_bit %}{{ drill_bit.serial_number }}{% else %}—{% endif %}';
+            const stageLabel = this.stage === 'BEFORE_BRAZE' ? 'Before Braze' : this.stage === 'AFTER_REPAIR' ? 'After Repair' : 'Other';
+            const resultLabel = this.result === 'PASS' ? 'Pass' : this.result === 'FAIL' ? 'Fail' : this.result === 'PARTIAL' ? 'Partial' : 'Pending';
+
+            let lines = [`Die Check (LPT) — ${stageLabel}`, `WO: ${wo} | Serial: ${sn}`, `Result: ${resultLabel}`];
+
+            if (this.flaggedCutters.length === 0) {
+                lines.push('No indications found — all cutters OK.');
+            } else {
+                lines.push(`${this.flaggedCutters.length} cutter(s) with indications:`);
+                for (const fc of this.flaggedCutters) {
+                    const dec = this.decisions[fc.key]?.decision;
+                    const decLabel = this._decisionLabel(dec);
+                    const rem = this.decisions[fc.key]?.remarks;
+                    let line = `  ${fc.label}: ${fc.finding}`;
+                    if (decLabel) line += ` → ${decLabel}`;
+                    if (rem) line += ` (${rem})`;
+                    lines.push(line);
+                }
+            }
+            if (this.remarks) lines.push(`Remarks: ${this.remarks}`);
+            return lines.join('\n');
+        },
+
+        _decisionLabel(val) {
+            const map = {ACCEPTED:'Accepted', ROTATE:'Rotate', SPIN:'Spin', REPLACE:'Replace', WAITING_QD:'Waiting Quality Decision'};
+            return map[val] || '';
+        },
+
+        copyAutoRemark() {
+            navigator.clipboard.writeText(this.autoRemark).then(() => {
+                // Simple flash feedback
+                const btn = event.target.closest('button');
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i data-lucide="check" class="w-3 h-3"></i> Copied';
+                if (typeof lucide !== 'undefined') lucide.createIcons({nodes: [btn]});
+                setTimeout(() => { btn.innerHTML = orig; if (typeof lucide !== 'undefined') lucide.createIcons({nodes: [btn]}); }, 1500);
+            });
+        },
+
+        init() {
+            // Load saved materials
+            const savedMat = {{ materials_data_json|safe }};
+            if (savedMat && Object.keys(savedMat).length) {
+                for (const key of ['cleaner', 'penetrant', 'developer']) {
+                    if (savedMat[key]) this.materialsData[key] = { ...this.materialsData[key], ...savedMat[key] };
+                }
+                for (const key of ['surface_temp', 'light_intensity', 'penetrant_dwell', 'developer_dwell', 'operator']) {
+                    if (savedMat[key] !== undefined) this.materialsData[key] = savedMat[key];
+                }
+            }
+
+            {% if has_bom_data %}
+            // Load cutter grid structure
+            this.cutterGridData = {{ cutter_grid_data_json|safe }};
+            this.cutterCellRef = {{ cutter_cell_ref_json|safe }};
+            this.cutterNumberMap = {{ cutter_number_data_json|safe }};
+            this.cutterHeaderLabels = {{ cutter_header_labels_json|safe }};
+            this.cutterRowSeparators = {{ cutter_row_separators_json|safe }};
+            this.cutterMaxCol = {{ cutter_max_col }};
+
+            // Build config color map
+            const cfgList = {{ cutter_config_json|safe }};
+            cfgList.forEach(cfg => {
+                this.cutterConfigColors[cfg.order] = cfg;
+            });
+
+            // Load saved grid data (findings + decisions)
+            const savedGrid = {{ grid_data_json|safe }};
+            if (savedGrid.findings) this.cutterEvalData = savedGrid.findings;
+            if (savedGrid.decisions) this.decisions = savedGrid.decisions;
+
+            this.recalcCutterCounts();
+            this.rebuildFlaggedCutters();
+            {% endif %}
+        },
+
+        // ══════ Cutter Grid Helpers ══════
+        getCutterCellStyle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgOrder = this.cutterGridData[key];
+            const cfg = this.cutterConfigColors[cfgOrder];
+            if (!cfg) return '';
+            const syms = this.getCutterSymbols(blade, col);
+            if (syms) {
+                return 'background-color: ' + cfg.color + '35; border-color: ' + cfg.color + '; color: ' + cfg.color + ';';
+            }
+            return 'background-color: ' + cfg.color + '15; border-color: ' + cfg.color + '80;';
+        },
+        getCutterCellClass(blade, col) {
+            return this.getCutterSymbols(blade, col) ? 'cutter-grid-cell-marked' : '';
+        },
+        getCutterCellText(blade, col) {
+            const syms = this.getCutterSymbols(blade, col);
+            if (syms) return syms;
+            return this.cutterGridData[blade + '_' + col] || '';
+        },
+        getCutterCellTitle(blade, col) {
+            const key = blade + '_' + col;
+            const cfg = this.cutterConfigColors[this.cutterGridData[key]];
+            const cNum = this.cutterNumberMap[key] || col;
+            const syms = this.getCutterSymbols(blade, col);
+            let title = blade + 'C' + cNum;
+            if (cfg) title += ' — ' + (cfg.type || '') + (cfg.size ? ' ' + cfg.size : '');
+            if (syms) title += ' [' + syms + ']';
+            return title;
+        },
+        onCutterCellClick(blade, col, $event) {
+            const key = blade + '_' + col;
+            if (this.cutterGridData[key] === undefined) return;
+            this.cutterModal.blade = blade;
+            this.cutterModal.col = col;
+            this.cutterModal.selected = (this.getCutterSymbols(blade, col) || '').split('').filter(Boolean);
+            const rect = $event.target.getBoundingClientRect();
+            this.cutterModal.top = Math.min(rect.bottom + 4, window.innerHeight - 320);
+            this.cutterModal.left = Math.min(rect.left, window.innerWidth - 340);
+            this.cutterModal.open = true;
+        },
+        canToggleCutterSym(code) {
+            const sel = this.cutterModal.selected;
+            if (sel.includes(code)) return true;
+            // O (OK) is exclusive with all findings
+            if (code === 'O' && sel.some(s => s !== 'O')) return false;
+            if (code !== 'O' && sel.includes('O')) return false;
+            return true;
+        },
+        toggleCutterSym(code) {
+            const idx = this.cutterModal.selected.indexOf(code);
+            if (idx >= 0) this.cutterModal.selected.splice(idx, 1);
+            else this.cutterModal.selected.push(code);
+        },
+        saveCutterCell() {
+            const ref = this.cutterCellRef[this.cutterModal.blade + '_' + this.cutterModal.col];
+            if (!ref) { this.cutterModal.open = false; return; }
+            const syms = this.cutterModal.selected.join('');
+            this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, syms);
+            this.cutterModal.open = false;
+            this.rebuildFlaggedCutters();
+        },
+        clearCutterCell() {
+            const ref = this.cutterCellRef[this.cutterModal.blade + '_' + this.cutterModal.col];
+            if (ref) this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, '');
+            this.cutterModal.selected = [];
+            this.cutterModal.open = false;
+            this.rebuildFlaggedCutters();
+        },
+        getCutterSymbols(blade, col) {
+            const ref = this.cutterCellRef[blade + '_' + col];
+            if (!ref) return '';
+            return this.cutterEvalData?.[ref.b]?.[ref.r]?.[ref.p]?.[String(ref.i)]?.action || '';
+        },
+        setCutterSymbols(blade, row, pos, idx, syms) {
+            if (!this.cutterEvalData[blade]) this.cutterEvalData[blade] = {};
+            if (!this.cutterEvalData[blade][row]) this.cutterEvalData[blade][row] = {};
+            if (!this.cutterEvalData[blade][row][pos]) this.cutterEvalData[blade][row][pos] = {};
+            if (!this.cutterEvalData[blade][row][pos][String(idx)])
+                this.cutterEvalData[blade][row][pos][String(idx)] = {action: '', remarks: ''};
+            this.cutterEvalData[blade][row][pos][String(idx)].action = syms || '';
+            if (!syms) {
+                delete this.cutterEvalData[blade][row][pos][String(idx)];
+                if (Object.keys(this.cutterEvalData[blade][row][pos]).length === 0)
+                    delete this.cutterEvalData[blade][row][pos];
+                if (Object.keys(this.cutterEvalData[blade][row]).length === 0)
+                    delete this.cutterEvalData[blade][row];
+                if (Object.keys(this.cutterEvalData[blade]).length === 0)
+                    delete this.cutterEvalData[blade];
+            }
+            this.recalcCutterCounts();
+        },
+        recalcCutterCounts() {
+            const c = {};
+            this.cutterSymbols.forEach(s => c[s.code] = 0);
+            let total = 0, evaluated = 0;
+            for (const key of Object.keys(this.cutterGridData)) {
+                total++;
+                const ref = this.cutterCellRef[key];
+                if (!ref) continue;
+                const syms = this.cutterEvalData?.[ref.b]?.[ref.r]?.[ref.p]?.[String(ref.i)]?.action || '';
+                if (syms) {
+                    evaluated++;
+                    for (const ch of syms) { if (c[ch] !== undefined) c[ch]++; }
+                }
+            }
+            this.cutterCounts = c;
+            this.cutterTotal = total;
+            this.cutterEvalCount = evaluated;
+        },
+
+        // ══════ Decisions Table ══════
+        _symLabel(code) {
+            const map = {O:'OK', C:'Cracked', H:'Chipped', P:'Porosity'};
+            return map[code] || code;
+        },
+        _findingText(syms) {
+            return syms.split('').map(c => this._symLabel(c)).join(', ');
+        },
+        rebuildFlaggedCutters() {
+            const flagged = [];
+            for (const key of Object.keys(this.cutterGridData)) {
+                const ref = this.cutterCellRef[key];
+                if (!ref) continue;
+                const syms = this.cutterEvalData?.[ref.b]?.[ref.r]?.[ref.p]?.[String(ref.i)]?.action || '';
+                if (!syms || syms === 'O') continue;  // Skip OK and empty
+                const cNum = this.cutterNumberMap[key] || '?';
+                const cfgOrder = this.cutterGridData[key];
+                const cfg = this.cutterConfigColors[cfgOrder] || {};
+                flagged.push({
+                    key: key,
+                    label: ref.b + 'C' + cNum,
+                    finding: this._findingText(syms),
+                    details: (cfg.size || '') + ' ' + (cfg.type || '') + (cfg.chamfer ? ' ' + cfg.chamfer : '') + (cfg.mat_number ? ' [' + cfg.mat_number + ']' : ''),
+                    color: cfg.color || '#666',
+                });
+            }
+            flagged.sort((a, b) => a.label.localeCompare(b.label, undefined, {numeric: true}));
+            this.flaggedCutters = flagged;
+
+            // Clean up decisions for cutters no longer flagged
+            const flaggedKeys = new Set(flagged.map(f => f.key));
+            for (const k of Object.keys(this.decisions)) {
+                if (!flaggedKeys.has(k)) delete this.decisions[k];
+            }
+        },
+        setDecision(key, value) {
+            if (!this.decisions[key]) this.decisions[key] = { decision: '', remarks: '', photo_name: '' };
+            this.decisions[key].decision = value;
+        },
+        setDecisionRemarks(key, value) {
+            if (!this.decisions[key]) this.decisions[key] = { decision: '', remarks: '', photo_name: '' };
+            this.decisions[key].remarks = value;
+        },
+        openCutterPhoto(fc) {
+            // Open photo section, switch to camera tab, pre-fill display name
+            this.s6 = true;
+            const photoName = 'DC-' + fc.label + '-' + fc.finding;
+            if (!this.decisions[fc.key]) this.decisions[fc.key] = { decision: '', remarks: '', photo_name: '' };
+            this.decisions[fc.key].photo_name = photoName;
+            this.$nextTick(() => {
+                const el = document.querySelector('[data-section="photos"]');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Tell the photo module to switch to camera with a pre-set name
+                window.dispatchEvent(new CustomEvent('photo-module-capture', { detail: { displayName: photoName } }));
+            });
+        },
+
+        // ══════ Barcode Scanner ══════
+        async startScan() {
+            this.scanResult = '';
+            this.scanStatus = 'Starting camera...';
+            try {
+                this._stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                this.$refs.scanVideo.srcObject = this._stream;
+                this.scanActive = true;
+                this.scanStatus = 'Scanning... point at barcode';
+                this._scanInterval = setInterval(() => this._autoScan(), 500);
+            } catch (err) {
+                this.scanStatus = '';
+                this.scanResult = 'Camera access denied: ' + err.message;
+                this.scanResultOk = false;
+            }
+        },
+        stopScan() {
+            if (this._scanInterval) { clearInterval(this._scanInterval); this._scanInterval = null; }
+            if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+            this.scanActive = false;
+            this.scanStatus = '';
+        },
+        _autoScan() {
+            if (!this.scanActive) return;
+            const video = this.$refs.scanVideo;
+            const canvas = this.$refs.scanCanvas;
+            if (!video || !canvas || video.readyState < 2) return;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(video, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (typeof jsQR !== 'undefined') {
+                const qr = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+                if (qr && qr.data) { this._processScannedData(qr.data); return; }
+            }
+        },
+        captureAndDecode() {
+            this._autoScan();
+            if (!this.scanResult) {
+                this.scanResult = 'No barcode detected. Try closer or adjust angle.';
+                this.scanResultOk = false;
+            }
+        },
+        _processScannedData(raw) {
+            this.stopScan();
+            let parsed = this._parseBarcode(raw);
+            if (parsed) {
+                const mat = parsed.material || this._detectMaterial(parsed.product || raw);
+                if (mat === 'penetrant' || mat === 'developer') {
+                    if (parsed.product) this.materialsData[mat].product = parsed.product;
+                    if (parsed.batch) this.materialsData[mat].batch = parsed.batch;
+                    if (parsed.expiry) this.materialsData[mat].expiry = parsed.expiry;
+                    this.scanResult = 'Filled ' + mat + ' from scan: ' + (parsed.product || raw);
+                    this.scanResultOk = true;
+                } else {
+                    this.scanResult = 'Scanned: "' + raw + '". Could not auto-detect material type.';
+                    this.scanResultOk = false;
+                }
+            } else {
+                this.scanResult = 'Scanned: "' + raw + '". Please fill fields manually.';
+                this.scanResultOk = false;
+            }
+        },
+        _parseBarcode(raw) {
+            try { const j = JSON.parse(raw); if (j.product || j.batch) return j; } catch (e) {}
+            const gs1 = {};
+            const bm = raw.match(/\(10\)([^\(]+)/);
+            const em = raw.match(/\(17\)(\d{6})/);
+            if (bm) gs1.batch = bm[1].trim();
+            if (em) { gs1.expiry = '20' + em[1].substring(0,2) + '-' + em[1].substring(2,4) + '-' + em[1].substring(4,6); }
+            if (Object.keys(gs1).length) { gs1.product = raw.split('(')[0].trim() || ''; return gs1; }
+            const lower = raw.toLowerCase();
+            if (lower.includes('penetrant') || lower.includes('zyglo') || lower.includes('zl-')) return { product: raw.trim(), material: 'penetrant' };
+            if (lower.includes('developer') || lower.includes('zp-') || lower.includes('d-100')) return { product: raw.trim(), material: 'developer' };
+            if (raw.length >= 3 && raw.length <= 60) return { product: raw.trim() };
+            return null;
+        },
+        _detectMaterial(text) {
+            const t = (text || '').toLowerCase();
+            if (t.includes('penetrant') || t.includes('zyglo') || t.includes('zl-') || t.includes('pen')) return 'penetrant';
+            if (t.includes('developer') || t.includes('zp-') || t.includes('dev') || t.includes('d-100')) return 'developer';
+            return null;
+        },
+    };
+}
+</script>
+
+<style>
+    .cutter-blade-label { width: 2.5rem; text-align: center; font-size: 0.625rem; padding: 0 2px; flex-shrink: 0; }
+    .cutter-grid-cell {
+        width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center;
+        font-size: 0.6rem; font-weight: 700; border: 2px solid #d1d5db; border-radius: 0.375rem;
+        cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; user-select: none;
+    }
+    .dark .cutter-grid-cell { border-color: #7c3aed; background: #374151; color: #f9fafb; }
+    .cutter-grid-cell:hover { transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .cutter-grid-cell-empty { width: 2.5rem; height: 2.5rem; }
+    .cutter-grid-cell-marked { font-weight: 800; }
+    .cutter-sym-mini {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.1rem; height: 1.1rem; font-size: 0.6rem; font-weight: 700;
+        border-radius: 3px; border: 1px solid #f97316; color: #c2410c; background: #fff7ed;
+    }
+    .dark .cutter-sym-mini { background: #431407; color: #fdba74; border-color: #f97316; }
+    .cfg-num-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.25rem; height: 1.25rem; border-radius: 50%; color: white;
+        font-size: 0.6rem; font-weight: 700;
+    }
+
+    /* ═══════════════════ PRINT STYLES ═══════════════════ */
+    .print-header, .print-materials, .print-decisions, .print-remark-block,
+    .print-result-block, .print-signatures { display: none; }
+
+    @media print {
+        @page { margin: 0.4in 0.5in; size: A4; }
+        body { font-size: 9pt !important; color: #000 !important; background: white !important; margin: 0; padding: 0; }
+        main { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+        .topnav, nav, .sidebar, header, footer, .no-print,
+        button[type="submit"], button[type="button"],
+        [data-lucide="chevron-down"], .fixed,
+        .bg-blue-50, .bg-white.rounded-xl { display: none !important; }
+
+        .print-header, .print-materials, .print-decisions, .print-remark-block,
+        .print-result-block, .print-signatures { display: block !important; }
+
+        [x-show] { display: block !important; }
+        [x-collapse] { height: auto !important; overflow: visible !important; }
+
+        * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        .dark * { color: #000 !important; background: transparent !important; border-color: #000 !important; }
+
+        table { page-break-inside: avoid; }
+        td, th { word-wrap: break-word; overflow-wrap: break-word; white-space: normal; height: auto; }
+    }
+</style>
 {% endblock content %}

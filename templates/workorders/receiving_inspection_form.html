@@ -1295,6 +1295,52 @@ function inspectionPage() {
             return vcol >= maxVcol;
         },
 
+        // Get next valid pocket vcol in same blade+row group (null if none)
+        _getNextPocketInRow(blade, col) {
+            const vcol = parseInt(col);
+            const myGroup = this._getPocketRowGroup(vcol);
+            let best = null;
+            for (const k of Object.keys(this.pocketGridData)) {
+                if (!this.pocketGridData[k]) continue;
+                const parts = k.split('_');
+                if (parseInt(parts[0]) !== parseInt(blade)) continue;
+                const kVcol = parseInt(parts[1]);
+                if (this._getPocketRowGroup(kVcol) === myGroup && kVcol > vcol) {
+                    if (best === null || kVcol < best) best = kVcol;
+                }
+            }
+            return best;
+        },
+
+        // Get previous valid pocket vcol in same blade+row group (null if none)
+        _getPrevPocketInRow(blade, col) {
+            const vcol = parseInt(col);
+            const myGroup = this._getPocketRowGroup(vcol);
+            let best = null;
+            for (const k of Object.keys(this.pocketGridData)) {
+                if (!this.pocketGridData[k]) continue;
+                const parts = k.split('_');
+                if (parseInt(parts[0]) !== parseInt(blade)) continue;
+                const kVcol = parseInt(parts[1]);
+                if (this._getPocketRowGroup(kVcol) === myGroup && kVcol < vcol) {
+                    if (best === null || kVcol > best) best = kVcol;
+                }
+            }
+            return best;
+        },
+
+        // Check if a pocket has V but no adjacent neighbor in its row also has V
+        _hasLoneV(blade, col) {
+            const key = blade + '_' + col;
+            const syms = this.pocketEvalData[key] || '';
+            if (!syms.includes('V')) return false;
+            const prev = this._getPrevPocketInRow(blade, col);
+            const next = this._getNextPocketInRow(blade, col);
+            const prevHasV = prev !== null && (this.pocketEvalData[blade + '_' + prev] || '').includes('V');
+            const nextHasV = next !== null && (this.pocketEvalData[blade + '_' + next] || '').includes('V');
+            return !prevHasV && !nextHasV;
+        },
+
         // Convert V→P on last pocket in a row with warning
         _handleFinOnLastPocket(selected, blade, col) {
             if (!selected.includes('V')) return selected;
@@ -1308,25 +1354,83 @@ function inspectionPage() {
             return out;
         },
 
+        // Auto-pair V: only auto-add when the new V would be alone (no adjacent V).
+        // When removing V, clean up lone V neighbors.
+        _handleVAutoPair(blade, col, hadV, hasV) {
+            // Adding V — only auto-pair if this pocket has no adjacent V neighbor yet
+            if (!hadV && hasV) {
+                const prevCol = this._getPrevPocketInRow(blade, col);
+                const nextCol = this._getNextPocketInRow(blade, col);
+                const prevHasV = prevCol !== null && (this.pocketEvalData[blade + '_' + prevCol] || '').includes('V');
+                const nextHasV = nextCol !== null && (this.pocketEvalData[blade + '_' + nextCol] || '').includes('V');
+                // Already has a V neighbor — no auto-add needed
+                if (!prevHasV && !nextHasV && nextCol !== null) {
+                    const nKey = blade + '_' + nextCol;
+                    const nSyms = (this.pocketEvalData[nKey] || '').split('').filter(Boolean);
+                    if (!nSyms.includes('V')) {
+                        nSyms.push('V');
+                        this.pocketEvalData[nKey] = nSyms.join('');
+                        const pNum = this.pocketNumberMap[nKey] || nextCol;
+                        this.pocketWarning = `V auto-paired: B${blade}P${pNum} also marked (fin between pockets).`;
+                        setTimeout(() => { this.pocketWarning = ''; }, 4000);
+                    }
+                }
+            }
+            // Removing V — clean up neighbor if it would be left alone
+            if (hadV && !hasV) {
+                // Check prev neighbor
+                const prevCol = this._getPrevPocketInRow(blade, col);
+                if (prevCol !== null && this._hasLoneV(blade, prevCol)) {
+                    const pKey = blade + '_' + prevCol;
+                    const pSyms = (this.pocketEvalData[pKey] || '').split('').filter(s => s !== 'V');
+                    if (pSyms.length) this.pocketEvalData[pKey] = pSyms.join('');
+                    else delete this.pocketEvalData[pKey];
+                    const pNum = this.pocketNumberMap[pKey] || prevCol;
+                    this.pocketWarning = `V removed from B${blade}P${pNum} (no adjacent fin partner).`;
+                    setTimeout(() => { this.pocketWarning = ''; }, 4000);
+                }
+                // Check next neighbor
+                const nextCol = this._getNextPocketInRow(blade, col);
+                if (nextCol !== null && this._hasLoneV(blade, nextCol)) {
+                    const nKey = blade + '_' + nextCol;
+                    const nSyms = (this.pocketEvalData[nKey] || '').split('').filter(s => s !== 'V');
+                    if (nSyms.length) this.pocketEvalData[nKey] = nSyms.join('');
+                    else delete this.pocketEvalData[nKey];
+                    const pNum = this.pocketNumberMap[nKey] || nextCol;
+                    this.pocketWarning = `V removed from B${blade}P${pNum} (no adjacent fin partner).`;
+                    setTimeout(() => { this.pocketWarning = ''; }, 4000);
+                }
+            }
+        },
+
         savePocketCell() {
-            const key = this.pocketModal.blade + '_' + this.pocketModal.pos;
+            const blade = this.pocketModal.blade;
+            const col = this.pocketModal.pos;
+            const key = blade + '_' + col;
+            const hadV = (this.pocketEvalData[key] || '').includes('V');
             let selected = this._handleFinOnLastPocket(
-                [...this.pocketModal.selected], this.pocketModal.blade, this.pocketModal.pos);
+                [...this.pocketModal.selected], blade, col);
             const syms = selected.join('');
+            const hasV = syms.includes('V');
             if (syms) {
                 this.pocketEvalData[key] = syms;
             } else {
                 delete this.pocketEvalData[key];
             }
+            this._handleVAutoPair(blade, col, hadV, hasV);
             this.pocketModal.open = false;
             this.recalcPocketCount();
             this.buildPocketRemarks();
         },
 
         clearPocketCell() {
-            const key = this.pocketModal.blade + '_' + this.pocketModal.pos;
+            const blade = this.pocketModal.blade;
+            const col = this.pocketModal.pos;
+            const key = blade + '_' + col;
+            const hadV = (this.pocketEvalData[key] || '').includes('V');
             delete this.pocketEvalData[key];
             this.pocketModal.selected = [];
+            if (hadV) this._handleVAutoPair(blade, col, true, false);
             this.pocketModal.open = false;
             this.recalcPocketCount();
             this.buildPocketRemarks();
@@ -1382,6 +1486,7 @@ function inspectionPage() {
         directTogglePocketSym(blade, col, code) {
             const key = blade + '_' + col;
             let current = (this.pocketEvalData[key] || '').split('').filter(Boolean);
+            const hadV = current.includes('V');
             const idx = current.indexOf(code);
             if (idx >= 0) {
                 current.splice(idx, 1);
@@ -1395,11 +1500,13 @@ function inspectionPage() {
             }
             // V→P conversion on last pocket
             current = this._handleFinOnLastPocket(current, blade, col);
+            const hasV = current.includes('V');
             if (current.length) {
                 this.pocketEvalData[key] = current.join('');
             } else {
                 delete this.pocketEvalData[key];
             }
+            if (code === 'V') this._handleVAutoPair(blade, col, hadV, hasV);
             this.recalcPocketCount();
             this.buildPocketRemarks();
         },

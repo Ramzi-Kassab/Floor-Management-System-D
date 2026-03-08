@@ -3726,30 +3726,66 @@ class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
 # ── Standalone Test Page Views (Placeholders) ──
 
 class DieCheckReportView(LoginRequiredMixin, TemplateView):
-    """Standalone Die Check test page."""
+    """Standalone Die Check test page with LPT materials, photos, barcode scanning."""
     template_name = "workorders/die_check_report.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         wo = get_object_or_404(WorkOrder.objects.select_related(
             'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+            'drill_bit__system_bom', 'drill_bit__brazing_bom',
         ), pk=self.kwargs['wo_pk'])
         context['work_order'] = wo
         context['drill_bit'] = wo.drill_bit
         context['page_title'] = f"Die Check — {wo.wo_number}"
 
-        # Get or create report
         eval_pk = self.kwargs.get('eval_pk')
         evaluation = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk) if eval_pk else None
+        context['evaluation'] = evaluation
 
         report_pk = self.kwargs.get('pk')
         if report_pk:
-            context['report'] = get_object_or_404(DieCheckReport, pk=report_pk)
+            report = get_object_or_404(DieCheckReport, pk=report_pk)
+            context['report'] = report
             context['is_new'] = False
         else:
+            report = None
             context['report'] = None
             context['is_new'] = True
-        context['evaluation'] = evaluation
+
+        # Auto-detect stage for new reports
+        if report:
+            context['stage'] = report.stage
+        else:
+            context['stage'] = DieCheckReport.auto_detect_stage(wo)
+
+        # Materials data for pre-population
+        context['materials_data_json'] = _json.dumps(
+            report.materials_data if report and report.materials_data else {}
+        )
+
+        # Stage choices for dropdown
+        context['stage_choices'] = DieCheckReport.Stage.choices
+
+        # Grid data (saved cutter evaluation) for pre-population
+        context['grid_data_json'] = _json.dumps(
+            report.grid_data if report and report.grid_data else {}
+        )
+
+        # Cutter grid context from BOM (same as receiving inspection)
+        bit = wo.drill_bit
+        has_bom = False
+        if bit:
+            blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = _get_bom_blade_data(bit)
+            if has_bom:
+                context['cutter_config_list'] = cutter_config_list
+                context['cutter_config_json'] = _json.dumps([
+                    {k: v for k, v in cfg.items() if k != 'shape'}
+                    for cfg in cutter_config_list
+                ])
+                context.update(cutter_grid_ctx)
+        context['has_bom_data'] = has_bom
+
         return context
 
     def post(self, request, *args, **kwargs):
@@ -3768,25 +3804,57 @@ class DieCheckReportView(LoginRequiredMixin, TemplateView):
                 performed_by=request.user,
             )
 
-        # Save grid data from POST
+        # Stage
+        report.stage = request.POST.get('stage', DieCheckReport.Stage.BEFORE_BRAZE)
+
+        # Grid data
         try:
-            grid_data = _json.loads(request.POST.get('grid_data', '{}'))
+            report.grid_data = _json.loads(request.POST.get('grid_data', '{}'))
         except (ValueError, TypeError):
-            grid_data = {}
-        report.grid_data = grid_data
+            report.grid_data = {}
+
+        # Materials data (penetrant, developer)
+        try:
+            report.materials_data = _json.loads(request.POST.get('materials_data', '{}'))
+        except (ValueError, TypeError):
+            report.materials_data = {}
+
         report.result = request.POST.get('result', '')
         report.remarks = request.POST.get('remarks', '')
 
-        mark_complete = request.POST.get('mark_complete') == 'true'
-        if mark_complete:
+        if request.POST.get('mark_complete') == 'true':
             report.is_complete = True
             report.performed_at = timezone.now()
 
         report.save()
 
-        # If completed and linked to evaluation, auto-fill checklist item #4
+        # Auto-fill checklist when completed
         if report.is_complete and evaluation:
             self._auto_fill_checklist(evaluation, report)
+
+        # Send notification for "Waiting Quality Decision" cutters
+        decisions = (report.grid_data or {}).get('decisions', {})
+        waiting_cutters = [
+            k for k, v in decisions.items()
+            if isinstance(v, dict) and v.get('decision') == 'WAITING_QD'
+        ]
+        if waiting_cutters:
+            cutter_list = ', '.join(waiting_cutters[:5])
+            if len(waiting_cutters) > 5:
+                cutter_list += f' (+{len(waiting_cutters) - 5} more)'
+            notify(
+                actor=request.user,
+                verb=f'requested quality decision on die check for',
+                target=wo.wo_number,
+                recipients='all',
+                priority='HIGH',
+                action_url=reverse('workorders:die_check_edit',
+                                   kwargs={'wo_pk': wo.pk, 'pk': report.pk, 'eval_pk': eval_pk}) if eval_pk else
+                            reverse('workorders:workorder_detail_enhanced', kwargs={'pk': wo.pk}),
+                message=f'Cutters needing decision: {cutter_list}',
+                entity_type='DieCheckReport',
+                entity_id=report.pk,
+            )
 
         messages.success(request, "Die check report saved.")
         if eval_pk:
@@ -3799,7 +3867,7 @@ class DieCheckReportView(LoginRequiredMixin, TemplateView):
         for item in checklist:
             if item.get('item') == 'Die Check':
                 item['status'] = 'OK' if report.result == 'PASS' else 'NOT_OK'
-                item['remarks'] = f"Die Check: {report.get_result_display()} (Report #{report.pk})"
+                item['remarks'] = f"Die Check ({report.get_stage_display()}): {report.get_result_display()} (Report #{report.pk})"
                 break
         evaluation.checklist_data = checklist
         evaluation.save(update_fields=['checklist_data', 'updated_at'])

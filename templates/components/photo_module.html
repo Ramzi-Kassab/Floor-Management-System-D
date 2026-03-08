@@ -250,6 +250,11 @@ Required context:
                 <p class="text-sm">No photos yet. Use ADG, Camera, or Free Upload to add photos.</p>
             </div>
         </template>
+        <div x-show="photos.length" class="flex justify-end mb-2">
+            <button type="button" @click="downloadAllPhotos()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Download All (<span x-text="photos.length"></span>)
+            </button>
+        </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3" x-show="photos.length">
             <template x-for="(photo, idx) in photos" :key="photo.id">
                 <div class="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden aspect-square bg-gray-100 dark:bg-gray-900"
@@ -261,9 +266,15 @@ Required context:
                     <img :src="photo.file_url" class="w-full h-full object-cover cursor-pointer" :alt="photo.display_name"
                          @click="openViewer(photo, null)">
                     <!-- Overlay on hover -->
-                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 flex-wrap">
                         <button type="button" @click.stop="openViewer(photo, null)" class="bg-white/90 rounded-full p-1.5 hover:bg-white" title="View">
                             <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-gray-700"></i>
+                        </button>
+                        <button type="button" @click.stop="downloadPhoto(photo)" class="bg-white/90 rounded-full p-1.5 hover:bg-white" title="Download">
+                            <i data-lucide="download" class="w-3.5 h-3.5 text-gray-700"></i>
+                        </button>
+                        <button type="button" @click.stop="copyPhoto(photo)" class="bg-white/90 rounded-full p-1.5 hover:bg-white" title="Copy to clipboard">
+                            <i data-lucide="copy" class="w-3.5 h-3.5 text-gray-700"></i>
                         </button>
                         <button type="button" @click="openEditor(photo)" class="bg-white/90 rounded-full p-1.5 hover:bg-white" title="Edit">
                             <i data-lucide="pencil" class="w-3.5 h-3.5 text-gray-700"></i>
@@ -581,6 +592,13 @@ function photoModule(bitPk, contextType, contextId) {
             if (typeof lucide !== 'undefined') {
                 this.$nextTick(() => lucide.createIcons());
             }
+            // Listen for external capture requests (e.g. die check decisions table)
+            window.addEventListener('photo-module-capture', (e) => {
+                const name = e.detail?.displayName || '';
+                this.activeTab = 'camera';
+                this.cameraSlotName = '__custom';
+                this.cameraCustomName = name;
+            });
         },
 
         async detectCamera() {
@@ -889,6 +907,56 @@ function photoModule(bitPk, contextType, contextId) {
                     this.showToast('Renamed');
                 }
             } catch (e) { this.showToast('Rename failed', 'error'); }
+        },
+
+        async downloadPhoto(photo) {
+            try {
+                const resp = await fetch(photo.file_url);
+                const blob = await resp.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                const ext = (photo.original_filename || 'photo.jpg').split('.').pop() || 'jpg';
+                a.download = (photo.display_name || 'photo') + '.' + ext;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(a.href);
+            } catch (e) { this.showToast('Download failed', 'error'); }
+        },
+
+        async copyPhoto(photo) {
+            try {
+                const resp = await fetch(photo.file_url);
+                const blob = await resp.blob();
+                const pngBlob = await this._toPngBlob(blob);
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+                this.showToast('Copied to clipboard');
+            } catch (e) { this.showToast('Copy failed — try download instead', 'error'); }
+        },
+
+        async _toPngBlob(blob) {
+            // Clipboard API requires image/png
+            if (blob.type === 'image/png') return blob;
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const c = document.createElement('canvas');
+                    c.width = img.naturalWidth; c.height = img.naturalHeight;
+                    c.getContext('2d').drawImage(img, 0, 0);
+                    c.toBlob(b => resolve(b), 'image/png');
+                };
+                img.src = URL.createObjectURL(blob);
+            });
+        },
+
+        async downloadAllPhotos() {
+            if (!this.photos.length) return;
+            // Download each photo sequentially with proper names
+            this.showToast(`Downloading ${this.photos.length} photos...`);
+            for (const photo of this.photos) {
+                await this.downloadPhoto(photo);
+                await new Promise(r => setTimeout(r, 300));
+            }
         },
 
         async deletePhoto(photo) {

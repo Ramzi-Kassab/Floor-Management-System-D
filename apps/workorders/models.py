@@ -3792,9 +3792,15 @@ class BOMPendingRequest(models.Model):
 class DieCheckReport(models.Model):
     """
     Standalone Die Check report linked to WO or DrillBit.
-    Required before pre-repair evaluation can be completed.
-    Grid data stores blade × cutter position die check results.
+    Also captures LPT materials used (Penetrant, Developer) per QAS/1004-1.
+    Auto-detects stage (Before Braze / After Repair / Other) from existing reports.
     """
+
+    class Stage(models.TextChoices):
+        BEFORE_BRAZE = "BEFORE_BRAZE", "Before Braze"
+        AFTER_REPAIR = "AFTER_REPAIR", "After Repair"
+        OTHER = "OTHER", "Other"
+
     work_order = models.ForeignKey(
         WorkOrder, on_delete=models.CASCADE, null=True, blank=True,
         related_name="die_check_reports"
@@ -3810,11 +3816,22 @@ class DieCheckReport(models.Model):
     )
 
     report_number = models.CharField(max_length=30, blank=True)
+    stage = models.CharField(
+        max_length=20, choices=Stage.choices, default=Stage.BEFORE_BRAZE,
+        help_text="Stage in the repair process when this die check was performed"
+    )
 
     # Grid data: {blade: {position: {value: 'OK'|'NG'|'', remarks: ''}}}
     grid_data = models.JSONField(
         null=True, blank=True,
         help_text="Die check grid: blade → position → result"
+    )
+
+    # LPT materials used during the die check (Penetrant, Developer)
+    # Format: {penetrant: {product, batch, expiry}, developer: {product, batch, expiry}}
+    materials_data = models.JSONField(
+        null=True, blank=True,
+        help_text="LPT materials: penetrant & developer product, batch, expiry"
     )
 
     result = models.CharField(
@@ -3840,7 +3857,15 @@ class DieCheckReport(models.Model):
     def __str__(self):
         ref = self.work_order.wo_number if self.work_order else (
             self.drill_bit.serial_number if self.drill_bit else "?")
-        return f"Die Check {self.report_number} — {ref}"
+        return f"Die Check {self.report_number} ({self.get_stage_display()}) — {ref}"
+
+    @classmethod
+    def auto_detect_stage(cls, work_order):
+        """Auto-detect stage based on how many die checks already exist for this WO."""
+        count = cls.objects.filter(work_order=work_order).count()
+        if count == 0:
+            return cls.Stage.BEFORE_BRAZE
+        return cls.Stage.AFTER_REPAIR
 
 
 class StandaloneLPTReport(models.Model):
