@@ -3530,8 +3530,8 @@ class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
         context['eval_data_json'] = _json.dumps(matrix.die_check_data or {})
         # Use pocket_evaluation_data on CutterEvaluationMatrix
         context['pocket_eval_data_json'] = _json.dumps(matrix.pocket_evaluation_data or {})
-        context['pocket_remark_annotations_json'] = '{}'
-        context['cutter_remark_annotations_json'] = '{}'
+        context['pocket_remark_annotations_json'] = _json.dumps(matrix.pocket_remark_annotations or {})
+        context['cutter_remark_annotations_json'] = _json.dumps(matrix.cutter_remark_annotations or {})
 
         # Version history
         from apps.notifications.models import FormRevision
@@ -3586,6 +3586,13 @@ class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
         if remarks is not None:
             matrix.general_remark = remarks
             update_fields.append('general_remark')
+
+        # Remark annotations
+        for field in ('pocket_remark_annotations', 'cutter_remark_annotations'):
+            val = data.get(field)
+            if val is not None:
+                setattr(matrix, field, val)
+                update_fields.append(field)
 
         # Mark complete
         mark_complete = data.get('mark_complete')
@@ -3668,9 +3675,8 @@ class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
         ]:
             raw = request.POST.get(post_key, '{}')
             try:
-                # Store in pressure_test_data and thread_inspection_data temporarily
-                # (reusing existing JSON fields for remark annotations)
-                pass
+                setattr(matrix, field, _json.loads(raw))
+                update_fields.append(field)
             except (ValueError, TypeError):
                 pass
 

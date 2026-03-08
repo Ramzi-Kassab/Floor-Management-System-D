@@ -1965,6 +1965,22 @@ class CutterEvaluationMatrix(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # ── Remark annotations (user clarifications on auto-generated remarks) ──
+    pocket_remark_annotations = models.JSONField(
+        default=dict, blank=True,
+        help_text="User annotations per pocket remark segment: {segKey: {text, before, after}}"
+    )
+    cutter_remark_annotations = models.JSONField(
+        default=dict, blank=True,
+        help_text="User annotations per cutter remark segment: {segKey: {text, before, after}}"
+    )
+    pocket_auto_remarks = models.TextField(
+        blank=True, help_text="Auto-generated pocket remarks text"
+    )
+    cutter_auto_remarks = models.TextField(
+        blank=True, help_text="Auto-generated cutter remarks text"
+    )
+
     # Default section visibility per evaluation type
     SECTION_DEFAULTS = {
         'RECEIVING': {

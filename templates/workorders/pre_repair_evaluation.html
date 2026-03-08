@@ -485,6 +485,37 @@
                     </span>
                 </template>
             </div>
+            <!-- Segment editor panel (shown below remarks when editing) -->
+            <div x-show="pocketEditSeg !== null" x-cloak x-transition
+                 class="remark-editor-panel mt-1">
+                <div class="remark-editor-header">
+                    <span class="font-semibold" x-text="pocketEditSeg !== null ? pocketRemarkSegments[pocketEditSeg]?.text : ''"></span>
+                    <button type="button" @click="pocketEditSeg = null" class="remark-editor-close">&times;</button>
+                </div>
+                <div class="remark-editor-fields">
+                    <div class="remark-editor-row">
+                        <label>Insert before:</label>
+                        <input type="text" x-model="pocketEditBefore" placeholder="Text to add before this remark..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Clarification:</label>
+                        <input type="text" x-model="pocketEditText" placeholder="e.g. high, needs grinding, worn..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null"
+                               @keydown.enter="savePocketSegEditor()">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Insert after:</label>
+                        <input type="text" x-model="pocketEditAfter" placeholder="Text to add after this remark..."
+                               class="remark-editor-input" @keydown.escape="pocketEditSeg = null">
+                    </div>
+                </div>
+                <div class="remark-editor-actions">
+                    <button type="button" @click="savePocketSegEditor()" class="remark-annot-btn remark-annot-save">Apply</button>
+                    <button type="button" @click="clearPocketSegEditor()" class="remark-annot-btn remark-annot-clear">Clear All</button>
+                    <button type="button" @click="pocketEditSeg = null" class="remark-annot-btn remark-annot-clear">Cancel</button>
+                </div>
+            </div>
         </div>
 
         <!-- Pocket symbol modal -->
@@ -639,6 +670,37 @@
                         <span x-text="si < cutterRemarkSegments.length - 1 ? '. ' : '.'"></span>
                     </span>
                 </template>
+            </div>
+            <!-- Cutter segment editor panel -->
+            <div x-show="cutterEditSeg !== null" x-cloak x-transition
+                 class="remark-editor-panel mt-1">
+                <div class="remark-editor-header">
+                    <span class="font-semibold" x-text="cutterEditSeg !== null ? cutterRemarkSegments[cutterEditSeg]?.text : ''"></span>
+                    <button type="button" @click="cutterEditSeg = null" class="remark-editor-close">&times;</button>
+                </div>
+                <div class="remark-editor-fields">
+                    <div class="remark-editor-row">
+                        <label>Insert before:</label>
+                        <input type="text" x-model="cutterEditBefore" placeholder="Text to add before this remark..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Clarification:</label>
+                        <input type="text" x-model="cutterEditText" placeholder="e.g. severe, needs replacement..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null"
+                               @keydown.enter="saveCutterSegEditor()">
+                    </div>
+                    <div class="remark-editor-row">
+                        <label>Insert after:</label>
+                        <input type="text" x-model="cutterEditAfter" placeholder="Text to add after this remark..."
+                               class="remark-editor-input" @keydown.escape="cutterEditSeg = null">
+                    </div>
+                </div>
+                <div class="remark-editor-actions">
+                    <button type="button" @click="saveCutterSegEditor()" class="remark-annot-btn remark-annot-save">Apply</button>
+                    <button type="button" @click="clearCutterSegEditor()" class="remark-annot-btn remark-annot-clear">Clear All</button>
+                    <button type="button" @click="cutterEditSeg = null" class="remark-annot-btn remark-annot-clear">Cancel</button>
+                </div>
             </div>
         </div>
 
@@ -1071,7 +1133,44 @@ function evalPage() {
                 if (s.annotation) t += ' — ' + s.annotation; if (s.after) t += '. ' + s.after; return t;
             }).join('. ') + (this.pocketRemarkSegments.length ? '.' : '');
         },
-        openPocketSegEditor(si) { /* stub */ },
+        openPocketSegEditor(si) {
+            const seg = this.pocketRemarkSegments[si];
+            if (!seg) return;
+            this.pocketEditSeg = si;
+            const saved = this.pocketRemarkAnnotations[seg.key] || {};
+            this.pocketEditText = (typeof saved === 'string') ? saved : (saved.text || '');
+            this.pocketEditBefore = saved.before || '';
+            this.pocketEditAfter = saved.after || '';
+            this.$nextTick(() => {
+                const panel = this.$el.querySelector('.remark-editor-panel input');
+                if (panel) panel.focus();
+            });
+        },
+        savePocketSegEditor() {
+            if (this.pocketEditSeg === null) return;
+            const seg = this.pocketRemarkSegments[this.pocketEditSeg];
+            if (!seg) return;
+            const t = this.pocketEditText.trim();
+            const b = this.pocketEditBefore.trim();
+            const a = this.pocketEditAfter.trim();
+            if (t || b || a) {
+                this.pocketRemarkAnnotations[seg.key] = { text: t, before: b, after: a };
+            } else {
+                delete this.pocketRemarkAnnotations[seg.key];
+            }
+            this.pocketEditSeg = null;
+            this.buildPocketRemarks();
+        },
+        clearPocketSegEditor() {
+            if (this.pocketEditSeg === null) return;
+            const seg = this.pocketRemarkSegments[this.pocketEditSeg];
+            if (seg) delete this.pocketRemarkAnnotations[seg.key];
+            this.pocketEditText = '';
+            this.pocketEditBefore = '';
+            this.pocketEditAfter = '';
+            this.pocketEditSeg = null;
+            this.buildPocketRemarks();
+        },
 
         // ═══════ CUTTER (identical to receiving inspection) ═══════
         getCutterCellStyle(blade, col) {
@@ -1201,7 +1300,40 @@ function evalPage() {
                 if (s.annotation) t += ' — ' + s.annotation; if (s.after) t += '. ' + s.after; return t;
             }).join('. ') + (this.cutterRemarkSegments.length ? '.' : '');
         },
-        openCutterSegEditor(si) { /* stub */ },
+        openCutterSegEditor(si) {
+            const seg = this.cutterRemarkSegments[si];
+            if (!seg) return;
+            this.cutterEditSeg = si;
+            const saved = this.cutterRemarkAnnotations[seg.key] || {};
+            this.cutterEditText = (typeof saved === 'string') ? saved : (saved.text || '');
+            this.cutterEditBefore = saved.before || '';
+            this.cutterEditAfter = saved.after || '';
+        },
+        saveCutterSegEditor() {
+            if (this.cutterEditSeg === null) return;
+            const seg = this.cutterRemarkSegments[this.cutterEditSeg];
+            if (!seg) return;
+            const t = this.cutterEditText.trim();
+            const b = this.cutterEditBefore.trim();
+            const a = this.cutterEditAfter.trim();
+            if (t || b || a) {
+                this.cutterRemarkAnnotations[seg.key] = { text: t, before: b, after: a };
+            } else {
+                delete this.cutterRemarkAnnotations[seg.key];
+            }
+            this.cutterEditSeg = null;
+            this.buildCutterRemarks();
+        },
+        clearCutterSegEditor() {
+            if (this.cutterEditSeg === null) return;
+            const seg = this.cutterRemarkSegments[this.cutterEditSeg];
+            if (seg) delete this.cutterRemarkAnnotations[seg.key];
+            this.cutterEditText = '';
+            this.cutterEditBefore = '';
+            this.cutterEditAfter = '';
+            this.cutterEditSeg = null;
+            this.buildCutterRemarks();
+        },
     };
 }
 
@@ -1270,6 +1402,46 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
     .remark-annotation { color: #6d28d9; font-style: italic; font-weight: 500; }
     .remark-user-text { color: #059669; font-weight: 500; }
 
+    /* Remark segment editor panel */
+    .remark-editor-panel {
+        background: white; border: 1.5px solid #c4b5fd; border-radius: 8px;
+        padding: 10px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .dark .remark-editor-panel { background: #1e1b4b; border-color: #5b21b6; }
+    .remark-editor-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 8px; font-size: 11px; color: #4c1d95;
+    }
+    .dark .remark-editor-header { color: #c4b5fd; }
+    .remark-editor-close {
+        background: none; border: none; font-size: 16px; cursor: pointer;
+        color: #9ca3af; line-height: 1; padding: 0 2px;
+    }
+    .remark-editor-close:hover { color: #ef4444; }
+    .remark-editor-fields { display: flex; flex-direction: column; gap: 5px; }
+    .remark-editor-row { display: flex; align-items: center; gap: 6px; }
+    .remark-editor-row label {
+        font-size: 10px; font-weight: 600; color: #6b7280;
+        min-width: 80px; text-align: right; white-space: nowrap;
+    }
+    .dark .remark-editor-row label { color: #9ca3af; }
+    .remark-editor-input {
+        flex: 1; font-size: 11px; border: 1px solid #d1d5db; border-radius: 4px;
+        padding: 3px 8px; outline: none; background: white;
+    }
+    .remark-editor-input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
+    .dark .remark-editor-input { background: #111827; border-color: #374151; color: #e5e7eb; }
+    .remark-editor-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .remark-annot-btn {
+        font-size: 10px; padding: 3px 10px; border-radius: 4px;
+        cursor: pointer; border: none; font-weight: 600;
+    }
+    .remark-annot-save { background: #7c3aed; color: white; }
+    .remark-annot-save:hover { background: #6d28d9; }
+    .remark-annot-clear { background: #e5e7eb; color: #374151; }
+    .remark-annot-clear:hover { background: #d1d5db; }
+    .dark .remark-annot-clear { background: #374151; color: #d1d5db; }
+
     .print-header, .print-checklist { display: none; }
     @media print {
         .no-print, nav, .sidebar, header, footer, .topnav { display: none !important; }
@@ -1279,7 +1451,8 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
         main, main > div { margin: 0 !important; padding: 0 !important; margin-left: 0 !important; }
         [x-show] { display: block !important; }
         [x-collapse] { height: auto !important; overflow: visible !important; }
-        .fixed { display: none !important; }
+        .fixed, .remark-editor-panel { display: none !important; }
+        .remark-segment { border-bottom: none; cursor: default; }
     }
     [x-cloak] { display: none !important; }
 </style>
