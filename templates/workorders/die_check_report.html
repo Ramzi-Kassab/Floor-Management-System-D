@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block page_header %}
-<div class="flex items-center justify-between">
+<div class="flex items-center justify-between no-print">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -27,13 +27,13 @@
 
 {% block content %}
 <div x-data="dieCheckPage()">
-<form method="post">
+<form method="post" @keydown.enter.prevent="">
     {% csrf_token %}
     <input type="hidden" name="grid_data" :value="JSON.stringify({findings: cutterEvalData, decisions: decisions})">
     <input type="hidden" name="materials_data" :value="JSON.stringify(materialsData)">
 
     <!-- ══════ SECTION 1: Header Info ══════ -->
-    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
+    <div data-screen-section class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
                 <p class="text-gray-500 dark:text-gray-400">WO Number</p>
@@ -64,7 +64,7 @@
     </div>
 
     <!-- ══════ SECTION 2: Materials ══════ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+    <div data-screen-section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
         <button type="button" @click="s2 = !s2"
                 class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
             <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
@@ -169,7 +169,7 @@
 
     <!-- ══════ SECTION 3: Die Check Cutter Grid ══════ -->
     {% if has_bom_data %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+    <div data-screen-section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
         <button type="button" @click="s3 = !s3"
                 class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
             <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
@@ -277,7 +277,7 @@
         </div>
     </div>
     {% else %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4 p-5">
+    <div data-screen-section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4 p-5">
         <div class="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
             <i data-lucide="info" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
             No BOM data available for cutter grid. Assign a BOM to the drill bit first.
@@ -315,7 +315,7 @@
     </div>
 
     <!-- ══════ SECTION 4: Decisions Table ══════ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
+    <div data-screen-section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
          x-show="flaggedCutters.length > 0">
         <button type="button" @click="s4 = !s4"
                 class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
@@ -400,7 +400,7 @@
     </div>
 
     <!-- ══════ SECTION 5: Result & Remarks ══════ -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
+    <div data-screen-section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
         <button type="button" @click="s5 = !s5"
                 class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
             <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
@@ -434,20 +434,26 @@
                           placeholder="Observations, indications found, disposition..."></textarea>
             </div>
 
-            <!-- Auto-generated summary -->
+            <!-- Auto-generated summary (editable) -->
             <div class="mt-4 bg-gray-50 dark:bg-gray-900/40 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                 <div class="flex items-center justify-between mb-2">
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                         <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
-                        Auto-Generated Summary
+                        Summary
                     </label>
-                    <button type="button" @click="copyAutoRemark()"
-                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 transition">
-                        <i data-lucide="clipboard-copy" class="w-3 h-3"></i> Copy
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="remarkEdited = autoRemark"
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 transition">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> Regenerate
+                        </button>
+                        <button type="button" @click="copyAutoRemark()"
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 transition">
+                            <i data-lucide="clipboard-copy" class="w-3 h-3"></i> Copy
+                        </button>
+                    </div>
                 </div>
-                <div class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 min-h-[2rem]"
-                     x-text="autoRemark"></div>
+                <textarea x-model="remarkEdited" rows="6"
+                          class="w-full text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 focus:ring-1 focus:ring-blue-400 resize-y"></textarea>
             </div>
         </div>
     </div>
@@ -619,7 +625,7 @@
         <table style="width:100%;border:1px solid #000;border-collapse:collapse;font-size:9pt;margin-top:6px;">
             <tr>
                 <td style="border:1px solid #000;padding:4px 8px;background:#f8f8f8;font-weight:bold;width:15%;vertical-align:top;">Summary</td>
-                <td style="border:1px solid #000;padding:4px 8px;white-space:pre-wrap;word-wrap:break-word;" x-text="autoRemark"></td>
+                <td style="border:1px solid #000;padding:4px 8px;white-space:pre-wrap;word-wrap:break-word;" x-text="remarkEdited"></td>
             </tr>
         </table>
     </div>
@@ -671,6 +677,7 @@ function dieCheckPage() {
         stage: '{{ stage }}',
         result: '{{ report.result|default:"" }}',
         remarks: '{{ report.remarks|default:""|escapejs }}',
+        remarkEdited: '',
 
         // Materials
         materialsData: {
@@ -697,7 +704,7 @@ function dieCheckPage() {
             {code: 'O', label: 'OK (No Indication)'},
             {code: 'C', label: 'Cracked'},
             {code: 'H', label: 'Chipped'},
-            {code: 'P', label: 'Porosity'},
+            {code: 'Y', label: 'Porosity'},
         ],
         cutterModal: { open: false, blade: '', col: 0, selected: [], top: 200, left: 200 },
 
@@ -745,7 +752,7 @@ function dieCheckPage() {
         },
 
         copyAutoRemark() {
-            navigator.clipboard.writeText(this.autoRemark).then(() => {
+            navigator.clipboard.writeText(this.remarkEdited || this.autoRemark).then(() => {
                 // Simple flash feedback
                 const btn = event.target.closest('button');
                 const orig = btn.innerHTML;
@@ -790,6 +797,7 @@ function dieCheckPage() {
             this.recalcCutterCounts();
             this.rebuildFlaggedCutters();
             {% endif %}
+            this.$nextTick(() => { this.remarkEdited = this.autoRemark; });
         },
 
         // ══════ Cutter Grid Helpers ══════
@@ -905,7 +913,7 @@ function dieCheckPage() {
 
         // ══════ Decisions Table ══════
         _symLabel(code) {
-            const map = {O:'OK', C:'Cracked', H:'Chipped', P:'Porosity'};
+            const map = {O:'OK', C:'Cracked', H:'Chipped', Y:'Porosity'};
             return map[code] || code;
         },
         _findingText(syms) {
@@ -1081,16 +1089,18 @@ function dieCheckPage() {
         @page { margin: 0.4in 0.5in; size: A4; }
         body { font-size: 9pt !important; color: #000 !important; background: white !important; margin: 0; padding: 0; }
         main { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
-        .topnav, nav, .sidebar, header, footer, .no-print,
-        button[type="submit"], button[type="button"],
-        [data-lucide="chevron-down"], .fixed,
-        .bg-blue-50, .bg-white.rounded-xl { display: none !important; }
+        main > div { margin-top: 0 !important; padding: 0 !important; }
 
+        /* Hide screen-only UI */
+        .topnav, nav, .sidebar, header, footer, .no-print,
+        [data-lucide="chevron-down"], .fixed { display: none !important; }
+
+        /* Hide screen sections (use data attribute to target precisely) */
+        [data-screen-section] { display: none !important; }
+
+        /* Show print sections */
         .print-header, .print-materials, .print-decisions, .print-remark-block,
         .print-result-block, .print-signatures { display: block !important; }
-
-        [x-show] { display: block !important; }
-        [x-collapse] { height: auto !important; overflow: visible !important; }
 
         * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         .dark * { color: #000 !important; background: transparent !important; border-color: #000 !important; }

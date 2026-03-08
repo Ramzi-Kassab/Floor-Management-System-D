@@ -912,11 +912,12 @@ function photoModule(bitPk, contextType, contextId) {
         async downloadPhoto(photo) {
             try {
                 const resp = await fetch(photo.file_url);
-                const blob = await resp.blob();
+                let blob = await resp.blob();
+                // Resize large images for smaller download
+                blob = await this._resizeBlob(blob, 1280, 0.80);
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
-                const ext = (photo.original_filename || 'photo.jpg').split('.').pop() || 'jpg';
-                a.download = (photo.display_name || 'photo') + '.' + ext;
+                a.download = (photo.display_name || 'photo') + '.jpg';
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -945,6 +946,32 @@ function photoModule(bitPk, contextType, contextId) {
                     c.getContext('2d').drawImage(img, 0, 0);
                     c.toBlob(b => resolve(b), 'image/png');
                 };
+                img.src = URL.createObjectURL(blob);
+            });
+        },
+
+        async _resizeBlob(blob, maxDim = 1280, quality = 0.80) {
+            // Resize image blob to max dimension, returns JPEG blob
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.naturalWidth, h = img.naturalHeight;
+                    if (w <= maxDim && h <= maxDim && blob.size < 500000) {
+                        // Already small enough
+                        URL.revokeObjectURL(img.src);
+                        resolve(blob);
+                        return;
+                    }
+                    const ratio = Math.min(maxDim / w, maxDim / h, 1);
+                    w = Math.round(w * ratio);
+                    h = Math.round(h * ratio);
+                    const c = document.createElement('canvas');
+                    c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    URL.revokeObjectURL(img.src);
+                    c.toBlob(b => resolve(b), 'image/jpeg', quality);
+                };
+                img.onerror = () => resolve(blob);
                 img.src = URL.createObjectURL(blob);
             });
         },
