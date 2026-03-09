@@ -27,38 +27,64 @@
 
 {% block content %}
 <div x-data="dieCheckPage()">
-<form method="post" @keydown.enter.prevent="">
+<form method="post" @keydown.enter.prevent="$event.target.tagName !== 'TEXTAREA' && _navigateField($event, 'next')"
+      @keydown.arrow-down.prevent="_navigateField($event, 'down')"
+      @keydown.arrow-up.prevent="_navigateField($event, 'up')"
+      @keydown.arrow-right="_handleArrowRight($event)"
+      @keydown.arrow-left="_handleArrowLeft($event)">
     {% csrf_token %}
     <input type="hidden" name="grid_data" :value="JSON.stringify({findings: cutterEvalData, decisions: decisions})">
     <input type="hidden" name="materials_data" :value="JSON.stringify(materialsData)">
 
     <!-- ══════ SECTION 1: Header Info ══════ -->
-    <div data-screen-section class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-4">
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+    <div data-screen-section class="rounded-xl mb-4 overflow-hidden border border-blue-200 dark:border-blue-800">
+        <!-- Top banner -->
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/20 rounded-lg p-2">
+                    <i data-lucide="search-check" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h2 class="text-white font-bold text-base tracking-wide">Liquid Penetrant Test — Die Check</h2>
+                    <p class="text-blue-100 text-xs mt-0.5">QAS/1004-1 Rev A {% if report %}<span class="ml-1 opacity-80">| DC-{{ report.pk|stringformat:"04d" }}</span>{% endif %}</p>
+                </div>
             </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
-                <p class="font-medium text-gray-900 dark:text-white font-mono">{% if drill_bit %}{{ drill_bit.serial_number }}{% else %}—{% endif %}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Size</p>
-                <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.size|default:"—" }}{% else %}—{% endif %}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Design</p>
-                <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.mat_no|default:"—" }}{% else %}—{% endif %}</p>
-            </div>
-            <div>
-                <p class="text-gray-500 dark:text-gray-400">Stage</p>
-                <select name="stage" x-model="stage"
-                        class="mt-0.5 w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm font-medium dark:text-white">
+            <div class="flex items-center gap-2">
+                <select name="stage" x-model="stage" data-field-nav
+                        class="px-3 py-1.5 border border-white/30 rounded-lg bg-white/10 text-white text-sm font-semibold backdrop-blur-sm focus:ring-2 focus:ring-white/50 focus:outline-none">
                     {% for val, label in stage_choices %}
-                    <option value="{{ val }}" {% if stage == val %}selected{% endif %}>{{ label }}</option>
+                    <option value="{{ val }}" {% if stage == val %}selected{% endif %} class="text-gray-800">{{ label }}</option>
                     {% endfor %}
                 </select>
+            </div>
+        </div>
+        <!-- Info grid -->
+        <div class="bg-blue-50/80 dark:bg-blue-950/30 px-5 py-3">
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-2 text-sm">
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">WO Number</p>
+                    <p class="font-bold text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Serial No</p>
+                    <p class="font-bold text-gray-900 dark:text-white font-mono">{% if drill_bit %}{{ drill_bit.serial_number }}{% else %}—{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Size</p>
+                    <p class="font-bold text-gray-900 dark:text-white">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.size|default:"—" }}{% else %}—{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Design MAT</p>
+                    <p class="font-bold text-gray-900 dark:text-white">{% if drill_bit and drill_bit.design %}{{ drill_bit.design.mat_no|default:"—" }}{% else %}—{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Type</p>
+                    <p class="font-bold text-gray-900 dark:text-white">{% if drill_bit %}{{ drill_bit.bit_type|default:"—" }}{% else %}—{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Account</p>
+                    <p class="font-bold text-gray-900 dark:text-white">{% if work_order.account %}{{ work_order.account.name }}{% else %}—{% endif %}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -69,27 +95,23 @@
                 class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
             <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                 <i data-lucide="flask-conical" class="w-5 h-5 text-rose-500"></i>
-                2. Materials Used
+                2. Materials &amp; Parameters
             </h2>
             <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s2 ? '' : '-rotate-90'"></i>
         </button>
-        <div x-show="s2" x-collapse class="px-5 pb-4">
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Fluorescent Washable Technique — Procedure: SA-PP-1013.
-                Scan barcode / QR code on can to auto-fill, or enter manually.
-            </p>
-
-            <!-- Scan Button -->
-            <div class="mb-3 flex items-center gap-2">
+        <div x-show="s2" x-collapse class="px-5 pb-5">
+            <!-- Scan bar -->
+            <div class="flex items-center gap-3 mb-4 p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg border border-indigo-100 dark:border-indigo-800">
                 <button type="button" @click="startScan()"
-                        class="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition">
-                    <i data-lucide="scan-barcode" class="w-4 h-4"></i> Scan Can Barcode / QR
+                        class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition flex-shrink-0">
+                    <i data-lucide="scan-barcode" class="w-3.5 h-3.5"></i> Scan Barcode
                 </button>
-                <span x-show="scanStatus" x-text="scanStatus" class="text-xs text-gray-500 dark:text-gray-400"></span>
+                <span class="text-xs text-indigo-600 dark:text-indigo-400">Fluorescent Washable Technique — SA-PP-1013</span>
+                <span x-show="scanStatus" x-text="scanStatus" class="text-xs text-gray-500 dark:text-gray-400 ml-auto"></span>
             </div>
 
             <!-- Camera viewfinder -->
-            <div x-show="scanActive" x-cloak class="mb-3 relative">
+            <div x-show="scanActive" x-cloak class="mb-4 relative">
                 <div class="bg-black rounded-lg overflow-hidden" style="max-width:480px;">
                     <video x-ref="scanVideo" autoplay playsinline muted class="w-full"></video>
                     <canvas x-ref="scanCanvas" class="hidden"></canvas>
@@ -102,66 +124,119 @@
                     <button type="button" @click="stopScan()"
                             class="px-3 py-1 bg-red-600 text-white text-xs rounded shadow hover:bg-red-700">Stop</button>
                 </div>
-                <p class="text-xs text-gray-400 mt-1">Point camera at barcode/QR on penetrant or developer can.</p>
             </div>
 
             <!-- Scan result toast -->
             <div x-show="scanResult" x-cloak x-transition
-                 class="mb-3 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                 class="mb-4 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
                  :class="scanResultOk ? 'bg-green-50 dark:bg-green-900/30 border border-green-300 text-green-800 dark:text-green-200'
                                       : 'bg-amber-50 dark:bg-amber-900/30 border border-amber-300 text-amber-800 dark:text-amber-200'">
                 <span x-text="scanResult"></span>
                 <button type="button" @click="scanResult=''" class="ml-auto text-xs underline">Dismiss</button>
             </div>
 
-            <!-- Materials Table -->
-            <table class="w-full text-sm border-collapse">
-                <thead>
-                    <tr class="bg-gray-50 dark:bg-gray-700">
-                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-28">Material</th>
-                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left">Product Name</th>
-                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-32">Batch No</th>
-                        <th class="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left w-36">Chemical Expiry</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50">Cleaner</td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.product" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.batch" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.cleaner.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                    </tr>
-                    <tr>
-                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20">Penetrant</td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.penetrant.product" placeholder="e.g. ZYGLO ZL-60D" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.penetrant.batch" placeholder="Batch #" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="date" x-model="materialsData.penetrant.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                    </tr>
-                    <tr>
-                        <td class="border border-gray-300 dark:border-gray-600 px-3 py-2 font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/20">Developer</td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.developer.product" placeholder="e.g. ZYGLO ZP-9F" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" x-model="materialsData.developer.batch" placeholder="Batch #" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                        <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="date" x-model="materialsData.developer.expiry" class="w-full border-0 bg-transparent text-sm py-1.5 px-2 focus:ring-0 dark:text-white"></td>
-                    </tr>
-                </tbody>
-            </table>
+            <!-- Materials Grid: 3 cards side by side -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <!-- Cleaner -->
+                <div class="rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+                    <div class="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Cleaner</div>
+                    <div class="p-3 space-y-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 uppercase">Product</label>
+                            <input type="text" x-model="materialsData.cleaner.product" data-field-nav data-row="0" data-col="0" placeholder="Water"
+                                   class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Batch No</label>
+                                <input type="text" x-model="materialsData.cleaner.batch" data-field-nav data-row="0" data-col="1" placeholder="----"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Expiry</label>
+                                <input type="text" x-model="materialsData.cleaner.expiry" data-field-nav data-row="0" data-col="2" placeholder="----"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Penetrant -->
+                <div class="rounded-lg border border-rose-200 dark:border-rose-800 overflow-hidden">
+                    <div class="bg-rose-100 dark:bg-rose-900/40 px-3 py-1.5 text-xs font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wider">Penetrant</div>
+                    <div class="p-3 space-y-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 uppercase">Product</label>
+                            <input type="text" x-model="materialsData.penetrant.product" data-field-nav data-row="1" data-col="0" placeholder="e.g. ZYGLO ZL-60D"
+                                   class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Batch No</label>
+                                <input type="text" x-model="materialsData.penetrant.batch" data-field-nav data-row="1" data-col="1" placeholder="Batch #"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Expiry</label>
+                                <input type="date" x-model="materialsData.penetrant.expiry" data-field-nav data-row="1" data-col="2"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Developer -->
+                <div class="rounded-lg border border-violet-200 dark:border-violet-800 overflow-hidden">
+                    <div class="bg-violet-100 dark:bg-violet-900/40 px-3 py-1.5 text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">Developer</div>
+                    <div class="p-3 space-y-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 uppercase">Product</label>
+                            <input type="text" x-model="materialsData.developer.product" data-field-nav data-row="2" data-col="0" placeholder="e.g. ZYGLO ZP-9F"
+                                   class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Batch No</label>
+                                <input type="text" x-model="materialsData.developer.batch" data-field-nav data-row="2" data-col="1" placeholder="Batch #"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase">Expiry</label>
+                                <input type="date" x-model="materialsData.developer.expiry" data-field-nav data-row="2" data-col="2"
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                <div>
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Surface Temperature</label>
-                    <input type="text" x-model="materialsData.surface_temp" placeholder="e.g. 25°C" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Light Intensity</label>
-                    <input type="text" x-model="materialsData.light_intensity" placeholder="e.g. 1000 µW/cm²" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Penetrant Dwell Time</label>
-                    <input type="text" x-model="materialsData.penetrant_dwell" placeholder="e.g. 20 min" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Developer Dwell Time</label>
-                    <input type="text" x-model="materialsData.developer_dwell" placeholder="e.g. 10 min" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 dark:text-white">
+            <!-- Test Parameters — full width row -->
+            <div class="rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+                <div class="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Test Parameters</div>
+                <div class="p-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase">Surface Temp</label>
+                        <input type="text" x-model="materialsData.surface_temp" data-field-nav data-row="3" data-col="0" placeholder="25°C"
+                               class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase">Light Intensity</label>
+                        <input type="text" x-model="materialsData.light_intensity" data-field-nav data-row="3" data-col="1" placeholder="1000 µW/cm²"
+                               class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase">Penetrant Dwell</label>
+                        <input type="text" x-model="materialsData.penetrant_dwell" data-field-nav data-row="3" data-col="2" placeholder="20 min"
+                               class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase">Developer Dwell</label>
+                        <input type="text" x-model="materialsData.developer_dwell" data-field-nav data-row="3" data-col="3" placeholder="10 min"
+                               class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase">LPT Operator</label>
+                        <input type="text" x-model="materialsData.operator" data-field-nav data-row="3" data-col="4" placeholder="Name"
+                               class="w-full text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    </div>
                 </div>
             </div>
         </div>
@@ -409,51 +484,49 @@
             </h2>
             <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform" :class="s5 ? '' : '-rotate-90'"></i>
         </button>
-        <div x-show="s5" x-collapse class="px-5 pb-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div x-show="s5" x-collapse class="px-5 pb-5">
+            <!-- Result + Remarks side by side -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Result</label>
+                    <label class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Result</label>
                     <select name="result" x-model="result"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white">
+                            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm font-semibold dark:text-white focus:ring-2 focus:ring-green-400"
+                            :class="result === 'PASS' ? 'text-green-700 border-green-400' : result === 'FAIL' ? 'text-red-700 border-red-400' : result === 'PARTIAL' ? 'text-amber-700 border-amber-400' : ''">
                         <option value="">— Select —</option>
                         <option value="PASS">Pass</option>
                         <option value="FAIL">Fail</option>
                         <option value="PARTIAL">Partial</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">LPT Operator</label>
-                    <input type="text" x-model="materialsData.operator" placeholder="Operator name"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white">
+                <div class="md:col-span-2">
+                    <label class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Remarks</label>
+                    <textarea name="remarks" x-model="remarks" rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white focus:ring-1 focus:ring-green-400"
+                              placeholder="Observations, indications found, disposition..."></textarea>
                 </div>
-            </div>
-            <div class="mt-3">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remarks</label>
-                <textarea name="remarks" x-model="remarks" rows="3"
-                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm dark:text-white"
-                          placeholder="Observations, indications found, disposition..."></textarea>
             </div>
 
             <!-- Auto-generated summary (editable) -->
-            <div class="mt-4 bg-gray-50 dark:bg-gray-900/40 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg border border-blue-200 dark:border-blue-800 p-4">
                 <div class="flex items-center justify-between mb-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                    <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                         <i data-lucide="file-text" class="w-4 h-4 text-blue-500"></i>
-                        Summary
+                        Shareable Summary
                     </label>
                     <div class="flex items-center gap-2">
                         <button type="button" @click="remarkEdited = autoRemark"
-                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 transition">
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 transition shadow-sm">
                             <i data-lucide="refresh-cw" class="w-3 h-3"></i> Regenerate
                         </button>
                         <button type="button" @click="copyAutoRemark()"
-                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 transition">
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm">
                             <i data-lucide="clipboard-copy" class="w-3 h-3"></i> Copy
                         </button>
                     </div>
                 </div>
                 <textarea x-model="remarkEdited" rows="6"
-                          class="w-full text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 focus:ring-1 focus:ring-blue-400 resize-y"></textarea>
+                          class="w-full text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700 focus:ring-2 focus:ring-blue-400 resize-y shadow-inner"></textarea>
+                <p class="text-[10px] text-blue-500 dark:text-blue-400 mt-1.5">Edit the summary above then click Copy to share conclusions.</p>
             </div>
         </div>
     </div>
@@ -480,24 +553,30 @@
     {% endif %}
 
     <!-- ══════ ACTIONS ══════ -->
-    <div class="flex justify-end gap-3 py-4 no-print">
-        {% if evaluation %}
-        <a href="{% url 'workorders:pre_repair_eval_edit' wo_pk=work_order.pk pk=evaluation.pk %}"
-           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">Cancel</a>
-        {% endif %}
-        <button type="button" onclick="window.print()"
-                class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
-            <i data-lucide="printer" class="w-4 h-4 inline mr-1"></i> Print
-        </button>
-        <button type="submit" name="action" value="save"
-                class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i> Save
-        </button>
-        <button type="submit" name="mark_complete" value="true"
-                class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-                onclick="return confirm('Mark die check as complete? This will auto-fill the evaluation checklist.')">
-            <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
-        </button>
+    <div class="flex items-center justify-between py-4 no-print border-t border-gray-200 dark:border-gray-700 mt-2">
+        <div>
+            {% if evaluation %}
+            <a href="{% url 'workorders:pre_repair_eval_edit' wo_pk=work_order.pk pk=evaluation.pk %}"
+               class="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4 inline mr-1"></i> Cancel
+            </a>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="window.print()"
+                    class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                <i data-lucide="printer" class="w-4 h-4 inline mr-1"></i> Print
+            </button>
+            <button type="submit" name="action" value="save"
+                    class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold shadow-sm">
+                <i data-lucide="save" class="w-4 h-4 inline mr-1"></i> Save
+            </button>
+            <button type="submit" name="mark_complete" value="true"
+                    class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-semibold shadow-sm"
+                    onclick="return confirm('Mark die check as complete? This will auto-fill the evaluation checklist.')">
+                <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
+            </button>
+        </div>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════ -->
@@ -1053,6 +1132,53 @@ function dieCheckPage() {
             if (t.includes('penetrant') || t.includes('zyglo') || t.includes('zl-') || t.includes('pen')) return 'penetrant';
             if (t.includes('developer') || t.includes('zp-') || t.includes('dev') || t.includes('d-100')) return 'developer';
             return null;
+        },
+
+        // ══════ Field Navigation (Enter / Arrow Keys) ══════
+        _navigateField($event, direction) {
+            const el = $event.target;
+            if (!el.matches('input, select')) return;
+            const fields = [...document.querySelectorAll('[data-field-nav]')];
+            if (!fields.length) return;
+            const idx = fields.indexOf(el);
+            if (idx < 0) {
+                // Not a data-field-nav element — just move to next focusable
+                const all = [...document.querySelectorAll('form input:not([type="hidden"]), form select, form textarea')];
+                const ci = all.indexOf(el);
+                if (ci >= 0 && ci < all.length - 1) all[ci + 1].focus();
+                return;
+            }
+            if (direction === 'next') {
+                // Enter: move to next field in sequence
+                if (idx < fields.length - 1) fields[idx + 1].focus();
+            } else if (direction === 'down' || direction === 'up') {
+                // Arrow up/down: move to same col in prev/next row
+                const row = parseInt(el.dataset.row || '0');
+                const col = parseInt(el.dataset.col || '0');
+                const targetRow = direction === 'down' ? row + 1 : row - 1;
+                const target = fields.find(f => parseInt(f.dataset.row) === targetRow && parseInt(f.dataset.col) === col);
+                if (target) target.focus();
+            }
+        },
+        _handleArrowRight($event) {
+            const el = $event.target;
+            if (!el.matches('input[type="text"]')) return;
+            // Only navigate if cursor is at end of value
+            if (el.selectionStart === el.value.length) {
+                $event.preventDefault();
+                this._navigateField($event, 'next');
+            }
+        },
+        _handleArrowLeft($event) {
+            const el = $event.target;
+            if (!el.matches('input[type="text"]')) return;
+            // Only navigate if cursor is at start of value
+            if (el.selectionStart === 0) {
+                $event.preventDefault();
+                const fields = [...document.querySelectorAll('[data-field-nav]')];
+                const idx = fields.indexOf(el);
+                if (idx > 0) fields[idx - 1].focus();
+            }
         },
     };
 }
