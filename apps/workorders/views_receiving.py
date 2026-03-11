@@ -78,9 +78,16 @@ def _create_and_process_items(batch, serials, user):
       - Raises BOMPendingRequest if no BOM assigned
     """
     now = timezone.now()
-    receiving_loc = Location.objects.filter(
-        location_type=Location.LocationType.RECEIVING
-    ).first()
+    # Outside shipments (NEW) → Receiving Area; local backload (REPAIR) → Backload Area
+    if batch.batch_type == BackloadBatch.BatchType.NEW:
+        receiving_loc = Location.objects.filter(code='RCV-AREA').first()
+    else:
+        receiving_loc = Location.objects.filter(code='BACKLOAD').first()
+    # Fallback if specific location doesn't exist
+    if not receiving_loc:
+        receiving_loc = Location.objects.filter(
+            location_type=Location.LocationType.RECEIVING
+        ).first()
 
     start_order = batch.items.count()
     matched = 0
@@ -150,23 +157,26 @@ def _create_and_process_items(batch, serials, user):
                 else:
                     bit.determine_initial_status()
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+                bit.bit_location = receiving_loc
                 bit.last_backload_date = now.date()
                 bit.derive_ownership()
                 bit.save(update_fields=[
                     "status", "condition", "ownership",
-                    "physical_status", "last_backload_date",
+                    "physical_status", "bit_location",
+                    "last_backload_date",
                 ])
             else:
                 bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
                 bit.status = batch_status or DrillBit.Status.BACKLOADED
                 bit.condition = batch_condition
                 bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+                bit.bit_location = receiving_loc
                 bit.backload_count = (bit.backload_count or 0) + 1
                 bit.last_backload_date = now.date()
                 bit.derive_ownership()
                 bit.save(update_fields=[
                     "lifecycle_status", "status", "condition", "ownership",
-                    "physical_status",
+                    "physical_status", "bit_location",
                     "backload_count", "last_backload_date",
                 ])
                 matched += 1
@@ -206,9 +216,15 @@ def _auto_process_single_item(item, user, batch):
     If item is UNMATCHED, auto-registers a new DrillBit first.
     """
     now = timezone.now()
-    receiving_loc = Location.objects.filter(
-        location_type=Location.LocationType.RECEIVING
-    ).first()
+    # Outside shipments (NEW) → Receiving Area; local backload (REPAIR) → Backload Area
+    if batch.batch_type == BackloadBatch.BatchType.NEW:
+        receiving_loc = Location.objects.filter(code='RCV-AREA').first()
+    else:
+        receiving_loc = Location.objects.filter(code='BACKLOAD').first()
+    if not receiving_loc:
+        receiving_loc = Location.objects.filter(
+            location_type=Location.LocationType.RECEIVING
+        ).first()
 
     matched = 0
     new_registered = 0
@@ -271,23 +287,26 @@ def _auto_process_single_item(item, user, batch):
             else:
                 bit.determine_initial_status()
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.bit_location = receiving_loc
             bit.last_backload_date = now.date()
             bit.derive_ownership()
             bit.save(update_fields=[
                 "status", "condition", "ownership",
-                "physical_status", "last_backload_date",
+                "physical_status", "bit_location",
+                "last_backload_date",
             ])
         else:
             bit.lifecycle_status = DrillBit.LifecycleStatus.BACKLOADED
             bit.status = batch_status or DrillBit.Status.BACKLOADED
             bit.condition = batch_condition
             bit.physical_status = DrillBit.PhysicalStatus.AT_ARDT
+            bit.bit_location = receiving_loc
             bit.backload_count = (bit.backload_count or 0) + 1
             bit.last_backload_date = now.date()
             bit.derive_ownership()
             bit.save(update_fields=[
                 "lifecycle_status", "status", "condition", "ownership",
-                "physical_status",
+                "physical_status", "bit_location",
                 "backload_count", "last_backload_date",
             ])
             matched = 1

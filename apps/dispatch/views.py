@@ -16,6 +16,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 
 from .models import Vehicle, Dispatch, DispatchItem, InventoryReservation
 from .forms import VehicleForm, DispatchForm, DispatchItemForm, InventoryReservationForm
+from apps.workorders.models import BitEvent, DrillBit, Location
 
 
 # =============================================================================
@@ -279,27 +280,99 @@ class DispatchDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class DispatchStatusUpdateView(LoginRequiredMixin, View):
-    """Update dispatch status."""
+    """Update dispatch status.
+
+    When status changes to IN_TRANSIT:
+      - Creates BitEvent(DEPLOYED) for each drill bit in the dispatch
+      - Updates DrillBit.status → DISPATCHED
+      - Updates DrillBit.physical_status → IN_TRANSIT
+
+    When status changes to DELIVERED:
+      - Updates DrillBit.physical_status → AT_CUSTOMER
+
+    This mirrors the backload receiving flow (which creates BACKLOADED events
+    and updates status on arrival). Dispatch = outbound, Backload = inbound.
+    """
 
     def post(self, request, pk):
         dispatch = get_object_or_404(Dispatch, pk=pk)
         new_status = request.POST.get('status')
 
-        if new_status in dict(Dispatch.Status.choices):
-            old_status = dispatch.status
-            dispatch.status = new_status
-
-            # Set timestamps based on status
-            if new_status == 'IN_TRANSIT' and not dispatch.actual_departure:
-                dispatch.actual_departure = timezone.now()
-            elif new_status == 'DELIVERED' and not dispatch.actual_arrival:
-                dispatch.actual_arrival = timezone.now()
-
-            dispatch.save()
-            messages.success(request, f"Dispatch status updated to {dispatch.get_status_display()}.")
-        else:
+        if new_status not in dict(Dispatch.Status.choices):
             messages.error(request, "Invalid status.")
+            return redirect('dispatch:dispatch-detail', pk=pk)
 
+        old_status = dispatch.status
+        dispatch.status = new_status
+        now = timezone.now()
+
+        # Set timestamps based on status
+        if new_status == 'IN_TRANSIT' and not dispatch.actual_departure:
+            dispatch.actual_departure = now
+        elif new_status == 'DELIVERED' and not dispatch.actual_arrival:
+            dispatch.actual_arrival = now
+
+        dispatch.save()
+
+        # ── Update drill bits when dispatched ──
+        dispatch_items = dispatch.items.select_related('drill_bit').all()
+        bits_with_drillbit = [item for item in dispatch_items if item.drill_bit]
+
+        if new_status == 'IN_TRANSIT' and old_status != 'IN_TRANSIT':
+            # Get dispatch location (or fallback)
+            dispatch_loc = Location.objects.filter(
+                location_type=Location.LocationType.DISPATCH
+            ).first() or Location.objects.first()
+
+            # Determine destination description
+            dest_name = ""
+            if dispatch.rig:
+                dest_name = str(dispatch.rig)
+            elif dispatch.destination:
+                dest_name = str(dispatch.destination)
+            elif dispatch.customer:
+                dest_name = str(dispatch.customer)
+
+            for item in bits_with_drillbit:
+                bit = item.drill_bit
+                # Create BitEvent — DEPLOYED
+                BitEvent.objects.create(
+                    bit=bit,
+                    event_type=BitEvent.EventType.DEPLOYED,
+                    event_date=now,
+                    location=dispatch_loc,
+                    notes=f"Dispatch {dispatch.dispatch_number} → {dest_name}",
+                    performed_by=request.user,
+                )
+                # Update drill bit status
+                bit.status = DrillBit.Status.DISPATCHED
+                bit.physical_status = DrillBit.PhysicalStatus.IN_TRANSIT
+                bit.save(update_fields=["status", "physical_status"])
+
+            if bits_with_drillbit:
+                messages.info(
+                    request,
+                    f"{len(bits_with_drillbit)} drill bit(s) marked as Dispatched."
+                )
+
+        elif new_status == 'DELIVERED' and old_status != 'DELIVERED':
+            for item in bits_with_drillbit:
+                bit = item.drill_bit
+                bit.status = DrillBit.Status.IN_FIELD
+                bit.physical_status = DrillBit.PhysicalStatus.AT_CUSTOMER
+                bit.save(update_fields=["status", "physical_status"])
+
+            if bits_with_drillbit:
+                messages.info(
+                    request,
+                    f"{len(bits_with_drillbit)} drill bit(s) marked as In Field."
+                )
+
+        elif new_status == 'CANCELLED' and old_status in ('PLANNED', 'LOADING'):
+            # Cancelling before departure — no drill bit changes needed
+            pass
+
+        messages.success(request, f"Dispatch status updated to {dispatch.get_status_display()}.")
         return redirect('dispatch:dispatch-detail', pk=pk)
 
 

@@ -396,10 +396,13 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
 
         location = get_object_or_404(Location, pk=location_id)
 
-        # All newly registered bits start as COMPONENTS.
-        # FINISHED_GOOD is only set after manufacturing is complete.
-        # Having a BOM (L5) does NOT change this — it's part of identity, not condition.
-        smart_condition = DrillBit.Condition.COMPONENTS
+        # Condition based on level:
+        #   L5 = cutters brazed = finished good
+        #   L3/L4 = no cutters = components
+        if bit.level == '5':
+            smart_condition = DrillBit.Condition.FINISHED_GOOD
+        else:
+            smart_condition = DrillBit.Condition.COMPONENTS
 
         # Update bit fields based on event type
         if event_type == 'received':
@@ -429,16 +432,17 @@ class DrillBitFirstEventView(LoginRequiredMixin, TemplateView):
             event_notes = f"Customer intake at {location.name}. Customer: {bit.customer.name if bit.customer else 'Not specified'}. {notes}".strip()
 
         elif event_type == 'in_production':
-            # Bit exists but still in production (no physical location at ARDT)
-            bit.status = DrillBit.Status.IN_PRODUCTION
+            # Bit is being manufactured externally (USA) — not at ARDT yet
+            bit.status = DrillBit.Status.IN_PRODUCTION_USA
             bit.condition = smart_condition
             bit.lifecycle_status = DrillBit.LifecycleStatus.NEW
+            bit.physical_status = DrillBit.PhysicalStatus.IN_TRANSIT
             # No physical location yet, but we need one for the event
             # Use the selected location as "pending delivery to"
             bit.bit_location = location
             bit.derive_ownership()
             event_type_choice = BitEvent.EventType.RECEIVED
-            event_notes = f"Registered - In production, pending delivery to {location.name}. {notes}".strip()
+            event_notes = f"Registered - In production (USA), pending delivery to {location.name}. {notes}".strip()
 
         else:
             messages.error(request, 'Invalid event type.')

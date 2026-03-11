@@ -128,7 +128,8 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = WorkOrder.objects.select_related(
-            "customer", "drill_bit", "assigned_to", "design", "bom", "account"
+            "customer", "drill_bit", "drill_bit__design", "drill_bit__design__size",
+            "assigned_to", "design", "design__size", "bom", "account"
         ).order_by("-created_at")
 
         # Filter by status
@@ -206,7 +207,286 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
         context["page_size"] = 'all' if paginate_by is None else paginate_by
         context["total_count"] = self.get_queryset().count()
 
+        # Summary statistics (from ALL work orders, not filtered)
+        all_wos = WorkOrder.objects.all()
+        status_counts = dict(
+            all_wos.values_list('status')
+            .annotate(c=Count('pk'))
+            .values_list('status', 'c')
+        )
+        today = timezone.now().date()
+        overdue_count = all_wos.filter(
+            due_date__lt=today,
+            status__in=[
+                WorkOrder.Status.DRAFT, WorkOrder.Status.PLANNED,
+                WorkOrder.Status.RELEASED, WorkOrder.Status.IN_PROGRESS,
+                WorkOrder.Status.QC_PENDING, WorkOrder.Status.ON_HOLD,
+            ]
+        ).count()
+        context["stats"] = {
+            "total": all_wos.count(),
+            "in_progress": status_counts.get(WorkOrder.Status.IN_PROGRESS, 0),
+            "qc_pending": status_counts.get(WorkOrder.Status.QC_PENDING, 0),
+            "completed": status_counts.get(WorkOrder.Status.COMPLETED, 0),
+            "on_hold": status_counts.get(WorkOrder.Status.ON_HOLD, 0),
+            "overdue": overdue_count,
+            "draft": status_counts.get(WorkOrder.Status.DRAFT, 0),
+            "released": status_counts.get(WorkOrder.Status.RELEASED, 0),
+        }
+
+        # ── Build evaluation step pipeline per WO ──
+        wo_list = list(context.get('work_orders', context.get('object_list', [])))
+        wo_pks = [wo.pk for wo in wo_list]
+
+        if wo_pks:
+            # Bulk fetch all evaluations for all visible WOs
+            all_evals = list(
+                CutterEvaluationMatrix.objects
+                .filter(work_order_id__in=wo_pks)
+                .select_related('evaluated_by', 'approved_by')
+                .order_by('work_order_id', 'evaluation_type')
+            )
+            # Build map: wo_pk -> {eval_type: eval_obj}
+            eval_map = {}
+            for ev in all_evals:
+                eval_map.setdefault(ev.work_order_id, {})[ev.evaluation_type] = ev
+
+            # Bulk fetch standalone reports
+            die_checks = {}
+            for dc in DieCheckReport.objects.filter(work_order_id__in=wo_pks).order_by('created_at'):
+                die_checks.setdefault(dc.work_order_id, []).append(dc)
+            lpt_reports = {}
+            for lpt in StandaloneLPTReport.objects.filter(work_order_id__in=wo_pks).order_by('created_at'):
+                lpt_reports.setdefault(lpt.work_order_id, []).append(lpt)
+            thread_reports = {}
+            for tr in StandaloneThreadReport.objects.filter(work_order_id__in=wo_pks).order_by('created_at'):
+                thread_reports.setdefault(tr.work_order_id, []).append(tr)
+
+            # Bulk fetch evaluation routes by account+bit_type
+            try:
+                routes = list(
+                    EvaluationRoute.objects.filter(is_active=True)
+                    .select_related('account')
+                    .prefetch_related('steps')
+                )
+                # Build route lookup: (account_id, bit_type) -> route
+                route_lookup = {}
+                for r in routes:
+                    key = (r.account_id, r.bit_type)
+                    if r.is_default or key not in route_lookup:
+                        route_lookup[key] = r
+            except Exception:
+                route_lookup = {}
+
+            # For each WO, build its step pipeline
+            for wo in wo_list:
+                wo_evals = eval_map.get(wo.pk, {})
+                wo_die_checks = die_checks.get(wo.pk, [])
+                wo_lpt = lpt_reports.get(wo.pk, [])
+                wo_thread = thread_reports.get(wo.pk, [])
+
+                # Determine route
+                bit_type = 'NEW' if wo.wo_type in [WorkOrder.WOType.FC_NEW, WorkOrder.WOType.RC_NEW] else 'USED'
+                route = route_lookup.get((wo.account_id, bit_type)) if wo.account_id else None
+
+                steps = []
+                if route:
+                    for rs in route.steps.all().order_by('order'):
+                        ev = wo_evals.get(rs.evaluation_type)
+                        step_info = self._build_step_info(
+                            rs.evaluation_type, rs.get_evaluation_type_display(),
+                            ev, wo, rs.is_required, rs.is_conditional,
+                            wo_die_checks, wo_lpt, wo_thread,
+                        )
+                        steps.append(step_info)
+                else:
+                    # Legacy: show evaluations that actually exist
+                    for eval_type, ev in wo_evals.items():
+                        step_info = self._build_step_info(
+                            eval_type, ev.get_evaluation_type_display(),
+                            ev, wo, True, False,
+                            wo_die_checks, wo_lpt, wo_thread,
+                        )
+                        steps.append(step_info)
+
+                wo.eval_steps = steps
+                wo.eval_total = len(steps)
+                wo.eval_done = sum(1 for s in steps if s['status'] == 'COMPLETED' or s['status'] == 'APPROVED')
+                wo.has_route = route is not None
+
+                # Determine evaluation outcome from first completed eval with a decision
+                wo.eval_outcome = ''
+                for s in steps:
+                    if s.get('decision'):
+                        wo.eval_outcome = s['decision']
+                        break
+
+        # ── Serialize WO data as JSON for v2 JS table ──
+        import json
+        wo_json_list = []
+        for wo in wo_list:
+            # Build bit description
+            bit_desc = ''
+            if wo.drill_bit:
+                bit_desc = wo.drill_bit.serial_number
+                if wo.design and wo.design.mat_no:
+                    bit_desc += f' — {wo.design.mat_no}'
+            elif wo.description:
+                bit_desc = wo.description
+
+            # Size
+            size_str = ''
+            if wo.drill_bit and wo.drill_bit.design and wo.drill_bit.design.size:
+                size_str = str(wo.drill_bit.design.size)
+            elif wo.design and wo.design.size:
+                size_str = str(wo.design.size)
+
+            # Progress from eval steps
+            pct = 0
+            if hasattr(wo, 'eval_total') and wo.eval_total > 0:
+                pct = int((wo.eval_done / wo.eval_total) * 100)
+
+            # Map status to v2 codes
+            status_map = {
+                'DRAFT': 'pd', 'PLANNED': 'pd', 'RELEASED': 'pd',
+                'IN_PROGRESS': 'ip', 'ON_HOLD': 'hd',
+                'QC_PENDING': 'rv', 'QC_PASSED': 'rv', 'QC_FAILED': 'rv',
+                'COMPLETED': 'dn', 'CANCELLED': 'hd',
+            }
+            v2_status = status_map.get(wo.status, 'pd')
+
+            # Map priority
+            prio_map = {'LOW': 'L', 'NORMAL': 'M', 'HIGH': 'H', 'URGENT': 'H', 'CRITICAL': 'H'}
+            v2_prio = prio_map.get(wo.priority, 'M')
+
+            # Build route steps for JS
+            route_steps = []
+            for s in getattr(wo, 'eval_steps', []):
+                # Map step status to v2 state
+                state_map = {
+                    'PENDING': 'pending', 'DRAFT': 'pending',
+                    'IN_PROGRESS': 'active', 'COMPLETED': 'done', 'APPROVED': 'done',
+                }
+                route_steps.append({
+                    'key': s['type_code'].lower().replace('_', ''),
+                    'label': s['type_label'],
+                    'state': state_map.get(s['status'], 'pending'),
+                    'url': s.get('url', ''),
+                    'tech': s.get('evaluated_by', ''),
+                    'decision': s.get('decision', ''),
+                    'notes': '',
+                    'isBranch': s['type_code'] in ('PDC_EVAL', 'ARDT', 'ENGINEER'),
+                })
+
+            # Eval outcome mapping
+            outcome_map = {
+                'Repair': 'full-repair', 'Rerun': 'light-dress',
+                'Scrap': 'scrap', 'Debraze': 'scrap',
+                'Cutter Retrofit': 'full-repair', 'New Build': 'full-repair',
+                'Body Retrofit': 'full-repair',
+            }
+            eval_outcome = outcome_map.get(getattr(wo, 'eval_outcome', ''), '')
+
+            wo_json_list.append({
+                'pk': wo.pk,
+                'id': wo.wo_number,
+                'title': bit_desc or wo.wo_number,
+                'serial': wo.drill_bit.serial_number if wo.drill_bit else '',
+                'customer': wo.account.code if wo.account else (wo.customer.name if wo.customer else '—'),
+                'prio': v2_prio,
+                'status': v2_status,
+                'statusDisplay': wo.get_status_display(),
+                'assigned': (wo.assigned_to.get_short_name() or wo.assigned_to.username) if wo.assigned_to else '—',
+                'due': wo.due_date.strftime('%b %d') if wo.due_date else '—',
+                'dueRaw': wo.due_date.isoformat() if wo.due_date else '',
+                'hrs': 0,
+                'pct': pct,
+                'size': size_str,
+                'type': wo.get_wo_type_display(),
+                'notes': wo.notes or '',
+                'evalOutcome': eval_outcome,
+                'route': route_steps,
+                'detailUrl': f'/work-orders/enhanced/{wo.pk}/',
+                'isOverdue': wo.is_overdue if hasattr(wo, 'is_overdue') else False,
+            })
+
+        context['wo_json'] = json.dumps(wo_json_list)
+
         return context
+
+    def _build_step_info(self, eval_type, type_label, ev, wo, is_required, is_conditional,
+                         wo_die_checks, wo_lpt, wo_thread):
+        """Build a step info dict for the evaluation pipeline."""
+        # Determine status
+        if ev:
+            if ev.status == CutterEvaluationMatrix.Status.APPROVED:
+                status = 'APPROVED'
+            elif ev.is_complete or ev.status == CutterEvaluationMatrix.Status.COMPLETED:
+                status = 'COMPLETED'
+            elif ev.status == CutterEvaluationMatrix.Status.IN_PROGRESS:
+                status = 'IN_PROGRESS'
+            else:
+                status = 'DRAFT'
+        else:
+            status = 'PENDING'
+
+        # Build URL for the step
+        url = ''
+        if ev:
+            if eval_type == 'PDC_EVAL':
+                url = reverse('workorders:pre_repair_eval_edit', args=[wo.pk, ev.pk])
+            elif eval_type in ('DIE_CHECK', 'FINAL_DIE_CHECK'):
+                # Link to die check report if exists
+                dc = next((d for d in wo_die_checks if d.evaluation_id == ev.pk), None)
+                if dc:
+                    url = reverse('workorders:die_check_edit', args=[wo.pk, dc.pk, ev.pk])
+                else:
+                    url = reverse('workorders:die_check_create', args=[wo.pk, ev.pk])
+            else:
+                url = reverse('workorders:cutter_evaluation_edit', args=[wo.pk, ev.pk])
+        else:
+            # Auto-create URL
+            url = reverse('workorders:evaluation_auto', args=[wo.pk, eval_type])
+
+        # Standalone reports linked to this eval
+        linked_reports = []
+        if ev:
+            for dc in wo_die_checks:
+                if dc.evaluation_id == ev.pk:
+                    linked_reports.append({
+                        'type': 'Die Check',
+                        'result': dc.result,
+                        'complete': dc.is_complete,
+                    })
+            for lpt in wo_lpt:
+                if lpt.evaluation_id == ev.pk:
+                    linked_reports.append({
+                        'type': 'LPT',
+                        'result': lpt.result,
+                        'complete': lpt.is_complete,
+                    })
+            for tr in wo_thread:
+                if tr.evaluation_id == ev.pk:
+                    linked_reports.append({
+                        'type': 'Thread',
+                        'result': tr.result,
+                        'complete': tr.is_complete,
+                    })
+
+        return {
+            'type_code': eval_type,
+            'type_label': type_label,
+            'status': status,
+            'is_required': is_required,
+            'is_conditional': is_conditional,
+            'url': url,
+            'decision': ev.get_decision_display() if ev and ev.decision else '',
+            'evaluated_by': (ev.evaluated_by.get_short_name() or ev.evaluated_by.username) if ev and ev.evaluated_by else '',
+            'evaluated_at': ev.evaluated_at if ev else None,
+            'created_at': ev.created_at if ev else None,
+            'updated_at': ev.updated_at if ev else None,
+            'linked_reports': linked_reports,
+        }
 
 
 class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
@@ -2359,7 +2639,7 @@ class EvaluationRouteBuilderView(LoginRequiredMixin, TemplateView):
 
         context['page_title'] = 'Evaluation Route Builder'
         context['breadcrumbs'] = [
-            {'title': 'Work Orders', 'url': reverse('workorders:enhanced_list')},
+            {'title': 'Work Orders', 'url': reverse('workorders:workorder_list_enhanced')},
             {'title': 'Route Builder', 'url': None}
         ]
         return context
@@ -2391,7 +2671,7 @@ class EvaluationRouteDetailView(LoginRequiredMixin, View):
             'available_types': available_types,
             'page_title': f'Edit Route: {route.name}',
             'breadcrumbs': [
-                {'title': 'Work Orders', 'url': reverse('workorders:enhanced_list')},
+                {'title': 'Work Orders', 'url': reverse('workorders:workorder_list_enhanced')},
                 {'title': 'Route Builder', 'url': reverse('workorders:evaluation_route_builder')},
                 {'title': route.name, 'url': None}
             ]
@@ -3056,6 +3336,23 @@ def _get_pocket_grid_context(drill_bit):
     }
 
 
+def _apply_inspection_result_to_bit(bit, result):
+    """Set drill bit status + location based on inspection result."""
+    if result == ReceivingInspection.InspectionResult.REJECTED:
+        bit.status = DrillBit.Status.REJECTED
+        # Rejected bits stay in Receiving Area
+        rcv_loc = Location.objects.filter(code='RCV-AREA').first()
+        if rcv_loc:
+            bit.bit_location = rcv_loc
+    else:
+        # ACCEPTED or CONDITIONAL → move to evaluation
+        bit.status = DrillBit.Status.IN_EVALUATION
+        eval_loc = Location.objects.filter(code='EVAL-AREA').first()
+        if eval_loc:
+            bit.bit_location = eval_loc
+    bit.save(update_fields=['status', 'bit_location', 'updated_at'])
+
+
 class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
     """Create a new Receiving Inspection for a drill bit."""
     model = ReceivingInspection
@@ -3128,6 +3425,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
             (11, "Q-Note from Vendor", "vi_vendor_note", "NA"),
         ]
         context['checklist_remarks'] = {}
+        context['is_l5'] = (bit.level == '5')
 
         # BOM blade data for cutter evaluation grid
         blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = _get_bom_blade_data(bit)
@@ -3173,8 +3471,40 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         if not form.instance.inspection_date:
             form.instance.inspection_date = timezone.now().date()
         self._save_json_fields(form)
+
+        # Handle "Save & Complete" on create — same as edit path
+        mark_complete = self.request.POST.get('mark_complete')
+        if mark_complete == 'true':
+            if form.instance.result == ReceivingInspection.InspectionResult.PENDING:
+                messages.error(self.request,
+                    "Cannot complete inspection — please set the Result "
+                    "(Accepted / Rejected / Conditional) before completing.")
+                response = super().form_valid(form)
+                return response
+            form.instance.is_complete = True
+            form.instance.qc_approved_by = self.request.user
+            form.instance.qc_approved_at = timezone.now()
+
         response = super().form_valid(form)
-        messages.success(self.request, "Receiving inspection created.")
+
+        # Update drill bit status + location on completion
+        if mark_complete == 'true' and form.instance.is_complete:
+            bit = form.instance.drill_bit
+            _apply_inspection_result_to_bit(bit, form.instance.result)
+            messages.success(self.request, "Receiving inspection created and completed.")
+            notify(
+                actor=self.request.user,
+                verb="completed receiving inspection for",
+                target=f"SN {bit.serial_number}",
+                priority="HIGH",
+                action_url=reverse('workorders:receiving_inspection_edit',
+                                   kwargs={'bit_pk': bit.pk, 'pk': self.object.pk}),
+                entity_type="ReceivingInspection",
+                entity_id=self.object.pk,
+            )
+        else:
+            messages.success(self.request, "Receiving inspection created.")
+
         return response
 
     def get_success_url(self):
@@ -3207,6 +3537,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         context['report_number'] = self.object.report_number
         context['checklist_items'] = self.object.checklist_items
         context['checklist_remarks'] = self.object.checklist_remarks or {}
+        context['is_l5'] = (bit.level == '5')
         # QR code for print header
         from apps.workorders.utils import generate_drill_bit_qr
         context['bit_qr_base64'] = generate_drill_bit_qr(bit)
@@ -3235,6 +3566,20 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         context['revisions'] = FormRevision.objects.filter(
             entity_type="ReceivingInspection", entity_id=self.object.pk
         ).select_related('revised_by').order_by('-revision_number')[:20]
+        # Reopen guard: determine if reopening is allowed
+        if self.object.is_complete and bit:
+            from apps.workorders.models import WorkOrder
+            has_active_wo = bit.work_orders.exclude(
+                status__in=[WorkOrder.Status.CANCELLED, WorkOrder.Status.COMPLETED]
+            ).exists()
+            bit_in_receiving = bit.status in (
+                DrillBit.Status.RECEIVED, DrillBit.Status.RECEIVING,
+                DrillBit.Status.IN_EVALUATION, DrillBit.Status.IN_STOCK,
+                DrillBit.Status.BACKLOADED, DrillBit.Status.REJECTED,
+            )
+            context['can_reopen'] = not has_active_wo and bit_in_receiving
+        else:
+            context['can_reopen'] = False
         return context
 
     def _snapshot_inspection(self, obj):
@@ -3275,22 +3620,61 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         form.instance.cutter_auto_remarks = self.request.POST.get('cutter_auto_remarks', '')
         # Check if "mark_complete" was submitted
         mark_complete = self.request.POST.get('mark_complete')
+        bit = form.instance.drill_bit
+        serial = bit.serial_number if bit else "Unknown"
+
         if mark_complete == 'true' and not form.instance.is_complete:
+            # Block completion if result is still PENDING
+            if form.instance.result == ReceivingInspection.InspectionResult.PENDING:
+                messages.error(self.request,
+                    "Cannot complete inspection — please set the Result "
+                    "(Accepted / Rejected / Conditional) before completing.")
+                return super().form_valid(form)
             form.instance.is_complete = True
             form.instance.qc_approved_by = self.request.user
             form.instance.qc_approved_at = timezone.now()
             messages.success(self.request, "Receiving inspection marked as complete.")
         elif mark_complete == 'false' and form.instance.is_complete:
-            form.instance.is_complete = False
-            form.instance.qc_approved_by = None
-            form.instance.qc_approved_at = None
-            messages.success(self.request, "Receiving inspection reopened.")
+            # Reopen guard: only if bit still in receiving/evaluation area and no active WO
+            can_reopen = True
+            if bit:
+                has_active_wo = bit.work_orders.exclude(
+                    status__in=[WorkOrder.Status.CANCELLED, WorkOrder.Status.COMPLETED]
+                ).exists()
+                if has_active_wo:
+                    messages.error(self.request,
+                        "Cannot reopen — a work order already exists for this drill bit.")
+                    can_reopen = False
+                elif bit.status not in (
+                    DrillBit.Status.RECEIVED, DrillBit.Status.RECEIVING,
+                    DrillBit.Status.IN_EVALUATION, DrillBit.Status.IN_STOCK,
+                    DrillBit.Status.BACKLOADED, DrillBit.Status.REJECTED,
+                ):
+                    messages.error(self.request,
+                        f"Cannot reopen — drill bit has moved to '{bit.get_status_display()}'. "
+                        "Contact admin for changes.")
+                    can_reopen = False
+            if can_reopen:
+                form.instance.is_complete = False
+                form.instance.qc_approved_by = None
+                form.instance.qc_approved_at = None
+                messages.success(self.request, "Receiving inspection reopened.")
+            else:
+                return super().form_valid(form)
         else:
             messages.success(self.request, "Receiving inspection saved.")
 
+        # Update drill bit status + location on completion/reopen
+        if mark_complete == 'true' and form.instance.is_complete and bit:
+            _apply_inspection_result_to_bit(bit, form.instance.result)
+        elif mark_complete == 'false' and not form.instance.is_complete and bit:
+            bit.status = DrillBit.Status.RECEIVING
+            rcv_loc = Location.objects.filter(code='RCV-AREA').first()
+            if rcv_loc:
+                bit.bit_location = rcv_loc
+            bit.save(update_fields=['status', 'bit_location', 'updated_at'])
+
         # Notify on completion
-        bit = form.instance.drill_bit
-        serial = bit.serial_number if bit else "Unknown"
         if mark_complete == 'true' and form.instance.is_complete:
             notify(
                 actor=self.request.user,
@@ -3333,18 +3717,45 @@ def api_receiving_inspection_complete(request, bit_pk, pk):
     bit = inspection.drill_bit
     serial = bit.serial_number if bit else "Unknown"
     if inspection.is_complete:
+        # Reopen guard: only if bit still in receiving/evaluation area and no active WO
+        if bit:
+            has_active_wo = bit.work_orders.exclude(
+                status__in=[WorkOrder.Status.CANCELLED, WorkOrder.Status.COMPLETED]
+            ).exists()
+            if has_active_wo:
+                return JsonResponse({'success': False,
+                    'message': 'Cannot reopen — a work order already exists for this drill bit.'})
+            if bit.status not in (
+                DrillBit.Status.RECEIVED, DrillBit.Status.RECEIVING,
+                DrillBit.Status.IN_EVALUATION, DrillBit.Status.IN_STOCK,
+                DrillBit.Status.BACKLOADED, DrillBit.Status.REJECTED,
+            ):
+                return JsonResponse({'success': False,
+                    'message': f"Cannot reopen — drill bit has moved to '{bit.get_status_display()}'."})
         # Reopen
         inspection.is_complete = False
         inspection.qc_approved_by = None
         inspection.qc_approved_at = None
         inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        if bit:
+            bit.status = DrillBit.Status.RECEIVING
+            rcv_loc = Location.objects.filter(code='RCV-AREA').first()
+            if rcv_loc:
+                bit.bit_location = rcv_loc
+            bit.save(update_fields=['status', 'bit_location', 'updated_at'])
         return JsonResponse({'success': True, 'is_complete': False, 'message': 'Inspection reopened.'})
     else:
+        # Block completion if result is still PENDING
+        if inspection.result == ReceivingInspection.InspectionResult.PENDING:
+            return JsonResponse({'success': False,
+                'message': 'Cannot complete — please set the Result first.'})
         # Complete
         inspection.is_complete = True
         inspection.qc_approved_by = request.user
         inspection.qc_approved_at = timezone.now()
         inspection.save(update_fields=['is_complete', 'qc_approved_by', 'qc_approved_at', 'updated_at'])
+        if bit:
+            _apply_inspection_result_to_bit(bit, inspection.result)
         notify(
             actor=request.user,
             verb="completed receiving inspection for",

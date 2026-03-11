@@ -36,11 +36,6 @@
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-        {% if action == 'create' %}
-        <p class="text-gray-600 dark:text-gray-400">Select a Design or BOM, then enter the serial number to register a new drill bit.</p>
-        {% else %}
-        <p class="text-gray-600 dark:text-gray-400">Edit drill bit identity, design, and BOM assignments.</p>
-        {% endif %}
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
@@ -260,18 +255,13 @@
                     <div id="sel-source-badge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
                         From Design
                     </div>
+                    <!-- Level display (read-only, toggle is below) -->
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Level:</span>
-                        <div class="flex items-center gap-1.5">
-                            <span id="sel-level-base" class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">--</span>
-                            <button type="button" id="sel-level-l5-btn"
-                                    onclick="toggleL5()"
-                                    class="hidden px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-gray-300 bg-white text-gray-500 hover:border-purple-400 hover:text-purple-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-purple-400 dark:hover:text-purple-300"
-                                    title="Click to mark as L5 (with cutters)">
-                                L5
-                            </button>
-                        </div>
+                        <span id="sel-level-base" class="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">--</span>
                     </div>
+                    <!-- Hidden: old L5 sidebar button kept for JS reference -->
+                    <button type="button" id="sel-level-l5-btn" class="hidden" style="display:none!important"></button>
                     <div class="flex justify-between items-center">
                         <span class="text-sm text-gray-500">Design MAT:</span>
                         <span id="sel-mat" class="font-mono font-medium text-blue-600 dark:text-blue-400">-</span>
@@ -303,38 +293,65 @@
                         <span id="sel-iadc" class="font-medium text-gray-900 dark:text-white">-</span>
                     </div>
                 </div>
-
-                <hr class="border-gray-200 dark:border-gray-700 my-4">
-
-                <!-- Serial Number -->
-                <div class="mb-4">
-                    <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Serial Number <span class="text-red-500">*</span>
-                    </label>
-                    {{ form.serial_number }}
-                    {% if form.serial_number.errors %}
-                    <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
-                    {% endif %}
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">6-8 digit serial number</p>
-                </div>
-
-                <!-- Submit -->
-                <button type="submit"
-                    class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
-                    {% if action == 'edit' %}
-                    <i data-lucide="save" class="w-5 h-5"></i>
-                    Save Changes
-                    {% else %}
-                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                    Register Drill Bit
-                    {% endif %}
-                </button>
-
-                <button type="button" onclick="clearSelection()"
-                    class="w-full mt-3 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
-                    Clear Selection
-                </button>
             </div>
+
+            <hr class="border-gray-200 dark:border-gray-700 my-4">
+
+            <!-- Serial Number (always visible, outside selection toggle) -->
+            <div class="mb-4">
+                <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Serial Number <span class="text-red-500">*</span>
+                </label>
+                {{ form.serial_number }}
+                {% if form.serial_number.errors %}
+                <div id="serial-error-box" class="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-700">
+                    <p class="text-sm text-red-700 dark:text-red-300 font-medium">{{ form.serial_number.errors.0 }}</p>
+                    {% if form.duplicate_bit_url %}
+                    <a href="{{ form.duplicate_bit_url }}"
+                       class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        View Existing Drill Bit
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">6-8 digit serial number</p>
+            </div>
+
+            {% if action == 'create' %}
+            <!-- Level Toggle Button (same size as Register) -->
+            <div id="level-toggle-wrapper" class="hidden mb-3">
+                <button type="button" id="level-toggle-btn" onclick="toggleL5()"
+                    class="w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl border-2
+                           border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100
+                           dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                    <span id="level-toggle-text">L4</span>
+                </button>
+                <div id="level-banner" class="mt-2 px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2
+                        bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                    <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
+                    <span id="level-banner-text">You are adding a New L4 bit</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Submit -->
+            <button type="submit"
+                class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                {% if action == 'edit' %}
+                <i data-lucide="save" class="w-5 h-5"></i>
+                Save Changes
+                {% else %}
+                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                Register Drill Bit
+                {% endif %}
+            </button>
+
+            <button type="button" onclick="clearSelection()"
+                class="w-full mt-3 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                Clear Serial
+            </button>
         </div>
 
         {% if form.non_field_errors %}
@@ -414,50 +431,66 @@ function resetL5Toggle() {
 }
 
 function toggleL5() {
-    const btn = document.getElementById('sel-level-l5-btn');
     const baseEl = document.getElementById('sel-level-base');
     const levelInput = document.getElementById('id_level');
     const badge = document.getElementById('sel-source-badge');
+    const bigBtn = document.getElementById('level-toggle-btn');
+    const bigText = document.getElementById('level-toggle-text');
+    const banner = document.getElementById('level-banner');
+    const bannerText = document.getElementById('level-banner-text');
 
     if (window._isL5) {
         // Turn OFF L5 — revert to design level
         window._isL5 = false;
-        btn.className = 'px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-gray-300 bg-white text-gray-500 hover:border-purple-400 hover:text-purple-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:border-purple-400 dark:hover:text-purple-300';
-        btn.title = 'Click to mark as L5 (with cutters)';
-        // Restore base level styling
         setBaseLevelBadge(window._designBaseLevel);
         baseEl.classList.remove('opacity-50', 'line-through');
         levelInput.value = window._designBaseLevel.replace('L', '');
-        // Update source badge back
         if (currentTab === 'design') {
             badge.textContent = 'From Design (' + window._designBaseLevel + ')';
         } else {
             badge.textContent = 'From BOM (' + window._designBaseLevel + ')';
         }
+        badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
+        // Update big button — blue theme
+        if (bigBtn) {
+            bigText.textContent = window._designBaseLevel;
+            bigBtn.className = 'w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl border-2 border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60';
+        }
+        // Update banner — blue
+        if (banner) {
+            banner.className = 'mt-2 px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300';
+            bannerText.textContent = 'You are adding a New ' + window._designBaseLevel + ' bit (without cutters brazed)';
+        }
+        if (window.lucide) lucide.createIcons();
     } else {
         // Turn ON L5
         window._isL5 = true;
-        btn.className = 'px-1.5 py-0.5 rounded text-xs font-medium border transition-all cursor-pointer border-purple-500 bg-purple-100 text-purple-800 ring-1 ring-purple-300 dark:border-purple-400 dark:bg-purple-900/50 dark:text-purple-300';
-        btn.title = 'Click to remove L5 designation';
-        // Dim the base level
         baseEl.classList.add('opacity-50', 'line-through');
         levelInput.value = '5';
-        // Update source badge
         if (currentTab === 'design') {
             badge.textContent = 'From Design → L5';
-            badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300';
         } else {
             badge.textContent = 'From BOM → L5';
-            badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300';
         }
+        badge.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300';
+        // Update big button — purple theme
+        if (bigBtn) {
+            bigText.textContent = 'L5';
+            bigBtn.className = 'w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl border-2 border-purple-400 bg-purple-100 text-purple-800 ring-2 ring-purple-300 hover:bg-purple-200 dark:border-purple-500 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/70';
+        }
+        // Update banner — purple
+        if (banner) {
+            banner.className = 'mt-2 px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300';
+            bannerText.textContent = 'You are adding a New L5 bit (with cutters brazed)';
+        }
+        if (window.lucide) lucide.createIcons();
     }
 }
 
 // ─── Row Selection ──────────────────────────────────
 function selectRow(row) {
-    // Deselect all rows in current tab
-    const tableId = currentTab === 'design' ? 'designTable' : 'bomTable';
-    document.querySelectorAll(`#${tableId} .sel-row`).forEach(r => {
+    // Deselect all rows in BOTH tabs (only one selection allowed across tabs)
+    document.querySelectorAll('#designTable .sel-row, #bomTable .sel-row').forEach(r => {
         r.classList.remove('selected');
         r.querySelector('.row-check').innerHTML = '';
     });
@@ -486,11 +519,25 @@ function selectRow(row) {
 
     // Show the base level badge and the L5 toggle button
     setBaseLevelBadge(designLevel);
-    // Show L5 toggle button (available for both design and BOM selections)
-    document.getElementById('sel-level-l5-btn').classList.remove('hidden');
+    // Show L5 toggle button (kept for JS reference)
     resetL5Toggle();
     // Set hidden level input to design level
     document.getElementById('id_level').value = designLevel.replace('L', '');
+
+    // Show the big level toggle button above Register
+    const wrapper = document.getElementById('level-toggle-wrapper');
+    if (wrapper) {
+        wrapper.classList.remove('hidden');
+        const bigBtn = document.getElementById('level-toggle-btn');
+        const bigText = document.getElementById('level-toggle-text');
+        bigText.textContent = designLevel;
+        bigBtn.className = 'w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl border-2 border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60';
+        const banner = document.getElementById('level-banner');
+        const bannerText = document.getElementById('level-banner-text');
+        bannerText.textContent = 'You are adding a New ' + designLevel + ' bit (without cutters brazed)';
+        banner.className = 'mt-2 px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300';
+        if (window.lucide) lucide.createIcons();
+    }
 
     if (type === 'design') {
         const designId = row.dataset.id;
@@ -549,12 +596,14 @@ function clearSelection() {
     if (bomField) bomField.value = '';
     if (brazingField) brazingField.value = '';
     if (systemField) systemField.value = '';
-    document.getElementById('id_level').value = '';
-    document.getElementById('sel-level-l5-btn').classList.add('hidden');
-    window._isL5 = false;
-    window._designBaseLevel = '--';
-    document.getElementById('no-selection').classList.remove('hidden');
-    document.getElementById('selection-info').classList.add('hidden');
+    // Clear serial number and error, but keep design/BOM selection
+    document.getElementById('id_serial_number').value = '';
+    clearSerialError();
+}
+
+function clearSerialError() {
+    const errBox = document.getElementById('serial-error-box');
+    if (errBox) errBox.remove();
 }
 
 // ─── Column Filters & Sort ──────────────────────────
@@ -750,6 +799,14 @@ document.addEventListener('click', function(e) {
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Clear serial error when user types or clears the serial field
+    var serialInput = document.getElementById('id_serial_number');
+    if (serialInput) {
+        serialInput.addEventListener('input', function() {
+            clearSerialError();
+        });
+    }
 
     // Auto-select pre-existing design/BOM in edit mode
     {% if action == 'edit' %}

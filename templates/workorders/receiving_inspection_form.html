@@ -583,7 +583,7 @@
      SECTION 4: CUTTER EVALUATION (BOM/CL grid — L5 only)
      Click-modal style matching pocket evaluation
      ══════════════════════════════════════════════════════════════════════ -->
-{% if has_bom_data %}
+{% if is_l5 and has_bom_data %}
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
     <button type="button" @click="s4 = !s4"
             class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
@@ -794,6 +794,33 @@
         </div>
     </div>
 </div>
+{% else %}
+<!-- Cutter Evaluation — not applicable for non-L5 bits -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-3 no-print">
+    <button type="button" @click="s4 = !s4"
+            class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+        <h2 class="text-lg font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2">
+            <i data-lucide="grid-3x3" class="w-5 h-5 text-gray-400 dark:text-gray-500"></i>
+            {% if has_pocket_data %}4{% else %}3{% endif %}. Cutter Evaluation
+        </h2>
+        <span class="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+            Not Applicable
+        </span>
+        <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform ml-auto" :class="s4 ? '' : '-rotate-90'"></i>
+    </button>
+    <div x-show="s4" x-collapse class="px-5 pb-5">
+        <div class="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700">
+            <i data-lucide="info" class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"></i>
+            <div>
+                <p class="text-sm font-medium text-amber-800 dark:text-amber-300">Cutter evaluation is not applicable for this bit</p>
+                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    This drill bit is registered as <strong>L{{ drill_bit.level }}</strong> (without cutters brazed).
+                    Cutter evaluation is only available for <strong>L5</strong> bits that have cutters brazed onto the body.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════════════
@@ -965,24 +992,28 @@
     <div class="flex items-center gap-3">
         <button type="submit" name="action" value="save"
                 class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 text-sm font-medium transition">
-            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
-            {% if is_new %}Create{% else %}Save{% endif %}
+            <i data-lucide="save" class="w-4 h-4 inline mr-1"></i> Save
         </button>
 
-        {% if not is_new %}
-            {% if object.is_complete %}
-                <button type="submit" name="mark_complete" value="false"
-                        class="px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 text-sm font-medium transition"
-                        onclick="return confirm('Reopen this inspection?')">
-                    <i data-lucide="unlock" class="w-4 h-4 inline mr-1"></i> Reopen
-                </button>
+        {% if not is_new and object.is_complete %}
+            {% if can_reopen %}
+            <button type="submit" name="mark_complete" value="false"
+                    class="px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 text-sm font-medium transition"
+                    onclick="return confirm('Reopen this inspection?')">
+                <i data-lucide="unlock" class="w-4 h-4 inline mr-1"></i> Reopen
+            </button>
             {% else %}
-                <button type="submit" name="mark_complete" value="true"
-                        class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 text-sm font-medium transition"
-                        onclick="return confirm('Mark this inspection as complete? QC approval will be recorded.')">
-                    <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
-                </button>
+            <span class="px-4 py-2.5 bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed"
+                  title="Cannot reopen — bit has moved past receiving or a work order exists">
+                <i data-lucide="lock" class="w-4 h-4 inline mr-1"></i> Locked
+            </span>
             {% endif %}
+        {% elif not is_new and not object.is_complete or is_new %}
+            <button type="submit" name="mark_complete" value="true"
+                    class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 text-sm font-medium transition"
+                    onclick="return confirm('Mark this inspection as complete? QC approval will be recorded.')">
+                <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i> Save & Complete
+            </button>
         {% endif %}
     </div>
 </div>
@@ -1064,7 +1095,7 @@ function deleteAttachment(attId) {
 function inspectionPage() {
     return {
         // ── Section toggles (collapsible) ──
-        s1: true, s2: true, s3: true, s4: true, s5: true, s6: true,
+        s1: true, s2: true, s3: true, s4: {{ is_l5|yesno:"true,false" }}, s5: true, s6: true,
 
         // ── Checklist remarks ──
         checklistRemarks: {},

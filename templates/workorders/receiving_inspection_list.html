@@ -218,9 +218,10 @@
                         <td class="px-5 py-3">
                             {% if insp.result %}
                             <span class="px-2 py-0.5 text-xs rounded-full
-                                {% if insp.result == 'PASS' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
-                                {% elif insp.result == 'FAIL' %}bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300
+                                {% if insp.result == 'ACCEPTED' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300
+                                {% elif insp.result == 'REJECTED' %}bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300
                                 {% elif insp.result == 'CONDITIONAL' %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300
+                                {% elif insp.result == 'PENDING' %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400
                                 {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400
                                 {% endif %}">
                                 {{ insp.get_result_display }}

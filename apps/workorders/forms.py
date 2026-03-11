@@ -448,6 +448,10 @@ class DrillBitCreateForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from apps.technology.models import BOM, Design
 
+        # Default — no duplicate detected
+        self.duplicate_bit_url = None
+        self.duplicate_bit_status = None
+
         # Serial number is required
         self.fields["serial_number"].required = True
 
@@ -471,22 +475,33 @@ class DrillBitCreateForm(forms.ModelForm):
             # Also allow alphanumeric serials for flexibility
             if len(serial) < 4:
                 raise forms.ValidationError("Serial number must be at least 4 characters.")
+        # Check for existing drill bit with same serial
+        existing = DrillBit.objects.filter(serial_number=serial).first()
+        if existing:
+            from django.urls import reverse
+            url = reverse('workorders:drillbit_detail_enhanced', kwargs={'pk': existing.pk})
+            self.duplicate_bit_url = url
+            self.duplicate_bit_status = existing.get_status_display()
+            raise forms.ValidationError(
+                f'Serial number {serial} is already registered (Status: {self.duplicate_bit_status}).'
+            )
         return serial
+
+    def validate_unique(self):
+        # Skip model-level unique check for serial_number — we handle it
+        # in clean_serial_number with a better error message + link
+        exclude = self._get_validation_exclusions()
+        exclude.add('serial_number')
+        try:
+            self.instance.validate_unique(exclude=exclude)
+        except forms.ValidationError as e:
+            self._update_errors(e)
 
     # NOTE: Duplicate save() method and orphaned __init__ code REMOVED (Feb 2026).
     # The first save() (with bit_type/bom auto-population) was unreachable because
     # Python uses the LAST definition. The active save() is below (calls sync_from_design()).
 
-    def clean_serial_number(self):
-        serial_number = self.cleaned_data.get("serial_number")
-        if serial_number:
-            serial_number = serial_number.upper().strip()
-            if DrillBit.objects.filter(serial_number=serial_number).exists():
-                raise ValidationError("A drill bit with this serial number already exists.")
-            # Validate format: 6-8 digits
-            if not serial_number.isdigit() or len(serial_number) < 6 or len(serial_number) > 8:
-                raise ValidationError("Serial number must be 6-8 digits.")
-        return serial_number
+    # clean_serial_number is defined above (line ~469) with duplicate detection + link
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1513,6 +1528,8 @@ class BackloadBatchForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['batch_type'].required = True
+        self.duplicate_serials = []
+        self._serial_warnings = []
         # Default expected_date to today if not set
         if not self.initial.get('expected_date') and not self.data.get('expected_date'):
             from django.utils import timezone
@@ -1521,7 +1538,11 @@ class BackloadBatchForm(forms.ModelForm):
     # -- Validation --
 
     def clean_serial_numbers_bulk(self):
-        """Validate and clean serial numbers: digits only, 6 or 8 characters."""
+        """Validate and clean serial numbers: digits only, 6 or 8 characters.
+
+        Also checks for serials that already exist in the DrillBit inventory
+        and stores duplicate info for the template to display warnings.
+        """
         raw = self.cleaned_data.get('serial_numbers_bulk', '')
         cleaned = []
         errors = []
@@ -1550,6 +1571,54 @@ class BackloadBatchForm(forms.ModelForm):
         if errors:
             # Store warnings for display but don't block submission
             self._serial_warnings = errors
+
+        # Check for serials already physically at ARDT
+        # Bits that are ORDERED, IN_TRANSIT, IN_PRODUCTION_USA, UNREGISTERED,
+        # DISPATCHED, IN_FIELD, USA_REPAIR, SCRAPPED are NOT at ARDT — no warning.
+        from .models import DrillBit
+        ALREADY_HERE_STATUSES = {
+            DrillBit.Status.RECEIVING,
+            DrillBit.Status.RECEIVED,
+            DrillBit.Status.IN_COMPONENTS,
+            DrillBit.Status.IN_EVALUATION,
+            DrillBit.Status.IN_PRODUCTION,
+            DrillBit.Status.IN_REPAIR,
+            DrillBit.Status.IN_STOCK,
+            DrillBit.Status.BACKLOADED,
+            DrillBit.Status.HOLD,
+            DrillBit.Status.DE_BRAZED,
+            DrillBit.Status.SAVED_BODY,
+        }
+        existing_bits = DrillBit.objects.filter(
+            serial_number__in=cleaned
+        ).select_related('design', 'design__size', 'account')
+        existing_map = {b.serial_number: b for b in existing_bits}
+
+        duplicate_serials = []
+        for sn in cleaned:
+            if sn in existing_map:
+                bit = existing_map[sn]
+                # Only warn if the bit is physically at ARDT
+                if bit.status in ALREADY_HERE_STATUSES:
+                    duplicate_serials.append({
+                        'serial': sn,
+                        'status': bit.get_status_display(),
+                        'design': str(bit.design) if bit.design else '—',
+                        'size': str(bit.design.size) if bit.design and bit.design.size else '—',
+                        'account': str(bit.account) if bit.account else '—',
+                        'pk': bit.pk,
+                    })
+
+        if duplicate_serials:
+            self.duplicate_serials = duplicate_serials
+            # Block submission unless operator confirmed
+            confirm = self.data.get('confirm_duplicates')
+            if confirm != 'yes':
+                raise ValidationError(
+                    f"{len(duplicate_serials)} serial(s) already physically at ARDT. "
+                    "Review the list below and confirm to proceed."
+                )
+
         return '\n'.join(cleaned)
 
     def get_serial_list(self):

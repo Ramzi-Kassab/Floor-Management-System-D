@@ -172,8 +172,12 @@
                     <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">Design (L3/L4)</p>
+                    <p class="text-gray-500 dark:text-gray-400">Design ({% if drill_bit.design and drill_bit.design.order_level %}L{{ drill_bit.design.order_level }}{% else %}L3/L4{% endif %})</p>
                     <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Bit Level</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if drill_bit.level == '5' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300{% elif drill_bit.level == '4' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300{% else %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300{% endif %}">L{{ drill_bit.level }}</span>{% else %}--{% endif %}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Type</p>
@@ -409,8 +413,8 @@
                     <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.hdbs_type|default:"--" }}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500 dark:text-gray-400">Level</p>
-                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if drill_bit.level == '3' %}bg-blue-100 text-blue-800{% elif drill_bit.level == '4' %}bg-green-100 text-green-800{% elif drill_bit.level == '5' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">L{{ drill_bit.level }}</span>{% else %}--{% endif %}</p>
+                    <p class="text-gray-500 dark:text-gray-400">Design Level</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.design.order_level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if drill_bit.design.order_level == '3' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300{% elif drill_bit.design.order_level == '4' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">L{{ drill_bit.design.order_level }}</span>{% else %}--{% endif %}</p>
                 </div>
                 <div>
                     <p class="text-gray-500 dark:text-gray-400">Size</p>
@@ -920,6 +924,7 @@
                         {% elif drill_bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
                         {% elif drill_bit.status == 'IN_PRODUCTION' or drill_bit.status == 'IN_REPAIR' %}bg-blue-100 text-blue-800
                         {% elif drill_bit.status == 'DISPATCHED' or drill_bit.status == 'IN_FIELD' %}bg-indigo-100 text-indigo-800
+                        {% elif drill_bit.status == 'REJECTED' %}bg-red-100 text-red-800
                         {% elif drill_bit.status == 'SCRAPPED' or drill_bit.status == 'DE_BRAZED' %}bg-red-100 text-red-800
                         {% elif drill_bit.status == 'HOLD' %}bg-amber-100 text-amber-800
                         {% elif drill_bit.status == 'BACKLOADED' %}bg-purple-100 text-purple-800
