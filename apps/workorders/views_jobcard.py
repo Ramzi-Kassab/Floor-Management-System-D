@@ -714,6 +714,7 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
             "design__application_ref", "design__formation_type_ref",
             "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
+            "account",
             "customer", "rig", "well", "current_location", "bit_location"
         ).prefetch_related(
             "design__special_technologies"
@@ -759,6 +760,16 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
         context["current_ownership"] = self.request.GET.get("ownership", "")
         context["current_bit_type"] = self.request.GET.get("bit_type", "")
         context["current_search"] = self.request.GET.get("search", "")
+
+        from apps.sales.models import Account
+        context["accounts"] = Account.objects.filter(is_active=True).order_by("sort_order", "code")
+
+        # Bits currently in plan (for hiding Add to Plan button)
+        context["bits_in_plan"] = set(
+            ProductionPlanEntry.objects.filter(
+                status=ProductionPlanEntry.Status.PLANNED
+            ).values_list('drill_bit_id', flat=True)
+        )
 
         paginate_by = self.get_paginate_by(None)
         context["page_size"] = 'all' if paginate_by is None else paginate_by
@@ -1913,225 +1924,257 @@ def export_work_orders_excel(request):
 
 class ProductionPlannerView(LoginRequiredMixin, TemplateView):
     """
-    Production Planner Dashboard - Excel BITS TRACKING style WIP view.
-    Shows planned bits (no WO), work-in-progress, and completed items.
-    Allows adding bits to plan without creating Work Orders.
+    Production Planner Dashboard - V2 dark theme (matches WO list page).
+    Shows planned bits, ready-for-planning bits, WIP, and completed items.
+    All data serialized to JSON for JS-driven rendering.
     """
     template_name = "workorders/production_planner.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        import json as _j
         from apps.sales.models import Account
 
-        # Get all active accounts
         accounts = Account.objects.filter(is_active=True).order_by('sort_order', 'code')
-
-        # Get filter parameters
         account_filter = self.request.GET.get('account')
-        status_filter = self.request.GET.get('status', 'planned')  # planned, wip, completed, all
 
-        # Build WIP queryset - all active work orders that block new WO creation
-        # These statuses from DrillBit.ACTIVE_WO_STATUSES must be visible so users
-        # can manage them (prevents "phantom" blocking WOs that can't be found)
         wip_statuses = [
-            WorkOrder.Status.DRAFT,
-            WorkOrder.Status.PLANNED,
-            WorkOrder.Status.RELEASED,
-            WorkOrder.Status.IN_PROGRESS,
-            WorkOrder.Status.ON_HOLD,
-            WorkOrder.Status.QC_PENDING,
+            WorkOrder.Status.DRAFT, WorkOrder.Status.PLANNED,
+            WorkOrder.Status.RELEASED, WorkOrder.Status.IN_PROGRESS,
+            WorkOrder.Status.ON_HOLD, WorkOrder.Status.QC_PENDING,
             WorkOrder.Status.QC_FAILED,
         ]
-
         completed_statuses = [
-            WorkOrder.Status.QC_PASSED,
-            WorkOrder.Status.COMPLETED,
+            WorkOrder.Status.QC_PASSED, WorkOrder.Status.COMPLETED,
         ]
 
-        # ========================================
-        # PLANNED ENTRIES (No WO yet)
-        # ========================================
+        today = timezone.now().date()
+
+        # ── READY FOR PLANNING (bits with RECEIVED status, no WO, not in plan) ──
+        ready_qs = DrillBit.objects.filter(
+            status=DrillBit.Status.RECEIVED
+        ).select_related('design', 'design__size', 'account', 'brazing_bom', 'system_bom', 'bom').order_by('-updated_at')
+        if account_filter:
+            ready_qs = ready_qs.filter(account__code=account_filter)
+
+        # Exclude bits with active WO or already in plan
+        active_wo_bit_ids = set(
+            WorkOrder.objects.filter(status__in=wip_statuses)
+            .values_list('drill_bit_id', flat=True)
+        )
+        in_plan_bit_ids = set(
+            ProductionPlanEntry.objects.filter(status=ProductionPlanEntry.Status.PLANNED)
+            .values_list('drill_bit_id', flat=True)
+        )
+        ready_bits_json = []
+        for bit in ready_qs:
+            if bit.pk in active_wo_bit_ids or bit.pk in in_plan_bit_ids:
+                continue
+            days_waiting = (today - bit.received_date).days if bit.received_date else 0
+            ready_bits_json.append({
+                'id': bit.pk,
+                'serial': bit.serial_number,
+                'size': str(bit.size) if bit.size else '',
+                'type': bit.design.hdbs_type if bit.design else '',
+                'designMat': bit.design.mat_no if bit.design else '',
+                'refMat': bit.design.ref_mat_no if bit.design and bit.design.ref_mat_no else '',
+                'systemMat': (bit.brazing_bom.system_mat_no if bit.brazing_bom and bit.brazing_bom.system_mat_no
+                              else (bit.bom.system_mat_no if bit.bom and bit.bom.system_mat_no
+                              else (bit.system_bom.code if bit.system_bom else ''))),
+                'brazingMat': (bit.brazing_bom.code if bit.brazing_bom else (bit.bom.code if bit.bom else '')),
+                'account': bit.account.code if bit.account else '',
+                'accountName': bit.account.name if bit.account else '',
+                'received': bit.received_date.strftime('%Y-%m-%d') if bit.received_date else '',
+                'daysWaiting': days_waiting,
+                'repair': bit.revision_number or 0,
+                'condition': bit.condition or '',
+                'level': bit.level or (bit.design.order_level if bit.design else ''),
+            })
+
+        # ── PLANNED ENTRIES ──
         planned_qs = ProductionPlanEntry.objects.filter(
             status=ProductionPlanEntry.Status.PLANNED
         ).select_related(
-            'drill_bit', 'drill_bit__design', 'account', 'created_by'
+            'drill_bit', 'drill_bit__design', 'drill_bit__brazing_bom', 'drill_bit__system_bom',
+            'drill_bit__bom', 'drill_bit__account', 'account', 'created_by'
         ).order_by('sequence', '-priority', 'planned_date')
-
         if account_filter:
             planned_qs = planned_qs.filter(account__code=account_filter)
 
-        planned_data = []
+        planned_json = []
         for entry in planned_qs:
             bit = entry.drill_bit
-            # Calculate is_overdue
-            is_overdue = False
-            if entry.due_date:
-                is_overdue = entry.due_date < timezone.now().date()
-            planned_data.append({
-                'entry': entry,
+            _requester = ''
+            if entry.created_by:
+                _requester = entry.created_by.get_full_name() or entry.created_by.username
+            planned_json.append({
+                'entryId': entry.pk,
+                'bitId': bit.pk,
                 'serial': bit.serial_number,
-                'size': bit.size,
-                'type': bit.design.hdbs_type if bit.design else '-',
-                'mat_no': bit.mat_number or (bit.design.mat_no if bit.design else '-'),
-                'received_date': bit.received_date,
-                'account': entry.account.code if entry.account else (bit.account.code if bit.account else '-'),
-                'priority': entry.get_priority_display(),
-                'planned_date': entry.planned_date,
-                'due_date': entry.due_date,
-                'is_overdue': is_overdue,
-                'notes': entry.notes,
-                'intended_type': entry.get_intended_wo_type_display() if entry.intended_wo_type else '-',
+                'size': str(bit.size) if bit.size else '',
+                'type': bit.design.hdbs_type if bit.design else '',
+                'designMat': bit.design.mat_no if bit.design else '',
+                'refMat': bit.design.ref_mat_no if bit.design and bit.design.ref_mat_no else '',
+                'systemMat': (bit.brazing_bom.system_mat_no if bit.brazing_bom and bit.brazing_bom.system_mat_no
+                              else (bit.bom.system_mat_no if bit.bom and bit.bom.system_mat_no
+                              else (bit.system_bom.code if bit.system_bom else ''))),
+                'brazingMat': (bit.brazing_bom.code if bit.brazing_bom else (bit.bom.code if bit.bom else '')),
+                'account': entry.account.code if entry.account else (bit.account.code if bit.account else ''),
+                'priority': entry.priority,
+                'priorityDisplay': entry.get_priority_display(),
+                'requester': _requester,
+                'plannedDate': entry.planned_date.strftime('%Y-%m-%d') if entry.planned_date else '',
+                'dueDate': entry.due_date.strftime('%Y-%m-%d') if entry.due_date else '',
+                'dueDateHistory': entry.due_date_history or [],
+                'overdue': bool(entry.due_date and entry.due_date < today),
+                'notes': entry.notes or '',
+                'intendedType': entry.get_intended_wo_type_display() if entry.intended_wo_type else '',
+                'received': bit.received_date.strftime('%Y-%m-%d') if bit.received_date else '',
+                'bitUrl': reverse('workorders:drillbit_detail', args=[bit.pk]),
+                'repair': bit.revision_number or 0,
+                'condition': bit.condition or '',
+                'level': bit.level or (bit.design.order_level if bit.design else ''),
             })
 
-        context['planned_data'] = planned_data
-        context['total_planned'] = len(planned_data)
-
-        # ========================================
-        # WIP / COMPLETED (Work Orders)
-        # ========================================
-        # Base queryset with all required relations
+        # ── WIP + COMPLETED ──
         base_qs = WorkOrder.objects.select_related(
-            'drill_bit', 'drill_bit__design', 'account', 'customer',
-            'brazing_bom', 'system_bom', 'assigned_to'
-        ).prefetch_related(
-            'router_entries'
+            'drill_bit', 'drill_bit__design', 'account', 'assigned_to',
+            'plan_entry', 'plan_entry__created_by', 'created_by'
+        ).prefetch_related('router_entries').exclude(
+            status=WorkOrder.Status.CANCELLED
         ).order_by('-created_at')
-
-        # Apply account filter
         if account_filter:
             base_qs = base_qs.filter(account__code=account_filter)
 
-        # Apply status filter for WO-based data
-        if status_filter == 'wip':
-            work_orders = base_qs.filter(status__in=wip_statuses)
-        elif status_filter == 'completed':
-            work_orders = base_qs.filter(status__in=completed_statuses)
-        elif status_filter == 'planned':
-            work_orders = WorkOrder.objects.none()  # No WOs for planned view
-        else:  # all
-            work_orders = base_qs.exclude(status=WorkOrder.Status.CANCELLED)
+        key_steps = [
+            ('buildup', 'Build Up'), ('braze', 'Braze'),
+            ('grinding', 'Final grinding'), ('tip_grinding', 'Tip Grinding'),
+            ('qc', '1st check'), ('thread_clean', 'Thread Cleaning'),
+            ('body_clean', 'Body Cleaning'), ('usr', 'USR'),
+            ('final', 'Final Inspection'),
+        ]
 
-        # Build WIP data with process step tracking
-        wip_data = []
-        for wo in work_orders:
-            # Get router sheet progress
+        wip_json = []
+        for wo in base_qs:
             router_entries = wo.router_entries.all().order_by('step_number')
             total_steps = router_entries.count()
-            completed_steps = router_entries.filter(
-                qr_scan_end__isnull=False
-            ).count()
-            current_step = router_entries.filter(
-                qr_scan_start__isnull=False,
-                qr_scan_end__isnull=True
+            done_steps = router_entries.filter(qr_scan_end__isnull=False).count()
+            cur = router_entries.filter(
+                qr_scan_start__isnull=False, qr_scan_end__isnull=True
             ).first()
+            pct = int((done_steps / total_steps * 100)) if total_steps > 0 else 0
 
-            # Calculate progress percentage
-            progress = int((completed_steps / total_steps * 100)) if total_steps > 0 else 0
-
-            # Estimate completion based on remaining steps and average duration
-            estimated_completion = None
-            if current_step and wo.drill_bit and wo.drill_bit.design:
-                # Get process route for this design/account
-                route = ProcessRoute.objects.filter(
-                    accounts=wo.account,
-                    workflow_type=wo.account.workflow_type if wo.account else ProcessRoute.WorkflowType.REPAIR
+            # Step statuses
+            route = []
+            for sk, sn in key_steps:
+                e = router_entries.filter(
+                    Q(step_description__icontains=sn) | Q(step_description__icontains=sk)
                 ).first()
-                if route and route.estimated_duration_hours:
-                    remaining_hours = route.estimated_duration_hours * (1 - progress / 100)
-                    estimated_completion = timezone.now() + timedelta(hours=remaining_hours)
-
-            # Get step status for key process steps (matching Excel columns)
-            step_status = {}
-            key_steps = [
-                ('buildup', 'Build Up'),
-                ('braze', 'Braze'),
-                ('grinding', 'Final grinding'),
-                ('tip_grinding', 'Tip Grinding'),
-                ('qc', '1st check'),
-                ('thread_clean', 'Thread Cleaning'),
-                ('body_clean', 'Body Cleaning'),
-                ('usr', 'USR'),
-                ('final', 'Final Inspection'),
-            ]
-            for step_key, step_name in key_steps:
-                # Find matching router entry
-                entry = router_entries.filter(
-                    Q(step_description__icontains=step_name) |
-                    Q(step_description__icontains=step_key)
-                ).first()
-                if entry:
-                    if entry.qr_scan_end:
-                        step_status[step_key] = 'done'
-                    elif entry.qr_scan_start:
-                        step_status[step_key] = 'active'
+                if e:
+                    if e.qr_scan_end:
+                        route.append({'key': sk, 'label': sn, 'state': 'done'})
+                    elif e.qr_scan_start:
+                        route.append({'key': sk, 'label': sn, 'state': 'active'})
                     else:
-                        step_status[step_key] = 'pending'
+                        route.append({'key': sk, 'label': sn, 'state': 'pending'})
                 else:
-                    step_status[step_key] = 'na'
+                    route.append({'key': sk, 'label': sn, 'state': 'na'})
 
-            wip_data.append({
-                'wo': wo,
-                'serial': wo.drill_bit.serial_number if wo.drill_bit else '-',
-                'size': wo.drill_bit.size if wo.drill_bit else '-',
-                'type': wo.drill_bit.design.hdbs_type if wo.drill_bit and wo.drill_bit.design else '-',
-                'mat_no': wo.brazing_mat_no or wo.system_mat_no or '-',
-                'received_date': wo.actual_start.date() if wo.actual_start else (wo.created_at.date() if wo.created_at else None),
-                'account': wo.account.code if wo.account else '-',
-                'status': wo.get_status_display(),
-                'progress': progress,
-                'current_step': current_step.step_description if current_step else None,
-                'estimated_completion': estimated_completion,
-                'step_status': step_status,
-                'completed_steps': completed_steps,
-                'total_steps': total_steps,
+            # Map status to category
+            if wo.status in [s.value for s in completed_statuses]:
+                cat = 'dn'
+            elif wo.status in [WorkOrder.Status.ON_HOLD]:
+                cat = 'hd'
+            elif wo.status in [WorkOrder.Status.QC_PENDING, WorkOrder.Status.QC_FAILED]:
+                cat = 'rv'
+            else:
+                cat = 'ip'
+
+            # Estimated finish: if X% done in Y days, total = Y / (X/100)
+            est_finish = ''
+            if pct > 0 and wo.created_at:
+                days_elapsed = (today - wo.created_at.date()).days or 1
+                est_total = days_elapsed / (pct / 100)
+                est_remaining = max(0, int(est_total - days_elapsed))
+                from datetime import timedelta
+                est_date = today + timedelta(days=est_remaining)
+                est_finish = est_date.strftime('%Y-%m-%d')
+
+            # Get bit pk for timeline
+            bit_pk = wo.drill_bit.pk if wo.drill_bit else None
+
+            # Plan entry requester
+            plan_entry = getattr(wo, 'plan_entry', None)
+            requester = ''
+            if plan_entry and plan_entry.created_by:
+                requester = plan_entry.created_by.get_full_name() or plan_entry.created_by.username
+            elif wo.created_by:
+                requester = wo.created_by.get_full_name() or wo.created_by.username
+
+            _bit = wo.drill_bit
+            wip_json.append({
+                'woId': wo.pk,
+                'bitId': bit_pk,
+                'woNum': wo.wo_number,
+                'serial': _bit.serial_number if _bit else '',
+                'size': str(_bit.size) if _bit and _bit.size else '',
+                'type': _bit.design.hdbs_type if _bit and _bit.design else '',
+                'designMat': _bit.design.mat_no if _bit and _bit.design else '',
+                'refMat': (_bit.design.ref_mat_no if _bit and _bit.design and _bit.design.ref_mat_no else ''),
+                'systemMat': wo.system_mat_no or '',
+                'brazingMat': wo.brazing_mat_no or '',
+                'account': wo.account.code if wo.account else '',
+                'status': cat,
+                'statusDisplay': wo.get_status_display(),
+                'prio': 'H' if wo.priority in ['URGENT', 'HIGH', 'CRITICAL'] else ('L' if wo.priority == 'LOW' else 'M'),
+                'requester': requester,
+                'assigned': wo.assigned_to.get_short_name() if wo.assigned_to else '',
+                'releaseDate': wo.created_at.strftime('%Y-%m-%d') if wo.created_at else '',
+                'pct': pct,
+                'curStep': cur.step_description if cur else '',
+                'doneSteps': done_steps,
+                'totalSteps': total_steps,
+                'route': route,
+                'due': wo.due_date.strftime('%Y-%m-%d') if wo.due_date else '',
+                'estFinish': est_finish,
+                'detailUrl': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                'repair': (_bit.revision_number if _bit else 0) or 0,
+                'condition': (_bit.condition if _bit else '') or '',
+                'level': (_bit.level if _bit else '') or '',
             })
 
-        # Group by account for the tabs
-        wip_by_account = {}
-        for item in wip_data:
-            acct = item['account']
-            if acct not in wip_by_account:
-                wip_by_account[acct] = []
-            wip_by_account[acct].append(item)
-
-        # Summary statistics
-        context['accounts'] = accounts
-        context['wip_data'] = wip_data
-        context['wip_by_account'] = wip_by_account
-        context['total_wip'] = len([w for w in wip_data if w['wo'].status in [s.value for s in wip_statuses]])
-        context['completed_today'] = WorkOrder.objects.filter(
+        # ── STATS ──
+        total_planned = len(planned_json)
+        total_ready = len(ready_bits_json)
+        total_wip = len([w for w in wip_json if w['status'] in ('ip', 'hd', 'rv')])
+        completed_today = WorkOrder.objects.filter(
             status=WorkOrder.Status.COMPLETED,
-            actual_end__date=timezone.now().date()
+            actual_end__date=today
         ).count()
 
-        # Filter state
-        context['current_account'] = account_filter
-        context['current_status'] = status_filter
-
-        # Account summaries for quick stats (includes both planned and WIP)
         account_summary = []
         for acct in accounts:
-            # Count WIP work orders
-            wip_count = WorkOrder.objects.filter(
-                account=acct,
-                status__in=wip_statuses
+            wc = WorkOrder.objects.filter(account=acct, status__in=wip_statuses).count()
+            pc = ProductionPlanEntry.objects.filter(
+                account=acct, status=ProductionPlanEntry.Status.PLANNED
             ).count()
-            # Count planned entries (no WO yet)
-            planned_count = ProductionPlanEntry.objects.filter(
-                account=acct,
-                status=ProductionPlanEntry.Status.PLANNED
-            ).count()
-            total_count = wip_count + planned_count
-            if total_count > 0:
-                account_summary.append({
-                    'code': acct.code,
-                    'name': acct.name,
-                    'wip_count': wip_count,
-                    'planned_count': planned_count,
-                    'total_count': total_count,
-                })
-        context['account_summary'] = account_summary
+            if wc + pc > 0:
+                account_summary.append({'code': acct.code, 'wip': wc, 'plan': pc, 'total': wc + pc})
 
+        context['planner_json'] = _j.dumps({
+            'ready': ready_bits_json,
+            'planned': planned_json,
+            'wip': wip_json,
+            'stats': {
+                'ready': total_ready,
+                'planned': total_planned,
+                'wip': total_wip,
+                'completedToday': completed_today,
+            },
+            'accountSummary': account_summary,
+        })
+        context['accounts'] = accounts
+        context['current_account'] = account_filter or ''
         context['page_title'] = 'Production Planner'
         return context
 
@@ -2276,17 +2319,53 @@ def api_add_to_plan(request):
         return JsonResponse({'success': False, 'error': 'Serial number required'})
 
     # Find the drill bit
-    drill_bit = DrillBit.objects.filter(serial_number=serial_number).first()
+    drill_bit = DrillBit.objects.select_related('account', 'bom', 'brazing_bom', 'system_bom').filter(serial_number=serial_number).first()
     if not drill_bit:
         return JsonResponse({'success': False, 'error': 'Drill bit not found'})
 
-    # Get account
+    # FC bits must have a BOM assigned before planning
+    if drill_bit.bit_type == 'FC' and not (drill_bit.bom or drill_bit.brazing_bom or drill_bit.system_bom):
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot add to planner — this FC bit has no BOM assigned. Create a BOM first.'
+        })
+
+    # Status validation — only certain statuses can be added to the planner
+    PLANNABLE_STATUSES = [
+        DrillBit.Status.RECEIVED,
+        DrillBit.Status.IN_STOCK,
+        DrillBit.Status.BACKLOADED,
+        DrillBit.Status.IN_COMPONENTS,
+    ]
+    if drill_bit.status not in PLANNABLE_STATUSES:
+        status_display = drill_bit.get_status_display()
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot add to planner — bit status is "{status_display}". '
+                     f'Only bits with status Received, In Stock, Backloaded, or In Components can be planned.'
+        })
+
+    # Get account — required for planning
     account = None
     account_code = data.get('account', '').strip()
     if account_code:
         account = Account.objects.filter(code=account_code).first()
+        if not account:
+            return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
     elif drill_bit.account:
         account = drill_bit.account
+
+    if not account:
+        return JsonResponse({'success': False, 'error': 'Account is required. Select an account before adding to plan.'})
+
+    # Determine intended WO type from work_type selection
+    work_type = data.get('work_type', '').strip()
+    intended_wo_type = data.get('intended_wo_type', '')
+    if not intended_wo_type and work_type:
+        if work_type == 'REPAIR':
+            intended_wo_type = 'FC_REPAIR'
+        elif work_type == 'NEW':
+            intended_wo_type = 'FC_NEW'
 
     # Parse due_date if provided
     due_date_str = data.get('due_date', '')
@@ -2306,7 +2385,7 @@ def api_add_to_plan(request):
             priority=data.get('priority', 'NORMAL'),
             planned_date=data.get('planned_date') or None,
             due_date=due_date,
-            intended_wo_type=data.get('intended_wo_type', ''),
+            intended_wo_type=intended_wo_type,
             notes=data.get('notes', ''),
             user=request.user
         )
@@ -2324,6 +2403,18 @@ def api_add_to_plan(request):
             'error': error_message or 'This drill bit is already in the plan',
             'error_code': error_code or 'IN_PLAN'
         })
+
+    # Update bit's account if different, and store previous status for cancel/restore
+    update_fields = ['updated_at']
+    if drill_bit.account != account:
+        drill_bit.account = account
+        update_fields.append('account')
+
+    # Save previous status on the plan entry so we can restore on cancel
+    entry.notes = (entry.notes or '') + (f'\n[prev_status:{drill_bit.status}]' if drill_bit.status else '')
+    entry.save(update_fields=['notes'])
+
+    drill_bit.save(update_fields=update_fields)
 
     return JsonResponse({
         'success': True,
@@ -2402,13 +2493,473 @@ def api_remove_from_plan(request):
     if entry.status == ProductionPlanEntry.Status.WO_CREATED:
         return JsonResponse({'success': False, 'error': 'Cannot remove - Work Order already created'})
 
+    # Restore previous status on the drill bit if we stored it
+    bit = entry.drill_bit
+    if bit and entry.notes:
+        import re
+        m = re.search(r'\[prev_status:(\w+)\]', entry.notes)
+        if m:
+            prev_status = m.group(1)
+            # Validate the status is a real choice
+            valid_statuses = [s.value for s in DrillBit.Status]
+            if prev_status in valid_statuses:
+                bit.status = prev_status
+                bit.save(update_fields=['status', 'updated_at'])
+
     # Mark as removed (soft delete)
     entry.status = ProductionPlanEntry.Status.REMOVED
     entry.save(update_fields=['status', 'updated_at'])
 
     return JsonResponse({
         'success': True,
-        'message': 'Removed from plan'
+        'bit_id': bit.pk if bit else None,
+        'serial': bit.serial_number if bit else '',
+        'restored_status': bit.status if bit else '',
+        'restored_status_display': bit.get_status_display() if bit else '',
+        'message': f'Removed from plan. Bit status restored to {bit.get_status_display() if bit else "N/A"}.'
+    })
+
+
+# =============================================================================
+# PLANNER — Due Date Update with History
+# =============================================================================
+
+@login_required
+def api_update_plan_due_date(request):
+    """
+    Update due date on a plan entry, storing the old value in history.
+    POST body: { entry_id, new_due_date (YYYY-MM-DD), justification }
+    """
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    entry_id = data.get('entry_id')
+    new_due_str = data.get('new_due_date', '').strip()
+    justification = data.get('justification', '').strip()
+
+    if not entry_id or not new_due_str:
+        return JsonResponse({'success': False, 'error': 'entry_id and new_due_date required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    from datetime import datetime
+    try:
+        new_due = datetime.strptime(new_due_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'success': False, 'error': 'Invalid date format (YYYY-MM-DD)'})
+
+    # Store old value in history
+    history = entry.due_date_history or []
+    history.append({
+        'old': entry.due_date.isoformat() if entry.due_date else None,
+        'new': new_due.isoformat(),
+        'reason': justification,
+        'changed_by': request.user.get_short_name() or request.user.username,
+        'changed_at': timezone.now().isoformat(),
+    })
+
+    entry.due_date = new_due
+    entry.due_date_history = history
+    entry.save(update_fields=['due_date', 'due_date_history', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'new_due_date': new_due.isoformat(),
+        'history_count': len(history),
+    })
+
+
+# =============================================================================
+# PLANNER — Update Account (plan entry, drill bit, or WO)
+# =============================================================================
+
+@login_required
+@login_required
+def api_assign_bit_bom(request):
+    """
+    Assign a BOM to a drill bit (brazing_bom, system_bom, or default bom).
+    POST body: { bit_id, bom_id, field: 'brazing'|'system'|'bom' }
+    """
+    import json
+    from apps.technology.models import BOM
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    bit_id = data.get('bit_id')
+    bom_id = data.get('bom_id')
+    field = data.get('field', 'bom')  # 'brazing', 'system', or 'bom'
+
+    if not bit_id:
+        return JsonResponse({'success': False, 'error': 'bit_id required'})
+
+    try:
+        bit = DrillBit.objects.select_related('design', 'bom', 'brazing_bom', 'system_bom').get(pk=bit_id)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    # Map field name to model FK
+    field_map = {'brazing': 'brazing_bom', 'system': 'system_bom', 'bom': 'bom'}
+    fk_name = field_map.get(field, 'bom')
+
+    if not bom_id:
+        # Clear BOM assignment
+        setattr(bit, fk_name, None)
+        bit.save(update_fields=[fk_name, 'updated_at'])
+        return JsonResponse({
+            'success': True,
+            'bom_code': '',
+            'system_mat': '',
+            'message': f'{fk_name} cleared'
+        })
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'BOM not found'})
+
+    # Validate BOM belongs to the same design
+    if bit.design and bom.design_id != bit.design_id:
+        return JsonResponse({'success': False, 'error': 'BOM does not belong to this bit\'s design'})
+
+    setattr(bit, fk_name, bom)
+    bit.save(update_fields=[fk_name, 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'bom_id': bom.pk,
+        'bom_code': bom.code or str(bom),
+        'system_mat': bom.system_mat_no or '',
+        'status': bom.get_status_display(),
+        'message': f'{bom.code} assigned as {fk_name.replace("_", " ")}'
+    })
+
+
+def api_update_plan_account(request):
+    """
+    Change account on a plan entry AND its drill bit.
+    POST body: { entry_id, account_code }
+    """
+    import json
+    from apps.sales.models import Account
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    entry_id = data.get('entry_id')
+    account_code = data.get('account_code', '').strip()
+    if not entry_id or not account_code:
+        return JsonResponse({'success': False, 'error': 'entry_id and account_code required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.select_related('drill_bit').get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    if entry.status != ProductionPlanEntry.Status.PLANNED:
+        return JsonResponse({'success': False, 'error': 'Cannot change account — WO already created'})
+
+    try:
+        account = Account.objects.get(code=account_code, is_active=True)
+    except Account.DoesNotExist:
+        return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
+
+    # Update both plan entry and drill bit
+    entry.account = account
+    entry.save(update_fields=['account', 'updated_at'])
+
+    entry.drill_bit.account = account
+    entry.drill_bit.save(update_fields=['account', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'account_code': account.code,
+        'account_name': account.name,
+    })
+
+
+@login_required
+def api_update_bit_account(request):
+    """
+    Change account on a drill bit (from Ready view or drill bit inventory).
+    POST body: { bit_id, account_code }
+    """
+    import json
+    from apps.sales.models import Account
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    bit_id = data.get('bit_id')
+    account_code = data.get('account_code', '').strip()
+    if not bit_id or not account_code:
+        return JsonResponse({'success': False, 'error': 'bit_id and account_code required'})
+
+    try:
+        bit = DrillBit.objects.get(pk=bit_id)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    try:
+        account = Account.objects.get(code=account_code, is_active=True)
+    except Account.DoesNotExist:
+        return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
+
+    bit.account = account
+    bit.save(update_fields=['account', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'account_code': account.code,
+        'account_name': account.name,
+    })
+
+
+@login_required
+def api_change_wo_account(request):
+    """
+    Change account on a Work Order. This cancels the old WO and creates a new one
+    with the new account. If route steps have been started, they are copied to the
+    new WO preserving all timestamps, operators, and completion data.
+
+    POST body: { wo_id, account_code }
+    """
+    import json
+    from apps.sales.models import Account
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    wo_id = data.get('wo_id')
+    account_code = data.get('account_code', '').strip()
+    if not wo_id or not account_code:
+        return JsonResponse({'success': False, 'error': 'wo_id and account_code required'})
+
+    try:
+        old_wo = WorkOrder.objects.select_related('drill_bit', 'account').get(pk=wo_id)
+    except WorkOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Work Order not found'})
+
+    if old_wo.status in [WorkOrder.Status.COMPLETED, WorkOrder.Status.CANCELLED]:
+        return JsonResponse({'success': False, 'error': f'Cannot change account on {old_wo.get_status_display()} WO'})
+
+    try:
+        new_account = Account.objects.get(code=account_code, is_active=True)
+    except Account.DoesNotExist:
+        return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
+
+    if old_wo.account == new_account:
+        return JsonResponse({'success': False, 'error': 'Same account — no change needed'})
+
+    # Collect existing router entries BEFORE cancelling
+    old_router_entries = list(
+        RouterSheetEntry.objects.filter(work_order=old_wo).order_by('step_number')
+    )
+
+    # Generate new WO number under new account
+    new_wo_number = new_account.generate_wo_number()
+
+    # Create new WO with same fields
+    new_wo = WorkOrder.objects.create(
+        wo_number=new_wo_number,
+        wo_type=old_wo.wo_type,
+        drill_bit=old_wo.drill_bit,
+        design=old_wo.design,
+        account=new_account,
+        status=old_wo.status,
+        priority=old_wo.priority,
+        planned_start=old_wo.planned_start,
+        due_date=old_wo.due_date,
+        created_by=request.user,
+        notes=f"Account changed from {old_wo.account.code if old_wo.account else '—'} "
+              f"to {new_account.code}. Original WO: {old_wo.wo_number}",
+    )
+
+    # Copy router entries (preserving all timestamps and completion data)
+    for old_entry in old_router_entries:
+        RouterSheetEntry.objects.create(
+            work_order=new_wo,
+            step_number=old_entry.step_number,
+            step_description=old_entry.step_description,
+            qr_scan_start=old_entry.qr_scan_start,
+            qr_scan_end=old_entry.qr_scan_end,
+            station_qr=old_entry.station_qr,
+            manual_date=old_entry.manual_date,
+            manual_time_receipt=old_entry.manual_time_receipt,
+            operator=old_entry.operator,
+            is_complete=old_entry.is_complete,
+            remarks=old_entry.remarks,
+            cerebro_removal=old_entry.cerebro_removal,
+            oring_removal=old_entry.oring_removal,
+        )
+
+    # Update plan entry if exists
+    plan_entry = getattr(old_wo, 'plan_entry', None)
+    if plan_entry:
+        plan_entry.work_order = new_wo
+        plan_entry.account = new_account
+        plan_entry.save(update_fields=['work_order', 'account', 'updated_at'])
+
+    # Update drill bit account
+    if old_wo.drill_bit:
+        old_wo.drill_bit.account = new_account
+        old_wo.drill_bit.save(update_fields=['account', 'updated_at'])
+
+    # Cancel old WO
+    old_wo.status = WorkOrder.Status.CANCELLED
+    old_wo.notes = (old_wo.notes or '') + f"\nCancelled: Account changed to {new_account.code}. New WO: {new_wo_number}"
+    old_wo.save(update_fields=['status', 'notes', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'old_wo': old_wo.wo_number,
+        'new_wo_id': new_wo.pk,
+        'new_wo_number': new_wo_number,
+        'account_code': new_account.code,
+        'router_entries_copied': len(old_router_entries),
+        'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[new_wo.pk]),
+    })
+
+
+# =============================================================================
+# PLANNER — Bit Timeline API
+# =============================================================================
+
+@login_required
+def api_bit_timeline(request, bit_pk):
+    """
+    Return full chronological timeline of a drill bit for the planner drawer.
+    Aggregates: BitEvents, ReceivingInspection, PlanEntries, WorkOrders, RouterSheetEntries.
+    """
+    from apps.workorders.models import (
+        BitEvent, ReceivingInspection, RouterSheetEntry
+    )
+
+    try:
+        bit = DrillBit.objects.select_related('design', 'account').get(pk=bit_pk)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'}, status=404)
+
+    events = []
+
+    # 1. BitEvents (lifecycle)
+    for ev in BitEvent.objects.filter(bit=bit).order_by('event_date'):
+        events.append({
+            'date': ev.event_date.isoformat(),
+            'type': 'event',
+            'label': ev.get_event_type_display(),
+            'icon': 'truck' if 'DEPLOY' in ev.event_type else
+                    'package' if 'BACKLOAD' in ev.event_type else
+                    'clipboard-check' if 'EVAL' in ev.event_type else
+                    'inbox',
+            'notes': ev.notes or '',
+        })
+
+    # 2. Receiving Inspections
+    for ri in ReceivingInspection.objects.filter(drill_bit=bit).order_by('created_at'):
+        label = f"Receiving Inspection — {ri.get_result_display()}" if ri.result else "Receiving Inspection Started"
+        events.append({
+            'date': ri.created_at.isoformat(),
+            'type': 'inspection',
+            'label': label,
+            'icon': 'shield-check',
+            'notes': f"Inspector: {ri.inspected_by}" if ri.inspected_by else '',
+        })
+        if ri.is_complete and ri.updated_at and ri.updated_at != ri.created_at:
+            events.append({
+                'date': ri.updated_at.isoformat(),
+                'type': 'inspection',
+                'label': f"Inspection Completed — {ri.get_result_display()}",
+                'icon': 'check-circle',
+                'notes': '',
+            })
+
+    # 3. Plan entries
+    for pe in ProductionPlanEntry.objects.filter(drill_bit=bit).order_by('created_at'):
+        events.append({
+            'date': pe.created_at.isoformat(),
+            'type': 'plan',
+            'label': f"Added to Plan ({pe.account.code if pe.account else 'No account'})",
+            'icon': 'calendar-plus',
+            'notes': f"By {pe.created_by.get_short_name()}" if pe.created_by else '',
+        })
+        if pe.status == ProductionPlanEntry.Status.WO_CREATED and pe.work_order:
+            events.append({
+                'date': pe.updated_at.isoformat(),
+                'type': 'plan',
+                'label': f"WO Created: {pe.work_order.wo_number}",
+                'icon': 'file-text',
+                'notes': '',
+            })
+
+    # 4. Work Orders + Router Steps
+    for wo in WorkOrder.objects.filter(drill_bit=bit).order_by('created_at'):
+        events.append({
+            'date': wo.created_at.isoformat(),
+            'type': 'wo',
+            'label': f"WO {wo.wo_number} — {wo.get_status_display()}",
+            'icon': 'clipboard-list',
+            'notes': f"Account: {wo.account.code}" if wo.account else '',
+        })
+        # Router steps (only completed ones to keep it clean)
+        for rs in wo.router_entries.filter(qr_scan_end__isnull=False).order_by('qr_scan_end'):
+            events.append({
+                'date': rs.qr_scan_end.isoformat(),
+                'type': 'step',
+                'label': f"Step {rs.step_number}: {rs.step_description}",
+                'icon': 'check-square',
+                'notes': f"Operator: {rs.operator}" if rs.operator else '',
+            })
+        # Active step
+        active = wo.router_entries.filter(
+            qr_scan_start__isnull=False, qr_scan_end__isnull=True
+        ).first()
+        if active:
+            events.append({
+                'date': active.qr_scan_start.isoformat(),
+                'type': 'step_active',
+                'label': f"▶ Step {active.step_number}: {active.step_description} (in progress)",
+                'icon': 'play-circle',
+                'notes': f"Started by {active.operator}" if active.operator else '',
+            })
+
+    # Sort by date
+    events.sort(key=lambda e: e['date'])
+
+    return JsonResponse({
+        'success': True,
+        'serial': bit.serial_number,
+        'events': events,
+        'total': len(events),
     })
 
 
@@ -3345,11 +3896,8 @@ def _apply_inspection_result_to_bit(bit, result):
         if rcv_loc:
             bit.bit_location = rcv_loc
     else:
-        # ACCEPTED or CONDITIONAL → move to evaluation
-        bit.status = DrillBit.Status.IN_EVALUATION
-        eval_loc = Location.objects.filter(code='EVAL-AREA').first()
-        if eval_loc:
-            bit.bit_location = eval_loc
+        # ACCEPTED or CONDITIONAL → successfully received
+        bit.status = DrillBit.Status.RECEIVED
     bit.save(update_fields=['status', 'bit_location', 'updated_at'])
 
 

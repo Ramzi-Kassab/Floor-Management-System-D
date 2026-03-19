@@ -448,10 +448,11 @@ class QuickDesignForm(forms.ModelForm):
     Minimal required fields for fast entry.
     """
 
-    # Override order_level to only show Level 3 and 4
+    # Override order_level to show applicable levels
     ORDER_LEVEL_CHOICES = [
         ("3", "Level 3 - No cutters, upper section separate"),
         ("4", "Level 4 - No cutters, upper section welded/machined"),
+        ("5.5", "Level 5.5 - Brazed head, unwelded upper (sub-arc welding + machining)"),
     ]
 
     order_level = forms.ChoiceField(
@@ -539,7 +540,7 @@ class BOMWithDesignForm(forms.Form):
     # For existing design
     existing_design = forms.ModelChoiceField(
         queryset=Design.objects.filter(
-            order_level__in=["3", "4"],
+            order_level__in=["3", "4", "5.5"],
             status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
         ).order_by("-created_at"),
         required=False,

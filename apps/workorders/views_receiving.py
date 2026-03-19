@@ -139,7 +139,7 @@ def _create_and_process_items(batch, serials, user):
             if bit.level == '5':
                 batch_status = DrillBit.Status.RECEIVING
                 batch_condition = DrillBit.Condition.FINISHED_GOOD
-            elif bit.level in ('3', '4'):
+            elif bit.level in ('3', '4', '5.5'):
                 batch_status = DrillBit.Status.RECEIVING
                 batch_condition = DrillBit.Condition.COMPONENTS
             else:
@@ -270,7 +270,7 @@ def _auto_process_single_item(item, user, batch):
         if bit.level == '5':
             batch_status = DrillBit.Status.RECEIVING
             batch_condition = DrillBit.Condition.FINISHED_GOOD
-        elif bit.level in ('3', '4'):
+        elif bit.level in ('3', '4', '5.5'):
             batch_status = DrillBit.Status.RECEIVING
             batch_condition = DrillBit.Condition.COMPONENTS
         else:

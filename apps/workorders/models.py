@@ -3049,6 +3049,18 @@ class ProductionPlanEntry(models.Model):
     # Notes
     notes = models.TextField(blank=True, help_text='Planning notes or remarks')
 
+    # Brazing date (auto-calculated from planned_date + offset)
+    planned_brazing_date = models.DateField(
+        null=True, blank=True,
+        help_text='Estimated brazing date (auto-calculated from due date rules)'
+    )
+
+    # Due date change history — array of {old, new, reason, by, at}
+    due_date_history = models.JSONField(
+        default=list, blank=True,
+        help_text='History of due date changes [{old, new, reason, changed_by, changed_at}]'
+    )
+
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -3171,12 +3183,27 @@ class ProductionPlanEntry(models.Model):
                 account_code=account_code
             )
 
+        # Auto-calculate planned brazing date (~60% through the schedule)
+        brazing_date = None
+        if due_date:
+            start = planned_date or timezone.now().date()
+            total_days = (due_date - start).days
+            brazing_offset = max(1, int(total_days * 0.6))
+            brazing_date = PlannerSettings.calculate_due_date(
+                start_date=start,
+                account_code=effective_account.code if effective_account else None
+            )
+            # Brazing is ~60% into the schedule
+            from datetime import timedelta as _td
+            brazing_date = start + _td(days=brazing_offset)
+
         entry = cls.objects.create(
             drill_bit=drill_bit,
             account=effective_account,
             priority=priority,
             planned_date=planned_date,
             due_date=due_date,
+            planned_brazing_date=brazing_date,
             intended_wo_type=intended_wo_type,
             sequence=max_seq + 1,
             notes=notes,

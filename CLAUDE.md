@@ -1833,6 +1833,23 @@ Items noted for future enhancement. These are not bugs — they are improvements
 
 ---
 
+### Recent Enhancements (Mar 19, 2026) — Business Units, Planner Workflow, L5.5 Level
+- **12 Business Units** (`apps/sales/management/commands/seed_accounts.py`): Expanded from 9 to 12 accounts. Added TTR (Trial Test Bits, BOTH), Debraze (REPAIR, 3+ years after production), Build up Safety Stock (MANUFACTURE, L3/L4/L5.5). All business units drive WO numbering and routing.
+- **Business Unit Assignment Modal** (`templates/workorders/drillbit_list_enhanced.html`): Full modal for assigning BU to drill bits. Always opens (even if account already set) to confirm/change account and select New/Repair. Features: BU dropdown (all 12), New/Repair toggle (auto-defaults from bit condition, always overridable), requester name, justification field. Two actions: "Assign Only" or "Assign & Add to Planner". Confirmation dialog when work type contradicts bit condition.
+- **Business Unit Column in Drill Bit List**: Clickable badge (indigo) — click to change account via modal. Shows pencil icon on hover. Works for both assigned and unassigned bits.
+- **L5.5 Order Level** (`apps/technology/models.py`): New `LEVEL_5_5 = "5.5"` choice — "Brazed head, unwelded upper (needs sub-arc welding + machining)". Added to both `DesignModel.OrderLevel` and `Design.OrderLevel`. Amber badge color throughout. Migration `technology/0036_add_level_5_5_order_level.py`.
+- **L5.5 in All Querysets**: BOM create page, BOM form design queryset, BOM list, design list, receiving dock — all filter `order_level__in` now includes `"5.5"`. Template badges updated with amber color for L5.5.
+- **Design Create Form** (`apps/technology/forms.py`): `ORDER_LEVEL_CHOICES` expanded from L3/L4 to L3/L4/L5.5.
+- **Planner Status Validations**: Only bits with status RECEIVED, IN_STOCK, BACKLOADED, or IN_COMPONENTS can be added to planner. IN_EVALUATION blocked. Non-plannable statuses show disabled gray icon with tooltip. Already-planned bits show green check icon.
+- **FC BOM Requirement**: FC (Fixed Cutter) bits without any BOM assigned cannot be added to planner. Orange disabled icon with tooltip "FC bit has no BOM — create a BOM first". Backend validation in `api_add_to_plan`.
+- **New/Repair Detection (3 layers)**: (1) `intended_wo_type` from user's modal selection (FC_REPAIR/FC_NEW), stored on ProductionPlanEntry. (2) `revision_number` — actual repair count. (3) `condition` fallback — REPAIRED/RERUN/USED conditions indicate repair.
+- **Production Planner Columns Expanded**: All 3 tabs (Ready, Planned, WIP) now have: Design MAT, System MAT, Brazing BOM (orange), Level (color-coded), New/Repair, Requester. Brazing column removed. Size displays as fractions (8 1/2 not 8.500). Default view changed to Planned.
+- **Requester Fix**: Changed from `get_short_name()` (empty if no first_name) to `get_full_name() or username`.
+- **Plan Entry Status Tracking**: On add to plan, bit's previous status stored as `[prev_status:STATUS]` in plan entry notes. On removal, previous status restored. API response includes `restored_status` and `bit_id`.
+- **Inline BOM Assignment** (`templates/workorders/drillbit_detail_enhanced.html`): Drill bit detail page has clickable Brazing BOM and System BOM fields. Click to open dropdown with all BOMs for the design (loaded from `/technology/api/boms/`). Select to assign instantly. Save confirmation message shown. Both fields share Alpine.js scope — System MAT auto-updates when Brazing BOM changes.
+- **API: `api_assign_bit_bom`** (`apps/workorders/views_jobcard.py`): POST endpoint to assign BOM to drill bit. Supports `field` parameter: 'brazing', 'system', or 'bom'. Validates BOM belongs to the same design. Returns bom_code, system_mat, status.
+- **Key URLs Added**: `/workorders/api/assign-bit-bom/` (POST).
+
 ## Need Help?
 
 1. **Check this file first** for patterns and conventions

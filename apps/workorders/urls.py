@@ -49,6 +49,12 @@ urlpatterns = [
     path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
     path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
     path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
+    path("api/update-plan-due-date/", views_jobcard.api_update_plan_due_date, name="api_update_plan_due_date"),
+    path("api/bit-timeline/<int:bit_pk>/", views_jobcard.api_bit_timeline, name="api_bit_timeline"),
+    path("api/update-plan-account/", views_jobcard.api_update_plan_account, name="api_update_plan_account"),
+    path("api/update-bit-account/", views_jobcard.api_update_bit_account, name="api_update_bit_account"),
+    path("api/assign-bit-bom/", views_jobcard.api_assign_bit_bom, name="api_assign_bit_bom"),
+    path("api/change-wo-account/", views_jobcard.api_change_wo_account, name="api_change_wo_account"),
     # Planner Settings API
     path("api/holiday/add/", views_jobcard.api_add_holiday, name="api_add_holiday"),
     path("api/holiday/<int:pk>/delete/", views_jobcard.api_delete_holiday, name="api_delete_holiday"),

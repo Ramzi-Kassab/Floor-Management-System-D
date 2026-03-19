@@ -4,1331 +4,1120 @@
 {% block title %}Production Planner - ARDT FMS{% endblock %}
 
 {% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-    /* Column filter menu */
-    .column-menu {
-        position: fixed;
-        z-index: 100;
-        min-width: 220px;
-        max-height: 350px;
-    }
-    .filter-active { color: #2563eb !important; font-weight: 600; }
-    .filter-active i { color: #2563eb !important; }
+/* ── V2 Planner — scoped inside .pp-v2-app ── */
+.pp-v2-app {
+  --bg:#07090f; --surface:#0d1117; --s2:#131922; --s3:#192030; --s4:#0a1020;
+  --border:#1e2d42; --border2:#243450;
+  --text:#e4eaf5; --sub:#8a9bb8; --dim:#3d5070;
+  --accent:#3d8eff; --accentDim:#1a3a6e;
+  --cyan:#00c8be; --green:#00d68a; --yellow:#ffb830;
+  --red:#ff4d5e; --purple:#a87fff; --orange:#ff7c3d;
+  --teal:#00b4a0;
+  --row-h:42px; --row-focus:80px; --row-near:54px; --row-far:30px;
+  --font:'Outfit',sans-serif; --mono:'Geist Mono',monospace;
+  --ease:cubic-bezier(.25,.8,.25,1);
+  margin: -1.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+/* ── LIGHT MODE ── */
+.pp-v2-app.v2-light {
+  --bg:#f4f6f9; --surface:#ffffff; --s2:#f0f2f5; --s3:#e4e8ee; --s4:#ebeef3;
+  --border:#d0d5dd; --border2:#b8bfcc;
+  --text:#1a1e2a; --sub:#5a6478; --dim:#8c96a8;
+  --accent:#2563eb; --accentDim:#dbeafe;
+  --cyan:#0891b2; --green:#16a34a; --yellow:#d97706;
+  --red:#dc2626; --purple:#7c3aed; --orange:#ea580c;
+  --teal:#0d9488;
+}
+.pp-v2-app.v2-light .pp-row:hover td{background:rgba(0,0,0,.03);}
+.pp-v2-app.v2-light .settings-menu{box-shadow:0 12px 40px rgba(0,0,0,.15);}
+.pp-v2-app.v2-light .sm-item:hover{background:rgba(37,99,235,.06);}
+.pp-v2-app.v2-light select.flt{background:var(--s2);color:var(--text);}
+.pp-v2-app.v2-light select.flt option{background:#fff;color:#1a1e2a;}
+.pp-v2-app.v2-light .drawer{background:var(--surface);border-left-color:var(--border2);}
+.pp-v2-app.v2-light .dh{background:var(--surface);}
+.pp-v2-app.v2-light .search-wrap input{color:var(--text);background:var(--s2);}
+.pp-v2-app.v2-light .btn-g{background:var(--s2);color:var(--sub);border-color:var(--border);}
+.pp-v2-app.v2-light .btn-p{background:var(--accent);}
+.pp-v2-app.v2-light .sm-toggle{background:var(--s3);border-color:var(--border);}
+.pp-v2-app.v2-light .sm-toggle::after{background:var(--dim);}
+.pp-v2-app.v2-light .sm-toggle.on{background:var(--accentDim);border-color:rgba(37,99,235,.4);}
+.pp-v2-app.v2-light .sm-toggle.on::after{background:var(--accent);}
+.pp-v2-app.v2-light .dots-btn{background:var(--s2);color:var(--sub);}
+.pp-v2-app.v2-light .btn-g.active{background:var(--accentDim);border-color:rgba(37,99,235,.3);}
+.pp-v2-app.v2-light .nav-hint{background:rgba(37,99,235,.06);border-color:rgba(37,99,235,.15);}
+.pp-v2-app.v2-light .minimap{background:rgba(255,255,255,.93);}
+.pp-v2-app.v2-light .overlay{background:rgba(0,0,0,.25);}
+.pp-v2-app.v2-light .pp-table thead th:nth-child(1){box-shadow:none;}
+.pp-v2-app.v2-light .pp-table thead th:nth-child(2){box-shadow:3px 0 10px rgba(0,0,0,.08);}
+.pp-v2-app.v2-light .pp-row td:nth-child(2){box-shadow:3px 0 10px rgba(0,0,0,.06);}
+.pp-v2-app.v2-light .fy-rows-on .pp-row.fy-focus td{background:rgba(37,99,235,.04)!important;border-bottom-color:rgba(37,99,235,.15);}
+.pp-v2-app.v2-light .fy-rows-on .pp-row.fy-focus td:nth-child(1),
+.pp-v2-app.v2-light .fy-rows-on .pp-row.fy-focus td:nth-child(2){background:#eef3ff!important;}
+.pp-v2-app *,.pp-v2-app *::before,.pp-v2-app *::after{box-sizing:border-box;}
 
-    /* Picker modal table */
-    .picker-table-wrapper {
-        max-height: 60vh;
-        overflow-y: auto;
-    }
-    .picker-table thead {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: white;
-    }
-    .dark .picker-table thead {
-        background: #1f2937;
-    }
-    .picker-row-selected {
-        background-color: #dbeafe !important;
-    }
-    .dark .picker-row-selected {
-        background-color: #1e3a5f !important;
-    }
+/* ── TOPBAR ── */
+.pp-v2-app .v2-topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.pp-v2-app .v2-page-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:7px;white-space:nowrap;}
+.pp-v2-app .v2-page-title .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:ppPulse 2s infinite;}
+@keyframes ppPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.65);}}
+.pp-v2-app .sep{width:1px;height:22px;background:var(--border);}
+.pp-v2-app .search-wrap{flex:1;max-width:280px;position:relative;}
+.pp-v2-app .search-wrap input{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:7px 12px 7px 32px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border-color .2s;}
+.pp-v2-app .search-wrap input:focus{border-color:var(--accent);}
+.pp-v2-app .search-wrap .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none;}
+.pp-v2-app select.flt{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:6px 9px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;cursor:pointer;}
+.pp-v2-app select.flt:focus{border-color:var(--accent);}
+.pp-v2-app .filters{display:flex;gap:5px;}
+.pp-v2-app .tr{margin-left:auto;display:flex;gap:6px;align-items:center;}
+.pp-v2-app .btn{padding:6px 13px;border-radius:7px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;transition:all .15s;white-space:nowrap;}
+.pp-v2-app .btn-p{background:var(--accent);color:#fff;}
+.pp-v2-app .btn-p:hover{background:#2a7aee;box-shadow:0 0 14px rgba(61,142,255,.35);}
+.pp-v2-app .btn-g{background:var(--s2);color:var(--sub);border:1px solid var(--border);}
+.pp-v2-app .btn-g:hover{border-color:var(--accent);color:var(--accent);}
+.pp-v2-app .btn-g.active{background:var(--accentDim);color:var(--accent);border-color:rgba(61,142,255,.4);}
+
+/* ── SETTINGS MENU ── */
+.pp-v2-app .settings-anchor{position:relative;}
+.pp-v2-app .dots-btn{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;cursor:pointer;color:var(--sub);font-size:16px;line-height:1;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.pp-v2-app .dots-btn:hover{border-color:var(--accent);color:var(--accent);}
+.pp-v2-app .settings-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 0;z-index:200;min-width:240px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
+.pp-v2-app .settings-menu.open{display:block;}
+.pp-v2-app .sm-section{padding:6px 14px 4px;font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1.2px;}
+.pp-v2-app .sm-sep{height:1px;background:var(--border);margin:6px 0;}
+.pp-v2-app .sm-item{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;cursor:pointer;transition:background .12s;gap:10px;}
+.pp-v2-app .sm-item:hover{background:rgba(61,142,255,.06);}
+.pp-v2-app .sm-item-label{font-size:12px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:7px;}
+.pp-v2-app .sm-item-label .sm-icon{color:var(--sub);font-size:14px;width:18px;text-align:center;}
+.pp-v2-app .sm-toggle{width:28px;height:15px;background:var(--s3);border-radius:8px;position:relative;transition:background .2s;flex-shrink:0;border:1px solid var(--border);}
+.pp-v2-app .sm-toggle::after{content:'';position:absolute;left:2px;top:2px;width:9px;height:9px;border-radius:50%;background:var(--dim);transition:transform .2s,background .2s;}
+.pp-v2-app .sm-toggle.on{background:var(--accentDim);border-color:rgba(61,142,255,.5);}
+.pp-v2-app .sm-toggle.on::after{transform:translateX(12px);background:var(--accent);}
+
+/* ── STATSBAR ── */
+.pp-v2-app .statsbar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;min-height:30px;flex-wrap:wrap;}
+.pp-v2-app .stat-chip{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub);}
+.pp-v2-app .stat-chip strong{color:var(--text);font-weight:600;}
+.pp-v2-app .stat-dot{width:6px;height:6px;border-radius:50%;}
+.pp-v2-app .statsbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.pp-v2-app .nav-hint{display:flex;align-items:center;gap:5px;background:rgba(61,142,255,.07);border:1px solid rgba(61,142,255,.2);border-radius:20px;padding:3px 12px;font-size:10px;color:var(--accent);font-family:var(--mono);}
+
+/* ── VIEWPORT (drag-pan + edge-scroll container) ── */
+.pp-v2-app .table-viewport{position:relative;overflow:hidden;flex:1;cursor:default;}
+.pp-v2-app .table-viewport.pan-mode{cursor:grab;}
+.pp-v2-app .table-viewport.pan-mode.dragging{cursor:grabbing;}
+.pp-v2-app .edge-zone{position:absolute;top:0;bottom:0;width:80px;z-index:20;pointer-events:none;opacity:0;transition:opacity .25s;}
+.pp-v2-app .edge-l{left:0;background:linear-gradient(90deg,rgba(61,142,255,.2),transparent);}
+.pp-v2-app .edge-r{right:0;background:linear-gradient(-90deg,rgba(61,142,255,.2),transparent);}
+.pp-v2-app .edge-zone.show{opacity:1;}
+.pp-v2-app .table-inner{position:absolute;top:0;left:0;will-change:transform;}
+.pp-v2-app .minimap{position:absolute;bottom:12px;right:12px;z-index:30;background:rgba(13,17,23,.93);border:1px solid var(--border2);border-radius:8px;padding:6px 10px 5px;backdrop-filter:blur(8px);}
+.pp-v2-app .mm-label{font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px;}
+.pp-v2-app .mm-track{width:140px;height:6px;background:var(--s3);border-radius:3px;position:relative;overflow:hidden;}
+.pp-v2-app .mm-thumb{position:absolute;top:0;height:100%;background:var(--accent);border-radius:3px;transition:left .05s,width .05s;opacity:.8;}
+
+/* ── TABLE ── */
+.pp-v2-app .pp-table{border-collapse:separate;border-spacing:0;}
+.pp-v2-app .pp-table thead th{background:var(--s2);border-bottom:1px solid var(--border);height:36px;font-size:10px;font-weight:600;font-family:var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;text-align:left;position:sticky;top:0;z-index:5;transition:width .15s var(--ease);overflow:hidden;}
+.pp-v2-app .pp-table thead th .th-inner{padding:0 10px;display:flex;align-items:center;gap:5px;height:100%;}
+/* Sticky first 2 columns */
+.pp-v2-app .pp-table thead th:nth-child(1){position:sticky;left:0;z-index:10;background:var(--s2);}
+.pp-v2-app .pp-table thead th:nth-child(2){position:sticky;left:var(--col-1);z-index:10;background:var(--s2);box-shadow:3px 0 10px rgba(0,0,0,.5);}
+
+/* ── ROW FISHEYE ── */
+.pp-v2-app .pp-row{cursor:pointer;}
+.pp-v2-app .pp-row td{height:var(--row-h);border-bottom:1px solid rgba(30,45,66,.5);white-space:nowrap;vertical-align:middle;transition:height .18s var(--ease),background .12s,opacity .15s;overflow:hidden;position:relative;}
+.pp-v2-app .pp-row td:nth-child(1){position:sticky;left:0;z-index:3;background:var(--bg);}
+.pp-v2-app .pp-row td:nth-child(2){position:sticky;left:var(--col-1);z-index:3;background:var(--bg);box-shadow:3px 0 10px rgba(0,0,0,.4);}
+.pp-v2-app .pp-row:hover td{background:rgba(255,255,255,.02);}
+.pp-v2-app .pp-row td .td-inner{padding:0 10px;height:100%;display:flex;flex-direction:column;justify-content:center;}
+.pp-v2-app .row-extra{display:none;align-items:center;gap:8px;margin-top:4px;font-size:11px;color:var(--sub);}
+
+/* fisheye classes */
+.pp-v2-app .fy-rows-on .pp-row.fy-focus td{height:var(--row-focus);background:rgba(61,142,255,.05)!important;border-bottom-color:rgba(61,142,255,.2);}
+.pp-v2-app .fy-rows-on .pp-row.fy-focus td:nth-child(1),.pp-v2-app .fy-rows-on .pp-row.fy-focus td:nth-child(2){background:#0e1826!important;}
+.pp-v2-app .fy-rows-on .pp-row.fy-focus .row-extra{display:flex!important;}
+.pp-v2-app .fy-rows-on .pp-row.fy-focus td:nth-child(1)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:0 2px 2px 0;}
+.pp-v2-app .fy-rows-on .pp-row.fy-near td{height:var(--row-near);}
+.pp-v2-app .fy-rows-on .pp-row.fy-far td{height:var(--row-far);opacity:.55;}
+.pp-v2-app .fy-rows-on .pp-row.fy-far .tag,.pp-v2-app .fy-rows-on .pp-row.fy-far .pr{display:none!important;}
+
+/* ── BADGES ── */
+.pp-v2-app .st{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono);white-space:nowrap;}
+.pp-v2-app .st::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.pp-v2-app .s-ip{background:rgba(61,142,255,.12);color:#5aa8ff;}
+.pp-v2-app .s-pd{background:rgba(255,184,48,.12);color:var(--yellow);}
+.pp-v2-app .s-dn{background:rgba(0,214,138,.12);color:var(--green);}
+.pp-v2-app .s-hd{background:rgba(255,77,94,.12);color:var(--red);}
+.pp-v2-app .s-rv{background:rgba(168,127,255,.12);color:var(--purple);}
+.pp-v2-app .s-ready{background:rgba(0,200,190,.12);color:var(--cyan);}
+.pp-v2-app .pr{display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-family:var(--mono);font-size:10px;font-weight:700;}
+.pp-v2-app .pr-H{background:rgba(255,77,94,.15);color:var(--red);}
+.pp-v2-app .pr-M{background:rgba(255,184,48,.15);color:var(--yellow);}
+.pp-v2-app .pr-L{background:rgba(0,214,138,.15);color:var(--green);}
+.pp-v2-app .pr-URGENT{background:rgba(255,77,94,.15);color:var(--red);}
+.pp-v2-app .pr-HIGH{background:rgba(255,124,61,.15);color:var(--orange);}
+.pp-v2-app .pr-NORMAL{background:rgba(61,142,255,.12);color:#5aa8ff;}
+.pp-v2-app .pr-LOW{background:rgba(0,214,138,.12);color:var(--green);}
+.pp-v2-app .prog-wrap{display:flex;align-items:center;gap:7px;min-width:90px;}
+.pp-v2-app .prog-track{flex:1;height:4px;background:var(--s3);border-radius:2px;overflow:hidden;}
+.pp-v2-app .prog-fill{height:100%;border-radius:2px;}
+.pp-v2-app .prog-val{font-family:var(--mono);font-size:10px;color:var(--sub);width:28px;text-align:right;flex-shrink:0;}
+.pp-v2-app .tag{display:inline-flex;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:500;background:var(--s3);color:var(--sub);border:1px solid var(--border);}
+.pp-v2-app .av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+
+/* ── ROUTE STRIP ── */
+.pp-v2-app .route-strip-wrap{display:flex;align-items:center;gap:0;padding:0 10px;height:100%;overflow:visible;}
+.pp-v2-app .route-strip{display:flex;align-items:center;gap:0;position:relative;width:100%;}
+.pp-v2-app .rs-step{display:flex;flex-direction:column;align-items:center;position:relative;flex:1;min-width:0;}
+.pp-v2-app .rs-step::before{content:'';position:absolute;top:7px;left:-50%;right:50%;height:2px;background:var(--border);z-index:0;transition:background .3s;}
+.pp-v2-app .rs-step:first-child::before{display:none;}
+.pp-v2-app .rs-step.done::before{background:var(--green);}
+.pp-v2-app .rs-step.active::before{background:linear-gradient(90deg,var(--green),var(--accent));}
+.pp-v2-app .rs-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:var(--s3);z-index:1;position:relative;flex-shrink:0;transition:all .2s;}
+.pp-v2-app .rs-step.done .rs-dot{background:var(--green);border-color:var(--green);box-shadow:0 0 6px rgba(0,214,138,.4);}
+.pp-v2-app .rs-step.active .rs-dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px rgba(61,142,255,.6);animation:ppPulse 1.5s infinite;}
+.pp-v2-app .rs-label{font-family:var(--mono);font-size:8px;color:var(--dim);text-align:center;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30px;opacity:0;transition:opacity .15s;line-height:1.2;}
+.pp-v2-app .fy-rows-on .pp-row.fy-focus .rs-label{opacity:1;}
+.pp-v2-app .no-fy .rs-label{opacity:.7;}
+/* tooltip */
+.pp-v2-app .rs-tooltip{display:none;position:fixed;z-index:9999;background:var(--s2);border:1px solid var(--border2);border-radius:7px;padding:7px 10px;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;}
+.pp-v2-app .rs-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--border2);}
+.pp-v2-app .tt-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.pp-v2-app .tt-row{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--sub);margin-top:2px;}
+.pp-v2-app .tt-row span:last-child{color:var(--text);font-family:var(--mono);}
+
+/* ── DRAWER ── */
+.pp-v2-app .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
+.pp-v2-app .overlay.open{opacity:1;pointer-events:all;}
+.pp-v2-app .drawer{position:fixed;top:0;right:0;bottom:0;width:480px;background:var(--s2);border-left:1px solid var(--border2);z-index:101;transform:translateX(100%);transition:transform .3s var(--ease);overflow-y:auto;display:flex;flex-direction:column;}
+.pp-v2-app .drawer.open{transform:translateX(0);}
+.pp-v2-app .dh{padding:16px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
+.pp-v2-app .dc{float:right;background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--sub);padding:4px 10px;cursor:pointer;font-family:var(--font);font-size:12px;}
+.pp-v2-app .dc:hover{color:var(--text);border-color:var(--accent);}
+.pp-v2-app .db{padding:18px 20px;flex:1;}
+.pp-v2-app .d-title{font-size:16px;font-weight:700;margin-bottom:3px;line-height:1.3;}
+.pp-v2-app .d-id{font-family:var(--mono);font-size:11px;color:var(--sub);margin-bottom:10px;}
+.pp-v2-app .ds-label{font-size:10px;font-family:var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;margin-top:16px;}
+.pp-v2-app .d-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pp-v2-app .d-field label{font-size:10px;color:var(--sub);display:block;margin-bottom:2px;}
+.pp-v2-app .d-field p{font-size:13px;font-weight:500;}
+.pp-v2-app .d-notes{background:var(--s3);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--sub);line-height:1.6;}
+.pp-v2-app .d-actions{display:flex;gap:8px;margin-top:16px;}
+.pp-v2-app .d-select{width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;cursor:pointer;}
+.pp-v2-app .d-textarea{width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:var(--font);font-size:12px;outline:none;resize:vertical;min-height:60px;}
+
+/* ── EMPTY STATE ── */
+.pp-v2-app .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--dim);}
+.pp-v2-app .empty-icon{font-size:40px;margin-bottom:12px;opacity:.4;}
+.pp-v2-app .empty-text{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--sub);}
+.pp-v2-app .empty-sub{font-size:12px;}
+
+.pp-v2-app ::-webkit-scrollbar{width:4px;height:4px;}
+.pp-v2-app ::-webkit-scrollbar-track{background:transparent;}
+.pp-v2-app ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 </style>
 {% endblock %}
 
-{% block page_header %}
-<!-- Page header is inside the Alpine scope defined in content block -->
-{% endblock %}
+{% block page_header %}{% endblock %}
 
 {% block content %}
-<div x-data="productionPlanner()" x-init="init()">
-    <!-- Page Header (inside Alpine scope now) -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-            <p class="text-gray-600 dark:text-gray-400">Plan work and track progress - add bits to plan before creating Work Orders</p>
+<div class="pp-v2-app" id="pp-app">
+
+<!-- ── TOPBAR ── -->
+<header class="v2-topbar">
+  <div class="v2-page-title"><div class="dot"></div>Production Planner</div>
+  <div class="sep"></div>
+  <div class="search-wrap">
+    <span class="si">&#x2315;</span>
+    <input id="pp-search" type="text" placeholder="Search serial, WO, account..." oninput="ppFilter()"/>
+  </div>
+  <div class="filters">
+    <select class="flt" id="pp-f-view" onchange="ppFilter()">
+      <option value="planned">Planned</option>
+      <option value="ready">Ready for Planning</option>
+      <option value="wip">Work in Progress</option>
+      <option value="completed">Completed</option>
+      <option value="all">All WOs</option>
+    </select>
+    <select class="flt" id="pp-f-acct" onchange="ppFilter()">
+      <option value="">All Accounts</option>
+      {% for acc in accounts %}
+      <option value="{{ acc.code }}" {% if current_account == acc.code %}selected{% endif %}>{{ acc.code }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="tr">
+    <a href="{% url 'workorders:planner_settings' %}" class="btn btn-g" style="text-decoration:none;">&#x2699; Settings</a>
+    <a href="{% url 'workorders:workorder_list_enhanced' %}" class="btn btn-g" style="text-decoration:none;">&#x1f4cb; All WOs</a>
+    <div class="settings-anchor">
+      <button class="dots-btn" id="pp-dots" onclick="ppToggleSettings(event)">&#x22EE;</button>
+      <div class="settings-menu" id="pp-settings">
+        <div class="sm-section">Appearance</div>
+        <div class="sm-item" onclick="ppToggleTheme()">
+          <span class="sm-item-label"><span class="sm-icon" id="pp-theme-icon">&#x263E;</span> <span id="pp-theme-text">Light Mode</span></span>
+          <div class="sm-toggle" id="pp-theme-toggle"></div>
         </div>
-        <div class="mt-4 md:mt-0 flex space-x-2">
-            <button @click="openBitPickerModal()"
-                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                Add to Plan
-            </button>
-            <a href="{% url 'workorders:planner_settings' %}"
-               class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-               title="Configure due dates, weekends, and holidays">
-                <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
-                Settings
-            </a>
-            <a href="{% url 'workorders:workorder_list_enhanced' %}"
-               class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                <i data-lucide="list" class="w-4 h-4 mr-2"></i>
-                All Work Orders
-            </a>
+        <div class="sm-item" onclick="ppToggleCompact()">
+          <span class="sm-item-label"><span class="sm-icon">&#x229E;</span> Compact</span>
+          <div class="sm-toggle" id="sm-compact-toggle"></div>
         </div>
+        <div class="sm-sep"></div>
+        <div class="sm-section">Navigation</div>
+        <div class="sm-item" onclick="ppToggleF('rowFisheye')">
+          <span class="sm-item-label"><span class="sm-icon">&#x2195;</span> Row Expand</span>
+          <div class="sm-toggle on" id="sm-rowFisheye"></div>
+        </div>
+        <div class="sm-item" onclick="ppToggleF('colFisheye')">
+          <span class="sm-item-label"><span class="sm-icon">&#x2194;</span> Col Expand</span>
+          <div class="sm-toggle on" id="sm-colFisheye"></div>
+        </div>
+        <div class="sm-item" onclick="ppToggleF('dragPan')">
+          <span class="sm-item-label"><span class="sm-icon">&#x270B;</span> Drag Pan</span>
+          <div class="sm-toggle on" id="sm-dragPan"></div>
+        </div>
+        <div class="sm-item" onclick="ppToggleF('edgeScroll')">
+          <span class="sm-item-label"><span class="sm-icon">&#x21C6;</span> Edge Scroll</span>
+          <div class="sm-toggle on" id="sm-edgeScroll"></div>
+        </div>
+        <div class="sm-item" onclick="ppToggleF('momentum')">
+          <span class="sm-item-label"><span class="sm-icon">&#x27A1;</span> Momentum</span>
+          <div class="sm-toggle on" id="sm-momentum"></div>
+        </div>
+        <div class="sm-item" onclick="ppToggleF('minimap')">
+          <span class="sm-item-label"><span class="sm-icon">&#x25A3;</span> Minimap</span>
+          <div class="sm-toggle on" id="sm-minimap"></div>
+        </div>
+      </div>
     </div>
+  </div>
+</header>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <!-- Planned (No WO) -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Planned</p>
-                    <p class="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{{ total_planned }}</p>
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Awaiting WO</p>
-                </div>
-                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="calendar-plus" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- Work in Progress -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Work in Progress</p>
-                    <p class="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-1" x-text="wipCount">{{ total_wip }}</p>
-                </div>
-                <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="activity" class="w-6 h-6 text-orange-600 dark:text-orange-400"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- Completed Today -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Completed Today</p>
-                    <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{{ completed_today }}</p>
-                </div>
-                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- Active Accounts -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Accounts</p>
-                    <p class="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{{ account_summary|length }}</p>
-                </div>
-                <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
-                    <i data-lucide="building-2" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Account Quick Stats -->
-    {% if account_summary %}
-    <div class="flex flex-wrap gap-2 mb-6">
-        <a href="?status={{ current_status }}"
-           class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if not current_account %}bg-indigo-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
-            All Accounts
-        </a>
-        {% for acct in account_summary %}
-        <a href="?account={{ acct.code }}&status={{ current_status }}"
-           class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors
-                  {% if current_account == acct.code %}bg-indigo-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
-            {{ acct.code }}
-            <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full {% if current_account == acct.code %}bg-indigo-500{% else %}bg-gray-200 dark:bg-gray-600{% endif %}">
-                {% if acct.planned_count > 0 %}<span class="text-blue-500">{{ acct.planned_count }}</span>+{% endif %}{{ acct.wip_count }}
-            </span>
-        </a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Status Filter Tabs -->
-    <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
-        <a href="?account={{ current_account|default:'' }}&status=planned"
-           class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-                  {% if current_status == 'planned' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
-            <i data-lucide="calendar-plus" class="w-4 h-4 inline mr-1"></i>
-            Planned
-            {% if total_planned > 0 %}<span class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full">{{ total_planned }}</span>{% endif %}
-        </a>
-        <a href="?account={{ current_account|default:'' }}&status=wip"
-           class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-                  {% if current_status == 'wip' %}border-orange-500 text-orange-600 dark:text-orange-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
-            <i data-lucide="activity" class="w-4 h-4 inline mr-1"></i>
-            WIP
-            {% if total_wip > 0 %}<span class="ml-1 px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 rounded-full">{{ total_wip }}</span>{% endif %}
-        </a>
-        <a href="?account={{ current_account|default:'' }}&status=completed"
-           class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-                  {% if current_status == 'completed' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
-            <i data-lucide="check-circle" class="w-4 h-4 inline mr-1"></i>
-            Completed
-        </a>
-        <a href="?account={{ current_account|default:'' }}&status=all"
-           class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-                  {% if current_status == 'all' %}border-gray-500 text-gray-600 dark:text-gray-400{% else %}border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200{% endif %}">
-            All
-        </a>
-    </div>
-
-    {% if current_status == 'planned' %}
-    <!-- ========================================
-         PLANNED TABLE (No WO yet)
-         ======================================== -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700/50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial No.</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">MAT No.</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Priority</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Planned Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-yellow-50 dark:bg-yellow-900/20">Due Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Intended Type</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for item in planned_data %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-3">
-                            <a href="{% url 'workorders:drillbit_detail_enhanced' item.entry.drill_bit.pk %}"
-                               class="text-blue-600 dark:text-blue-400 hover:underline font-mono font-medium">
-                                {{ item.serial }}
-                            </a>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.size }}"</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.type }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">{{ item.mat_no }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {% if item.received_date %}{{ item.received_date|date:"M d" }}{% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300">
-                                {{ item.account }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                {% if item.entry.priority == 'URGENT' or item.entry.priority == 'HIGH' %}bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300
-                                {% elif item.entry.priority == 'NORMAL' %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
-                                {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% endif %}">
-                                {{ item.priority }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {% if item.planned_date %}{{ item.planned_date|date:"M d" }}{% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-sm bg-yellow-50/50 dark:bg-yellow-900/10">
-                            {% if item.due_date %}
-                                <span class="{% if item.is_overdue %}text-red-600 dark:text-red-400 font-semibold{% else %}text-gray-600 dark:text-gray-400{% endif %}">
-                                    {{ item.due_date|date:"M d" }}
-                                </span>
-                            {% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.intended_type }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title="{{ item.notes }}">
-                            {{ item.notes|truncatewords:5 }}
-                        </td>
-                        <td class="px-4 py-3 text-right">
-                            <div class="flex items-center justify-end space-x-2">
-                                <button @click="openCreateWoModal({{ item.entry.pk }}, '{{ item.serial }}', '{{ item.account }}')"
-                                        class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
-                                        title="Create Work Order">
-                                    <i data-lucide="file-plus" class="w-3.5 h-3.5 mr-1"></i>
-                                    Create WO
-                                </button>
-                                <button @click="openRemoveModal({{ item.entry.pk }}, '{{ item.serial }}')"
-                                        class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                                        title="Remove from Plan">
-                                    <i data-lucide="x" class="w-4 h-4"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="12" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                            <i data-lucide="calendar-plus" class="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600"></i>
-                            <p>No bits planned for work</p>
-                            <button @click="openBitPickerModal()"
-                                    class="mt-3 text-blue-600 dark:text-blue-400 hover:underline">
-                                Add drill bit to plan
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% else %}
-    <!-- ========================================
-         WIP / COMPLETED TABLE (Has WO)
-         ======================================== -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700/50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Order No.</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial No.</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">MAT No.</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">From</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                        <!-- Process Steps -->
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Build Up">B/U</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Braze">BRZ</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Final Grinding">F/G</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Tip Grinding">T/G</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="1st Check">QC</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Thread Cleaning">T/C</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Body Cleaning">B/C</th>
-                        <th class="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Final">FIN</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Progress</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Est. Complete</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for item in wip_data %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-3">
-                            <a href="{% url 'workorders:workorder_detail_enhanced' item.wo.pk %}"
-                               class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                                {{ item.wo.wo_number }}
-                            </a>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ item.serial }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.size }}"</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ item.type }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">{{ item.mat_no }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {% if item.received_date %}{{ item.received_date|date:"M d" }}{% else %}-{% endif %}
-                        </td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300">
-                                {{ item.account }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                {% if item.wo.status == 'IN_PROGRESS' %}bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300
-                                {% elif item.wo.status == 'QC_PENDING' %}bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300
-                                {% elif item.wo.status == 'COMPLETED' %}bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300
-                                {% else %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300{% endif %}">
-                                {{ item.status }}
-                            </span>
-                        </td>
-                        <!-- Process Step Icons -->
-                        {% with ss=item.step_status %}
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.buildup == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.buildup == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.buildup == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.braze == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.braze == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.braze == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.grinding == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.grinding == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.grinding == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.tip_grinding == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.tip_grinding == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.tip_grinding == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.qc == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.qc == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.qc == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.thread_clean == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.thread_clean == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.thread_clean == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.body_clean == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.body_clean == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.body_clean == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        <td class="px-2 py-3 text-center">
-                            {% if ss.final == 'done' %}<i data-lucide="check" class="w-4 h-4 text-green-500 inline"></i>
-                            {% elif ss.final == 'active' %}<i data-lucide="circle-dot" class="w-4 h-4 text-yellow-500 inline"></i>
-                            {% elif ss.final == 'pending' %}<i data-lucide="circle" class="w-4 h-4 text-gray-300 dark:text-gray-600 inline"></i>
-                            {% else %}<span class="text-gray-300 dark:text-gray-600">-</span>{% endif %}
-                        </td>
-                        {% endwith %}
-                        <td class="px-4 py-3">
-                            <div class="flex items-center">
-                                <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mr-2">
-                                    <div class="h-full bg-blue-500 rounded-full" style="width: {{ item.progress }}%"></div>
-                                </div>
-                                <span class="text-xs text-gray-600 dark:text-gray-400">{{ item.progress }}%</span>
-                            </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-500 mt-0.5">{{ item.completed_steps }}/{{ item.total_steps }} steps</p>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {% if item.estimated_completion %}
-                                {{ item.estimated_completion|date:"M d H:i" }}
-                            {% elif item.progress == 100 %}
-                                <span class="text-green-600 dark:text-green-400">Done</span>
-                            {% else %}
-                                <span class="text-gray-400">-</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="18" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600"></i>
-                            <p>No work orders found</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- ========================================
-         DRILL BIT PICKER MODAL
-         ======================================== -->
-    <div x-show="showBitPickerModal" x-cloak
-         class="fixed inset-0 z-50 overflow-y-auto"
-         @keydown.escape.window="showBitPickerModal = false">
-        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
-                 @click="showBitPickerModal = false"></div>
-
-            <!-- Modal -->
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all w-full max-w-6xl mx-4">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Select Drill Bit to Add to Plan</h3>
-                    <button @click="showBitPickerModal = false" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-
-                <div class="p-4">
-                    <!-- Filters Bar -->
-                    <div class="flex flex-wrap gap-3 items-center mb-4">
-                        <div class="flex-1 min-w-[200px]">
-                            <input type="text" x-model="pickerSearch" @input="filterPickerTable()"
-                                   placeholder="Search by serial, HDBS, account..."
-                                   class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        </div>
-                        <select x-model="pickerAccountFilter" @change="filterPickerTable()"
-                                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="">All Accounts</option>
-                            {% for acct in accounts %}
-                            <option value="{{ acct.code }}">{{ acct.code }}</option>
-                            {% endfor %}
-                        </select>
-                        <select x-model="pickerStateFilter" @change="filterPickerTable()"
-                                class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                            <option value="">All States</option>
-                            <option value="Component">Component</option>
-                            <option value="Finished Good">Finished Good</option>
-                            <option value="Used">Used</option>
-                        </select>
-                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 font-medium px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800">
-                            <input type="checkbox" x-model="pickerAvailableOnly" @change="filterPickerTable()"
-                                   class="rounded border-green-400 dark:border-green-600 text-green-600">
-                            <span class="text-green-700 dark:text-green-400">Available Only</span>
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <input type="checkbox" x-model="pickerHideInPlan" @change="filterPickerTable()"
-                                   class="rounded border-gray-300 dark:border-gray-600">
-                            Hide already in plan
-                        </label>
-                        <span class="text-sm text-gray-500" x-text="`${pickerVisibleCount} of ${pickerTotalCount} bits`"></span>
-                    </div>
-
-                    <!-- Loading indicator -->
-                    <div x-show="pickerLoading" class="text-center py-8">
-                        <i data-lucide="loader-2" class="w-8 h-8 text-blue-600 animate-spin mx-auto"></i>
-                        <p class="text-gray-500 mt-2">Loading drill bits...</p>
-                    </div>
-
-                    <!-- Table -->
-                    <div x-show="!pickerLoading" class="picker-table-wrapper border border-gray-200 dark:border-gray-700 rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 picker-table text-sm">
-                            <thead class="bg-gray-50 dark:bg-gray-700/50">
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('serial_number')">
-                                        <span class="flex items-center gap-1">Serial # <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('size')">
-                                        <span class="flex items-center gap-1">Size <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('hdbs_type')">
-                                        <span class="flex items-center gap-1">HDBS Type <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('account_code')">
-                                        <span class="flex items-center gap-1">Account <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('bit_state')">
-                                        <span class="flex items-center gap-1">State <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('design_level')">
-                                        <span class="flex items-center gap-1">Level <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('repair_count')" title="Number of repairs completed">
-                                        <span class="flex items-center justify-center gap-1">Repairs <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700" @click="sortPickerTable('rerun_count')" title="Number of reruns (factory + field)">
-                                        <span class="flex items-center justify-center gap-1">Reruns <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></span>
-                                    </th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Availability</th>
-                                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase bg-yellow-50 dark:bg-yellow-900/20">Due Date</th>
-                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
-                                </tr>
-                                <!-- Filter Row -->
-                                <tr class="bg-gray-100/50 dark:bg-gray-600/30">
-                                    <td colspan="6"></td>
-                                    <td class="px-2 py-1">
-                                        <select x-model="pickerRepairFilter" @change="filterPickerTable()"
-                                                class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                            <option value="">All</option>
-                                            <option value="0">0 (New)</option>
-                                            <option value="1">1+</option>
-                                            <option value="2">2+</option>
-                                            <option value="3">3+</option>
-                                        </select>
-                                    </td>
-                                    <td class="px-2 py-1">
-                                        <select x-model="pickerRerunFilter" @change="filterPickerTable()"
-                                                class="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                            <option value="">All</option>
-                                            <option value="0">0</option>
-                                            <option value="1">1+</option>
-                                            <option value="2">2+</option>
-                                        </select>
-                                    </td>
-                                    <td colspan="3"></td>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                <template x-for="bit in pickerFilteredBits" :key="bit.serial_number">
-                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                        :class="{ 'picker-row-selected': selectedBit && selectedBit.serial_number === bit.serial_number }">
-                                        <td class="px-3 py-2 font-mono font-medium text-blue-600 dark:text-blue-400" x-text="bit.serial_number"></td>
-                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400" x-text="bit.size || '-'"></td>
-                                        <td class="px-3 py-2 text-gray-600 dark:text-gray-400" x-text="bit.hdbs_type || '-'"></td>
-                                        <td class="px-3 py-2">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300"
-                                                  x-text="bit.account_code || '-'"></span>
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                                  :class="{
-                                                      'bg-blue-100 text-blue-800': bit.bit_state === 'Component',
-                                                      'bg-green-100 text-green-800': bit.bit_state === 'Finished Good',
-                                                      'bg-yellow-100 text-yellow-800': bit.bit_state === 'Used',
-                                                      'bg-gray-100 text-gray-800': !['Component', 'Finished Good', 'Used'].includes(bit.bit_state)
-                                                  }"
-                                                  x-text="bit.bit_state || '-'"></span>
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <span x-show="bit.design_level" class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs" x-text="'L' + bit.design_level"></span>
-                                            <span x-show="!bit.design_level" class="text-gray-400">-</span>
-                                        </td>
-                                        <td class="px-3 py-2 text-center">
-                                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium"
-                                                  :class="bit.repair_count > 0 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
-                                                  x-text="bit.repair_count"></span>
-                                        </td>
-                                        <td class="px-3 py-2 text-center">
-                                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium"
-                                                  :class="bit.rerun_count > 0 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
-                                                  x-text="bit.rerun_count"></span>
-                                        </td>
-                                        <!-- Availability Status -->
-                                        <td class="px-3 py-2 text-center">
-                                            <template x-if="bit.availability?.available">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
-                                                    <i data-lucide="check-circle" class="w-3 h-3 mr-1"></i>
-                                                    Available
-                                                </span>
-                                            </template>
-                                            <template x-if="bit.availability?.status_code === 'IN_PLAN'">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
-                                                      :title="bit.availability.blocking_reason">
-                                                    <i data-lucide="calendar-clock" class="w-3 h-3 mr-1"></i>
-                                                    Planned
-                                                </span>
-                                            </template>
-                                            <template x-if="bit.availability?.status_code === 'ACTIVE_WO'">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300"
-                                                      :title="bit.availability.blocking_reason">
-                                                    <i data-lucide="wrench" class="w-3 h-3 mr-1"></i>
-                                                    In WIP
-                                                </span>
-                                            </template>
-                                        </td>
-                                        <td class="px-3 py-2 text-center bg-yellow-50/50 dark:bg-yellow-900/10 text-gray-600 dark:text-gray-400"
-                                            x-text="calculateDueDate(bit.account_code)"></td>
-                                        <td class="px-3 py-2 text-right">
-                                            <!-- Available: Show Add button -->
-                                            <template x-if="bit.availability?.available">
-                                                <button @click="selectAndAddBit(bit)"
-                                                        class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">
-                                                    <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>
-                                                    Add
-                                                </button>
-                                            </template>
-                                            <!-- In Plan: Show disabled -->
-                                            <template x-if="bit.availability?.status_code === 'IN_PLAN'">
-                                                <span class="inline-flex items-center px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 text-xs font-medium rounded cursor-not-allowed"
-                                                      title="Already in production plan">
-                                                    <i data-lucide="calendar-check" class="w-3.5 h-3.5 mr-1"></i>
-                                                    In Plan
-                                                </span>
-                                            </template>
-                                            <!-- Active WO: Show link to WO -->
-                                            <template x-if="bit.availability?.status_code === 'ACTIVE_WO'">
-                                                <a :href="`/work-orders/enhanced/${bit.availability.blocking_wo_id}/`"
-                                                   class="inline-flex items-center px-3 py-1.5 bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 text-xs font-medium rounded hover:bg-orange-200 dark:hover:bg-orange-900 transition-colors"
-                                                   :title="`View ${bit.availability.blocking_wo_number}`">
-                                                    <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1"></i>
-                                                    View WO
-                                                </a>
-                                            </template>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-
-                        <!-- Empty state -->
-                        <div x-show="pickerFilteredBits.length === 0 && !pickerLoading" class="text-center py-8">
-                            <i data-lucide="search-x" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600"></i>
-                            <p class="text-gray-500 mt-2">No drill bits match your filters</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                    <button @click="showBitPickerModal = false"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================
-         ADD TO PLAN CONFIRMATION MODAL
-         ======================================== -->
-    <div x-show="showAddConfirmModal" x-cloak
-         class="fixed inset-0 z-[60] overflow-y-auto"
-         @keydown.escape.window="showAddConfirmModal = false">
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75"
-                 @click="showAddConfirmModal = false"></div>
-
-            <!-- Modal -->
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add to Production Plan</h3>
-                    <button @click="showAddConfirmModal = false" class="text-gray-400 hover:text-gray-500">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-
-                <!-- Bit Info -->
-                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-4" x-show="bitToAdd">
-                    <div class="flex items-center gap-3">
-                        <div class="flex-1">
-                            <p class="text-sm font-mono font-medium text-gray-900 dark:text-white" x-text="bitToAdd?.serial_number"></p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">
-                                <span x-text="bitToAdd?.size || 'N/A'"></span> |
-                                <span x-text="bitToAdd?.hdbs_type || 'N/A'"></span>
-                            </p>
-                        </div>
-                        <div class="text-right">
-                            <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium"
-                                  x-text="bitToAdd?.account_code || 'No Account'"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Account Selection -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account <span class="text-red-500">*</span></label>
-                    <select x-model="addPlanAccount"
-                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <option value="">Select Account...</option>
-                        {% for acct in accounts %}
-                        <option value="{{ acct.code }}">{{ acct.code }}</option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Account determines WO numbering and workflow</p>
-                </div>
-
-                <!-- Priority Selection -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
-                    <select x-model="addPlanPriority"
-                            class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <option value="NORMAL">Normal</option>
-                        <option value="HIGH">High</option>
-                        <option value="URGENT">Urgent</option>
-                        <option value="LOW">Low</option>
-                    </select>
-                </div>
-
-                <!-- Notes -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
-                    <textarea x-model="addPlanNotes" rows="2"
-                              class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                              placeholder="Optional planning notes..."></textarea>
-                </div>
-
-                <!-- Due Date Preview -->
-                <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 mb-4">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="calendar" class="w-4 h-4 text-yellow-600 dark:text-yellow-400"></i>
-                        <span class="text-sm text-gray-700 dark:text-gray-300">
-                            Due Date: <span class="font-medium" x-text="calculateDueDate(addPlanAccount || bitToAdd?.account_code)"></span>
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Error Message -->
-                <div x-show="addPlanError" class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg p-3 mb-4 text-sm">
-                    <span x-text="addPlanError"></span>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                    <button @click="showAddConfirmModal = false"
-                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
-                        Cancel
-                    </button>
-                    <button @click="confirmAddToPlan()"
-                            :disabled="addPlanSaving || !addPlanAccount"
-                            class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!addPlanSaving">Add to Plan</span>
-                        <span x-show="addPlanSaving" class="flex items-center justify-center gap-2">
-                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Adding...
-                        </span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- WO Created Success Modal -->
-    <div x-show="showWoSuccessModal" x-cloak
-         class="fixed inset-0 z-[100] overflow-y-auto"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0">
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80" @click="showWoSuccessModal = false; window.location.reload();"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 scale-95"
-                 x-transition:enter-end="opacity-100 scale-100">
-
-                <!-- Success Icon -->
-                <div class="flex justify-center mb-4">
-                    <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                        <i data-lucide="check-circle" class="w-10 h-10 text-green-600 dark:text-green-400"></i>
-                    </div>
-                </div>
-
-                <!-- Message -->
-                <div class="text-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Work Order Created</h3>
-                    <p class="text-gray-600 dark:text-gray-400">
-                        Work Order <span class="font-mono font-semibold text-blue-600 dark:text-blue-400" x-text="createdWoNumber"></span> has been created successfully.
-                    </p>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                    <button @click="showWoSuccessModal = false; window.location.reload();"
-                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
-                        Back to Planner
-                    </button>
-                    <a :href="createdWoUrl"
-                       class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 text-center">
-                        View Work Order
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================
-         CREATE WO CONFIRMATION MODAL
-         ======================================== -->
-    <div x-show="showCreateWoConfirmModal" x-cloak
-         class="fixed inset-0 z-[100] overflow-y-auto"
-         @keydown.escape.window="showCreateWoConfirmModal = false">
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80"
-                 @click="showCreateWoConfirmModal = false"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
-                <!-- Icon -->
-                <div class="flex justify-center mb-4">
-                    <div class="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-                        <i data-lucide="file-plus" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
-                    </div>
-                </div>
-
-                <!-- Content -->
-                <div class="text-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Create Work Order</h3>
-                    <p class="text-gray-600 dark:text-gray-400 mb-3">
-                        You are about to create a Work Order for:
-                    </p>
-                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
-                        <p class="font-mono font-semibold text-gray-900 dark:text-white text-lg" x-text="createWoSerial"></p>
-                        <p class="text-sm text-indigo-600 dark:text-indigo-400 font-medium" x-text="createWoAccount"></p>
-                    </div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
-                        This will assign a WO number and move the item to Work in Progress.
-                    </p>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                    <button @click="showCreateWoConfirmModal = false"
-                            :disabled="createWoLoading"
-                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                        Cancel
-                    </button>
-                    <button @click="confirmCreateWo()"
-                            :disabled="createWoLoading"
-                            class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                        <template x-if="createWoLoading">
-                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                        </template>
-                        <span x-text="createWoLoading ? 'Creating...' : 'Create Work Order'"></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================
-         REMOVE FROM PLAN CONFIRMATION MODAL
-         ======================================== -->
-    <div x-show="showRemoveConfirmModal" x-cloak
-         class="fixed inset-0 z-[100] overflow-y-auto"
-         @keydown.escape.window="showRemoveConfirmModal = false">
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80"
-                 @click="showRemoveConfirmModal = false"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
-                <!-- Icon -->
-                <div class="flex justify-center mb-4">
-                    <div class="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
-                        <i data-lucide="calendar-x" class="w-8 h-8 text-orange-600 dark:text-orange-400"></i>
-                    </div>
-                </div>
-
-                <!-- Content -->
-                <div class="text-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Remove from Plan</h3>
-                    <p class="text-gray-600 dark:text-gray-400 mb-3">
-                        Remove this drill bit from the production plan?
-                    </p>
-                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
-                        <p class="font-mono font-semibold text-gray-900 dark:text-white text-lg" x-text="removeSerial"></p>
-                    </div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
-                        The drill bit will be available to add again later.
-                    </p>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                    <button @click="showRemoveConfirmModal = false"
-                            :disabled="removeLoading"
-                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                        Keep in Plan
-                    </button>
-                    <button @click="confirmRemove()"
-                            :disabled="removeLoading"
-                            class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
-                        <template x-if="removeLoading">
-                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                        </template>
-                        <span x-text="removeLoading ? 'Removing...' : 'Remove'"></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================
-         WO ERROR MODAL (Blocking WO Case)
-         ======================================== -->
-    <div x-show="showWoErrorModal" x-cloak
-         class="fixed inset-0 z-[120] overflow-y-auto"
-         x-transition:enter="transition ease-out duration-150"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100">
-        <!-- Overlay -->
-        <div class="fixed inset-0 bg-black/50" @click="showWoErrorModal = false"></div>
-        <!-- Modal -->
-        <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
-                <!-- Icon -->
-                <div class="flex justify-center mb-4">
-                    <div class="w-14 h-14 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
-                        <i data-lucide="alert-triangle" class="w-8 h-8 text-amber-600 dark:text-amber-400"></i>
-                    </div>
-                </div>
-
-                <!-- Content -->
-                <div class="text-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Cannot Create Work Order</h3>
-                    <p class="text-gray-600 dark:text-gray-400 mb-3" x-text="woErrorMessage"></p>
-                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 inline-block">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Blocking Work Order:</p>
-                        <p class="font-mono font-semibold text-indigo-600 dark:text-indigo-400 text-lg" x-text="blockingWoNumber"></p>
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                    <button @click="showWoErrorModal = false"
-                            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                        Close
-                    </button>
-                    <a :href="blockingWoUrl"
-                       class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
-                        <i data-lucide="external-link" class="w-4 h-4"></i>
-                        View Work Order
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Column Filter Menu (for picker table) -->
-    <div id="pickerColumnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 z-[200]">
-        <div class="space-y-0.5 mb-2">
-            <button type="button" onclick="sortPickerColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
-                <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> Sort A to Z
-            </button>
-            <button type="button" onclick="sortPickerColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
-                <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> Sort Z to A
-            </button>
-        </div>
-        <div class="mb-2">
-            <input type="text" id="pickerColumnFilterSearch" placeholder="Search values..." oninput="filterPickerColumnValues(this.value)"
-                   class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-        </div>
-        <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-        <div class="mb-2">
-            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded">
-                <input type="checkbox" id="pickerSelectAllValues" onchange="togglePickerAllValues(this.checked)" checked>
-                <span class="text-gray-700 dark:text-gray-300">(Select All)</span>
-            </label>
-        </div>
-        <div id="pickerColumnValuesList" class="max-h-48 overflow-y-auto space-y-1"></div>
-        <div class="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2 flex justify-between">
-            <button type="button" onclick="clearPickerColumnFilter()" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
-            <button type="button" onclick="applyPickerColumnFilter()" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Apply</button>
-        </div>
-    </div>
+<!-- ── STATSBAR ── -->
+<div class="statsbar">
+  <div id="pp-stats-row" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;"></div>
+  <div class="statsbar-right">
+    <div class="nav-hint">Hover rows &middot; Drag to pan &middot; Click row for detail</div>
+  </div>
 </div>
 
+<!-- ── VIEWPORT ── -->
+<div class="table-viewport pan-mode" id="pp-viewport">
+  <div class="edge-zone edge-l" id="pp-edge-l"></div>
+  <div class="edge-zone edge-r" id="pp-edge-r"></div>
+  <div class="table-inner fy-rows-on" id="pp-table-inner">
+    <table class="pp-table" id="pp-table">
+      <thead id="pp-thead"></thead>
+      <tbody id="pp-tbody"></tbody>
+    </table>
+  </div>
+  <div class="minimap" id="pp-minimap"><div class="mm-label">POSITION</div><div class="mm-track"><div class="mm-thumb" id="pp-mm-thumb"></div></div></div>
+</div>
+
+<!-- ── DRAWER ── -->
+<div class="overlay" id="pp-overlay" onclick="ppCloseDrawer()"></div>
+<div class="drawer" id="pp-drawer">
+  <div class="dh"><button class="dc" onclick="ppCloseDrawer()">&#x2715; Close</button><div id="pp-dh-content"></div></div>
+  <div class="db" id="pp-db-content"></div>
+</div>
+
+</div><!-- end .pp-v2-app -->
+{% endblock %}
+
+{% block extra_js %}
 <script>
-function productionPlanner() {
-    return {
-        wipCount: {{ total_wip }},
-        lastUpdate: 'Now',
-        pollInterval: null,
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
+const D = {{ planner_json|safe }};
+const CSRF = '{{ csrf_token }}';
+const AVC = ['#3d8eff','#00c8be','#00d68a','#ffb830','#a87fff','#ff4d5e','#ff7c3d'];
+const avC = n => n ? AVC[n.charCodeAt(0) % AVC.length] : '#3d5070';
+const STEP_LABELS = {buildup:'B/U',braze:'BRZ',grinding:'F/G',tip_grinding:'T/G',qc:'QC',thread_clean:'T/C',body_clean:'B/C',usr:'USR',final:'FIN'};
+const STATUS_LABELS = {ip:'In Progress',pd:'Pending',dn:'Completed',hd:'On Hold',rv:'QC / Review'};
 
-        // Bit Picker Modal
-        showBitPickerModal: false,
-        pickerLoading: false,
-        pickerBits: [],
-        pickerFilteredBits: [],
-        pickerSearch: '',
-        pickerAccountFilter: '',
-        pickerStateFilter: '',
-        pickerRepairFilter: '',
-        pickerRerunFilter: '',
-        pickerHideInPlan: true,
-        pickerAvailableOnly: true,  // Default to showing only available bits
-        pickerSortColumn: 'serial_number',
-        pickerSortDir: 'asc',
-        pickerVisibleCount: 0,
-        pickerTotalCount: 0,
-        selectedBit: null,
-        bitsInPlan: new Set([{% for item in planned_data %}'{{ item.serial }}',{% endfor %}]),
+/* ══════════════════════════════════════════
+   FEATURE FLAGS + SETTINGS
+══════════════════════════════════════════ */
+const F = { rowFisheye:true, colFisheye:true, dragPan:true, edgeScroll:true, momentum:true, minimap:true };
+let compactMode = false, lightMode = false;
+try { const s=JSON.parse(localStorage.getItem('ppPlannerPrefs')); if(s){ Object.keys(F).forEach(k=>{if(k in s)F[k]=s[k];}); if(s.compactMode)compactMode=true; if(s.lightMode)lightMode=true; } } catch(e){}
+function ppSavePrefs(){ localStorage.setItem('ppPlannerPrefs', JSON.stringify({...F, compactMode, lightMode})); }
 
-        // Add to Plan Confirmation Modal
-        showAddConfirmModal: false,
-        bitToAdd: null,
-        addPlanAccount: '',
-        addPlanPriority: 'NORMAL',
-        addPlanNotes: '',
-        addPlanSaving: false,
-        addPlanError: '',
+function ppToggleSettings(e){ e.stopPropagation(); document.getElementById('pp-settings').classList.toggle('open'); }
+document.addEventListener('click', e=>{ const m=document.getElementById('pp-settings'); if(m&&!e.target.closest('.settings-anchor'))m.classList.remove('open'); });
 
-        // WO Created Success Modal
-        showWoSuccessModal: false,
-        createdWoNumber: '',
-        createdWoUrl: '',
-
-        // Create WO Confirmation Modal
-        showCreateWoConfirmModal: false,
-        createWoEntryId: null,
-        createWoSerial: '',
-        createWoAccount: '',
-        createWoLoading: false,
-
-        // Create WO Error Modal (for blocking WO case)
-        showWoErrorModal: false,
-        woErrorMessage: '',
-        blockingWoNumber: '',
-        blockingWoUrl: '',
-
-        // Remove from Plan Confirmation Modal
-        showRemoveConfirmModal: false,
-        removeEntryId: null,
-        removeSerial: '',
-        removeLoading: false,
-
-        init() {
-            // Poll for updates every 30 seconds
-            this.pollInterval = setInterval(() => this.fetchWipStatus(), 30000);
-            // Reinitialize Lucide icons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        },
-
-        async fetchWipStatus() {
-            try {
-                const response = await fetch('{% url "workorders:api_production_wip_status" %}');
-                const data = await response.json();
-                this.wipCount = data.wip.length;
-                this.lastUpdate = new Date(data.timestamp).toLocaleTimeString();
-            } catch (e) {
-                console.error('Failed to fetch WIP status:', e);
-            }
-        },
-
-        async openBitPickerModal() {
-            this.showBitPickerModal = true;
-            this.pickerLoading = true;
-            this.selectedBit = null;
-
-            try {
-                const response = await fetch('{% url "workorders:drillbit_list_api" %}');
-                const data = await response.json();
-                this.pickerBits = data.bits || [];
-                this.pickerTotalCount = this.pickerBits.length;
-                this.filterPickerTable();
-            } catch (e) {
-                console.error('Failed to load drill bits:', e);
-                this.pickerBits = [];
-            } finally {
-                this.pickerLoading = false;
-                this.$nextTick(() => {
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                });
-            }
-        },
-
-        filterPickerTable() {
-            let filtered = [...this.pickerBits];
-            const search = this.pickerSearch.toLowerCase();
-
-            // Text search
-            if (search) {
-                filtered = filtered.filter(bit =>
-                    bit.serial_number.toLowerCase().includes(search) ||
-                    (bit.hdbs_type || '').toLowerCase().includes(search) ||
-                    (bit.account_code || '').toLowerCase().includes(search) ||
-                    (bit.bit_state || '').toLowerCase().includes(search) ||
-                    (bit.size || '').toLowerCase().includes(search)
-                );
-            }
-
-            // Account filter
-            if (this.pickerAccountFilter) {
-                filtered = filtered.filter(bit => bit.account_code === this.pickerAccountFilter);
-            }
-
-            // State filter
-            if (this.pickerStateFilter) {
-                filtered = filtered.filter(bit => bit.bit_state === this.pickerStateFilter);
-            }
-
-            // Repair count filter (min >=)
-            if (this.pickerRepairFilter !== '') {
-                const minRepair = parseInt(this.pickerRepairFilter);
-                if (minRepair === 0) {
-                    filtered = filtered.filter(bit => bit.repair_count === 0);
-                } else {
-                    filtered = filtered.filter(bit => bit.repair_count >= minRepair);
-                }
-            }
-
-            // Rerun count filter (min >=)
-            if (this.pickerRerunFilter !== '') {
-                const minRerun = parseInt(this.pickerRerunFilter);
-                if (minRerun === 0) {
-                    filtered = filtered.filter(bit => bit.rerun_count === 0);
-                } else {
-                    filtered = filtered.filter(bit => bit.rerun_count >= minRerun);
-                }
-            }
-
-            // Hide already in plan (legacy filter - now handled by availability)
-            if (this.pickerHideInPlan) {
-                filtered = filtered.filter(bit => !this.bitsInPlan.has(bit.serial_number));
-            }
-
-            // Available Only filter - show only bits that can be added to plan
-            if (this.pickerAvailableOnly) {
-                filtered = filtered.filter(bit => bit.availability?.available === true);
-            }
-
-            // Sort
-            filtered.sort((a, b) => {
-                let va = a[this.pickerSortColumn];
-                let vb = b[this.pickerSortColumn];
-                // Handle nullish values
-                if (va == null) va = '';
-                if (vb == null) vb = '';
-                // Handle numeric vs string comparison
-                if (typeof va === 'number' && typeof vb === 'number') {
-                    return this.pickerSortDir === 'desc' ? vb - va : va - vb;
-                }
-                // String comparison
-                if (typeof va === 'string') va = va.toLowerCase();
-                if (typeof vb === 'string') vb = vb.toLowerCase();
-                let cmp = va < vb ? -1 : va > vb ? 1 : 0;
-                return this.pickerSortDir === 'desc' ? -cmp : cmp;
-            });
-
-            this.pickerFilteredBits = filtered;
-            this.pickerVisibleCount = filtered.length;
-        },
-
-        sortPickerTable(column) {
-            if (this.pickerSortColumn === column) {
-                this.pickerSortDir = this.pickerSortDir === 'asc' ? 'desc' : 'asc';
-            } else {
-                this.pickerSortColumn = column;
-                this.pickerSortDir = 'asc';
-            }
-            this.filterPickerTable();
-        },
-
-        calculateDueDate(accountCode) {
-            const days = accountCode === 'UR' ? 4 : 6;
-            const date = new Date();
-            date.setDate(date.getDate() + days);
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        },
-
-        selectAndAddBit(bit) {
-            // Open confirmation modal instead of direct add
-            this.bitToAdd = bit;
-            this.addPlanAccount = bit.account_code || '';
-            this.addPlanPriority = 'NORMAL';
-            this.addPlanNotes = '';
-            this.addPlanError = '';
-            this.addPlanSaving = false;
-            this.showAddConfirmModal = true;
-            this.$nextTick(() => {
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            });
-        },
-
-        async confirmAddToPlan() {
-            if (!this.bitToAdd) return;
-            if (!this.addPlanAccount) {
-                this.addPlanError = 'Please select an account';
-                return;
-            }
-
-            this.addPlanSaving = true;
-            this.addPlanError = '';
-
-            try {
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-
-                const response = await fetch('{% url "workorders:api_add_to_plan" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({
-                        serial_number: this.bitToAdd.serial_number,
-                        account: this.addPlanAccount,
-                        priority: this.addPlanPriority,
-                        planned_date: '',
-                        intended_wo_type: '',
-                        notes: this.addPlanNotes
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    this.bitsInPlan.add(this.bitToAdd.serial_number);
-                    this.filterPickerTable();
-                    this.showAddConfirmModal = false;
-                    this.showBitPickerModal = false;
-                    // Reload page to show the new entry
-                    window.location.reload();
-                } else {
-                    this.addPlanError = data.error || 'Failed to add to plan';
-                }
-            } catch (e) {
-                this.addPlanError = 'Error adding to plan. Please try again.';
-                console.error('Add to plan error:', e);
-            } finally {
-                this.addPlanSaving = false;
-            }
-        },
-
-        // Open Create WO confirmation modal
-        openCreateWoModal(entryId, serial, account) {
-            this.createWoEntryId = entryId;
-            this.createWoSerial = serial;
-            this.createWoAccount = account;
-            this.showCreateWoConfirmModal = true;
-        },
-
-        async confirmCreateWo() {
-            if (this.createWoLoading) return;
-            this.createWoLoading = true;
-
-            try {
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-
-                const response = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${this.createWoEntryId}`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    this.showCreateWoConfirmModal = false;
-                    // Show success modal with WO details
-                    this.createdWoNumber = data.wo_number;
-                    this.createdWoUrl = data.redirect_url;
-                    this.showWoSuccessModal = true;
-                } else {
-                    this.showCreateWoConfirmModal = false;
-                    // Check if this is a blocking WO error
-                    if (data.error_code === 'ACTIVE_WO' && data.blocking_wo_url) {
-                        this.woErrorMessage = data.error || 'This drill bit already has an active Work Order.';
-                        this.blockingWoNumber = data.blocking_wo_number || 'Unknown';
-                        this.blockingWoUrl = data.blocking_wo_url;
-                        this.showWoErrorModal = true;
-                    } else {
-                        alert(data.error || 'Failed to create Work Order');
-                    }
-                }
-            } catch (e) {
-                alert('Error creating Work Order');
-                console.error('Create WO error:', e);
-            } finally {
-                this.createWoLoading = false;
-            }
-        },
-
-        // Open Remove from Plan confirmation modal
-        openRemoveModal(entryId, serial) {
-            this.removeEntryId = entryId;
-            this.removeSerial = serial;
-            this.showRemoveConfirmModal = true;
-        },
-
-        async confirmRemove() {
-            if (this.removeLoading) return;
-            this.removeLoading = true;
-
-            try {
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                 document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-
-                const response = await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${this.removeEntryId}`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert(data.error || 'Failed to remove from plan');
-                }
-            } catch (e) {
-                alert('Error removing from plan');
-                console.error('Remove error:', e);
-            } finally {
-                this.removeLoading = false;
-            }
-        },
-
-        destroy() {
-            if (this.pollInterval) {
-                clearInterval(this.pollInterval);
-            }
-        }
-    };
+function ppToggleF(key){
+  F[key]=!F[key];
+  document.getElementById('sm-'+key).classList.toggle('on',F[key]);
+  if(key==='rowFisheye'){ document.getElementById('pp-table-inner').classList.toggle('fy-rows-on',F[key]); if(!F[key])ppClearRowFY(); }
+  if(key==='dragPan') document.getElementById('pp-viewport').classList.toggle('pan-mode',F[key]);
+  if(key==='minimap') document.getElementById('pp-minimap').style.display=F[key]?'':'none';
+  if(!F[key]&&key==='edgeScroll'){ppStopEdge();document.getElementById('pp-edge-l').classList.remove('show');document.getElementById('pp-edge-r').classList.remove('show');}
+  if(!F[key]&&key==='colFisheye')ppClearColFY();
+  ppSavePrefs();
 }
+
+function ppToggleCompact(){
+  compactMode=!compactMode;
+  const app=document.getElementById('pp-app');
+  document.getElementById('sm-compact-toggle').classList.toggle('on',compactMode);
+  if(compactMode){app.style.setProperty('--row-h','28px');app.style.setProperty('--row-focus','58px');app.style.setProperty('--row-near','38px');app.style.setProperty('--row-far','20px');}
+  else{app.style.setProperty('--row-h','42px');app.style.setProperty('--row-focus','80px');app.style.setProperty('--row-near','54px');app.style.setProperty('--row-far','30px');}
+  ppSavePrefs();
+}
+
+function ppToggleTheme(){
+  lightMode=!lightMode;
+  const app=document.getElementById('pp-app');
+  app.classList.toggle('v2-light',lightMode);
+  document.getElementById('pp-theme-toggle').classList.toggle('on',lightMode);
+  document.getElementById('pp-theme-icon').innerHTML=lightMode?'&#x2600;':'&#x263E;';
+  document.getElementById('pp-theme-text').textContent=lightMode?'Dark Mode':'Light Mode';
+  if(lightMode){document.documentElement.classList.remove('dark');document.body.style.backgroundColor='#f4f6f9';}
+  else{document.documentElement.classList.add('dark');document.body.style.backgroundColor='';}
+  ppSavePrefs();
+}
+
+/* ══════════════════════════════════════════
+   SIZE FRACTION HELPER
+══════════════════════════════════════════ */
+function sizeFrac(v){
+  if(!v) return '—';
+  const n = parseFloat(v);
+  if(isNaN(n)) return v;
+  const whole = Math.floor(n);
+  const frac = n - whole;
+  if(Math.abs(frac) < 0.001) return ''+whole;
+  // Common drill bit fractions: 1/8, 1/4, 3/8, 1/2, 5/8, 3/4, 7/8, 1/16, 3/16, 5/16, 7/16, 9/16, 11/16, 13/16, 15/16
+  const denoms = [32,16,8,4,2];
+  for(const d of denoms){
+    const num = Math.round(frac * d);
+    if(Math.abs(frac - num/d) < 0.002){
+      // Simplify
+      let a=num, b=d;
+      while(a%2===0 && b%2===0){a/=2;b/=2;}
+      return whole ? `${whole} ${a}/${b}` : `${a}/${b}`;
+    }
+  }
+  return v; // fallback
+}
+
+/* ══════════════════════════════════════════
+   COLUMN CONFIG — per-view fisheye widths
+══════════════════════════════════════════ */
+let COLS = []; // rebuilt by each view render
+let curView = 'planned';
+
+/* ══════════════════════════════════════════
+   ROUTE STRIP
+══════════════════════════════════════════ */
+function ppRouteStrip(route){
+  if(!route||!route.length) return '<div class="route-strip-wrap"><span style="color:var(--dim);font-size:10px;font-family:var(--mono);">No route</span></div>';
+  const dots = route.map(s=>{
+    const lab = STEP_LABELS[s.key]||s.key.substring(0,3).toUpperCase();
+    return `<div class="rs-step ${s.state}">
+      <div class="rs-dot"></div><div class="rs-label">${lab}</div>
+      <div class="rs-tooltip"><div class="tt-name">${s.label||s.key}</div><div class="tt-row"><span>Status</span><span>${s.state.toUpperCase()}</span></div></div>
+    </div>`;
+  }).join('');
+  return `<div class="route-strip-wrap"><div class="route-strip">${dots}</div></div>`;
+}
+
+/* ══════════════════════════════════════════
+   STATS
+══════════════════════════════════════════ */
+function ppUpdateStats(){
+  const chips = [
+    {n:D.stats.ready, l:'Ready', col:'var(--cyan)'},
+    {n:D.stats.planned, l:'Planned', col:'var(--accent)'},
+    {n:D.stats.wip, l:'WIP', col:'var(--yellow)'},
+    {n:D.stats.completedToday, l:'Done Today', col:'var(--green)'},
+  ];
+  const acctChips = D.accountSummary.map(a=>
+    `<div class="stat-chip"><div class="stat-dot" style="background:${avC(a.code)}"></div><strong>${a.total}</strong> ${a.code}</div>`
+  ).join('');
+  document.getElementById('pp-stats-row').innerHTML =
+    chips.filter(c=>c.n>0).map(c=>`<div class="stat-chip"><div class="stat-dot" style="background:${c.col}"></div><strong>${c.n}</strong> ${c.l}</div>`).join('') +
+    (acctChips ? '<div class="sep" style="height:16px;margin:0 4px;"></div>'+acctChips : '');
+}
+
+/* ══════════════════════════════════════════
+   RENDER VIEWS
+══════════════════════════════════════════ */
+function ppFilter(){
+  curView = document.getElementById('pp-f-view').value;
+  const acct = document.getElementById('pp-f-acct').value;
+  const q = document.getElementById('pp-search').value.toLowerCase();
+  // Reset pan position on view change
+  ppApplyPan(0,0);
+
+  if(curView==='ready') ppRenderReady(q,acct);
+  else if(curView==='planned') ppRenderPlanned(q,acct);
+  else ppRenderWip(curView,q,acct);
+
+  ppUpdateStats();
+  ppRefreshMinimap();
+}
+
+function ppShowEmpty(t,s){ const el=document.getElementById('pp-table-inner'); el.insertAdjacentHTML('beforeend',`<div class="empty" id="pp-empty"><div class="empty-icon">&#x1f4e6;</div><div class="empty-text">${t}</div><div class="empty-sub">${s||''}</div></div>`); }
+
+function ppSetHeader(cols){
+  // cols: [{label,w,wf,wn,wfar}] — w=base width, wf=focus, wn=near, wfar=far
+  COLS = cols;
+  const app = document.getElementById('pp-app');
+  app.style.setProperty('--col-1', cols[0].w+'px');
+  document.getElementById('pp-thead').innerHTML = '<tr id="pp-thead-row">' +
+    cols.map((c,i)=> `<th style="width:${c.w}px;min-width:${c.w}px;${c.extra||''}"><div class="th-inner">${c.label}</div></th>`).join('') + '</tr>';
+}
+
+/* ── READY FOR PLANNING ── */
+function ppRenderReady(q,acct){
+  let data=D.ready;
+  if(acct) data=data.filter(b=>b.account===acct);
+  if(q) data=data.filter(b=>[b.serial,b.size,b.type,b.designMat,b.systemMat,b.account].some(s=>(s||'').toLowerCase().includes(q)));
+
+  ppSetHeader([
+    {label:'#',w:40,wf:45,wn:42,wfar:35},
+    {label:'Serial No.',w:130,wf:160,wn:140,wfar:90},
+    {label:'Design MAT',w:110,wf:140,wn:118,wfar:72},
+    {label:'System MAT',w:110,wf:140,wn:118,wfar:72},
+    {label:'Brazing BOM',w:110,wf:140,wn:118,wfar:72},
+    {label:'Lvl',w:45,wf:55,wn:48,wfar:35},
+    {label:'Size',w:65,wf:85,wn:70,wfar:45},
+    {label:'Type',w:100,wf:130,wn:108,wfar:65},
+    {label:'Account',w:100,wf:130,wn:108,wfar:65},
+    {label:'Received',w:95,wf:115,wn:100,wfar:60},
+    {label:'Days',w:55,wf:70,wn:60,wfar:40},
+    {label:'New / Repair',w:95,wf:115,wn:100,wfar:60},
+    {label:'',w:40,wf:45,wn:42,wfar:35,extra:'text-align:center;'},
+    {label:'Actions',w:120,wf:130,wn:125,wfar:100,extra:'text-align:center;'},
+  ]);
+
+  if(!data.length){ document.getElementById('pp-tbody').innerHTML=''; ppShowEmpty('No bits ready for planning','Bits with status "Received" and no active WO appear here'); return; }
+  const old=document.getElementById('pp-empty'); if(old)old.remove();
+
+  document.getElementById('pp-tbody').innerHTML = data.map((b,i)=>{
+    const dw=b.daysWaiting||0;
+    const dwCol=dw>10?'var(--red)':dw>5?'var(--yellow)':'var(--sub)';
+    const isRepair=b.repair>0||['REPAIRED','RERUN','USED','NOT_USED','RETROFITTED'].includes(b.condition);
+    const repLabel=isRepair?`<span style="color:var(--orange);font-weight:600;">Repair${b.repair>1?' (R'+b.repair+')':''}</span>`:'<span style="color:var(--green);">New</span>';
+    const rLvlColors={'3':'var(--accent)','4':'var(--green)','5':'var(--purple)','5.5':'var(--yellow)','6':'var(--teal)'};
+    return `<tr class="pp-row" data-gi="${i}" onmouseenter="ppOnRow(this)" onmouseleave="ppOffRow()" onclick="ppOpenReadyDrawer(${b.id})">
+    <td><div class="td-inner" style="color:var(--dim);font-family:var(--mono);font-size:11px;">${i+1}</div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);color:var(--cyan);font-size:13px;font-weight:500;">${b.serial}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${b.designMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${b.systemMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--orange);">${b.brazingMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:${rLvlColors[b.level]||'var(--sub)'};">${b.level?'L'+b.level:'—'}</span></div></td>
+    <td><div class="td-inner">${sizeFrac(b.size)}</div></td>
+    <td><div class="td-inner"><span class="tag">${b.type||'—'}</span></div></td>
+    <td><div class="td-inner"><div style="display:flex;align-items:center;gap:5px;"><div class="av" style="background:${avC(b.account)}22;color:${avC(b.account)}">${b.account?b.account[0]:'?'}</div>${b.account||'<span style="color:var(--red);font-size:10px;">No account</span>'}</div></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;">${b.received||'—'}</span></div></td>
+    <td><div class="td-inner" style="text-align:center;"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${dwCol};">${dw}d</span></div></td>
+    <td><div class="td-inner">${repLabel}</div></td>
+    <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;"><button class="btn btn-g" style="padding:2px 6px;font-size:11px;" onclick="ppOpenTimeline(${b.id},'ready')" title="Timeline">&#x1F552;</button></div></td>
+    <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;"><button class="btn btn-p" style="padding:3px 10px;font-size:11px;" onclick="ppOpenReadyDrawer(${b.id})">+ Plan</button></div></td>
+  </tr>`;}).join('');
+}
+
+/* ── PLANNED ── */
+function ppRenderPlanned(q,acct){
+  let data=D.planned;
+  if(acct) data=data.filter(p=>p.account===acct);
+  if(q) data=data.filter(p=>[p.serial,p.account,p.designMat,p.systemMat,p.notes,p.requester].some(s=>(s||'').toLowerCase().includes(q)));
+
+  ppSetHeader([
+    {label:'#',w:40,wf:45,wn:42,wfar:35},
+    {label:'Serial No.',w:130,wf:160,wn:140,wfar:90},
+    {label:'Design MAT',w:105,wf:135,wn:112,wfar:68},
+    {label:'System MAT',w:105,wf:135,wn:112,wfar:68},
+    {label:'Brazing BOM',w:105,wf:135,wn:112,wfar:68},
+    {label:'Lvl',w:45,wf:55,wn:48,wfar:35},
+    {label:'Size',w:60,wf:80,wn:65,wfar:42},
+    {label:'Type',w:95,wf:125,wn:103,wfar:62},
+    {label:'Account',w:95,wf:125,wn:103,wfar:62},
+    {label:'N / R',w:80,wf:95,wn:85,wfar:52},
+    {label:'Requester',w:95,wf:115,wn:100,wfar:60},
+    {label:'Due Date',w:100,wf:120,wn:105,wfar:65},
+    {label:'Priority',w:80,wf:100,wn:85,wfar:55},
+    {label:'',w:40,wf:45,wn:42,wfar:35,extra:'text-align:center;'},
+    {label:'Actions',w:155,wf:165,wn:160,wfar:130,extra:'text-align:center;'},
+  ]);
+
+  if(!data.length){ document.getElementById('pp-tbody').innerHTML=''; ppShowEmpty('No planned entries','Add bits from the "Ready for Planning" view'); return; }
+  const old=document.getElementById('pp-empty'); if(old)old.remove();
+
+  document.getElementById('pp-tbody').innerHTML = data.map((p,i)=>{
+    const hc = p.dueDateHistory && p.dueDateHistory.length;
+    const dueTip = hc ? ' title="'+p.dueDateHistory.map(h=>h.old+' → '+h.new+(h.reason?' ('+h.reason+')':'')).join('&#10;')+'" style="cursor:help;text-decoration:underline dotted var(--dim);"' : '';
+    const pIsRepair = (p.intendedType && p.intendedType.toLowerCase().includes('repair'))
+                    || p.repair > 0
+                    || ['REPAIRED','RERUN','USED','NOT_USED','RETROFITTED'].includes(p.condition);
+    const repLabel=pIsRepair?`<span style="color:var(--orange);font-weight:600;">Repair${p.repair>1?' (R'+p.repair+')':''}</span>`:'<span style="color:var(--green);">New</span>';
+    const lvlColors={'3':'var(--accent)','4':'var(--green)','5':'var(--purple)','5.5':'var(--yellow)','6':'var(--teal)'};
+    return `<tr class="pp-row" data-gi="${i}" onmouseenter="ppOnRow(this)" onmouseleave="ppOffRow()" onclick="ppOpenPlannedDrawer(${p.entryId})">
+    <td><div class="td-inner" style="color:var(--dim);font-family:var(--mono);font-size:11px;">${i+1}</div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);color:var(--cyan);font-size:13px;font-weight:500;">${p.serial}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${p.designMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${p.systemMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--orange);">${p.brazingMat||'—'}</span></div></td>
+    <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:${lvlColors[p.level]||'var(--sub)'};">${p.level?'L'+p.level:'—'}</span></div></td>
+    <td><div class="td-inner">${sizeFrac(p.size)}</div></td>
+    <td><div class="td-inner"><span class="tag">${p.type||'—'}</span></div></td>
+    <td><div class="td-inner"><div style="display:flex;align-items:center;gap:5px;"><div class="av" style="background:${avC(p.account)}22;color:${avC(p.account)}">${p.account?p.account[0]:'?'}</div>${p.account||'—'}</div></div></td>
+    <td><div class="td-inner">${repLabel}</div></td>
+    <td><div class="td-inner"><span style="font-size:11px;">${p.requester||'—'}</span></div></td>
+    <td onclick="event.stopPropagation()"><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;${p.overdue?'color:var(--red);font-weight:700;':''}"${dueTip} onclick="ppEditDueDate(${p.entryId})">${p.dueDate||'—'}${p.overdue?' &#x26A0;':''}${hc?'<sup style="color:var(--purple);margin-left:2px;">'+hc+'</sup>':''}</span></div></td>
+    <td><div class="td-inner"><span class="pr pr-${p.priority}">${p.priorityDisplay}</span></div></td>
+    <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;"><button class="btn btn-g" style="padding:2px 6px;font-size:11px;" onclick="ppOpenTimeline(${p.bitId},'planned')" title="Timeline">&#x1F552;</button></div></td>
+    <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;flex-direction:row;gap:4px;">
+      <button class="btn btn-p" style="padding:3px 10px;font-size:11px;" onclick="ppCreateWo(${p.entryId},'${p.serial}','${p.account}')">Create WO</button>
+      <button class="btn btn-g" style="padding:3px 8px;font-size:11px;color:var(--red);" onclick="ppRemove(${p.entryId},'${p.serial}')" title="Remove">&#x2715;</button>
+    </div></td>
+  </tr>`;}).join('');
+}
+
+/* ── WIP / COMPLETED / ALL ── */
+function ppRenderWip(view,q,acct){
+  let data=D.wip;
+  if(view==='wip') data=data.filter(w=>w.status!=='dn');
+  else if(view==='completed') data=data.filter(w=>w.status==='dn');
+  if(acct) data=data.filter(w=>w.account===acct);
+  if(q) data=data.filter(w=>[w.woNum,w.serial,w.account,w.designMat,w.systemMat,w.curStep,w.requester].some(s=>(s||'').toLowerCase().includes(q)));
+
+  ppSetHeader([
+    {label:'#',w:40,wf:45,wn:42,wfar:35},
+    {label:'WO / Job Card',w:125,wf:150,wn:133,wfar:85},
+    {label:'Serial',w:115,wf:140,wn:123,wfar:75},
+    {label:'Design MAT',w:100,wf:130,wn:108,wfar:65},
+    {label:'System MAT',w:100,wf:130,wn:108,wfar:65},
+    {label:'Brazing BOM',w:100,wf:130,wn:108,wfar:65},
+    {label:'Lvl',w:45,wf:55,wn:48,wfar:35},
+    {label:'Size',w:60,wf:80,wn:65,wfar:42},
+    {label:'Type',w:90,wf:115,wn:98,wfar:58},
+    {label:'Account',w:95,wf:120,wn:103,wfar:62},
+    {label:'N / R',w:75,wf:90,wn:80,wfar:50},
+    {label:'Requester',w:90,wf:110,wn:95,wfar:55},
+    {label:'Release',w:90,wf:110,wn:95,wfar:55},
+    {label:'Due',w:90,wf:110,wn:95,wfar:55},
+    {label:'Current Step',w:140,wf:170,wn:148,wfar:85},
+    {label:'Progress',w:120,wf:140,wn:128,wfar:70},
+    {label:'Est. Finish',w:90,wf:110,wn:95,wfar:55},
+    {label:'Route',w:210,wf:250,wn:222,wfar:125},
+    {label:'',w:40,wf:45,wn:42,wfar:35,extra:'text-align:center;'},
+    {label:'',w:70,wf:75,wn:72,wfar:65,extra:'text-align:center;'},
+  ]);
+
+  if(!data.length){ document.getElementById('pp-tbody').innerHTML=''; ppShowEmpty('No work orders',view==='completed'?'Completed WOs will appear here':'No active work orders found'); return; }
+  const old=document.getElementById('pp-empty'); if(old)old.remove();
+
+  document.getElementById('pp-tbody').innerHTML = data.map((w,i)=>{
+    const pc=w.pct===100?'var(--green)':w.pct>60?'var(--cyan)':'var(--accent)';
+    // Est finish styling: green if before due, red if after
+    let efStyle='';
+    if(w.estFinish && w.due){
+      efStyle = w.estFinish > w.due ? 'color:var(--red);font-weight:700;' : 'color:var(--green);';
+    }
+    const wIsRepair=w.repair>0||['REPAIRED','RERUN','USED','NOT_USED','RETROFITTED'].includes(w.condition);
+    const wRepLabel=wIsRepair?`<span style="color:var(--orange);font-weight:600;">R${w.repair>1?w.repair:''}</span>`:'<span style="color:var(--green);">New</span>';
+    const wLvlColors={'3':'var(--accent)','4':'var(--green)','5':'var(--purple)','5.5':'var(--yellow)','6':'var(--teal)'};
+    return `<tr class="pp-row" data-gi="${i}" onmouseenter="ppOnRow(this)" onmouseleave="ppOffRow()" onclick="window.location='${w.detailUrl}'">
+      <td><div class="td-inner" style="color:var(--dim);font-family:var(--mono);font-size:11px;">${i+1}</div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:12px;color:var(--accent);">${w.woNum}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);color:var(--cyan);">${w.serial||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${w.designMat||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--sub);">${w.systemMat||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;color:var(--orange);">${w.brazingMat||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:${wLvlColors[w.level]||'var(--sub)'};">${w.level?'L'+w.level:'—'}</span></div></td>
+      <td><div class="td-inner">${sizeFrac(w.size)}</div></td>
+      <td><div class="td-inner"><span class="tag">${w.type||'—'}</span></div></td>
+      <td><div class="td-inner"><div style="display:flex;align-items:center;gap:5px;"><div class="av" style="background:${avC(w.account)}22;color:${avC(w.account)}">${w.account?w.account[0]:'?'}</div>${w.account||'—'}</div></div></td>
+      <td><div class="td-inner">${wRepLabel}</div></td>
+      <td><div class="td-inner"><span style="font-size:11px;">${w.requester||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;">${w.releaseDate||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;">${w.due||'—'}</span></div></td>
+      <td><div class="td-inner"><span style="color:var(--cyan);font-size:11px;">${w.curStep||'<span style="color:var(--dim);">—</span>'}</span></div></td>
+      <td><div class="td-inner"><div class="prog-wrap"><div class="prog-track"><div class="prog-fill" style="width:${w.pct}%;background:${pc};"></div></div><span class="prog-val">${w.pct}%</span></div></div></td>
+      <td><div class="td-inner"><span style="font-family:var(--mono);font-size:11px;${efStyle}">${w.estFinish||'—'}</span></div></td>
+      <td style="padding:0;">${ppRouteStrip(w.route)}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;"><button class="btn btn-g" style="padding:2px 6px;font-size:11px;" onclick="ppOpenTimeline(${w.bitId},'wip')" title="Timeline">&#x1F552;</button></div></td>
+      <td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;flex-direction:row;gap:4px;">
+        <a href="${w.detailUrl}" class="btn btn-g" style="padding:3px 10px;font-size:11px;text-decoration:none;">View</a>
+        ${w.status!=='dn'?'<button class="btn btn-g" style="padding:3px 6px;font-size:11px;" onclick="ppOpenWoAccountDrawer('+w.woId+')" title="Change Account">&#x270E;</button>':''}
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   ROW FISHEYE
+══════════════════════════════════════════ */
+let ppFocusRow=null;
+function ppOnRow(row){
+  if(!F.rowFisheye&&!F.colFisheye) return;
+  if(ppFocusRow===row) return; ppFocusRow=row;
+  if(F.rowFisheye){
+    const rows=Array.from(document.querySelectorAll('.pp-v2-app .pp-row'));
+    const fi=rows.indexOf(row);
+    rows.forEach((r,i)=>{
+      r.classList.remove('fy-focus','fy-near','fy-far');
+      const d=Math.abs(i-fi);
+      if(d===0)r.classList.add('fy-focus');
+      else if(d===1)r.classList.add('fy-near');
+      else r.classList.add('fy-far');
+    });
+  }
+}
+function ppOffRow(){
+  setTimeout(()=>{ if(!document.querySelector('.pp-v2-app .pp-row:hover')){ ppClearRowFY(); ppClearColFY(); ppFocusRow=null; }},80);
+}
+function ppClearRowFY(){ document.querySelectorAll('.pp-v2-app .pp-row').forEach(r=>r.classList.remove('fy-focus','fy-near','fy-far')); }
+
+/* ══════════════════════════════════════════
+   COLUMN FISHEYE
+══════════════════════════════════════════ */
+let ppFocusCol=-1, ppColFYTimer=null;
+document.addEventListener('mouseover',e=>{
+  if(!F.colFisheye) return;
+  const td=e.target.closest('.pp-v2-app td,.pp-v2-app th'); if(!td)return;
+  if(ppColFYTimer){clearTimeout(ppColFYTimer);ppColFYTimer=null;}
+  const idx=Array.from(td.parentElement.children).indexOf(td);
+  if(idx===ppFocusCol) return; ppFocusCol=idx; ppApplyColFY(idx);
+});
+function ppApplyColFY(fi){
+  if(!F.colFisheye||!COLS.length) return;
+  const ths=document.querySelectorAll('#pp-thead-row th');
+  const allRows=document.querySelectorAll('.pp-v2-app .pp-row');
+  ths.forEach((th,i)=>{
+    const c=COLS[i]; if(!c)return;
+    const d=Math.abs(i-fi);
+    const w=(d===0?c.wf:d===1?c.wn:d<=3?c.w:c.wfar)+'px';
+    th.style.width=w; th.style.minWidth=w;
+    allRows.forEach(row=>{const td=row.children[i];if(td){td.style.width=w;td.style.minWidth=w;}});
+  });
+}
+function ppClearColFY(){
+  ppFocusCol=-1;
+  const ths=document.querySelectorAll('#pp-thead-row th');
+  const allRows=document.querySelectorAll('.pp-v2-app .pp-row');
+  ths.forEach((th,i)=>{const c=COLS[i];if(!c)return;const w=c.w+'px';th.style.width=w;th.style.minWidth=w;allRows.forEach(row=>{const td=row.children[i];if(td){td.style.width=w;td.style.minWidth=w;}});});
+}
+document.getElementById('pp-table-inner').addEventListener('mouseleave',()=>{
+  if(!F.colFisheye) return;
+  if(ppColFYTimer) clearTimeout(ppColFYTimer);
+  ppColFYTimer=setTimeout(()=>{ppColFYTimer=null;ppClearColFY();},120);
+});
+
+/* ══════════════════════════════════════════
+   DRAG PAN + MOMENTUM
+══════════════════════════════════════════ */
+const VP=document.getElementById('pp-viewport'), TI=document.getElementById('pp-table-inner');
+let panX=0,panY=0,dSX,dSY,dSPX,dSPY,dragging=false,vx=0,vy=0,lx=0,ly=0,lt=0,rafG=null;
+function ppClampPan(x,y){const vw=VP.clientWidth,vh=VP.clientHeight,tw=TI.scrollWidth,th=TI.scrollHeight;return[Math.max(Math.min(0,vw-tw),Math.min(0,x)),Math.max(Math.min(0,vh-th),Math.min(0,y))];}
+function ppApplyPan(x,y){[panX,panY]=ppClampPan(x,y);TI.style.transform=`translate(${panX}px,${panY}px)`;ppRefreshMinimap();}
+VP.addEventListener('mousedown',e=>{
+  if(!F.dragPan)return; if(e.target.closest('input,button,select,a,.rs-step'))return;
+  dragging=true;VP.classList.add('dragging');dSX=e.clientX;dSY=e.clientY;dSPX=panX;dSPY=panY;lx=e.clientX;ly=e.clientY;lt=Date.now();vx=0;vy=0;cancelAnimationFrame(rafG);
+});
+window.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  ppApplyPan(dSPX+(e.clientX-dSX),dSPY+(e.clientY-dSY));
+  const now=Date.now(),dt=now-lt;if(dt>0){vx=(e.clientX-lx)/dt;vy=(e.clientY-ly)/dt;}lx=e.clientX;ly=e.clientY;lt=Date.now();
+});
+window.addEventListener('mouseup',()=>{
+  if(!dragging)return; dragging=false;VP.classList.remove('dragging');
+  if(F.momentum&&(Math.abs(vx)>.3||Math.abs(vy)>.3)){
+    let cx=panX,cy=panY,gvx=vx*12,gvy=vy*12;
+    function glide(){if(Math.abs(gvx)<.1&&Math.abs(gvy)<.1)return;cx+=gvx;cy+=gvy;gvx*=.92;gvy*=.92;ppApplyPan(cx,cy);rafG=requestAnimationFrame(glide);}glide();
+  }
+});
+
+/* ── EDGE SCROLL ── */
+let eRaf=null,eSpd=0;
+VP.addEventListener('mousemove',e=>{
+  if(dragging||!F.edgeScroll)return;
+  const r=VP.getBoundingClientRect(),x=e.clientX-r.left,w=r.width,Z=85;
+  const eL=document.getElementById('pp-edge-l'),eR=document.getElementById('pp-edge-r');
+  if(x<Z){eL.classList.add('show');eR.classList.remove('show');ppStartEdge((1-x/Z)*7);}
+  else if(x>w-Z){eR.classList.add('show');eL.classList.remove('show');ppStartEdge(-((x-(w-Z))/Z)*7);}
+  else{eL.classList.remove('show');eR.classList.remove('show');ppStopEdge();}
+});
+VP.addEventListener('mouseleave',()=>{document.getElementById('pp-edge-l').classList.remove('show');document.getElementById('pp-edge-r').classList.remove('show');ppStopEdge();});
+function ppStartEdge(s){eSpd=s;if(!eRaf)ppELoop();}
+function ppStopEdge(){eSpd=0;if(eRaf){cancelAnimationFrame(eRaf);eRaf=null;}}
+function ppELoop(){ppApplyPan(panX+eSpd,panY);eRaf=requestAnimationFrame(ppELoop);}
+
+/* ── MINIMAP ── */
+function ppRefreshMinimap(){
+  const mm=document.getElementById('pp-minimap');
+  if(!F.minimap){mm.style.display='none';return;}
+  const vw=VP.clientWidth,tw=TI.scrollWidth;
+  if(tw<=vw){mm.style.display='none';return;}
+  mm.style.display='';
+  const r=vw/tw,tw2=Math.max(r*100,8),mp=vw-tw,tl=mp?(panX/mp)*(100-tw2):0;
+  const th=document.getElementById('pp-mm-thumb');
+  th.style.width=tw2+'%';th.style.left=tl+'%';
+}
+
+/* ══════════════════════════════════════════
+   ROUTE TOOLTIP POSITIONING
+══════════════════════════════════════════ */
+document.addEventListener('mouseenter',e=>{
+  const step=e.target.closest('.rs-step');if(!step)return;
+  const tip=step.querySelector('.rs-tooltip');if(!tip)return;
+  tip.style.display='block';
+  const dotRect=step.querySelector('.rs-dot').getBoundingClientRect();
+  const tipW=tip.offsetWidth,tipH=tip.offsetHeight;
+  let left=dotRect.left+dotRect.width/2-tipW/2, top=dotRect.top-tipH-10;
+  if(left<8)left=8; if(left+tipW>window.innerWidth-8)left=window.innerWidth-tipW-8;
+  if(top<8)top=dotRect.bottom+10;
+  tip.style.left=left+'px'; tip.style.top=top+'px';
+},true);
+document.addEventListener('mouseleave',e=>{
+  const step=e.target.closest('.rs-step');if(!step)return;
+  const tip=step.querySelector('.rs-tooltip');if(tip)tip.style.display='none';
+},true);
+
+/* ══════════════════════════════════════════
+   DRAWER — Ready for Planning
+══════════════════════════════════════════ */
+function ppOpenReadyDrawer(bitId){
+  const bit=D.ready.find(b=>b.id===bitId); if(!bit)return;
+  document.getElementById('pp-dh-content').innerHTML=`
+    <div class="d-title">Add to Production Plan</div>
+    <div class="d-id">${bit.serial} &middot; ${bit.account||'No account'} ${bit.size?'&middot; '+bit.size:''}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;"><span class="st s-ready">Ready</span>${bit.type?'<span class="tag">'+bit.type+'</span>':''}</div>`;
+  const noAcct = !bit.account;
+  document.getElementById('pp-db-content').innerHTML=`
+    <div class="ds-label">Drill Bit Info</div>
+    <div class="d-grid">
+      <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${bit.serial}</p></div>
+      <div class="d-field"><label>Size</label><p>${bit.size||'—'}</p></div>
+      <div class="d-field"><label>Type</label><p>${bit.type||'—'}</p></div>
+      <div class="d-field"><label>MAT No.</label><p style="font-family:var(--mono);font-size:11px;">${bit.mat||'—'}</p></div>
+      <div class="d-field"><label>Account</label><p>${bit.account||'<span style="color:var(--red);">Not assigned</span>'}</p></div>
+      <div class="d-field"><label>Received</label><p>${bit.received||'—'}</p></div>
+    </div>
+    ${noAcct?'<div style="background:rgba(255,184,48,.1);border:1px solid rgba(255,184,48,.3);border-radius:7px;padding:8px 12px;font-size:11px;color:var(--yellow);margin:12px 0;">&#x26A0; No account assigned. Select an account below to continue.</div>':''}
+    <div class="ds-label" style="margin-top:16px;">Account & Plan Configuration</div>
+    <div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Account *</label>
+      <select class="d-select" id="pp-add-account">
+        <option value="">Select account</option>
+        {% for acc in accounts %}<option value="{{ acc.code }}">{{ acc.code }} — {{ acc.name }}</option>{% endfor %}
+      </select></div>
+    <div id="pp-bit-acct-msg" style="display:none;border-radius:7px;padding:6px 10px;font-size:11px;margin-bottom:6px;"></div>
+    <div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Priority</label>
+      <select class="d-select" id="pp-add-prio">
+        <option value="NORMAL">Normal</option><option value="HIGH">High</option><option value="URGENT">Urgent</option><option value="LOW">Low</option>
+      </select></div>
+    <div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Notes</label>
+      <textarea class="d-textarea" id="pp-add-notes" placeholder="Optional notes..."></textarea></div>
+    <div id="pp-add-error" style="display:none;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--red);margin-bottom:10px;"></div>
+    <div class="d-actions">
+      <button class="btn btn-g" onclick="ppCloseDrawer()">Cancel</button>
+      <button class="btn btn-g" style="border-color:var(--cyan);color:var(--cyan);" onclick="ppSaveBitAccount(${bit.id})" title="Save account to this bit without adding to plan">Save Account Only</button>
+      <button class="btn btn-p" id="pp-add-btn" onclick="ppConfirmAdd('${bit.serial}')">&#xFF0B; Add to Plan</button>
+    </div>`;
+  if(bit.account){ document.getElementById('pp-add-account').value=bit.account; }
+  document.getElementById('pp-overlay').classList.add('open');
+  document.getElementById('pp-drawer').classList.add('open');
+}
+
+async function ppConfirmAdd(serial){
+  const btn=document.getElementById('pp-add-btn'),err=document.getElementById('pp-add-error');
+  const acct=document.getElementById('pp-add-account').value;
+  if(!acct){err.textContent='Account is required';err.style.display='block';return;}
+  err.style.display='none'; btn.disabled=true; btn.textContent='Adding...';
+  try{
+    const r=await fetch('{% url "workorders:api_add_to_plan" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({serial_number:serial,account:acct,priority:document.getElementById('pp-add-prio').value,notes:document.getElementById('pp-add-notes').value})});
+    const j=await r.json();
+    if(j.success) location.reload();
+    else{err.textContent=j.error||'Failed';err.style.display='block';btn.disabled=false;btn.textContent='+ Add to Plan';}
+  }catch(e){err.textContent='Network error';err.style.display='block';btn.disabled=false;btn.textContent='+ Add to Plan';}
+}
+
+/* ══════════════════════════════════════════
+   DRAWER — Planned Entry
+══════════════════════════════════════════ */
+function ppOpenPlannedDrawer(entryId){
+  const p=D.planned.find(e=>e.entryId===entryId); if(!p)return;
+  document.getElementById('pp-dh-content').innerHTML=`
+    <div class="d-title">${p.serial}</div>
+    <div class="d-id">Plan Entry #${p.entryId} &middot; ${p.account||'No account'}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;"><span class="st s-ip">Planned</span><span class="pr pr-${p.priority}">${p.priorityDisplay}</span></div>`;
+  document.getElementById('pp-db-content').innerHTML=`
+    <div class="ds-label">Details</div>
+    <div class="d-grid">
+      <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${p.serial}</p></div>
+      <div class="d-field"><label>Size</label><p>${p.size||'—'}</p></div>
+      <div class="d-field"><label>Type</label><p>${p.type||'—'}</p></div>
+      <div class="d-field"><label>MAT No.</label><p style="font-family:var(--mono);font-size:11px;">${p.mat||'—'}</p></div>
+      <div class="d-field"><label>Received</label><p>${p.received||'—'}</p></div>
+      <div class="d-field"><label>Planned Date</label><p>${p.plannedDate||'—'}</p></div>
+      <div class="d-field"><label>Due Date</label><p style="${p.overdue?'color:var(--red);font-weight:700;':''}">${p.dueDate||'—'}${p.overdue?' OVERDUE':''}</p></div>
+    </div>
+    <div class="ds-label" style="margin-top:16px;">Change Account</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <select class="d-select" id="pp-plan-acct" style="flex:1;">
+        {% for acc in accounts %}<option value="{{ acc.code }}">{{ acc.code }} — {{ acc.name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-g" style="padding:5px 10px;font-size:11px;" onclick="ppChangePlanAccount(${p.entryId})">Update</button>
+    </div>
+    <div id="pp-plan-acct-msg" style="display:none;border-radius:7px;padding:6px 10px;font-size:11px;margin-bottom:6px;"></div>
+    ${p.notes?'<div class="ds-label">Notes</div><div class="d-notes">'+p.notes+'</div>':''}
+    <div id="pp-plan-error" style="display:none;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--red);margin-top:12px;"></div>
+    <div class="d-actions">
+      <button class="btn btn-g" style="color:var(--red);" onclick="ppRemove(${p.entryId},'${p.serial}')">&#x2715; Remove</button>
+      <button class="btn btn-p" onclick="ppCreateWo(${p.entryId},'${p.serial}','${p.account}')">&#x1f4c4; Create Work Order</button>
+    </div>`;
+  // Pre-select current account
+  const sel=document.getElementById('pp-plan-acct');
+  if(sel && p.account){ sel.value=p.account; }
+  document.getElementById('pp-overlay').classList.add('open');
+  document.getElementById('pp-drawer').classList.add('open');
+}
+
+/* ══════════════════════════════════════════
+   TIMELINE DRAWER
+══════════════════════════════════════════ */
+async function ppOpenTimeline(bitId, source){
+  if(!bitId) return;
+  document.getElementById('pp-dh-content').innerHTML=`
+    <div class="d-title">Bit Timeline</div>
+    <div class="d-id">Loading...</div>`;
+  document.getElementById('pp-db-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub);">Loading timeline...</div>';
+  document.getElementById('pp-overlay').classList.add('open');
+  document.getElementById('pp-drawer').classList.add('open');
+  try{
+    const r=await fetch(`{% url "workorders:api_bit_timeline" bit_pk=0 %}`.replace('/0/','/'+bitId+'/'));
+    const j=await r.json();
+    if(!j.success){document.getElementById('pp-db-content').innerHTML=`<div style="color:var(--red);padding:20px;">${j.error||'Error'}</div>`;return;}
+    document.getElementById('pp-dh-content').innerHTML=`
+      <div class="d-title">${j.serial}</div>
+      <div class="d-id">${j.total} events &middot; Full timeline</div>`;
+    if(!j.events.length){document.getElementById('pp-db-content').innerHTML='<div style="color:var(--sub);padding:20px;">No events recorded yet.</div>';return;}
+    document.getElementById('pp-db-content').innerHTML=`
+      <div style="position:relative;padding-left:24px;">
+        <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border);"></div>
+        ${j.events.map(ev=>{
+          const d=new Date(ev.date);
+          const ds=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+          const ts=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+          const dotCol=ev.type==='step'?'var(--green)':ev.type==='step_active'?'var(--cyan)':ev.type==='wo'?'var(--accent)':ev.type==='plan'?'var(--purple)':ev.type==='inspection'?'var(--teal)':'var(--sub)';
+          return `<div style="position:relative;margin-bottom:14px;">
+            <div style="position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;background:${dotCol};border:2px solid var(--bg);"></div>
+            <div style="font-size:10px;color:var(--dim);font-family:var(--mono);margin-bottom:2px;">${ds} ${ts}</div>
+            <div style="font-size:12px;color:var(--text);font-weight:500;">${ev.label}</div>
+            ${ev.notes?'<div style="font-size:10px;color:var(--sub);margin-top:1px;">'+ev.notes+'</div>':''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  }catch(e){document.getElementById('pp-db-content').innerHTML=`<div style="color:var(--red);padding:20px;">Network error</div>`;}
+}
+
+/* ══════════════════════════════════════════
+   DUE DATE EDIT (inline)
+══════════════════════════════════════════ */
+function ppEditDueDate(entryId){
+  const p=D.planned.find(e=>e.entryId===entryId);if(!p)return;
+  document.getElementById('pp-dh-content').innerHTML=`
+    <div class="d-title">Update Due Date</div>
+    <div class="d-id">${p.serial} &middot; Current: ${p.dueDate||'Not set'}</div>`;
+  const hist=(p.dueDateHistory||[]).map(h=>`<div style="font-size:11px;color:var(--sub);margin-bottom:6px;padding-left:12px;border-left:2px solid var(--border);">
+    <span style="font-family:var(--mono);">${h.old||'—'}</span> → <span style="font-family:var(--mono);color:var(--accent);">${h.new}</span>
+    ${h.reason?'<div style="color:var(--dim);font-size:10px;margin-top:1px;">'+h.reason+'</div>':''}
+    <div style="font-size:9px;color:var(--dim);">${h.changed_by||''} — ${h.changed_at?new Date(h.changed_at).toLocaleDateString():''}</div>
+  </div>`).join('');
+  document.getElementById('pp-db-content').innerHTML=`
+    ${hist?'<div class="ds-label">Change History</div>'+hist+'<div style="height:16px;"></div>':''}
+    <div class="ds-label">New Due Date</div>
+    <div style="margin-bottom:10px;"><input type="date" class="d-select" id="pp-new-due" value="${p.dueDate||''}"></div>
+    <div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Justification</label>
+      <textarea class="d-textarea" id="pp-due-reason" placeholder="Why is the due date changing?"></textarea></div>
+    <div id="pp-due-error" style="display:none;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--red);margin-bottom:10px;"></div>
+    <div class="d-actions">
+      <button class="btn btn-g" onclick="ppCloseDrawer()">Cancel</button>
+      <button class="btn btn-p" id="pp-due-btn" onclick="ppSaveDueDate(${entryId})">Save</button>
+    </div>`;
+  document.getElementById('pp-overlay').classList.add('open');
+  document.getElementById('pp-drawer').classList.add('open');
+}
+async function ppSaveDueDate(entryId){
+  const nd=document.getElementById('pp-new-due').value;
+  const reason=document.getElementById('pp-due-reason').value;
+  const err=document.getElementById('pp-due-error');
+  if(!nd){err.textContent='Date is required';err.style.display='block';return;}
+  err.style.display='none';
+  const btn=document.getElementById('pp-due-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    const r=await fetch('{% url "workorders:api_update_plan_due_date" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({entry_id:entryId,new_due_date:nd,justification:reason})});
+    const j=await r.json();
+    if(j.success) location.reload();
+    else{err.textContent=j.error||'Failed';err.style.display='block';btn.disabled=false;btn.textContent='Save';}
+  }catch(e){err.textContent='Network error';err.style.display='block';btn.disabled=false;btn.textContent='Save';}
+}
+
+/* ══════════════════════════════════════════
+   ACTIONS
+══════════════════════════════════════════ */
+async function ppCreateWo(entryId,serial,account){
+  if(!confirm(`Create Work Order for ${serial} (${account})?`))return;
+  try{
+    const r=await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    const j=await r.json();
+    if(j.success){ if(confirm(`WO ${j.wo_number} created! View it now?`)) window.location=j.redirect_url; else location.reload(); }
+    else{ const el=document.getElementById('pp-plan-error'); if(el){el.textContent=j.error;el.style.display='block';} else alert(j.error); }
+  }catch(e){alert('Network error');}
+}
+
+async function ppChangePlanAccount(entryId){
+  const sel=document.getElementById('pp-plan-acct');
+  const msg=document.getElementById('pp-plan-acct-msg');
+  if(!sel||!sel.value){msg.textContent='Select an account';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';return;}
+  msg.style.display='none';
+  try{
+    const r=await fetch('{% url "workorders:api_update_plan_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({entry_id:entryId,account_code:sel.value})});
+    const j=await r.json();
+    if(j.success) location.reload();
+    else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+  }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+}
+
+async function ppSaveBitAccount(bitId){
+  const sel=document.getElementById('pp-add-account');
+  const msg=document.getElementById('pp-bit-acct-msg');
+  if(!sel||!sel.value){msg.textContent='Select an account first';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';return;}
+  msg.style.display='none';
+  try{
+    const r=await fetch('{% url "workorders:api_update_bit_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({bit_id:bitId,account_code:sel.value})});
+    const j=await r.json();
+    if(j.success){msg.textContent='Account saved: '+j.account_code;msg.style.display='block';msg.style.background='rgba(0,214,138,.1)';msg.style.color='var(--green)';
+      // Update local data so add-to-plan sees it
+      const bit=D.ready.find(b=>b.id===bitId);if(bit)bit.account=j.account_code;
+    }else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+  }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+}
+
+async function ppChangeBitAccount(bitId){
+  const sel=document.getElementById('pp-bit-acct');
+  const msg=document.getElementById('pp-bit-acct-msg');
+  if(!sel||!sel.value){msg.textContent='Select an account';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';return;}
+  msg.style.display='none';
+  try{
+    const r=await fetch('{% url "workorders:api_update_bit_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({bit_id:bitId,account_code:sel.value})});
+    const j=await r.json();
+    if(j.success) location.reload();
+    else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+  }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+}
+
+async function ppChangeWoAccount(woId, woNum){
+  const sel=document.getElementById('pp-wo-acct');
+  const msg=document.getElementById('pp-wo-acct-msg');
+  if(!sel||!sel.value){msg.textContent='Select an account';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';return;}
+  msg.style.display='none';
+  if(!confirm(`Change account for ${woNum}?\n\nThis will cancel the current WO and create a new one under "${sel.value}".\nAll route progress will be copied to the new WO.`))return;
+  try{
+    const r=await fetch('{% url "workorders:api_change_wo_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({wo_id:woId,account_code:sel.value})});
+    const j=await r.json();
+    if(j.success){
+      if(confirm(`New WO ${j.new_wo_number} created (${j.router_entries_copied} route steps copied). View it now?`))
+        window.location=j.redirect_url;
+      else location.reload();
+    }else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+  }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+}
+
+function ppOpenWoAccountDrawer(woId){
+  const w=D.wip.find(x=>x.woId===woId);if(!w)return;
+  document.getElementById('pp-dh-content').innerHTML=`
+    <div class="d-title">Change WO Account</div>
+    <div class="d-id">${w.woNum} &middot; ${w.serial||'—'}</div>
+    <div style="display:flex;gap:6px;margin-top:8px;"><span class="st s-ip">${w.statusDisplay}</span><span class="tag">${w.account||'—'}</span></div>`;
+  document.getElementById('pp-db-content').innerHTML=`
+    <div class="ds-label">Current Work Order</div>
+    <div class="d-grid">
+      <div class="d-field"><label>WO Number</label><p style="font-family:var(--mono);color:var(--accent);">${w.woNum}</p></div>
+      <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${w.serial||'—'}</p></div>
+      <div class="d-field"><label>Account</label><p>${w.account||'—'}</p></div>
+      <div class="d-field"><label>Progress</label><p>${w.pct}% (${w.doneSteps}/${w.totalSteps} steps)</p></div>
+    </div>
+    <div style="background:rgba(255,184,48,.12);border:1px solid rgba(255,184,48,.3);border-radius:7px;padding:8px 12px;font-size:11px;color:var(--yellow);margin:14px 0;">
+      &#x26A0; Changing account will <b>cancel</b> the current WO and create a <b>new WO</b> under the selected account.<br>
+      ${w.doneSteps>0?'<span style="color:var(--green);">&#x2714; All '+w.doneSteps+' completed route steps will be copied to the new WO.</span>':'No route progress to copy.'}
+    </div>
+    <div class="ds-label">New Account</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+      <select class="d-select" id="pp-wo-acct" style="flex:1;">
+        {% for acc in accounts %}<option value="{{ acc.code }}">{{ acc.code }} — {{ acc.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div id="pp-wo-acct-msg" style="display:none;border-radius:7px;padding:6px 10px;font-size:11px;margin-bottom:6px;"></div>
+    <div class="d-actions">
+      <button class="btn btn-g" onclick="ppCloseDrawer()">Cancel</button>
+      <button class="btn btn-p" style="background:var(--orange);" onclick="ppChangeWoAccount(${w.woId},'${w.woNum}')">Change Account</button>
+    </div>`;
+  // Pre-select current account
+  const sel=document.getElementById('pp-wo-acct');
+  if(sel && w.account) sel.value=w.account;
+  document.getElementById('pp-overlay').classList.add('open');
+  document.getElementById('pp-drawer').classList.add('open');
+}
+
+async function ppRemove(entryId,serial){
+  if(!confirm(`Remove ${serial} from plan?`))return;
+  try{
+    const r=await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+    const j=await r.json();
+    if(j.success) location.reload(); else alert(j.error||'Failed');
+  }catch(e){alert('Network error');}
+}
+
+/* ══════════════════════════════════════════
+   DRAWER
+══════════════════════════════════════════ */
+function ppCloseDrawer(){
+  document.getElementById('pp-overlay').classList.remove('open');
+  document.getElementById('pp-drawer').classList.remove('open');
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')ppCloseDrawer();});
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+(function ppInit(){
+  // Apply feature flags
+  Object.keys(F).forEach(k=>{const el=document.getElementById('sm-'+k);if(el)el.classList.toggle('on',F[k]);});
+  if(!F.rowFisheye) document.getElementById('pp-table-inner').classList.remove('fy-rows-on');
+  if(!F.dragPan) document.getElementById('pp-viewport').classList.remove('pan-mode');
+  if(!F.minimap) document.getElementById('pp-minimap').style.display='none';
+  // Compact
+  if(compactMode){
+    const app=document.getElementById('pp-app');
+    app.style.setProperty('--row-h','28px');app.style.setProperty('--row-focus','58px');
+    app.style.setProperty('--row-near','38px');app.style.setProperty('--row-far','20px');
+    document.getElementById('sm-compact-toggle').classList.add('on');
+  }
+  // Theme
+  if(lightMode){
+    document.getElementById('pp-app').classList.add('v2-light');
+    document.getElementById('pp-theme-toggle').classList.add('on');
+    document.getElementById('pp-theme-icon').innerHTML='&#x2600;';
+    document.getElementById('pp-theme-text').textContent='Dark Mode';
+    document.documentElement.classList.remove('dark');
+    document.body.style.backgroundColor='#f4f6f9';
+  }
+  ppFilter();
+})();
 </script>
-{% csrf_token %}
 {% endblock %}

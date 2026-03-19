@@ -168,6 +168,7 @@ class BitType(models.Model):
         LEVEL_3 = "3", "Level 3 - No cutters, upper section separate"
         LEVEL_4 = "4", "Level 4 - No cutters, upper section welded/machined"
         LEVEL_5 = "5", "Level 5 - With cutters brazed"
+        LEVEL_5_5 = "5.5", "Level 5.5 - Brazed head, unwelded upper (needs sub-arc welding + machining)"
         LEVEL_6 = "6", "Level 6 - Painted and ready for use"
 
     # Core fields
@@ -607,6 +608,7 @@ class Design(models.Model):
         LEVEL_3 = "3", "Level 3 - No cutters, upper section separate"
         LEVEL_4 = "4", "Level 4 - No cutters, upper section welded/machined"
         LEVEL_5 = "5", "Level 5 - With cutters brazed"
+        LEVEL_5_5 = "5.5", "Level 5.5 - Brazed head, unwelded upper (needs sub-arc welding + machining)"
         LEVEL_6 = "6", "Level 6 - Painted and ready for use"
 
     class Status(models.TextChoices):

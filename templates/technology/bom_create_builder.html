@@ -64,7 +64,7 @@
 <div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create BOM</h1>
-        <p class="text-gray-600 dark:text-gray-400">Select a Design (L3/L4 MAT) to start creating a new BOM via Cutter Map</p>
+        <p class="text-gray-600 dark:text-gray-400">Select a Design to start creating a new BOM via Cutter Map</p>
     </div>
     <div class="mt-4 md:mt-0">
         <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
@@ -132,7 +132,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
                     <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
-                    Select Design (L3/L4 MAT)
+                    Select Design
                 </h2>
                 <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
                     {{ designs|length }} designs available
@@ -179,7 +179,9 @@
                                 <td class="px-3 py-3">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                         {% if design.order_level == '3' %}bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300
-                                        {% else %}bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300{% endif %}">
+                                        {% elif design.order_level == '4' %}bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300
+                                        {% elif design.order_level == '5.5' %}bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                         L{{ design.order_level }}
                                     </span>
                                 </td>
@@ -342,7 +344,7 @@
                 How it works
             </h3>
             <ol class="text-xs text-purple-700 dark:text-purple-400 space-y-2 list-decimal list-inside">
-                <li>Select a Design (L3/L4 MAT) from the table</li>
+                <li>Select a Design from the table</li>
                 <li>Click "Open Cutter Map" to upload a PDF</li>
                 <li>Extract and edit BOM data from the PDF</li>
                 <li>The L5 MAT code is extracted from the PDF</li>

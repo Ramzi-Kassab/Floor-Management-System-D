@@ -1236,6 +1236,7 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
         {"key": "breaker", "name": "Breaker Slot"},
         {"key": "specialtech", "name": "Special Tech"},
         {"key": "application", "name": "Application"},
+        {"key": "account", "name": "Business Unit"},
         {"key": "customer", "name": "Customer"},
         {"key": "location", "name": "Location"},
         {"key": "status", "name": "Status"},
@@ -1298,6 +1299,8 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
                 if bit.design.formation_type_ref:
                     parts.append(bit.design.formation_type_ref.name)
             return " / ".join(parts) if parts else ""
+        elif key == "account":
+            return bit.account.code if bit.account else ""
         elif key == "customer":
             return bit.customer.name if bit.customer else ""
         elif key == "location":
@@ -1342,7 +1345,7 @@ class DrillBitExportExcelView(LoginRequiredMixin, View):
             "design", "design__size", "design__connection_ref",
             "design__iadc_code_ref", "design__breaker_slot",
             "design__application_ref", "design__formation_type_ref",
-            "customer", "rig", "bit_location",
+            "account", "customer", "rig", "bit_location",
             "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
             "bom", "bom__smi_type",

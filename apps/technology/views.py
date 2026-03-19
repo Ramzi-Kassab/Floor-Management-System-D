@@ -2846,9 +2846,9 @@ class BOMCreateWithBuilderView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["page_title"] = "Create BOM"
 
-        # Get designs for selection (L3/L4 only) - include all statuses
+        # Get designs for selection (L3/L4/L5.5) - include all statuses
         context["designs"] = Design.objects.filter(
-            order_level__in=["3", "4"]
+            order_level__in=["3", "4", "5.5"]
         ).select_related("size").prefetch_related(
             "boms"
         ).order_by("-created_at")
@@ -2888,7 +2888,7 @@ class APIDesignsFilterView(LoginRequiredMixin, View):
         size_id = request.GET.get('size_id')
 
         queryset = Design.objects.filter(
-            order_level__in=["3", "4"],
+            order_level__in=["3", "4", "5.5"],
             status__in=[Design.Status.DRAFT, Design.Status.ACTIVE]
         )
 
@@ -3746,8 +3746,9 @@ def api_boms_list(request):
         result.append({
             'id': b.pk,
             'code': b.code or b.system_mat_no or str(b),
-            'name': b.name or f"L5 ({b.get_status_display()})",
+            'system_mat': b.system_mat_no or '',
             'status': b.status,
+            'status_display': b.get_status_display(),
         })
     return JsonResponse({'boms': result})
 

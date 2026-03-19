@@ -235,6 +235,9 @@
                             <input type="checkbox" x-model="columns.type" @change="savePreferences()" class="rounded text-blue-600"> FC/RC
                         </label>
                         <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" x-model="columns.account" @change="savePreferences()" class="rounded text-blue-600"> Business Unit
+                        </label>
+                        <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
                             <input type="checkbox" x-model="columns.customer" @change="savePreferences()" class="rounded text-blue-600"> Customer
                         </label>
                         <label class="flex items-center gap-2 py-0.5 text-sm text-gray-700 dark:text-gray-300">
@@ -446,6 +449,11 @@
                             <span>Application</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </div>
                     </th>
+                    <th x-show="columns.account" class="px-3 py-2 font-medium" data-column="account">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'account')">
+                            <span>Business Unit</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
                     <th x-show="columns.customer" class="px-3 py-2 font-medium" data-column="customer">
                         <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'customer')">
                             <span>Customer</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
@@ -481,14 +489,14 @@
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for bit in drill_bits %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 data-row" data-pk="{{ bit.pk }}">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 data-row" data-pk="{{ bit.pk }}" data-status="{{ bit.status }}" data-in-plan="{{ bit.pk|stringformat:'d' }}" id="bit-row-{{ bit.pk }}">
                     <!-- Serial # (always visible, sticky) -->
                     <td class="px-3 py-2 sticky-col bg-white dark:bg-gray-800" data-value="{{ bit.serial_number }}">
                         <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="text-blue-600 hover:underline font-medium font-mono">{{ bit.serial_number }}</a>
                     </td>
                     <!-- Level -->
                     <td x-show="columns.level" class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.level|default:'' }}">
-                        {% if bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bit.level == '3' %}bg-blue-100 text-blue-800{% elif bit.level == '4' %}bg-green-100 text-green-800{% elif bit.level == '5' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">L{{ bit.level }}</span>{% else %}--{% endif %}
+                        {% if bit.level %}<span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bit.level == '3' %}bg-blue-100 text-blue-800{% elif bit.level == '4' %}bg-green-100 text-green-800{% elif bit.level == '5' %}bg-purple-100 text-purple-800{% elif bit.level == '5.5' %}bg-amber-100 text-amber-800{% else %}bg-gray-100 text-gray-800{% endif %}">L{{ bit.level }}</span>{% else %}--{% endif %}
                     </td>
                     <!-- FC/RC -->
                     <td x-show="columns.type" class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
@@ -550,6 +558,18 @@
                             <span class="text-gray-400">--</span>
                         {% endif %}
                     </td>
+                    <!-- Business Unit -->
+                    <td x-show="columns.account" class="px-3 py-2" data-value="{{ bit.account.code|default:'' }}" id="bu-cell-{{ bit.pk }}">
+                        <button onclick="openAssignBU({{ bit.pk }}, '{{ bit.serial_number }}', '{{ bit.design.hdbs_type|default:"" }}', '{{ bit.size|default:"" }}', '{{ bit.condition }}', '{{ bit.level|default:"" }}')"
+                                class="group flex items-center gap-1 text-left" title="Click to {% if bit.account %}change{% else %}assign{% endif %} account">
+                            {% if bit.account %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/40 transition-colors">{{ bit.account.name }}</span>
+                            <i data-lucide="pencil" class="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                            {% else %}
+                            <span class="text-xs text-indigo-500 hover:text-indigo-700 hover:underline">Assign</span>
+                            {% endif %}
+                        </button>
+                    </td>
                     <!-- Customer -->
                     <td x-show="columns.customer" class="px-3 py-2 text-gray-600" data-value="{{ bit.customer.name|default:'' }}">{{ bit.customer.name|default:"--"|truncatechars:15 }}</td>
                     <!-- Location -->
@@ -601,10 +621,22 @@
                     <!-- Actions (always visible) -->
                     <td class="px-3 py-2 text-right">
                         <div class="flex items-center justify-end space-x-1">
-                            <button onclick="addToPlan('{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}')"
-                                    class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Add to Plan">
-                                <i data-lucide="calendar-plus" class="w-4 h-4"></i>
-                            </button>
+                            {% if bit.pk not in bits_in_plan %}
+                                {% if bit.status == 'RECEIVED' or bit.status == 'IN_STOCK' or bit.status == 'BACKLOADED' or bit.status == 'IN_COMPONENTS' %}
+                                    {% if bit.bit_type == 'FC' and not bit.bom and not bit.brazing_bom and not bit.system_bom %}
+                                    <span class="p-1 text-orange-300 cursor-not-allowed" title="FC bit has no BOM — create a BOM first"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
+                                    {% else %}
+                                    <button id="plan-btn-{{ bit.pk }}" onclick="handleAddToPlan({{ bit.pk }}, '{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}', '{{ bit.design.hdbs_type|default:"" }}', '{{ bit.size|default:"" }}', '{{ bit.condition }}', '{{ bit.level|default:"" }}')"
+                                            class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Add to Plan">
+                                        <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                                    </button>
+                                    {% endif %}
+                                {% else %}
+                                <span class="p-1 text-gray-300 cursor-not-allowed" title="Status '{{ bit.get_status_display }}' cannot be planned"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
+                                {% endif %}
+                            {% else %}
+                                <span class="p-1 text-emerald-400" title="Already in planner"><i data-lucide="calendar-check" class="w-4 h-4"></i></span>
+                            {% endif %}
                             <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="View"><i data-lucide="eye" class="w-4 h-4"></i></a>
                             <a href="{% url 'workorders:drillbit_qr' bit.pk %}" class="p-1 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="QR"><i data-lucide="qr-code" class="w-4 h-4"></i></a>
                             <a href="{% url 'workorders:drillbit_update' bit.pk %}" class="p-1 text-gray-400 hover:text-yellow-600 rounded hover:bg-gray-100" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></a>
@@ -630,6 +662,95 @@
 </div>
 
 </div><!-- End drillbit-page-container -->
+
+<!-- ═══ Business Unit Assignment Modal ═══ -->
+<div id="assignBUModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeAssignBU()">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Assign Business Unit</h2>
+                <p class="text-sm text-gray-500 mt-0.5" id="buModalSubtitle"></p>
+            </div>
+            <button onclick="closeAssignBU()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="px-6 py-5 space-y-4">
+            <!-- Business Unit Select (flat list) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Business Unit <span class="text-red-500">*</span></label>
+                <select id="buSelect" onchange="_onBUChange(this.value)"
+                        class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">-- Select Business Unit --</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.code }}" data-wf="{{ acc.workflow_type }}">{{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- New / Repair toggle (shown only when BU supports both) -->
+            <div id="buWorkTypeRow" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New or Repair? <span class="text-red-500">*</span></label>
+                <div class="flex gap-2">
+                    <button type="button" id="btnWT_NEW" onclick="_selectWorkType('NEW')"
+                            class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-gray-200 dark:border-gray-600 text-gray-500 hover:border-blue-400">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> New
+                    </button>
+                    <button type="button" id="btnWT_REPAIR" onclick="_selectWorkType('REPAIR')"
+                            class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-gray-200 dark:border-gray-600 text-gray-500 hover:border-amber-400">
+                        <i data-lucide="wrench" class="w-4 h-4"></i> Repair
+                    </button>
+                </div>
+            </div>
+
+            <!-- (auto-detected indicator removed — toggle always visible) -->
+            <div id="buWorkTypeAuto" class="hidden"></div>
+
+            <!-- Level (read-only from design) -->
+            <div id="buLevelDisplay" class="hidden">
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Level:</span>
+                    <span id="buLevelBadge" class="px-2 py-0.5 rounded text-xs font-bold"></span>
+                </div>
+            </div>
+
+            <!-- Requester -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requester</label>
+                <input type="text" id="buRequester" value="{{ request.user.get_full_name|default:request.user.username }}"
+                       class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <!-- Justification (optional) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Justification <span class="text-gray-400 text-xs">(optional)</span></label>
+                <textarea id="buJustification" rows="2" placeholder="Reason for assignment..."
+                          class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+            </div>
+
+            <!-- Error message area -->
+            <div id="buError" class="hidden text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 px-3 py-2 rounded-lg"></div>
+        </div>
+
+        <!-- Footer: Two action buttons -->
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
+            <button onclick="submitAssignBU('assign_only')" id="btnAssignOnly"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-colors">
+                <i data-lucide="bookmark" class="w-4 h-4"></i>
+                Assign Business Unit Only
+            </button>
+            <button onclick="submitAssignBU('assign_and_plan')" id="btnAssignAndPlan"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm transition-colors">
+                <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                Assign & Add to Planner
+            </button>
+            <p class="text-xs text-gray-400 text-center mt-1">Once assigned, bits can be added to the planner without re-approval.</p>
+        </div>
+    </div>
+</div>
 
 <!-- Export Dialog Modal -->
 <div id="exportDialog" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
@@ -727,6 +848,7 @@ const defaultColumns = {
     breaker: false,
     specialtech: false,
     application: false,
+    account: true,
     customer: true,
     location: true,
     status: true,
@@ -1061,30 +1183,259 @@ function executeExport() {
     closeExportDialog();
 }
 
-// ─── Add to Plan ────────────────────────────────────────────────────────────
-async function addToPlan(serialNumber, accountCode) {
-    if (!confirm(`Add drill bit ${serialNumber} to production plan?`)) return;
+// ─── Business Unit Assignment Modal ─────────────────────────────────────────
+let _buModalState = { bitPk: null, serial: '', hdbs: '', size: '', fromPlanBtn: false, workType: '', condition: '' };
+
+// BU metadata: which workflow type each account supports
+const _buMeta = {
+    {% for acc in accounts %}
+    '{{ acc.code }}': { wf: '{{ acc.workflow_type }}', name: '{{ acc.name }}' },
+    {% endfor %}
+};
+
+function _onBUChange(code) {
+    const meta = _buMeta[code];
+    const wtRow = document.getElementById('buWorkTypeRow');
+    const wtAuto = document.getElementById('buWorkTypeAuto');
+    const levelRow = document.getElementById('buLevelRow');
+    _buModalState.workType = '';
+    _resetWorkTypeBtns();
+
+    if (!meta) {
+        wtRow.classList.add('hidden');
+        wtAuto.classList.add('hidden');
+        return;
+    }
+
+    // Always show New/Repair toggle — default based on account type + bit condition
+    wtRow.classList.remove('hidden');
+    wtAuto.classList.add('hidden');
+    const cond = _buModalState.condition;
+    const repairConditions = ['REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED'];
+    if (meta.wf === 'REPAIR') {
+        // Repair account — default Repair, but allow New
+        _selectWorkType(repairConditions.includes(cond) || !cond ? 'REPAIR' : 'NEW');
+    } else if (meta.wf === 'MANUFACTURE') {
+        // Manufacture account — default New, but allow Repair (defects)
+        _selectWorkType(repairConditions.includes(cond) ? 'REPAIR' : 'NEW');
+    } else {
+        // BOTH — auto-detect from condition
+        _selectWorkType(repairConditions.includes(cond) ? 'REPAIR' : 'NEW');
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function _selectWorkType(wt) {
+    _buModalState.workType = wt;
+    const btnNew = document.getElementById('btnWT_NEW');
+    const btnRepair = document.getElementById('btnWT_REPAIR');
+    _resetWorkTypeBtns();
+
+    if (wt === 'NEW') {
+        btnNew.className = 'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500';
+    } else {
+        btnRepair.className = 'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-500';
+    }
+}
+
+function _resetWorkTypeBtns() {
+    const base = 'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-gray-200 dark:border-gray-600 text-gray-500 hover:border-blue-400';
+    const btnNew = document.getElementById('btnWT_NEW');
+    const btnRepair = document.getElementById('btnWT_REPAIR');
+    if (btnNew) btnNew.className = base;
+    if (btnRepair) btnRepair.className = base.replace('hover:border-blue-400', 'hover:border-amber-400');
+}
+
+
+function _getCsrf() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+           document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+}
+
+function openAssignBU(bitPk, serial, hdbs, size, condition, level) {
+    _buModalState = { bitPk, serial, hdbs, size, fromPlanBtn: false, workType: '', condition: condition || '', level: level || '' };
+    document.getElementById('buModalSubtitle').textContent = `S/N: ${serial}` + (hdbs ? ` · ${hdbs}` : '') + (size ? ` · ${size}"` : '');
+    document.getElementById('buSelect').value = '';
+    document.getElementById('buJustification').value = '';
+    document.getElementById('buError').classList.add('hidden');
+    document.getElementById('buWorkTypeRow').classList.add('hidden');
+    document.getElementById('buWorkTypeAuto').classList.add('hidden');
+    _resetWorkTypeBtns();
+    // Show level badge if available
+    const lvlEl = document.getElementById('buLevelDisplay');
+    const badge = document.getElementById('buLevelBadge');
+    if (level) {
+        lvlEl.classList.remove('hidden');
+        badge.textContent = 'L' + level;
+        const colors = {'3':'bg-blue-100 text-blue-800','4':'bg-green-100 text-green-800','5':'bg-purple-100 text-purple-800','5.5':'bg-amber-100 text-amber-800','6':'bg-emerald-100 text-emerald-800'};
+        badge.className = `px-2 py-0.5 rounded text-xs font-bold ${colors[level] || 'bg-gray-100 text-gray-800'}`;
+    } else {
+        lvlEl.classList.add('hidden');
+    }
+    document.getElementById('assignBUModal').classList.remove('hidden');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeAssignBU() {
+    document.getElementById('assignBUModal').classList.add('hidden');
+    _buModalState = { bitPk: null, serial: '', hdbs: '', size: '', fromPlanBtn: false };
+}
+
+// Called from the calendar-plus button in Actions column
+function handleAddToPlan(bitPk, serial, accountCode, hdbs, size, condition, level) {
+    // Always open modal — need to confirm account, select New/Repair, requester
+    openAssignBU(bitPk, serial, hdbs, size, condition, level);
+    _buModalState.fromPlanBtn = true;
+    // Pre-select existing account if any
+    if (accountCode) {
+        document.getElementById('buSelect').value = accountCode;
+        _onBUChange(accountCode);
+    }
+}
+
+async function submitAssignBU(action) {
+    const buCode = document.getElementById('buSelect').value;
+    const errEl = document.getElementById('buError');
+    if (!buCode) {
+        errEl.textContent = 'Please select a Business Unit.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    if (!_buModalState.workType) {
+        errEl.textContent = 'Please select New or Repair.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+    const meta = _buMeta[buCode];
+    // Confirmation if work type contradicts the bit's condition
+    const cond = _buModalState.condition;
+    const repairConditions = ['REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED'];
+    const wt = _buModalState.workType || (meta.wf === 'MANUFACTURE' ? 'NEW' : meta.wf === 'REPAIR' ? 'REPAIR' : '');
+    if (wt === 'NEW' && repairConditions.includes(cond)) {
+        if (!confirm(`This bit's condition is "${cond}" which usually means Repair.\nAre you sure you want to mark it as New?`)) return;
+    } else if (wt === 'REPAIR' && !repairConditions.includes(cond) && cond !== '') {
+        if (!confirm(`This bit's condition is "${cond}" which usually means New.\nAre you sure you want to mark it as Repair?`)) return;
+    }
+    errEl.classList.add('hidden');
+
+    // Disable buttons
+    const btn1 = document.getElementById('btnAssignOnly');
+    const btn2 = document.getElementById('btnAssignAndPlan');
+    btn1.disabled = btn2.disabled = true;
+    btn1.classList.add('opacity-50');
+    btn2.classList.add('opacity-50');
+
     try {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                         document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        const response = await fetch('{% url "workorders:api_add_to_plan" %}', {
+        const csrf = _getCsrf();
+        // Step 1: Assign account to the bit
+        const assignResp = await fetch('{% url "workorders:api_update_bit_account" %}', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({
-                serial_number: serialNumber, account: accountCode,
+                bit_id: _buModalState.bitPk,
+                account_code: buCode,
+                work_type: _buModalState.workType,
+                requester: document.getElementById('buRequester').value,
+                justification: document.getElementById('buJustification').value
+            })
+        });
+        const assignData = await assignResp.json();
+        if (!assignData.success) {
+            errEl.textContent = assignData.error || 'Failed to assign account.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        // Update the BU cell in the table (keep it clickable)
+        const cell = document.getElementById('bu-cell-' + _buModalState.bitPk);
+        if (cell) {
+            cell.dataset.value = assignData.account_code;
+            // Rebuild the button with the same onclick as the original
+            const st = _buModalState;
+            cell.innerHTML = `<button onclick="openAssignBU(${st.bitPk}, '${st.serial}', '${st.hdbs}', '${st.size}', '${st.condition}', '${st.level}')"
+                class="group flex items-center gap-1 text-left" title="Click to change account">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/40 transition-colors">${assignData.account_name}</span>
+                <i data-lucide="pencil" class="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+            </button>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // Step 2: If "Assign & Plan", also add to planner
+        if (action === 'assign_and_plan') {
+            const planResp = await fetch('{% url "workorders:api_add_to_plan" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify({
+                    serial_number: _buModalState.serial,
+                    account: buCode,
+                    work_type: _buModalState.workType,
+                    priority: 'NORMAL', planned_date: '', intended_wo_type: '', notes: ''
+                })
+            });
+            const planData = await planResp.json();
+            if (!planData.success) {
+                errEl.textContent = `Account assigned, but planner failed: ${planData.error}`;
+                errEl.classList.remove('hidden');
+                return;
+            }
+            _markAsPlanned(_buModalState.bitPk);
+            closeAssignBU();
+            _showToast(`${_buModalState.serial} assigned to ${assignData.account_name} and added to Planner.`, 'success');
+        } else {
+            closeAssignBU();
+            _showToast(`${_buModalState.serial} assigned to ${assignData.account_name}.`, 'success');
+        }
+    } catch (e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.classList.remove('hidden');
+        console.error('Assign BU error:', e);
+    } finally {
+        btn1.disabled = btn2.disabled = false;
+        btn1.classList.remove('opacity-50');
+        btn2.classList.remove('opacity-50');
+    }
+}
+
+// Direct add to plan (bit already has account)
+async function _directAddToPlan(serial, accountCode, bitPk) {
+    if (!confirm(`Add ${serial} to production plan?`)) return;
+    try {
+        const resp = await fetch('{% url "workorders:api_add_to_plan" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrf() },
+            body: JSON.stringify({
+                serial_number: serial, account: accountCode,
                 priority: 'NORMAL', planned_date: '', intended_wo_type: '', notes: ''
             })
         });
-        const data = await response.json();
+        const data = await resp.json();
         if (data.success) {
-            alert(`Added ${serialNumber} to production plan!\n\nGo to Production Planner to review and create Work Orders.`);
+            _markAsPlanned(bitPk);
+            _showToast(`${serial} added to Production Planner.`, 'success');
         } else {
             alert(data.error || 'Failed to add to plan');
         }
     } catch (e) {
         alert('Error adding to plan');
-        console.error('Add to plan error:', e);
     }
+}
+
+// Update the row's plan button to show "already planned" check icon
+function _markAsPlanned(bitPk) {
+    const btn = document.getElementById('plan-btn-' + bitPk);
+    if (btn) {
+        btn.outerHTML = '<span class="p-1 text-emerald-400" title="Already in planner"><i data-lucide="calendar-check" class="w-4 h-4"></i></span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+// Simple toast notification
+function _showToast(msg, type) {
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 left-1/2 -translate-x-1/2 z-[999] px-5 py-3 rounded-lg shadow-xl text-sm font-medium text-white transition-all duration-300 ${type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
 }
 </script>
 {% csrf_token %}
