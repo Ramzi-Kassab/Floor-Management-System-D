@@ -2583,7 +2583,6 @@ def api_update_plan_due_date(request):
 # =============================================================================
 
 @login_required
-@login_required
 def api_assign_bit_bom(request):
     """
     Assign a BOM to a drill bit (brazing_bom, system_bom, or default bom).
@@ -2612,19 +2611,32 @@ def api_assign_bit_bom(request):
     except DrillBit.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Drill bit not found'})
 
-    # Map field name to model FK
-    field_map = {'brazing': 'brazing_bom', 'system': 'system_bom', 'bom': 'bom'}
-    fk_name = field_map.get(field, 'bom')
-
     if not bom_id:
-        # Clear BOM assignment
-        setattr(bit, fk_name, None)
-        bit.save(update_fields=[fk_name, 'updated_at'])
+        # Cascade clear logic:
+        # Clear system → also clears brazing_bom + bom
+        # Clear brazing → also clears bom
+        # Clear bom → clears bom only
+        update_fields = ['updated_at']
+        if field == 'system':
+            bit.system_bom = None
+            bit.brazing_bom = None
+            bit.bom = None
+            update_fields += ['system_bom', 'brazing_bom', 'bom']
+        elif field == 'brazing':
+            bit.brazing_bom = None
+            bit.bom = None
+            update_fields += ['brazing_bom', 'bom']
+        else:
+            bit.bom = None
+            update_fields += ['bom']
+        bit.save(update_fields=update_fields)
         return JsonResponse({
             'success': True,
             'bom_code': '',
-            'system_mat': '',
-            'message': f'{fk_name} cleared'
+            'system_mat': bit.system_bom.system_mat_no if bit.system_bom else '',
+            'brz_code': bit.brazing_bom.code if bit.brazing_bom else '',
+            'sys_code': bit.system_bom.code if bit.system_bom else '',
+            'message': 'Cleared'
         })
 
     try:
@@ -2636,16 +2648,41 @@ def api_assign_bit_bom(request):
     if bit.design and bom.design_id != bit.design_id:
         return JsonResponse({'success': False, 'error': 'BOM does not belong to this bit\'s design'})
 
-    setattr(bit, fk_name, bom)
-    bit.save(update_fields=[fk_name, 'updated_at'])
+    # Cascade set logic:
+    # Set system → sets system_bom, clears brazing_bom + bom (user must re-pick brazing)
+    # Set brazing → sets brazing_bom, auto-sets system_bom from brazing's system_mat
+    update_fields = ['updated_at']
+    if field == 'system':
+        bit.system_bom = bom
+        bit.brazing_bom = None
+        bit.bom = None
+        update_fields += ['system_bom', 'brazing_bom', 'bom']
+    elif field == 'brazing':
+        bit.brazing_bom = bom
+        bit.bom = bom  # bom mirrors brazing_bom
+        # Auto-set system_bom if there's a matching one
+        if bom.system_mat_no:
+            sys_bom = BOM.objects.filter(
+                design_id=bit.design_id, system_mat_no=bom.system_mat_no
+            ).first()
+            if sys_bom:
+                bit.system_bom = sys_bom
+                update_fields.append('system_bom')
+        update_fields += ['brazing_bom', 'bom']
+    else:
+        bit.bom = bom
+        update_fields += ['bom']
+    bit.save(update_fields=update_fields)
 
     return JsonResponse({
         'success': True,
         'bom_id': bom.pk,
         'bom_code': bom.code or str(bom),
         'system_mat': bom.system_mat_no or '',
+        'brz_code': bit.brazing_bom.code if bit.brazing_bom else '',
+        'sys_code': bit.system_bom.code if bit.system_bom else '',
         'status': bom.get_status_display(),
-        'message': f'{bom.code} assigned as {fk_name.replace("_", " ")}'
+        'message': f'{bom.code} assigned'
     })
 
 
