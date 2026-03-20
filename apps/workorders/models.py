@@ -282,6 +282,25 @@ class DrillBit(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_bits")
 
+    # Change log — [{field, old, new, who, when}, ...]
+    change_log = models.JSONField(default=list, blank=True, help_text='Audit trail of field changes')
+
+    def log_change(self, field, old_value, new_value, user=None):
+        """Record a field change in the audit log."""
+        from django.utils import timezone
+        if str(old_value) == str(new_value):
+            return
+        entry = {
+            'field': field,
+            'old': str(old_value) if old_value else '',
+            'new': str(new_value) if new_value else '',
+            'who': (user.get_full_name() or user.username) if user else '',
+            'when': timezone.now().isoformat(),
+        }
+        if not isinstance(self.change_log, list):
+            self.change_log = []
+        self.change_log.append(entry)
+
     # Phase 2: Bit Tracking fields (from migration 0005)
     # LEGACY — kept for data migration; new code uses `status` + `condition` instead
     class LifecycleStatus(models.TextChoices):
@@ -3007,6 +3026,7 @@ class ProductionPlanEntry(models.Model):
 
     class Status(models.TextChoices):
         PLANNED = "PLANNED", "Planned"
+        RELEASED = "RELEASED", "Released"
         WO_CREATED = "WO_CREATED", "WO Created"
         REMOVED = "REMOVED", "Removed"
 

@@ -551,7 +551,25 @@ class DrillBitUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
     def form_valid(self, form):
+        # Log field changes before save
+        bit = self.get_object()  # fresh from DB (old values)
+        new_bit = form.instance
+        tracked = [
+            ('Design', lambda b: b.design.mat_no if b.design else '', bit.design_id != new_bit.design_id),
+            ('Brazing BOM', lambda b: b.brazing_bom.code if b.brazing_bom else '', bit.brazing_bom_id != new_bit.brazing_bom_id),
+            ('System BOM', lambda b: b.system_bom.code if b.system_bom else '', bit.system_bom_id != new_bit.system_bom_id),
+            ('BOM', lambda b: b.bom.code if b.bom else '', bit.bom_id != new_bit.bom_id),
+            ('Level', lambda b: b.level or '', bit.level != new_bit.level),
+        ]
+        for field_name, getter, changed in tracked:
+            if changed:
+                old_val = getter(bit)
+                new_bit.log_change(field_name, old_val, getter(new_bit), self.request.user)
+
         response = super().form_valid(form)
+        # Save change_log (super().form_valid already saved the form, so save again for log)
+        if any(c for _, _, c in tracked):
+            self.object.save(update_fields=['change_log'])
         messages.success(
             self.request,
             f'Drill bit "{self.object.serial_number}" updated successfully.',

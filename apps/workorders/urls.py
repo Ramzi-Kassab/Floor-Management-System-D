@@ -48,6 +48,7 @@ urlpatterns = [
     # Production Plan API
     path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
     path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
+    path("api/release-plan-entry/", views_jobcard.api_release_plan_entry, name="api_release_plan_entry"),
     path("api/delete-wo/<int:pk>/", views_jobcard.api_delete_work_order, name="api_delete_wo"),
     path("api/delete-evaluation/<int:pk>/", views_jobcard.api_delete_evaluation, name="api_delete_evaluation"),
     path("api/restore-plan-entry/<int:bit_pk>/", views_jobcard.api_restore_plan_entry, name="api_restore_plan_entry"),
@@ -58,6 +59,8 @@ urlpatterns = [
     path("api/update-plan-account/", views_jobcard.api_update_plan_account, name="api_update_plan_account"),
     path("api/update-bit-account/", views_jobcard.api_update_bit_account, name="api_update_bit_account"),
     path("api/assign-bit-bom/", views_jobcard.api_assign_bit_bom, name="api_assign_bit_bom"),
+    path("api/transfer-bit-location/", views_jobcard.api_transfer_bit_location, name="api_transfer_bit_location"),
+    path("api/locations/", views_jobcard.api_locations_list, name="api_locations_list"),
     path("api/change-wo-account/", views_jobcard.api_change_wo_account, name="api_change_wo_account"),
     # Planner Settings API
     path("api/holiday/add/", views_jobcard.api_add_holiday, name="api_add_holiday"),

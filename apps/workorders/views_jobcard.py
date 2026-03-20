@@ -2415,8 +2415,10 @@ def api_add_to_plan(request):
     # Update bit's account if different, and store previous status for cancel/restore
     update_fields = ['updated_at']
     if drill_bit.account != account:
+        old_acc = drill_bit.account.code if drill_bit.account else ''
+        drill_bit.log_change('Account', old_acc, account.code, request.user)
         drill_bit.account = account
-        update_fields.append('account')
+        update_fields += ['account', 'change_log']
 
     # Save previous status on the plan entry so we can restore on cancel
     entry.notes = (entry.notes or '') + (f'\n[prev_status:{drill_bit.status}]' if drill_bit.status else '')
@@ -2478,6 +2480,63 @@ def api_create_wo_from_plan(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def api_release_plan_entry(request):
+    """
+    Release a planned entry: marks as RELEASED and auto-creates the Work Order.
+    POST body: { entry_id }
+    """
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    entry_id = data.get('entry_id')
+    if not entry_id:
+        return JsonResponse({'success': False, 'error': 'entry_id required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.select_related('drill_bit', 'account').get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    if entry.status != ProductionPlanEntry.Status.PLANNED:
+        return JsonResponse({'success': False, 'error': f'Cannot release — status is {entry.get_status_display()}'})
+
+    # Mark as released
+    entry.status = ProductionPlanEntry.Status.RELEASED
+    entry.save(update_fields=['status', 'updated_at'])
+
+    # Auto-create the Work Order
+    try:
+        wo, success, error_code, error_message = entry.create_work_order(user=request.user)
+        if not success:
+            # Revert to PLANNED if WO creation fails
+            entry.status = ProductionPlanEntry.Status.PLANNED
+            entry.save(update_fields=['status', 'updated_at'])
+            return JsonResponse({
+                'success': False,
+                'error': f'Released but WO creation failed: {error_message}'
+            })
+
+        return JsonResponse({
+            'success': True,
+            'wo_id': wo.pk,
+            'wo_number': wo.wo_number,
+            'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+            'message': f'Released and WO {wo.wo_number} created.'
+        })
+    except Exception as e:
+        # Revert to PLANNED on error
+        entry.status = ProductionPlanEntry.Status.PLANNED
+        entry.save(update_fields=['status', 'updated_at'])
+        return JsonResponse({'success': False, 'error': f'Release failed: {str(e)}'})
 
 
 @login_required
@@ -2675,8 +2734,9 @@ def api_delete_work_order(request, pk):
         if bit:
             from apps.workorders.models import BitEvent
             old_status = bit.get_status_display()
+            bit.log_change('Status', old_status, 'Received', request.user)
             bit.status = DrillBit.Status.RECEIVED
-            bit.save(update_fields=['status', 'updated_at'])
+            bit.save(update_fields=['status', 'change_log', 'updated_at'])
             from django.utils import timezone as _tz
             if bit.current_location:
                 BitEvent.objects.create(
@@ -2757,8 +2817,9 @@ def api_delete_work_order(request, pk):
 
         # Restore status — don't force a specific location
         if bit.status in ('IN_PRODUCTION', 'IN_REPAIR'):
+            bit.log_change('Status', old_status, 'Received', request.user)
             bit.status = DrillBit.Status.RECEIVED
-            bit.save(update_fields=['status', 'updated_at'])
+            bit.save(update_fields=['status', 'change_log', 'updated_at'])
 
         # Log the event with current location info
         from django.utils import timezone as _tz
@@ -2849,6 +2910,83 @@ def api_delete_evaluation(request, pk):
 
 
 @login_required
+@login_required
+def api_locations_list(request):
+    """Return all active locations as JSON for dropdowns."""
+    locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
+    return JsonResponse({
+        'locations': [{'id': l.pk, 'name': l.name, 'code': l.code, 'type': l.get_location_type_display()} for l in locs]
+    })
+
+
+@login_required
+def api_transfer_bit_location(request):
+    """
+    Transfer a drill bit to a new location.
+    POST body: { bit_id, location_id, reason }
+    Creates a BitEvent(TRANSFER) and updates DrillBit.current_location + bit_location.
+    """
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    bit_id = data.get('bit_id')
+    location_id = data.get('location_id')
+    reason = data.get('reason', '').strip()
+
+    if not bit_id or not location_id:
+        return JsonResponse({'success': False, 'error': 'bit_id and location_id required'})
+
+    try:
+        bit = DrillBit.objects.select_related('current_location', 'bit_location').get(pk=bit_id)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    try:
+        new_location = Location.objects.get(pk=location_id, is_active=True)
+    except Location.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Location not found'})
+
+    from_location = bit.current_location or bit.bit_location
+    if from_location and from_location.pk == new_location.pk:
+        return JsonResponse({'success': False, 'error': 'Bit is already at this location'})
+
+    # Log the change
+    from django.utils import timezone as _tz
+    from apps.workorders.models import BitEvent
+
+    bit.log_change('Location', str(from_location) if from_location else '—', str(new_location), request.user)
+
+    # Create BitEvent
+    BitEvent.objects.create(
+        bit=bit,
+        event_type=BitEvent.EventType.TRANSFER,
+        event_date=_tz.now(),
+        location=new_location,
+        from_location=from_location,
+        to_location=new_location,
+        notes=reason or f'Manual transfer to {new_location.name}',
+        performed_by=request.user,
+    )
+
+    # Update bit location
+    bit.current_location = new_location
+    bit.bit_location = new_location
+    bit.save(update_fields=['current_location', 'bit_location', 'change_log', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'from': str(from_location) if from_location else '—',
+        'to': new_location.name,
+        'message': f'Bit transferred to {new_location.name}'
+    })
+
+
+@login_required
 def api_assign_bit_bom(request):
     """
     Assign a BOM to a drill bit (brazing_bom, system_bom, or default bom).
@@ -2877,22 +3015,29 @@ def api_assign_bit_bom(request):
     except DrillBit.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Drill bit not found'})
 
+    # Capture old values for audit
+    old_sys = bit.system_bom.code if bit.system_bom else ''
+    old_brz = bit.brazing_bom.code if bit.brazing_bom else ''
+    old_bom = bit.bom.code if bit.bom else ''
+
     if not bom_id:
-        # Cascade clear logic:
-        # Clear system → also clears brazing_bom + bom
-        # Clear brazing → also clears bom
-        # Clear bom → clears bom only
-        update_fields = ['updated_at']
+        update_fields = ['updated_at', 'change_log']
         if field == 'system':
+            bit.log_change('System BOM', old_sys, '', request.user)
+            if old_brz: bit.log_change('Brazing BOM', old_brz, '', request.user)
+            if old_bom: bit.log_change('BOM', old_bom, '', request.user)
             bit.system_bom = None
             bit.brazing_bom = None
             bit.bom = None
             update_fields += ['system_bom', 'brazing_bom', 'bom']
         elif field == 'brazing':
+            bit.log_change('Brazing BOM', old_brz, '', request.user)
+            if old_bom: bit.log_change('BOM', old_bom, '', request.user)
             bit.brazing_bom = None
             bit.bom = None
             update_fields += ['brazing_bom', 'bom']
         else:
+            bit.log_change('BOM', old_bom, '', request.user)
             bit.bom = None
             update_fields += ['bom']
         bit.save(update_fields=update_fields)
@@ -2914,28 +3059,28 @@ def api_assign_bit_bom(request):
     if bit.design and bom.design_id != bit.design_id:
         return JsonResponse({'success': False, 'error': 'BOM does not belong to this bit\'s design'})
 
-    # Cascade set logic:
-    # Set system → sets system_bom, clears brazing_bom + bom (user must re-pick brazing)
-    # Set brazing → sets brazing_bom, auto-sets system_bom from brazing's system_mat
-    update_fields = ['updated_at']
+    update_fields = ['updated_at', 'change_log']
     if field == 'system':
+        bit.log_change('System BOM', old_sys, bom.code, request.user)
         bit.system_bom = bom
         bit.brazing_bom = None
         bit.bom = None
         update_fields += ['system_bom', 'brazing_bom', 'bom']
     elif field == 'brazing':
+        bit.log_change('Brazing BOM', old_brz, bom.code, request.user)
         bit.brazing_bom = bom
-        bit.bom = bom  # bom mirrors brazing_bom
-        # Auto-set system_bom if there's a matching one
+        bit.bom = bom
         if bom.system_mat_no:
             sys_bom = BOM.objects.filter(
                 design_id=bit.design_id, system_mat_no=bom.system_mat_no
             ).first()
             if sys_bom:
+                bit.log_change('System BOM', old_sys, sys_bom.code, request.user)
                 bit.system_bom = sys_bom
                 update_fields.append('system_bom')
         update_fields += ['brazing_bom', 'bom']
     else:
+        bit.log_change('BOM', old_bom, bom.code, request.user)
         bit.bom = bom
         update_fields += ['bom']
     bit.save(update_fields=update_fields)
@@ -2987,11 +3132,13 @@ def api_update_plan_account(request):
         return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
 
     # Update both plan entry and drill bit
+    old_acc = entry.drill_bit.account.code if entry.drill_bit.account else ''
     entry.account = account
     entry.save(update_fields=['account', 'updated_at'])
 
+    entry.drill_bit.log_change('Account', old_acc, account.code, request.user)
     entry.drill_bit.account = account
-    entry.drill_bit.save(update_fields=['account', 'updated_at'])
+    entry.drill_bit.save(update_fields=['account', 'change_log', 'updated_at'])
 
     return JsonResponse({
         'success': True,
@@ -3032,8 +3179,10 @@ def api_update_bit_account(request):
     except Account.DoesNotExist:
         return JsonResponse({'success': False, 'error': f'Account "{account_code}" not found'})
 
+    old_account = bit.account.code if bit.account else ''
+    bit.log_change('Account', old_account, account.code, request.user)
     bit.account = account
-    bit.save(update_fields=['account', 'updated_at'])
+    bit.save(update_fields=['account', 'change_log', 'updated_at'])
 
     return JsonResponse({
         'success': True,
@@ -3164,96 +3313,185 @@ def api_bit_timeline(request, bit_pk):
     Aggregates: BitEvents, ReceivingInspection, PlanEntries, WorkOrders, RouterSheetEntries.
     """
     from apps.workorders.models import (
-        BitEvent, ReceivingInspection, RouterSheetEntry
+        BitEvent, ReceivingInspection, RouterSheetEntry,
+        CutterEvaluationMatrix, DieCheckReport, BackloadItem,
     )
+    from apps.notifications.models import FormRevision
 
     try:
-        bit = DrillBit.objects.select_related('design', 'account').get(pk=bit_pk)
+        bit = DrillBit.objects.select_related('design', 'account', 'bom', 'brazing_bom', 'system_bom').get(pk=bit_pk)
     except DrillBit.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Drill bit not found'}, status=404)
 
     events = []
 
-    # 1. BitEvents (lifecycle)
-    for ev in BitEvent.objects.filter(bit=bit).order_by('event_date'):
+    def _who(user):
+        if not user: return ''
+        return user.get_full_name() or user.username
+
+    # 1. Bit registered
+    events.append({
+        'date': bit.created_at.isoformat(),
+        'type': 'system',
+        'action': 'Registered',
+        'detail': f'Serial: {bit.serial_number}, Design: {bit.design.mat_no if bit.design else "—"}',
+        'status': bit.get_status_display(),
+        'who': _who(bit.created_by),
+        'where': '',
+        'url': '',
+    })
+
+    # 2. BitEvents (lifecycle)
+    for ev in BitEvent.objects.filter(bit=bit).select_related('location', 'from_location', 'to_location', 'performed_by').order_by('event_date'):
+        where = ''
+        if ev.to_location:
+            where = f'{ev.from_location or "?"} → {ev.to_location}'
+        elif ev.location:
+            where = str(ev.location)
         events.append({
             'date': ev.event_date.isoformat(),
             'type': 'event',
-            'label': ev.get_event_type_display(),
-            'icon': 'truck' if 'DEPLOY' in ev.event_type else
-                    'package' if 'BACKLOAD' in ev.event_type else
-                    'clipboard-check' if 'EVAL' in ev.event_type else
-                    'inbox',
-            'notes': ev.notes or '',
+            'action': ev.get_event_type_display(),
+            'detail': ev.notes or '',
+            'status': '',
+            'who': _who(ev.performed_by),
+            'where': where,
+            'url': '',
         })
 
-    # 2. Receiving Inspections
-    for ri in ReceivingInspection.objects.filter(drill_bit=bit).order_by('created_at'):
-        label = f"Receiving Inspection — {ri.get_result_display()}" if ri.result else "Receiving Inspection Started"
+    # 3. Backload batch
+    for bi in BackloadItem.objects.filter(drill_bit=bit).select_related('batch', 'batch__account'):
+        events.append({
+            'date': bi.batch.created_at.isoformat(),
+            'type': 'receiving',
+            'action': f'Backload Batch {bi.batch.batch_number}',
+            'detail': f'Match: {bi.get_match_status_display()}, Account: {bi.batch.account.code if bi.batch.account else "—"}',
+            'status': '',
+            'who': '',
+            'where': '',
+            'url': reverse('workorders:backload_batch_detail', args=[bi.batch.pk]),
+        })
+
+    # 4. Receiving Inspections (start + completion as separate rows)
+    for ri in ReceivingInspection.objects.filter(drill_bit=bit).select_related('inspected_by').order_by('created_at'):
+        ri_url = reverse('workorders:receiving_inspection_edit', args=[bit.pk, ri.pk])
         events.append({
             'date': ri.created_at.isoformat(),
             'type': 'inspection',
-            'label': label,
-            'icon': 'shield-check',
-            'notes': f"Inspector: {ri.inspected_by}" if ri.inspected_by else '',
+            'action': 'Receiving Inspection',
+            'detail': f'Started on {ri.inspection_date}',
+            'status': 'Started',
+            'who': _who(ri.inspected_by),
+            'where': '',
+            'url': ri_url,
         })
-        if ri.is_complete and ri.updated_at and ri.updated_at != ri.created_at:
+        if ri.is_complete and ri.updated_at != ri.created_at:
             events.append({
                 'date': ri.updated_at.isoformat(),
                 'type': 'inspection',
-                'label': f"Inspection Completed — {ri.get_result_display()}",
-                'icon': 'check-circle',
-                'notes': '',
+                'action': 'Receiving Inspection',
+                'detail': f'Result: {ri.get_result_display()}',
+                'status': 'Completed',
+                'who': _who(ri.inspected_by),
+                'where': '',
+                'url': ri_url,
             })
 
-    # 3. Plan entries
-    for pe in ProductionPlanEntry.objects.filter(drill_bit=bit).order_by('created_at'):
+    # 5. Plan entries
+    for pe in ProductionPlanEntry.objects.filter(drill_bit=bit).select_related('account', 'created_by').order_by('created_at'):
         events.append({
             'date': pe.created_at.isoformat(),
             'type': 'plan',
-            'label': f"Added to Plan ({pe.account.code if pe.account else 'No account'})",
-            'icon': 'calendar-plus',
-            'notes': f"By {pe.created_by.get_short_name()}" if pe.created_by else '',
+            'action': f'Added to Planner',
+            'detail': f'Account: {pe.account.code if pe.account else "—"}, Priority: {pe.get_priority_display()}, Due: {pe.due_date or "—"}',
+            'status': pe.get_status_display(),
+            'who': _who(pe.created_by),
+            'where': '',
+            'url': reverse('workorders:production_planner'),
         })
-        if pe.status == ProductionPlanEntry.Status.WO_CREATED and pe.work_order:
+        if pe.status == ProductionPlanEntry.Status.RELEASED:
             events.append({
                 'date': pe.updated_at.isoformat(),
                 'type': 'plan',
-                'label': f"WO Created: {pe.work_order.wo_number}",
-                'icon': 'file-text',
-                'notes': '',
+                'action': 'Released for Production',
+                'detail': '', 'status': 'Released',
+                'who': '', 'where': '',
+                'url': reverse('workorders:production_planner'),
+            })
+        elif pe.status == ProductionPlanEntry.Status.REMOVED:
+            events.append({
+                'date': pe.updated_at.isoformat(),
+                'type': 'plan',
+                'action': 'Removed from Planner',
+                'detail': '', 'status': 'Removed',
+                'who': '', 'where': '', 'url': '',
+            })
+        for h in (pe.due_date_history or []):
+            events.append({
+                'date': h.get('changed_at', pe.updated_at.isoformat()),
+                'type': 'change',
+                'action': 'Due Date Changed',
+                'detail': f'{h.get("old","?")} → {h.get("new","?")}. {h.get("reason","")}',
+                'status': '', 'who': h.get('changed_by', ''), 'where': '', 'url': '',
             })
 
-    # 4. Work Orders + Router Steps
-    for wo in WorkOrder.objects.filter(drill_bit=bit).order_by('created_at'):
+    # 6. Work Orders (creation + milestones only)
+    for wo in WorkOrder.objects.filter(drill_bit=bit).select_related('account', 'created_by').order_by('created_at'):
+        wo_url = reverse('workorders:workorder_detail_enhanced', args=[wo.pk])
         events.append({
             'date': wo.created_at.isoformat(),
             'type': 'wo',
-            'label': f"WO {wo.wo_number} — {wo.get_status_display()}",
-            'icon': 'clipboard-list',
-            'notes': f"Account: {wo.account.code}" if wo.account else '',
+            'action': f'WO {wo.wo_number} Created',
+            'detail': f'Type: {wo.get_wo_type_display()}, Account: {wo.account.code if wo.account else "—"}',
+            'status': wo.get_status_display(),
+            'who': _who(wo.created_by),
+            'where': '',
+            'url': wo_url,
         })
-        # Router steps (only completed ones to keep it clean)
-        for rs in wo.router_entries.filter(qr_scan_end__isnull=False).order_by('qr_scan_end'):
+        first_step = wo.router_entries.filter(qr_scan_start__isnull=False).order_by('qr_scan_start').first()
+        if first_step:
             events.append({
-                'date': rs.qr_scan_end.isoformat(),
-                'type': 'step',
-                'label': f"Step {rs.step_number}: {rs.step_description}",
-                'icon': 'check-square',
-                'notes': f"Operator: {rs.operator}" if rs.operator else '',
+                'date': first_step.qr_scan_start.isoformat(),
+                'type': 'wo',
+                'action': f'WO {wo.wo_number} — Production Started',
+                'detail': f'First step: {first_step.step_description}',
+                'status': 'In Progress',
+                'who': _who(first_step.operator),
+                'where': '',
+                'url': reverse('workorders:router_sheet', args=[wo.pk]),
             })
-        # Active step
-        active = wo.router_entries.filter(
-            qr_scan_start__isnull=False, qr_scan_end__isnull=True
-        ).first()
-        if active:
+        if wo.status in ('COMPLETED', 'QC_PASSED', 'CANCELLED'):
             events.append({
-                'date': active.qr_scan_start.isoformat(),
-                'type': 'step_active',
-                'label': f"▶ Step {active.step_number}: {active.step_description} (in progress)",
-                'icon': 'play-circle',
-                'notes': f"Started by {active.operator}" if active.operator else '',
+                'date': wo.updated_at.isoformat(),
+                'type': 'wo',
+                'action': f'WO {wo.wo_number} — {wo.get_status_display()}',
+                'detail': '', 'status': wo.get_status_display(),
+                'who': '', 'where': '', 'url': wo_url,
             })
+
+    # 7. Form Revisions (inspection edits)
+    ri_ids = list(ReceivingInspection.objects.filter(drill_bit=bit).values_list('pk', flat=True))
+    if ri_ids:
+        for fr in FormRevision.objects.filter(
+            entity_type='ReceivingInspection', entity_id__in=ri_ids
+        ).select_related('revised_by').order_by('revised_at'):
+            events.append({
+                'date': fr.revised_at.isoformat(),
+                'type': 'change',
+                'action': f'Inspection Edited (Rev {fr.revision_number})',
+                'detail': fr.change_summary or '',
+                'status': '', 'who': _who(fr.revised_by), 'where': '', 'url': '',
+            })
+
+    # 8. Field change log (from DrillBit.change_log)
+    for cl in (bit.change_log or []):
+        events.append({
+            'date': cl.get('when', bit.updated_at.isoformat()),
+            'type': 'change',
+            'action': f'{cl.get("field","?")} Changed',
+            'detail': f'{cl.get("old","—") or "—"} → {cl.get("new","—") or "—"}',
+            'status': '', 'who': cl.get('who', ''), 'where': '', 'url': '',
+        })
 
     # Sort by date
     events.sort(key=lambda e: e['date'])
