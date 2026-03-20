@@ -301,6 +301,38 @@ class DrillBit(models.Model):
             self.change_log = []
         self.change_log.append(entry)
 
+    def move_to(self, location_code_or_type, reason='', user=None):
+        """
+        Move bit to a new location by code or location_type.
+        Creates BitEvent(TRANSFER) and updates current_location + bit_location.
+        Returns the new Location or None if not found.
+        """
+        from django.utils import timezone
+        new_loc = Location.objects.filter(
+            models.Q(code=location_code_or_type) | models.Q(location_type=location_code_or_type),
+            is_active=True
+        ).first()
+        if not new_loc:
+            return None
+        from_loc = self.current_location or self.bit_location
+        if from_loc and from_loc.pk == new_loc.pk:
+            return new_loc  # already there
+        self.log_change('Location', str(from_loc) if from_loc else '—', str(new_loc), user)
+        self.current_location = new_loc
+        self.bit_location = new_loc
+        self.save(update_fields=['current_location', 'bit_location', 'change_log', 'updated_at'])
+        BitEvent.objects.create(
+            bit=self,
+            event_type=BitEvent.EventType.TRANSFER,
+            event_date=timezone.now(),
+            location=new_loc,
+            from_location=from_loc,
+            to_location=new_loc,
+            notes=reason or f'Auto-moved to {new_loc.name}',
+            performed_by=user,
+        )
+        return new_loc
+
     # Phase 2: Bit Tracking fields (from migration 0005)
     # LEGACY — kept for data migration; new code uses `status` + `condition` instead
     class LifecycleStatus(models.TextChoices):

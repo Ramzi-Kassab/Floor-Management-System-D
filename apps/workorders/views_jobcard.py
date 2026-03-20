@@ -1480,6 +1480,7 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.operator = request.user
         entry.station_qr = station_qr
         entry.save()
+
         return JsonResponse({
             'success': True,
             'step_number': step_number,
@@ -1500,6 +1501,9 @@ def api_router_step_scan(request, wo_pk, step_number):
         total = RouterSheetEntry.objects.filter(work_order=wo).count()
         done = RouterSheetEntry.objects.filter(work_order=wo, is_complete=True).count()
         if total > 0 and done >= total:
+            # All steps done — move bit to Finished Goods
+            if wo.drill_bit:
+                wo.drill_bit.move_to('WH-FG', f'All router steps completed — WO {wo.wo_number}', request.user)
             notify(
                 actor=request.user,
                 verb="completed all router steps for",
@@ -2524,6 +2528,10 @@ def api_release_plan_entry(request):
                 'success': False,
                 'error': f'Released but WO creation failed: {error_message}'
             })
+
+        # Auto-move bit to Production Floor (WIP)
+        if entry.drill_bit:
+            entry.drill_bit.move_to('WIP', f'Released for production — WO {wo.wo_number}', request.user)
 
         return JsonResponse({
             'success': True,
@@ -4428,18 +4436,19 @@ def _get_pocket_grid_context(drill_bit):
     }
 
 
-def _apply_inspection_result_to_bit(bit, result):
+def _apply_inspection_result_to_bit(bit, result, user=None):
     """Set drill bit status + location based on inspection result."""
     if result == ReceivingInspection.InspectionResult.REJECTED:
+        bit.log_change('Status', bit.get_status_display(), 'Rejected', user)
         bit.status = DrillBit.Status.REJECTED
-        # Rejected bits stay in Receiving Area
-        rcv_loc = Location.objects.filter(code='RCV-AREA').first()
-        if rcv_loc:
-            bit.bit_location = rcv_loc
+        bit.save(update_fields=['status', 'change_log', 'updated_at'])
+        bit.move_to('RCV-AREA', 'Inspection result: Rejected', user)
     else:
-        # ACCEPTED or CONDITIONAL → successfully received
+        # ACCEPTED or CONDITIONAL → move to Evaluation Area
+        bit.log_change('Status', bit.get_status_display(), 'Received', user)
         bit.status = DrillBit.Status.RECEIVED
-    bit.save(update_fields=['status', 'bit_location', 'updated_at'])
+        bit.save(update_fields=['status', 'change_log', 'updated_at'])
+        bit.move_to('EVALUATION', f'Inspection result: {result}', user)
 
 
 class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
@@ -4579,7 +4588,7 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
         # Update drill bit status + location on completion
         if mark_complete == 'true' and form.instance.is_complete:
             bit = form.instance.drill_bit
-            _apply_inspection_result_to_bit(bit, form.instance.result)
+            _apply_inspection_result_to_bit(bit, form.instance.result, self.request.user)
             messages.success(self.request, "Receiving inspection created and completed.")
             notify(
                 actor=self.request.user,
@@ -4755,7 +4764,7 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
 
         # Update drill bit status + location on completion/reopen
         if mark_complete == 'true' and form.instance.is_complete and bit:
-            _apply_inspection_result_to_bit(bit, form.instance.result)
+            _apply_inspection_result_to_bit(bit, form.instance.result, self.request.user)
         elif mark_complete == 'false' and not form.instance.is_complete and bit:
             bit.status = DrillBit.Status.RECEIVING
             rcv_loc = Location.objects.filter(code='RCV-AREA').first()
