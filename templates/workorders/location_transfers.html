@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Bit Movements{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="arrow-right-left" class="w-6 h-6 text-teal-500"></i>
+            Bit Movements
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Physical movements of drill bits between locations</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="locationTransfers()" x-init="init()" class="space-y-6">
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         TRANSFER FORM
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <i data-lucide="send" class="w-5 h-5 text-teal-500"></i>
+            New Transfer
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Serial Number -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number</label>
+                <div class="relative">
+                    <input type="text"
+                           x-model="serial"
+                           @input.debounce.500ms="lookupSerial()"
+                           @keydown.enter.prevent="lookupSerial()"
+                           placeholder="Enter serial number..."
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                    <div x-show="lookingUp" class="absolute right-3 top-2.5">
+                        <svg class="animate-spin w-4 h-4 text-teal-500" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <p x-show="lookupError" x-text="lookupError" class="text-xs text-red-500 mt-1"></p>
+            </div>
+
+            <!-- Current Location (read-only) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Location</label>
+                <input type="text"
+                       :value="currentLocation || '—'"
+                       readonly
+                       class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 text-sm cursor-not-allowed">
+            </div>
+
+            <!-- Destination -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destination</label>
+                <select x-model="destinationId"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                    <option value="">Select destination...</option>
+                    <template x-for="loc in locations" :key="loc.id">
+                        <option :value="loc.id" x-text="loc.name + ' (' + loc.type + ')'"></option>
+                    </template>
+                </select>
+            </div>
+
+            <!-- Carried By -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Carried By</label>
+                <input type="text"
+                       x-model="carriedBy"
+                       placeholder="Name of person carrying..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+            </div>
+
+            <!-- Reason -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                <input type="text"
+                       x-model="reason"
+                       placeholder="Reason for transfer..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+            </div>
+
+            <!-- Transfer Button -->
+            <div class="flex items-end">
+                <button @click="doTransfer()"
+                        :disabled="!canTransfer || transferring"
+                        class="w-full px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        :class="canTransfer && !transferring
+                            ? 'bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600'
+                            : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'">
+                    <template x-if="transferring">
+                        <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </template>
+                    <i data-lucide="arrow-right-left" class="w-4 h-4"></i>
+                    <span x-text="transferring ? 'Transferring...' : 'Transfer'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Bit Info Card (shown after lookup) -->
+        <div x-show="bitData" x-transition class="mt-4 p-3 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg">
+            <div class="flex items-center gap-4 text-sm">
+                <span class="font-medium text-teal-700 dark:text-teal-300">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    S/N: <span x-text="bitData?.serial_number || serial"></span>
+                </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.size_display">
+                    Size: <span x-text="bitData?.size_display"></span>
+                </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.bit_type_display">
+                    Type: <span x-text="bitData?.bit_type_display"></span>
+                </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.design_mat_no">
+                    Design: <span x-text="bitData?.design_mat_no"></span>
+                </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.bit_state">
+                    Status: <span x-text="bitData?.bit_state"></span>
+                </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.account_code">
+                    Account: <span x-text="bitData?.account_code"></span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div x-show="successMsg" x-transition class="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span x-text="successMsg"></span>
+        </div>
+
+        <!-- Error Message -->
+        <div x-show="errorMsg" x-transition class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span x-text="errorMsg"></span>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         RECENT TRANSFERS TABLE
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="history" class="w-5 h-5 text-gray-400"></i>
+                Recent Movements
+                <span class="text-sm font-normal text-gray-500 dark:text-gray-400">(last 50)</span>
+            </h2>
+
+            <!-- Filters -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <input type="text"
+                       x-model="searchFilter"
+                       placeholder="Search serial..."
+                       class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 w-36">
+                <select x-model="locationFilter"
+                        class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500">
+                    <option value="">All Locations</option>
+                    <template x-for="loc in locations" :key="loc.id">
+                        <option :value="loc.name" x-text="loc.name"></option>
+                    </template>
+                </select>
+                <input type="date"
+                       x-model="dateFromFilter"
+                       class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500">
+                <input type="date"
+                       x-model="dateToFilter"
+                       class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500">
+                <button @click="clearFilters()"
+                        x-show="searchFilter || locationFilter || dateFromFilter || dateToFilter"
+                        class="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i data-lucide="x" class="w-3 h-3 inline"></i> Clear
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">From</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">To</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reason</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">By</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for ev in recent_transfers %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transfer-row"
+                        data-serial="{{ ev.bit.serial_number }}"
+                        data-from="{{ ev.from_location.name|default:'—' }}"
+                        data-to="{{ ev.to_location.name|default:ev.location.name }}"
+                        data-date="{{ ev.event_date|date:'Y-m-d' }}">
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ ev.event_date|date:"M d, Y H:i" }}</td>
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' ev.bit.pk %}" class="text-teal-600 dark:text-teal-400 hover:underline">
+                                {{ ev.bit.serial_number }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ ev.from_location.name|default:"—" }}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ ev.to_location.name|default:ev.location.name }}</td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ ev.notes|default:"—" }}</td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ ev.performed_by.get_full_name|default:ev.performed_by.username }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
+                            <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            <p>No transfers recorded yet.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function locationTransfers() {
+    return {
+        // Form state
+        serial: '{{ pre_serial|escapejs }}',
+        bitData: null,
+        bitId: null,
+        currentLocation: '',
+        destinationId: '',
+        carriedBy: '{{ request.user.get_full_name|default:request.user.username|escapejs }}',
+        reason: '',
+
+        // UI state
+        lookingUp: false,
+        lookupError: '',
+        transferring: false,
+        successMsg: '',
+        errorMsg: '',
+
+        // Locations
+        locations: [],
+
+        // Table filters
+        searchFilter: '',
+        locationFilter: '',
+        dateFromFilter: '',
+        dateToFilter: '',
+
+        get canTransfer() {
+            return this.bitId && this.destinationId && !this.transferring;
+        },
+
+        async init() {
+            await this.loadLocations();
+            // Auto-lookup if serial was pre-filled from URL
+            if (this.serial.trim()) {
+                this.lookupSerial();
+            }
+            // Set up table filter watchers
+            this.$watch('searchFilter', () => this.filterTable());
+            this.$watch('locationFilter', () => this.filterTable());
+            this.$watch('dateFromFilter', () => this.filterTable());
+            this.$watch('dateToFilter', () => this.filterTable());
+        },
+
+        async loadLocations() {
+            try {
+                const r = await fetch('/workorders/api/locations/');
+                const data = await r.json();
+                this.locations = data.locations || [];
+            } catch (e) {
+                console.error('Failed to load locations', e);
+            }
+        },
+
+        async lookupSerial() {
+            const s = this.serial.trim();
+            if (!s) {
+                this.bitData = null;
+                this.bitId = null;
+                this.currentLocation = '';
+                this.lookupError = '';
+                return;
+            }
+            this.lookingUp = true;
+            this.lookupError = '';
+            this.successMsg = '';
+            this.errorMsg = '';
+            try {
+                const r = await fetch(`/workorders/api/drill-bits/lookup/?serial=${encodeURIComponent(s)}`);
+                const data = await r.json();
+                if (data.found) {
+                    this.bitData = data;
+                    this.bitId = data.pk || data.drill_bit_id;
+                    this.currentLocation = data.current_location || data.from_location || '—';
+                } else {
+                    this.bitData = null;
+                    this.bitId = null;
+                    this.currentLocation = '';
+                    this.lookupError = 'Drill bit not found.';
+                }
+            } catch (e) {
+                this.lookupError = 'Lookup failed. Please try again.';
+            } finally {
+                this.lookingUp = false;
+            }
+        },
+
+        async doTransfer() {
+            if (!this.canTransfer) return;
+            this.transferring = true;
+            this.successMsg = '';
+            this.errorMsg = '';
+            try {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                    || document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
+                const body = {
+                    bit_id: this.bitId,
+                    location_id: parseInt(this.destinationId),
+                    reason: [this.reason, this.carriedBy ? `Carried by: ${this.carriedBy}` : ''].filter(Boolean).join(' | ')
+                };
+                const r = await fetch('/workorders/api/transfer-bit-location/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json();
+                if (data.success) {
+                    this.successMsg = `Transferred ${this.serial} from ${data.from} to ${data.to}`;
+                    // Update current location display
+                    this.currentLocation = data.to;
+                    // Reset form fields (keep serial for consecutive transfers)
+                    this.destinationId = '';
+                    this.reason = '';
+                    // Reload page after short delay to refresh table
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                } else {
+                    this.errorMsg = data.error || 'Transfer failed.';
+                }
+            } catch (e) {
+                this.errorMsg = 'Transfer request failed. Please try again.';
+            } finally {
+                this.transferring = false;
+            }
+        },
+
+        filterTable() {
+            const rows = document.querySelectorAll('.transfer-row');
+            const search = this.searchFilter.toLowerCase();
+            const loc = this.locationFilter.toLowerCase();
+            const dateFrom = this.dateFromFilter;
+            const dateTo = this.dateToFilter;
+
+            rows.forEach(row => {
+                const serial = (row.dataset.serial || '').toLowerCase();
+                const from = (row.dataset.from || '').toLowerCase();
+                const to = (row.dataset.to || '').toLowerCase();
+                const date = row.dataset.date || '';
+
+                let show = true;
+                if (search && !serial.includes(search)) show = false;
+                if (loc && !from.includes(loc) && !to.includes(loc)) show = false;
+                if (dateFrom && date < dateFrom) show = false;
+                if (dateTo && date > dateTo) show = false;
+
+                row.style.display = show ? '' : 'none';
+            });
+        },
+
+        clearFilters() {
+            this.searchFilter = '';
+            this.locationFilter = '';
+            this.dateFromFilter = '';
+            this.dateToFilter = '';
+        }
+    };
+}
+</script>
+{% csrf_token %}
+{% endblock %}
