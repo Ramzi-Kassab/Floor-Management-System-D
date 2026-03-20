@@ -48,8 +48,12 @@ urlpatterns = [
     # Production Plan API
     path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
     path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
+    path("api/delete-wo/<int:pk>/", views_jobcard.api_delete_work_order, name="api_delete_wo"),
+    path("api/delete-evaluation/<int:pk>/", views_jobcard.api_delete_evaluation, name="api_delete_evaluation"),
+    path("api/restore-plan-entry/<int:bit_pk>/", views_jobcard.api_restore_plan_entry, name="api_restore_plan_entry"),
     path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
     path("api/update-plan-due-date/", views_jobcard.api_update_plan_due_date, name="api_update_plan_due_date"),
+    path("api/update-plan-entry/", views_jobcard.api_update_plan_entry, name="api_update_plan_entry"),
     path("api/bit-timeline/<int:bit_pk>/", views_jobcard.api_bit_timeline, name="api_bit_timeline"),
     path("api/update-plan-account/", views_jobcard.api_update_plan_account, name="api_update_plan_account"),
     path("api/update-bit-account/", views_jobcard.api_update_bit_account, name="api_update_bit_account"),

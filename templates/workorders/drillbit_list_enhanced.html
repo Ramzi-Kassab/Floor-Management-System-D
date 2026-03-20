@@ -621,21 +621,21 @@
                     <!-- Actions (always visible) -->
                     <td class="px-3 py-2 text-right">
                         <div class="flex items-center justify-end space-x-1">
-                            {% if bit.pk not in bits_in_plan %}
-                                {% if bit.status == 'RECEIVED' or bit.status == 'IN_STOCK' or bit.status == 'BACKLOADED' or bit.status == 'IN_COMPONENTS' %}
-                                    {% if bit.bit_type == 'FC' and not bit.bom and not bit.brazing_bom and not bit.system_bom %}
-                                    <span class="p-1 text-orange-300 cursor-not-allowed" title="FC bit has no BOM — create a BOM first"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
-                                    {% else %}
-                                    <button id="plan-btn-{{ bit.pk }}" onclick="handleAddToPlan({{ bit.pk }}, '{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}', '{{ bit.design.hdbs_type|default:"" }}', '{{ bit.size|default:"" }}', '{{ bit.condition }}', '{{ bit.level|default:"" }}')"
-                                            class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Add to Plan">
-                                        <i data-lucide="calendar-plus" class="w-4 h-4"></i>
-                                    </button>
-                                    {% endif %}
+                            {% if bit.pk in bits_active_wo %}
+                                <a href="{% url 'workorders:workorder_list_enhanced' %}" class="p-1 text-blue-500 hover:text-blue-700 rounded hover:bg-blue-50" title="Has active Work Order — WIP"><i data-lucide="briefcase" class="w-4 h-4"></i></a>
+                            {% elif bit.pk in bits_in_plan %}
+                                <span class="p-1 text-emerald-400" title="Already in planner"><i data-lucide="calendar-check" class="w-4 h-4"></i></span>
+                            {% elif bit.status == 'RECEIVED' or bit.status == 'IN_STOCK' or bit.status == 'BACKLOADED' or bit.status == 'IN_COMPONENTS' %}
+                                {% if bit.bit_type == 'FC' and not bit.bom and not bit.brazing_bom and not bit.system_bom %}
+                                <span class="p-1 text-orange-300 cursor-not-allowed" title="FC bit has no BOM — create a BOM first"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
                                 {% else %}
-                                <span class="p-1 text-gray-300 cursor-not-allowed" title="Status '{{ bit.get_status_display }}' cannot be planned"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
+                                <button id="plan-btn-{{ bit.pk }}" onclick="handleAddToPlan({{ bit.pk }}, '{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}', '{{ bit.design.hdbs_type|default:"" }}', '{{ bit.size|default:"" }}', '{{ bit.condition }}', '{{ bit.level|default:"" }}')"
+                                        class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Add to Plan">
+                                    <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                                </button>
                                 {% endif %}
                             {% else %}
-                                <span class="p-1 text-emerald-400" title="Already in planner"><i data-lucide="calendar-check" class="w-4 h-4"></i></span>
+                                <span class="p-1 text-gray-300 cursor-not-allowed" title="Status '{{ bit.get_status_display }}' cannot be planned"><i data-lucide="calendar-plus" class="w-4 h-4"></i></span>
                             {% endif %}
                             <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="View"><i data-lucide="eye" class="w-4 h-4"></i></a>
                             <a href="{% url 'workorders:drillbit_qr' bit.pk %}" class="p-1 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="QR"><i data-lucide="qr-code" class="w-4 h-4"></i></a>

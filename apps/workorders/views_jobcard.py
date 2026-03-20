@@ -771,6 +771,14 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
             ).values_list('drill_bit_id', flat=True)
         )
 
+        # Bits with active WOs (set of bit PKs for quick lookup)
+        context["bits_active_wo"] = set(
+            WorkOrder.objects.filter(
+                status__in=DrillBit.ACTIVE_WO_STATUSES,
+                drill_bit__isnull=False
+            ).values_list('drill_bit_id', flat=True)
+        )
+
         paginate_by = self.get_paginate_by(None)
         context["page_size"] = 'all' if paginate_by is None else paginate_by
         context["total_count"] = self.get_queryset().count()
@@ -2525,6 +2533,58 @@ def api_remove_from_plan(request):
 # =============================================================================
 
 @login_required
+@login_required
+def api_update_plan_entry(request):
+    """
+    Update editable fields on a plan entry.
+    POST body: { entry_id, field, value }
+    Supported fields: priority, notes, intended_wo_type, requester_name
+    """
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    entry_id = data.get('entry_id')
+    field = data.get('field', '')
+    value = data.get('value', '')
+
+    if not entry_id or not field:
+        return JsonResponse({'success': False, 'error': 'entry_id and field required'})
+
+    try:
+        entry = ProductionPlanEntry.objects.get(pk=entry_id)
+    except ProductionPlanEntry.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Plan entry not found'})
+
+    ALLOWED_FIELDS = {
+        'priority': lambda v: v if v in ['LOW', 'NORMAL', 'HIGH', 'URGENT', 'CRITICAL'] else None,
+        'notes': lambda v: v.strip(),
+        'intended_wo_type': lambda v: v if v in ['', 'FC_NEW', 'FC_REPAIR', 'RC_NEW', 'RC_REPAIR', 'FC_USED', 'RC_USED'] else None,
+    }
+
+    if field not in ALLOWED_FIELDS:
+        return JsonResponse({'success': False, 'error': f'Field "{field}" is not editable'})
+
+    clean_value = ALLOWED_FIELDS[field](value)
+    if clean_value is None:
+        return JsonResponse({'success': False, 'error': f'Invalid value for {field}'})
+
+    setattr(entry, field, clean_value)
+    entry.save(update_fields=[field, 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'field': field,
+        'value': clean_value,
+        'display': entry.get_priority_display() if field == 'priority' else clean_value,
+        'message': f'{field} updated'
+    })
+
+
 def api_update_plan_due_date(request):
     """
     Update due date on a plan entry, storing the old value in history.
@@ -2581,6 +2641,212 @@ def api_update_plan_due_date(request):
 # =============================================================================
 # PLANNER — Update Account (plan entry, drill bit, or WO)
 # =============================================================================
+
+@login_required
+def api_delete_work_order(request, pk):
+    """
+    Delete a Work Order only if nothing has been done on it.
+    Checks: status must be DRAFT/PLANNED/RELEASED, no started router steps,
+    no completed evaluations, no LPT/Thread reports.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+    except WorkOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Work Order not found'})
+
+    # Admin force delete — bypasses all checks
+    force = request.GET.get('force') == '1' or request.POST.get('force') == '1'
+    if force:
+        if not request.user.is_superuser:
+            return JsonResponse({'success': False, 'error': 'Force delete requires admin privileges.'})
+        wo_number = wo.wo_number
+        bit = wo.drill_bit
+        bit_id = bit.pk if bit else None
+        account = wo.account
+        # Delete all related data
+        wo.cutter_evaluations.all().delete()
+        wo.router_entries.all().delete()
+        wo.standalone_lpt_reports.all().delete()
+        wo.standalone_thread_reports.all().delete()
+        wo.delete()
+        if bit:
+            from apps.workorders.models import BitEvent
+            old_status = bit.get_status_display()
+            bit.status = DrillBit.Status.RECEIVED
+            bit.save(update_fields=['status', 'updated_at'])
+            from django.utils import timezone as _tz
+            if bit.current_location:
+                BitEvent.objects.create(
+                    bit=bit, event_type=BitEvent.EventType.TRANSFER,
+                    event_date=_tz.now(),
+                    notes=f'WO {wo_number} force-deleted by admin (was {old_status}).',
+                    performed_by=request.user, location=bit.current_location,
+                )
+            has_plan = ProductionPlanEntry.objects.filter(
+                drill_bit=bit, status=ProductionPlanEntry.Status.WO_CREATED
+            ).exists()
+        else:
+            has_plan = False
+        return JsonResponse({'success': True, 'wo_number': wo_number, 'bit_id': bit_id, 'has_plan_entry': has_plan, 'message': f'Work Order {wo_number} force-deleted.'})
+
+    # Check status — only deletable in early stages
+    deletable_statuses = [WorkOrder.Status.DRAFT, WorkOrder.Status.PLANNED, WorkOrder.Status.RELEASED]
+    if wo.status not in deletable_statuses:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — WO status is "{wo.get_status_display()}". Only Draft, Planned, or Released WOs can be deleted.'
+        })
+
+    # Check router steps — any started?
+    started_steps = wo.router_entries.filter(qr_scan_start__isnull=False).count()
+    if started_steps > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — {started_steps} router step(s) have been started.'
+        })
+
+    # Check evaluations — any completed or approved?
+    completed_evals = wo.cutter_evaluations.filter(is_complete=True).count()
+    if completed_evals > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — {completed_evals} evaluation(s) have been completed. Delete them first.'
+        })
+
+    # Check LPT reports
+    lpt_count = wo.standalone_lpt_reports.count()
+    if lpt_count > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — {lpt_count} LPT report(s) exist. Delete them first.'
+        })
+
+    # Check thread inspections
+    thread_count = wo.standalone_thread_reports.count()
+    if thread_count > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — {thread_count} thread inspection(s) exist. Delete them first.'
+        })
+
+    # Safe to delete — clean up related data
+    wo_number = wo.wo_number
+    bit = wo.drill_bit
+
+    # Delete draft/pending evaluations (not completed)
+    wo.cutter_evaluations.filter(is_complete=False).delete()
+
+    # Delete empty router entries (not started)
+    wo.router_entries.filter(qr_scan_start__isnull=True).delete()
+
+    # Remember info before deleting
+    account = wo.account
+    bit_id = bit.pk if bit else None
+
+    # Delete the WO
+    wo.delete()
+
+    # Restore drill bit + log event
+    if bit:
+        from apps.workorders.models import BitEvent
+        old_status = bit.get_status_display()
+        old_location = bit.current_location
+
+        # Restore status — don't force a specific location
+        if bit.status in ('IN_PRODUCTION', 'IN_REPAIR'):
+            bit.status = DrillBit.Status.RECEIVED
+            bit.save(update_fields=['status', 'updated_at'])
+
+        # Log the event with current location info
+        from django.utils import timezone as _tz
+        if old_location:
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.TRANSFER,
+                event_date=_tz.now(),
+                notes=f'WO {wo_number} deleted (was {old_status}). Bit remains at current location.',
+                performed_by=request.user,
+                location=old_location,
+            )
+
+        # Check if plan entry exists — don't restore yet, let user decide
+        has_plan = ProductionPlanEntry.objects.filter(
+            drill_bit=bit, status=ProductionPlanEntry.Status.WO_CREATED
+        ).exists()
+    else:
+        has_plan = False
+
+    return JsonResponse({
+        'success': True,
+        'wo_number': wo_number,
+        'bit_id': bit_id,
+        'has_plan_entry': has_plan,
+        'message': f'Work Order {wo_number} deleted.'
+    })
+
+
+@login_required
+@login_required
+def api_restore_plan_entry(request, bit_pk):
+    """Restore a WO_CREATED plan entry back to PLANNED status for a given bit."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    entry = ProductionPlanEntry.objects.filter(
+        drill_bit_id=bit_pk, status=ProductionPlanEntry.Status.WO_CREATED
+    ).first()
+    if not entry:
+        return JsonResponse({'success': False, 'error': 'No plan entry found to restore.'})
+    entry.status = ProductionPlanEntry.Status.PLANNED
+    entry.save(update_fields=['status', 'updated_at'])
+    return JsonResponse({'success': True, 'message': 'Bit returned to planner.'})
+
+
+@login_required
+def api_delete_evaluation(request, pk):
+    """
+    Delete a CutterEvaluationMatrix only if not completed/approved and
+    no dependent data exists (die check reports referencing it, etc.)
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        ev = CutterEvaluationMatrix.objects.select_related('work_order').get(pk=pk)
+    except CutterEvaluationMatrix.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Evaluation not found'})
+
+    # Check status — cannot delete completed or approved
+    if ev.is_complete:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot delete — this evaluation is marked as complete. Reopen it first.'
+        })
+    if hasattr(ev, 'status') and ev.status in ('COMPLETED', 'APPROVED'):
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — evaluation status is "{ev.get_status_display()}".'
+        })
+
+    # Check for dependent die check reports
+    die_checks = DieCheckReport.objects.filter(evaluation=ev).count() if hasattr(DieCheckReport, 'evaluation') else 0
+    if die_checks > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete — {die_checks} die check report(s) depend on this evaluation. Delete them first.'
+        })
+
+    ev_type = ev.get_evaluation_type_display()
+    wo_number = ev.work_order.wo_number if ev.work_order else ''
+    ev.delete()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'{ev_type} evaluation deleted from {wo_number}.'
+    })
+
 
 @login_required
 def api_assign_bit_bom(request):

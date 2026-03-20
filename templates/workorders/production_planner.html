@@ -15,7 +15,7 @@
   --cyan:#00c8be; --green:#00d68a; --yellow:#ffb830;
   --red:#ff4d5e; --purple:#a87fff; --orange:#ff7c3d;
   --teal:#00b4a0;
-  --row-h:42px; --row-focus:80px; --row-near:54px; --row-far:30px;
+  --row-h:38px; --row-focus:52px; --row-near:42px; --row-far:34px;
   --font:'Outfit',sans-serif; --mono:'Geist Mono',monospace;
   --ease:cubic-bezier(.25,.8,.25,1);
   margin: -1.5rem;
@@ -23,11 +23,15 @@
   color: var(--text);
   font-family: var(--font);
   font-size: 13px;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: calc(100vh - 64px);
   overflow: hidden;
+  min-width: 0;
 }
+/* Lock parent containers so only the table viewport scrolls horizontally */
+.pp-v2-app-lock > main { overflow: hidden !important; max-width: 100vw !important; }
+.pp-v2-app-lock > main > div { overflow: hidden !important; }
 /* ── LIGHT MODE ── */
 .pp-v2-app.v2-light {
   --bg:#f4f6f9; --surface:#ffffff; --s2:#f0f2f5; --s3:#e4e8ee; --s4:#ebeef3;
@@ -66,7 +70,11 @@
 .pp-v2-app *,.pp-v2-app *::before,.pp-v2-app *::after{box-sizing:border-box;}
 
 /* ── TOPBAR ── */
-.pp-v2-app .v2-topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.pp-v2-app .v2-topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0;max-width:100%;
+  /* position+z-index so topbar & its absolute children render above the table section */
+  position:relative;z-index:60;
+  /* overflow:visible is critical — overflow-y:hidden was clipping dropdown menus */
+  overflow:visible;}
 .pp-v2-app .v2-page-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:7px;white-space:nowrap;}
 .pp-v2-app .v2-page-title .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:ppPulse 2s infinite;}
 @keyframes ppPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.65);}}
@@ -90,7 +98,8 @@
 .pp-v2-app .settings-anchor{position:relative;}
 .pp-v2-app .dots-btn{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;cursor:pointer;color:var(--sub);font-size:16px;line-height:1;transition:all .15s;display:flex;align-items:center;justify-content:center;}
 .pp-v2-app .dots-btn:hover{border-color:var(--accent);color:var(--accent);}
-.pp-v2-app .settings-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 0;z-index:200;min-width:240px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
+/* position:fixed so it escapes pp-v2-app overflow:hidden clipping — top/right set by JS */
+.pp-v2-app .settings-menu{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 0;z-index:9500;min-width:240px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
 .pp-v2-app .settings-menu.open{display:block;}
 .pp-v2-app .sm-section{padding:6px 14px 4px;font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1.2px;}
 .pp-v2-app .sm-sep{height:1px;background:var(--border);margin:6px 0;}
@@ -104,26 +113,34 @@
 .pp-v2-app .sm-toggle.on::after{transform:translateX(12px);background:var(--accent);}
 
 /* ── STATSBAR ── */
-.pp-v2-app .statsbar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;min-height:30px;flex-wrap:wrap;}
+.pp-v2-app .statsbar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;min-height:30px;flex-wrap:wrap;overflow:hidden;max-width:100%;position:relative;z-index:40;}
 .pp-v2-app .stat-chip{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub);}
 .pp-v2-app .stat-chip strong{color:var(--text);font-weight:600;}
 .pp-v2-app .stat-dot{width:6px;height:6px;border-radius:50%;}
 .pp-v2-app .statsbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
 .pp-v2-app .nav-hint{display:flex;align-items:center;gap:5px;background:rgba(61,142,255,.07);border:1px solid rgba(61,142,255,.2);border-radius:20px;padding:3px 12px;font-size:10px;color:var(--accent);font-family:var(--mono);}
 
-/* ── VIEWPORT (drag-pan + edge-scroll container) ── */
-.pp-v2-app .table-viewport{position:relative;overflow:hidden;flex:1;cursor:default;}
-.pp-v2-app .table-viewport.pan-mode{cursor:grab;}
-.pp-v2-app .table-viewport.pan-mode.dragging{cursor:grabbing;}
+/* ── VIEWPORT ── */
+.pp-v2-app .table-viewport{position:relative;overflow-x:auto;overflow-y:auto;flex:1;min-height:0;}
+.pp-v2-app .table-viewport::-webkit-scrollbar{height:12px;width:8px;}
+.pp-v2-app .table-viewport::-webkit-scrollbar-track{background:var(--s2);}
+.pp-v2-app .table-viewport::-webkit-scrollbar-thumb{background:var(--accent);border-radius:6px;}
+.pp-v2-app .table-viewport::-webkit-scrollbar-thumb:hover{background:var(--cyan);}
+.pp-v2-app .table-viewport::-webkit-scrollbar-corner{background:var(--s2);}
 .pp-v2-app .edge-zone{position:absolute;top:0;bottom:0;width:80px;z-index:20;pointer-events:none;opacity:0;transition:opacity .25s;}
+.pp-v2-app .edge-zone.edge-l{left:0;background:linear-gradient(90deg,rgba(61,142,255,.08),transparent);}
+.pp-v2-app .edge-zone.edge-r{right:0;background:linear-gradient(-90deg,rgba(61,142,255,.08),transparent);}
+.pp-v2-app .edge-zone.show{opacity:1;}
 .pp-v2-app .edge-l{left:0;background:linear-gradient(90deg,rgba(61,142,255,.2),transparent);}
 .pp-v2-app .edge-r{right:0;background:linear-gradient(-90deg,rgba(61,142,255,.2),transparent);}
 .pp-v2-app .edge-zone.show{opacity:1;}
-.pp-v2-app .table-inner{position:absolute;top:0;left:0;will-change:transform;}
-.pp-v2-app .minimap{position:absolute;bottom:12px;right:12px;z-index:30;background:rgba(13,17,23,.93);border:1px solid var(--border2);border-radius:8px;padding:6px 10px 5px;backdrop-filter:blur(8px);}
+.pp-v2-app .table-inner{position:relative;top:0;left:0;min-width:max-content;}
+.pp-v2-app .minimap{background:var(--s2);border-top:1px solid var(--border);padding:6px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.pp-v2-app .minimap .mm-label{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}
 .pp-v2-app .mm-label{font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px;}
-.pp-v2-app .mm-track{width:140px;height:6px;background:var(--s3);border-radius:3px;position:relative;overflow:hidden;}
-.pp-v2-app .mm-thumb{position:absolute;top:0;height:100%;background:var(--accent);border-radius:3px;transition:left .05s,width .05s;opacity:.8;}
+.pp-v2-app .mm-track{flex:1;height:8px;background:var(--s3);border-radius:4px;position:relative;overflow:hidden;cursor:pointer;}
+.pp-v2-app .mm-thumb{position:absolute;top:0;height:100%;background:var(--accent);border-radius:4px;transition:left .08s,width .08s;opacity:.8;}
+.pp-v2-app .mm-thumb:hover{opacity:1;}
 
 /* ── TABLE ── */
 .pp-v2-app .pp-table{border-collapse:separate;border-spacing:0;}
@@ -135,7 +152,7 @@
 
 /* ── ROW FISHEYE ── */
 .pp-v2-app .pp-row{cursor:pointer;}
-.pp-v2-app .pp-row td{height:var(--row-h);border-bottom:1px solid rgba(30,45,66,.5);white-space:nowrap;vertical-align:middle;transition:height .18s var(--ease),background .12s,opacity .15s;overflow:hidden;position:relative;}
+.pp-v2-app .pp-row td{height:var(--row-h);border-bottom:1px solid rgba(30,45,66,.5);white-space:nowrap;vertical-align:middle;transition:height .25s ease-out,background .15s,opacity .2s ease-out;overflow:hidden;position:relative;}
 .pp-v2-app .pp-row td:nth-child(1){position:sticky;left:0;z-index:3;background:var(--bg);}
 .pp-v2-app .pp-row td:nth-child(2){position:sticky;left:var(--col-1);z-index:3;background:var(--bg);box-shadow:3px 0 10px rgba(0,0,0,.4);}
 .pp-v2-app .pp-row:hover td{background:rgba(255,255,255,.02);}
@@ -148,8 +165,7 @@
 .pp-v2-app .fy-rows-on .pp-row.fy-focus .row-extra{display:flex!important;}
 .pp-v2-app .fy-rows-on .pp-row.fy-focus td:nth-child(1)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:0 2px 2px 0;}
 .pp-v2-app .fy-rows-on .pp-row.fy-near td{height:var(--row-near);}
-.pp-v2-app .fy-rows-on .pp-row.fy-far td{height:var(--row-far);opacity:.55;}
-.pp-v2-app .fy-rows-on .pp-row.fy-far .tag,.pp-v2-app .fy-rows-on .pp-row.fy-far .pr{display:none!important;}
+.pp-v2-app .fy-rows-on .pp-row.fy-far td{height:var(--row-far);opacity:.75;}
 
 /* ── BADGES ── */
 .pp-v2-app .st{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono);white-space:nowrap;}
@@ -229,7 +245,8 @@
 /* ── TOOLBAR BUTTONS ── */
 .pp-v2-app .tb-sep{width:1px;height:22px;background:var(--border);flex-shrink:0;}
 .pp-v2-app .tb-dropdown-anchor{position:relative;}
-.pp-v2-app .tb-dropdown{position:absolute;top:calc(100% + 5px);right:0;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 0;z-index:200;min-width:200px;max-height:340px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
+/* position:fixed so it escapes pp-v2-app overflow:hidden clipping — top/right set by JS */
+.pp-v2-app .tb-dropdown{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:8px 0;z-index:9500;min-width:200px;max-height:340px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;}
 .pp-v2-app .tb-dropdown.open{display:block;}
 .pp-v2-app .tb-dd-item{display:flex;align-items:center;gap:8px;padding:4px 14px;cursor:pointer;font-size:12px;color:var(--text);transition:background .1s;}
 .pp-v2-app .tb-dd-item:hover{background:rgba(61,142,255,.06);}
@@ -240,7 +257,7 @@
 .pp-v2-app.v2-light .tb-dropdown{box-shadow:0 12px 40px rgba(0,0,0,.15);}
 
 /* ── COLUMN FILTER DROPDOWN ── */
-.pp-v2-app .col-filter-dd{position:fixed;z-index:300;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;min-width:220px;max-width:280px;box-shadow:0 12px 40px rgba(0,0,0,.6);display:none;}
+.pp-v2-app .col-filter-dd{position:fixed;z-index:9000;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;min-width:220px;max-width:280px;box-shadow:0 12px 40px rgba(0,0,0,.6);display:none;}
 .pp-v2-app .col-filter-dd.open{display:block;}
 .pp-v2-app .cfd-header{padding:8px 12px 6px;border-bottom:1px solid var(--border);}
 .pp-v2-app .cfd-sort-btns{display:flex;gap:4px;margin-bottom:6px;}
@@ -276,18 +293,54 @@
 .pp-v2-app .pp-pagination .pg-btn:disabled{opacity:.4;cursor:default;}
 .pp-v2-app .pp-pagination .pg-cur{font-family:var(--mono);font-size:11px;color:var(--text);}
 
-/* ── FREEZE COLUMNS ── */
+/* ── PAN MODE CURSOR ── */
+.pp-v2-app .table-viewport.pan-mode{cursor:grab;}
+.pp-v2-app .table-viewport.pan-mode:active,
+.pp-v2-app .table-viewport.pan-mode.dragging{cursor:grabbing;}
+
+/* ── FREEZE COLUMNS (sticky # and Serial when scrolling horizontally) ── */
+.pp-v2-app .pp-table thead th:nth-child(1),
+.pp-v2-app .pp-table thead th:nth-child(2){position:sticky;z-index:10;background:var(--s2);}
+.pp-v2-app .pp-table thead th:nth-child(1){left:0;}
+.pp-v2-app .pp-table thead th:nth-child(2){left:45px;box-shadow:2px 0 6px rgba(0,0,0,.2);}
+.pp-v2-app .pp-row td:nth-child(1),
+.pp-v2-app .pp-row td:nth-child(2){position:sticky;z-index:3;background:var(--bg);}
+.pp-v2-app .pp-row td:nth-child(1){left:0;}
+.pp-v2-app .pp-row td:nth-child(2){left:45px;box-shadow:2px 0 6px rgba(0,0,0,.2);}
+.pp-v2-app .pp-row:hover td:nth-child(1),
+.pp-v2-app .pp-row:hover td:nth-child(2){background:var(--s2);}
+.pp-v2-app.v2-light .pp-row td:nth-child(1),
+.pp-v2-app.v2-light .pp-row td:nth-child(2){background:#fff;}
+.pp-v2-app.v2-light .pp-row:hover td:nth-child(1),
+.pp-v2-app.v2-light .pp-row:hover td:nth-child(2){background:#f0f2f5;}
+/* Un-freeze */
 .pp-v2-app.pp-no-freeze .pp-table thead th:nth-child(1),
-.pp-v2-app.pp-no-freeze .pp-table thead th:nth-child(2){position:static;box-shadow:none;}
+.pp-v2-app.pp-no-freeze .pp-table thead th:nth-child(2),
 .pp-v2-app.pp-no-freeze .pp-row td:nth-child(1),
-.pp-v2-app.pp-no-freeze .pp-row td:nth-child(2){position:static;box-shadow:none;}
+.pp-v2-app.pp-no-freeze .pp-row td:nth-child(2){position:static!important;box-shadow:none!important;}
 
 /* ── FULL PAGE ── */
-.pp-v2-app.pp-full-page{margin-left:calc(-16rem - 1.5rem)!important;}
+.pp-v2-app.pp-full-page{
+  position:fixed !important;
+  inset:0 !important;
+  margin:0 !important;
+  width:100vw !important;
+  height:100vh !important;
+  z-index:8000 !important;
+}
+/* In full page mode the overlay/drawer must stay on top of the fixed app */
+.pp-v2-app.pp-full-page .overlay{z-index:8100;}
+.pp-v2-app.pp-full-page .drawer{z-index:8101;}
+.pp-v2-app.pp-full-page .col-filter-dd{z-index:8200;}
+.pp-v2-app.pp-full-page .settings-menu,
+.pp-v2-app.pp-full-page .tb-dropdown{z-index:8200;}
 
 /* ── WRAP TOGGLE ── */
-.pp-v2-app.pp-wrap .pp-row td{white-space:normal;}
-.pp-v2-app.pp-wrap .pp-table thead th{white-space:normal;}
+/* When wrap is on: fit all columns to viewport width, allow text wrapping */
+.pp-v2-app.pp-wrap .table-inner{min-width:0!important;width:100%!important;}
+.pp-v2-app.pp-wrap .pp-table{width:100%!important;table-layout:auto!important;}
+.pp-v2-app.pp-wrap .pp-table thead th{white-space:normal;min-width:0!important;width:auto!important;}
+.pp-v2-app.pp-wrap .pp-row td{white-space:normal;min-width:0!important;width:auto!important;}
 
 /* ── CLEAR FILTERS BUTTON ── */
 .pp-v2-app .btn-clear-filters{background:rgba(61,142,255,.1);color:var(--accent);border:1px solid rgba(61,142,255,.3);padding:4px 10px;border-radius:6px;font-size:11px;font-family:var(--font);cursor:pointer;font-weight:600;transition:all .12s;display:none;}
@@ -351,26 +404,26 @@
           <div class="sm-toggle" id="sm-compact-toggle"></div>
         </div>
         <div class="sm-sep"></div>
-        <div class="sm-section">Navigation</div>
+        <div class="sm-section">Table</div>
         <div class="sm-item" onclick="ppToggleF('rowFisheye')">
-          <span class="sm-item-label"><span class="sm-icon">&#x2195;</span> Row Expand</span>
+          <span class="sm-item-label"><span class="sm-icon">&#x2195;</span> Row Expand on Hover</span>
           <div class="sm-toggle on" id="sm-rowFisheye"></div>
         </div>
         <div class="sm-item" onclick="ppToggleF('colFisheye')">
-          <span class="sm-item-label"><span class="sm-icon">&#x2194;</span> Col Expand</span>
+          <span class="sm-item-label"><span class="sm-icon">&#x2194;</span> Col Expand on Hover</span>
           <div class="sm-toggle on" id="sm-colFisheye"></div>
         </div>
         <div class="sm-item" onclick="ppToggleF('dragPan')">
           <span class="sm-item-label"><span class="sm-icon">&#x270B;</span> Drag Pan</span>
           <div class="sm-toggle on" id="sm-dragPan"></div>
         </div>
+        <div class="sm-item" onclick="ppToggleF('panInverse')" id="sm-panInverse-row" style="padding-left:28px;">
+          <span class="sm-item-label"><span class="sm-icon" style="font-size:11px;">&#x21C4;</span> <span style="color:var(--sub);">Slider Mode <span style="font-size:10px;color:var(--dim);">(drag=push)</span></span></span>
+          <div class="sm-toggle" id="sm-panInverse"></div>
+        </div>
         <div class="sm-item" onclick="ppToggleF('edgeScroll')">
           <span class="sm-item-label"><span class="sm-icon">&#x21C6;</span> Edge Scroll</span>
           <div class="sm-toggle on" id="sm-edgeScroll"></div>
-        </div>
-        <div class="sm-item" onclick="ppToggleF('momentum')">
-          <span class="sm-item-label"><span class="sm-icon">&#x27A1;</span> Momentum</span>
-          <div class="sm-toggle on" id="sm-momentum"></div>
         </div>
         <div class="sm-item" onclick="ppToggleF('minimap')">
           <span class="sm-item-label"><span class="sm-icon">&#x25A3;</span> Minimap</span>
@@ -385,12 +438,12 @@
 <div class="statsbar">
   <div id="pp-stats-row" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;"></div>
   <div class="statsbar-right">
-    <div class="nav-hint">Hover rows &middot; Drag to pan &middot; Click row for detail</div>
+    <div class="nav-hint">Hover rows to expand &middot; Scroll to pan &middot; Click row for detail</div>
   </div>
 </div>
 
 <!-- ── VIEWPORT ── -->
-<div class="table-viewport pan-mode" id="pp-viewport">
+<div class="table-viewport" id="pp-viewport">
   <div class="edge-zone edge-l" id="pp-edge-l"></div>
   <div class="edge-zone edge-r" id="pp-edge-r"></div>
   <div class="table-inner fy-rows-on" id="pp-table-inner">
@@ -399,8 +452,8 @@
       <tbody id="pp-tbody"></tbody>
     </table>
   </div>
-  <div class="minimap" id="pp-minimap"><div class="mm-label">POSITION</div><div class="mm-track"><div class="mm-thumb" id="pp-mm-thumb"></div></div></div>
 </div>
+<div class="minimap" id="pp-minimap"><div class="mm-label">SCROLL</div><div class="mm-track"><div class="mm-thumb" id="pp-mm-thumb"></div></div></div>
 
 <!-- ── PAGINATION ── -->
 <div class="pp-pagination" id="pp-pagination">
@@ -444,7 +497,7 @@ const STATUS_LABELS = {ip:'In Progress',pd:'Pending',dn:'Completed',hd:'On Hold'
 /* ══════════════════════════════════════════
    FEATURE FLAGS + SETTINGS
 ══════════════════════════════════════════ */
-const F = { rowFisheye:true, colFisheye:true, dragPan:true, edgeScroll:true, momentum:true, minimap:true };
+const F = { rowFisheye:true, colFisheye:false, dragPan:true, panInverse:false, edgeScroll:true, momentum:true, minimap:true };
 let compactMode = false, lightMode = false;
 
 /* ── TABLE FEATURE STATE ── */
@@ -636,7 +689,14 @@ function ppResetCols() {
 function ppToggleColDropdown(e) {
   e.stopPropagation();
   const dd=document.getElementById('pp-col-dropdown');
-  dd.classList.toggle('open');
+  if(dd.classList.contains('open')){ dd.classList.remove('open'); return; }
+  ppBuildColDropdown();
+  const btn=e.currentTarget||e.target.closest('button');
+  const r=btn.getBoundingClientRect();
+  dd.style.top=(r.bottom+5)+'px';
+  dd.style.right=(window.innerWidth-r.right)+'px';
+  dd.style.left='auto';
+  dd.classList.add('open');
 }
 
 /* ── FREEZE / WRAP / FULL PAGE ── */
@@ -656,6 +716,8 @@ function ppToggleFullPage() {
   ppFullPage = !ppFullPage;
   document.getElementById('pp-app').classList.toggle('pp-full-page',ppFullPage);
   document.getElementById('pp-fullpage-btn').classList.toggle('active',ppFullPage);
+  // Recalculate minimap since viewport dimensions changed
+  requestAnimationFrame(ppRefreshMinimap);
   ppSavePrefs();
 }
 
@@ -786,17 +848,33 @@ function ppExportCSV() {
   a.click(); URL.revokeObjectURL(url);
 }
 
-function ppToggleSettings(e){ e.stopPropagation(); document.getElementById('pp-settings').classList.toggle('open'); }
+function ppToggleSettings(e){
+  e.stopPropagation();
+  const menu=document.getElementById('pp-settings');
+  if(menu.classList.contains('open')){ menu.classList.remove('open'); return; }
+  const btn=document.getElementById('pp-dots');
+  const r=btn.getBoundingClientRect();
+  menu.style.top=(r.bottom+6)+'px';
+  menu.style.right=(window.innerWidth-r.right)+'px';
+  menu.style.left='auto';
+  menu.classList.add('open');
+}
 document.addEventListener('click', e=>{ const m=document.getElementById('pp-settings'); if(m&&!e.target.closest('.settings-anchor'))m.classList.remove('open'); });
 
 function ppToggleF(key){
   F[key]=!F[key];
-  document.getElementById('sm-'+key).classList.toggle('on',F[key]);
+  const el=document.getElementById('sm-'+key); if(el) el.classList.toggle('on',F[key]);
   if(key==='rowFisheye'){ document.getElementById('pp-table-inner').classList.toggle('fy-rows-on',F[key]); if(!F[key])ppClearRowFY(); }
-  if(key==='dragPan') document.getElementById('pp-viewport').classList.toggle('pan-mode',F[key]);
-  if(key==='minimap') document.getElementById('pp-minimap').style.display=F[key]?'':'none';
-  if(!F[key]&&key==='edgeScroll'){ppStopEdge();document.getElementById('pp-edge-l').classList.remove('show');document.getElementById('pp-edge-r').classList.remove('show');}
-  if(!F[key]&&key==='colFisheye')ppClearColFY();
+  if(key==='dragPan'){
+    document.getElementById('pp-viewport').classList.toggle('pan-mode',F[key]);
+    if(!F[key]){ dpActive=false; dpPending=false; VP.classList.remove('dragging'); document.body.style.userSelect=''; }
+  }
+  if(key==='minimap'){
+    document.getElementById('pp-minimap').style.display=F[key]?'':'none';
+    if(F[key]) requestAnimationFrame(ppRefreshMinimap);
+  }
+  if(!F[key]&&key==='edgeScroll'){ ppStopEdge(); document.getElementById('pp-edge-l').classList.remove('show'); document.getElementById('pp-edge-r').classList.remove('show'); }
+  if(!F[key]&&key==='colFisheye') ppClearColFY();
   ppSavePrefs();
 }
 
@@ -804,8 +882,8 @@ function ppToggleCompact(){
   compactMode=!compactMode;
   const app=document.getElementById('pp-app');
   document.getElementById('sm-compact-toggle').classList.toggle('on',compactMode);
-  if(compactMode){app.style.setProperty('--row-h','28px');app.style.setProperty('--row-focus','58px');app.style.setProperty('--row-near','38px');app.style.setProperty('--row-far','20px');}
-  else{app.style.setProperty('--row-h','42px');app.style.setProperty('--row-focus','80px');app.style.setProperty('--row-near','54px');app.style.setProperty('--row-far','30px');}
+  if(compactMode){app.style.setProperty('--row-h','28px');app.style.setProperty('--row-focus','38px');app.style.setProperty('--row-near','30px');app.style.setProperty('--row-far','26px');}
+  else{app.style.setProperty('--row-h','38px');app.style.setProperty('--row-focus','52px');app.style.setProperty('--row-near','42px');app.style.setProperty('--row-far','34px');}
   ppSavePrefs();
 }
 
@@ -895,7 +973,7 @@ function ppFilter(){
 
   // Reset filters & page on view change
   if (curView !== ppLastView) {
-    ppApplyPan(0,0);
+    VP.scrollLeft=0; VP.scrollTop=0;
     ppFilters={};
     ppSortCol=''; ppSortDir='';
     ppPage=1;
@@ -911,7 +989,8 @@ function ppFilter(){
   else ppRenderWip(curView,q,acct);
 
   ppUpdateStats();
-  ppRefreshMinimap();
+  // Defer minimap refresh so browser has painted new DOM and scrollWidth is accurate
+  requestAnimationFrame(ppRefreshMinimap);
 
   // Sync page size selector
   const psSel = document.getElementById('pp-page-size');
@@ -1191,53 +1270,114 @@ document.getElementById('pp-table-inner').addEventListener('mouseleave',()=>{
 /* ══════════════════════════════════════════
    DRAG PAN + MOMENTUM
 ══════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   SCROLL SYSTEM  ·  Single source of truth: VP.scrollLeft
+   ── Native scrollbar  ── Minimap bar
+   ── Drag Pan (natural & slider/inverse modes)
+   ── Edge scroll
+══════════════════════════════════════════════════════════════ */
 const VP=document.getElementById('pp-viewport'), TI=document.getElementById('pp-table-inner');
-let panX=0,panY=0,dSX,dSY,dSPX,dSPY,dragging=false,vx=0,vy=0,lx=0,ly=0,lt=0,rafG=null;
-function ppClampPan(x,y){const vw=VP.clientWidth,vh=VP.clientHeight,tw=TI.scrollWidth,th=TI.scrollHeight;return[Math.max(Math.min(0,vw-tw),Math.min(0,x)),Math.max(Math.min(0,vh-th),Math.min(0,y))];}
-function ppApplyPan(x,y){[panX,panY]=ppClampPan(x,y);TI.style.transform=`translate(${panX}px,${panY}px)`;ppRefreshMinimap();}
+
+// ── MINIMAP ──────────────────────────────────────────────────
+function ppRefreshMinimap(){
+  const mm=document.getElementById('pp-minimap');
+  if(!mm) return;
+  const vw=VP.clientWidth, sw=VP.scrollWidth;
+  if(sw<=vw+5){ mm.style.visibility='hidden'; return; }
+  mm.style.visibility='';
+  const thumbW=Math.max((vw/sw)*100,5);
+  const maxS=sw-vw;
+  const frac=maxS>0?(VP.scrollLeft/maxS):0;
+  const tl=frac*(100-thumbW);
+  const th=document.getElementById('pp-mm-thumb');
+  if(th){ th.style.width=thumbW+'%'; th.style.left=tl+'%'; }
+}
+VP.addEventListener('scroll',()=>requestAnimationFrame(ppRefreshMinimap));
+window.addEventListener('resize',()=>requestAnimationFrame(ppRefreshMinimap));
+
+// Minimap click & drag — click anywhere on track to jump, drag to scrub
+(function(){
+  const track=document.querySelector('#pp-minimap .mm-track');
+  if(!track) return;
+  let mmDrag=false;
+  function mmJump(cx){
+    const r=track.getBoundingClientRect();
+    const f=Math.max(0,Math.min(1,(cx-r.left)/r.width));
+    VP.scrollLeft=f*(VP.scrollWidth-VP.clientWidth);
+  }
+  track.addEventListener('mousedown',e=>{
+    e.preventDefault(); e.stopPropagation();
+    mmDrag=true; mmJump(e.clientX);
+    document.body.style.userSelect='none';
+  });
+  window.addEventListener('mousemove',e=>{ if(mmDrag){ e.preventDefault(); mmJump(e.clientX); }});
+  window.addEventListener('mouseup',()=>{ if(mmDrag){ mmDrag=false; document.body.style.userSelect=''; }});
+})();
+
+// ── DRAG PAN ─────────────────────────────────────────────────
+// Natural mode  (F.panInverse=false): drag RIGHT → table moves RIGHT (scrollLeft ↓) — like grabbing a map
+// Slider mode   (F.panInverse=true) : drag RIGHT → scrollLeft ↑   — like pushing a scrollbar thumb
+let dpActive=false, dpPending=false, dpStartX=0, dpStartSL=0;
+const DP_THRESH=4; // px before drag activates (keeps row-clicks working)
+
 VP.addEventListener('mousedown',e=>{
-  if(!F.dragPan)return; if(e.target.closest('input,button,select,a,.rs-step'))return;
-  dragging=true;VP.classList.add('dragging');dSX=e.clientX;dSY=e.clientY;dSPX=panX;dSPY=panY;lx=e.clientX;ly=e.clientY;lt=Date.now();vx=0;vy=0;cancelAnimationFrame(rafG);
+  if(!F.dragPan) return;
+  // Skip if click is on the native scrollbar gutter (below clientHeight or right of clientWidth)
+  if(e.offsetX > VP.clientWidth || e.offsetY > VP.clientHeight) return;
+  // Skip interactive elements
+  const t=e.target;
+  if(t.closest('input,button,select,a,.col-filter-dd,.settings-menu,.tb-dropdown,.minimap,.mm-track,.mm-thumb')) return;
+  dpPending=true;
+  dpStartX=e.clientX; dpStartSL=VP.scrollLeft;
 });
+
 window.addEventListener('mousemove',e=>{
-  if(!dragging)return;
-  ppApplyPan(dSPX+(e.clientX-dSX),dSPY+(e.clientY-dSY));
-  const now=Date.now(),dt=now-lt;if(dt>0){vx=(e.clientX-lx)/dt;vy=(e.clientY-ly)/dt;}lx=e.clientX;ly=e.clientY;lt=Date.now();
-});
-window.addEventListener('mouseup',()=>{
-  if(!dragging)return; dragging=false;VP.classList.remove('dragging');
-  if(F.momentum&&(Math.abs(vx)>.3||Math.abs(vy)>.3)){
-    let cx=panX,cy=panY,gvx=vx*12,gvy=vy*12;
-    function glide(){if(Math.abs(gvx)<.1&&Math.abs(gvy)<.1)return;cx+=gvx;cy+=gvy;gvx*=.92;gvy*=.92;ppApplyPan(cx,cy);rafG=requestAnimationFrame(glide);}glide();
+  if(!dpPending && !dpActive) return;
+  const dx=e.clientX-dpStartX;
+  if(dpPending && Math.abs(dx)>DP_THRESH){
+    // Cross threshold — activate drag
+    dpPending=false; dpActive=true;
+    VP.classList.add('dragging');
+    document.body.style.userSelect='none'; // prevent text selection during drag
+  }
+  if(dpActive){
+    e.preventDefault();
+    // Natural: content follows cursor (scrollLeft = start - dx)
+    // Slider:  drag position = scroll position (scrollLeft = start + dx)
+    VP.scrollLeft = F.panInverse ? dpStartSL + dx : dpStartSL - dx;
   }
 });
 
-/* ── EDGE SCROLL ── */
-let eRaf=null,eSpd=0;
-VP.addEventListener('mousemove',e=>{
-  if(dragging||!F.edgeScroll)return;
-  const r=VP.getBoundingClientRect(),x=e.clientX-r.left,w=r.width,Z=85;
-  const eL=document.getElementById('pp-edge-l'),eR=document.getElementById('pp-edge-r');
-  if(x<Z){eL.classList.add('show');eR.classList.remove('show');ppStartEdge((1-x/Z)*7);}
-  else if(x>w-Z){eR.classList.add('show');eL.classList.remove('show');ppStartEdge(-((x-(w-Z))/Z)*7);}
-  else{eL.classList.remove('show');eR.classList.remove('show');ppStopEdge();}
+window.addEventListener('mouseup',()=>{
+  if(dpActive){ VP.classList.remove('dragging'); }
+  dpActive=false; dpPending=false;
+  document.body.style.userSelect='';
 });
-VP.addEventListener('mouseleave',()=>{document.getElementById('pp-edge-l').classList.remove('show');document.getElementById('pp-edge-r').classList.remove('show');ppStopEdge();});
-function ppStartEdge(s){eSpd=s;if(!eRaf)ppELoop();}
-function ppStopEdge(){eSpd=0;if(eRaf){cancelAnimationFrame(eRaf);eRaf=null;}}
-function ppELoop(){ppApplyPan(panX+eSpd,panY);eRaf=requestAnimationFrame(ppELoop);}
 
-/* ── MINIMAP ── */
-function ppRefreshMinimap(){
-  const mm=document.getElementById('pp-minimap');
-  if(!F.minimap){mm.style.display='none';return;}
-  const vw=VP.clientWidth,tw=TI.scrollWidth;
-  if(tw<=vw){mm.style.display='none';return;}
-  mm.style.display='';
-  const r=vw/tw,tw2=Math.max(r*100,8),mp=vw-tw,tl=mp?(panX/mp)*(100-tw2):0;
-  const th=document.getElementById('pp-mm-thumb');
-  th.style.width=tw2+'%';th.style.left=tl+'%';
-}
+// Cancel drag if mouse leaves the window entirely
+window.addEventListener('mouseleave',()=>{
+  if(dpActive){ VP.classList.remove('dragging'); }
+  dpActive=false; dpPending=false;
+  document.body.style.userSelect='';
+});
+
+// ── EDGE SCROLL ───────────────────────────────────────────────
+let eRaf=null, eSpd=0;
+const EDGE_Z=60;
+const eL=document.getElementById('pp-edge-l'), eR=document.getElementById('pp-edge-r');
+document.addEventListener('mousemove',e=>{
+  if(dpActive||dpPending||!F.edgeScroll) return;
+  const vpR=VP.getBoundingClientRect();
+  if(e.clientY<vpR.top||e.clientY>vpR.bottom||VP.scrollWidth<=VP.clientWidth){ ppStopEdge(); return; }
+  const sx=e.clientX, sw=window.innerWidth;
+  if(sx<EDGE_Z){ if(eL)eL.classList.add('show'); if(eR)eR.classList.remove('show'); ppStartEdge(-(1-sx/EDGE_Z)*6); }
+  else if(sx>sw-EDGE_Z){ if(eR)eR.classList.add('show'); if(eL)eL.classList.remove('show'); ppStartEdge(((sx-(sw-EDGE_Z))/EDGE_Z)*6); }
+  else { ppStopEdge(); }
+});
+document.addEventListener('mouseleave',ppStopEdge);
+function ppStartEdge(s){ eSpd=s; if(!eRaf) ppELoop(); }
+function ppStopEdge(){ eSpd=0; if(eRaf){ cancelAnimationFrame(eRaf); eRaf=null; } if(eL)eL.classList.remove('show'); if(eR)eR.classList.remove('show'); }
+function ppELoop(){ VP.scrollLeft+=eSpd; eRaf=requestAnimationFrame(ppELoop); }
 
 /* ══════════════════════════════════════════
    ROUTE TOOLTIP POSITIONING
@@ -1325,26 +1465,56 @@ function ppOpenPlannedDrawer(entryId){
     <div class="d-title">${p.serial}</div>
     <div class="d-id">Plan Entry #${p.entryId} &middot; ${p.account||'No account'}</div>
     <div style="display:flex;gap:6px;margin-top:8px;"><span class="st s-ip">Planned</span><span class="pr pr-${p.priority}">${p.priorityDisplay}</span></div>`;
+  const nrVal = (p.intendedType&&p.intendedType.toLowerCase().includes('repair'))||p.repair>0?'FC_REPAIR':'FC_NEW';
   document.getElementById('pp-db-content').innerHTML=`
     <div class="ds-label">Details</div>
     <div class="d-grid">
       <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${p.serial}</p></div>
-      <div class="d-field"><label>Size</label><p>${p.size||'—'}</p></div>
+      <div class="d-field"><label>Size</label><p>${sizeFrac(p.size)}</p></div>
       <div class="d-field"><label>Type</label><p>${p.type||'—'}</p></div>
-      <div class="d-field"><label>MAT No.</label><p style="font-family:var(--mono);font-size:11px;">${p.mat||'—'}</p></div>
+      <div class="d-field"><label>Design MAT</label><p style="font-family:var(--mono);font-size:11px;">${p.designMat||'—'}</p></div>
+      <div class="d-field"><label>System MAT</label><p style="font-family:var(--mono);font-size:11px;">${p.systemMat||'—'}</p></div>
+      <div class="d-field"><label>Brazing MAT</label><p style="font-family:var(--mono);font-size:11px;color:var(--orange);">${p.brazingMat||'—'}</p></div>
       <div class="d-field"><label>Received</label><p>${p.received||'—'}</p></div>
-      <div class="d-field"><label>Planned Date</label><p>${p.plannedDate||'—'}</p></div>
-      <div class="d-field"><label>Due Date</label><p style="${p.overdue?'color:var(--red);font-weight:700;':''}">${p.dueDate||'—'}${p.overdue?' OVERDUE':''}</p></div>
+      <div class="d-field"><label>Requester</label><p>${p.requester||'—'}</p></div>
     </div>
-    <div class="ds-label" style="margin-top:16px;">Change Account</div>
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-      <select class="d-select" id="pp-plan-acct" style="flex:1;">
-        {% for acc in accounts %}<option value="{{ acc.code }}">{{ acc.code }} — {{ acc.name }}</option>{% endfor %}
-      </select>
-      <button class="btn btn-g" style="padding:5px 10px;font-size:11px;" onclick="ppChangePlanAccount(${p.entryId})">Update</button>
+    <div class="ds-label" style="margin-top:16px;">Editable Fields</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div>
+        <label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Priority</label>
+        <select class="d-select" id="pp-plan-priority" onchange="ppUpdateField(${p.entryId},'priority',this.value)">
+          <option value="LOW" ${p.priority==='LOW'?'selected':''}>Low</option>
+          <option value="NORMAL" ${p.priority==='NORMAL'?'selected':''}>Normal</option>
+          <option value="HIGH" ${p.priority==='HIGH'?'selected':''}>High</option>
+          <option value="URGENT" ${p.priority==='URGENT'?'selected':''}>Urgent</option>
+          <option value="CRITICAL" ${p.priority==='CRITICAL'?'selected':''}>Critical</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">New / Repair</label>
+        <select class="d-select" id="pp-plan-nr" onchange="ppUpdateField(${p.entryId},'intended_wo_type',this.value)">
+          <option value="FC_NEW" ${nrVal==='FC_NEW'?'selected':''}>New</option>
+          <option value="FC_REPAIR" ${nrVal==='FC_REPAIR'?'selected':''}>Repair</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Due Date</label>
+        <input type="date" class="d-select" value="${p.dueDate||''}" onchange="ppEditDueDateDirect(${p.entryId},this.value)" style="font-family:var(--mono);font-size:11px;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Account</label>
+        <select class="d-select" id="pp-plan-acct" onchange="ppChangePlanAccount(${p.entryId})">
+          {% for acc in accounts %}<option value="{{ acc.code }}">{{ acc.code }}</option>{% endfor %}
+        </select>
+      </div>
     </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:10px;color:var(--sub);display:block;margin-bottom:3px;">Notes</label>
+      <textarea class="d-select" rows="2" id="pp-plan-notes" style="width:100%;resize:vertical;font-size:11px;">${p.notes||''}</textarea>
+      <button class="btn btn-g" style="padding:3px 8px;font-size:10px;margin-top:4px;" onclick="ppUpdateField(${p.entryId},'notes',document.getElementById('pp-plan-notes').value)">Save Notes</button>
+    </div>
+    <div id="pp-plan-msg" style="display:none;border-radius:7px;padding:6px 10px;font-size:11px;margin-bottom:6px;background:rgba(0,200,190,.1);border:1px solid rgba(0,200,190,.3);color:var(--cyan);"></div>
     <div id="pp-plan-acct-msg" style="display:none;border-radius:7px;padding:6px 10px;font-size:11px;margin-bottom:6px;"></div>
-    ${p.notes?'<div class="ds-label">Notes</div><div class="d-notes">'+p.notes+'</div>':''}
     <div id="pp-plan-error" style="display:none;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--red);margin-top:12px;"></div>
     <div class="d-actions">
       <button class="btn btn-g" style="color:var(--red);" onclick="ppRemove(${p.entryId},'${p.serial}')">&#x2715; Remove</button>
@@ -1435,6 +1605,49 @@ async function ppSaveDueDate(entryId){
     if(j.success) location.reload();
     else{err.textContent=j.error||'Failed';err.style.display='block';btn.disabled=false;btn.textContent='Save';}
   }catch(e){err.textContent='Network error';err.style.display='block';btn.disabled=false;btn.textContent='Save';}
+}
+
+/* ══════════════════════════════════════════
+   FIELD UPDATE (generic)
+══════════════════════════════════════════ */
+async function ppUpdateField(entryId, field, value) {
+  try {
+    const r = await fetch('{% url "workorders:api_update_plan_entry" %}', {
+      method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({entry_id: entryId, field: field, value: value})
+    });
+    const d = await r.json();
+    const msgEl = document.getElementById('pp-plan-msg');
+    if (d.success) {
+      // Update local data
+      const p = D.planned.find(e=>e.entryId===entryId);
+      if (p) {
+        if (field==='priority') { p.priority=value; p.priorityDisplay=d.display; }
+        else if (field==='intended_wo_type') { p.intendedType=d.display; }
+        else if (field==='notes') { p.notes=value; }
+      }
+      if (msgEl) { msgEl.textContent='✓ '+d.message; msgEl.style.display='block'; setTimeout(()=>msgEl.style.display='none',2500); }
+    } else {
+      alert(d.error);
+    }
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function ppEditDueDateDirect(entryId, newDate) {
+  if (!newDate) return;
+  try {
+    const r = await fetch('{% url "workorders:api_update_plan_due_date" %}', {
+      method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({entry_id: entryId, new_due_date: newDate, justification: 'Updated from planner drawer'})
+    });
+    const d = await r.json();
+    const msgEl = document.getElementById('pp-plan-msg');
+    if (d.success) {
+      const p = D.planned.find(e=>e.entryId===entryId);
+      if (p) { p.dueDate = newDate; p.overdue = new Date(newDate) < new Date(); }
+      if (msgEl) { msgEl.textContent='✓ Due date updated'; msgEl.style.display='block'; setTimeout(()=>msgEl.style.display='none',2500); }
+    } else { alert(d.error); }
+  } catch(e) { alert('Error: '+e.message); }
 }
 
 /* ══════════════════════════════════════════
@@ -1570,7 +1783,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')ppCloseDrawer();});
   // Apply feature flags
   Object.keys(F).forEach(k=>{const el=document.getElementById('sm-'+k);if(el)el.classList.toggle('on',F[k]);});
   if(!F.rowFisheye) document.getElementById('pp-table-inner').classList.remove('fy-rows-on');
-  if(!F.dragPan) document.getElementById('pp-viewport').classList.remove('pan-mode');
+  // Apply pan-mode class based on saved pref
+  if(F.dragPan) document.getElementById('pp-viewport').classList.add('pan-mode');
+  else document.getElementById('pp-viewport').classList.remove('pan-mode');
+  // panInverse toggle state
+  const piEl=document.getElementById('sm-panInverse'); if(piEl) piEl.classList.toggle('on',F.panInverse);
   if(!F.minimap) document.getElementById('pp-minimap').style.display='none';
   // Compact
   if(compactMode){
@@ -1596,19 +1813,26 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')ppCloseDrawer();});
   const psSel=document.getElementById('pp-page-size');
   if(psSel) psSel.value=ppPageSize||0;
 
+  // Lock parent containers to prevent page-level horizontal scroll
+  document.body.classList.add('pp-v2-app-lock');
+
   ppFilter();
+  // Double rAF ensures minimap measures correct scrollWidth after first paint
+  requestAnimationFrame(()=>requestAnimationFrame(ppRefreshMinimap));
 })();
 
 // Close dropdowns on outside click
 document.addEventListener('click', e=>{
+  const t = e.target.closest ? e.target : e.target.parentElement;
+  if(!t || !t.closest) return;
   // Column filter dropdown
   const cfd=document.getElementById('pp-col-filter-dd');
-  if(cfd && cfd.classList.contains('open') && !e.target.closest('.col-filter-dd') && !e.target.closest('th')){
+  if(cfd && cfd.classList.contains('open') && !t.closest('.col-filter-dd') && !t.closest('th')){
     cfd.classList.remove('open');
   }
   // Columns dropdown
   const cdd=document.getElementById('pp-col-dropdown');
-  if(cdd && cdd.classList.contains('open') && !e.target.closest('.tb-dropdown-anchor')){
+  if(cdd && cdd.classList.contains('open') && !t.closest('.tb-dropdown-anchor')){
     cdd.classList.remove('open');
   }
 });

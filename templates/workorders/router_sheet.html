@@ -1023,8 +1023,8 @@
 <script>
 // ── Stepper data & step navigation ────────────────────────────────────
 const STEPS = [{% for e in entries %}{{ e.step_number }}{% if not forloop.last %},{% endif %}{% endfor %}];
-const DONE  = {{% for e in entries %}{{ e.step_number }}:{% if e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}};
-const ACTIVE = {{% for e in entries %}{{ e.step_number }}:{% if e.qr_scan_start and not e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}};
+const DONE  = { {% for e in entries %}{{ e.step_number }}:{% if e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %} };
+const ACTIVE = { {% for e in entries %}{{ e.step_number }}:{% if e.qr_scan_start and not e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %} };
 
 function routerSheet() {
     // Find first non-complete step, fallback to first step

@@ -882,8 +882,12 @@
                     Work Orders
                 </h3>
                 <div @click.stop>
+                    {% if not drill_bit.has_active_work_order %}
                     <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}"
                        class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Create WO &rarr;</a>
+                    {% else %}
+                    <span class="text-gray-400 text-sm" title="Active WO exists">Active WO</span>
+                    {% endif %}
                 </div>
             </div>
 
@@ -1113,10 +1117,16 @@
         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
             <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Quick Actions</h4>
             <div class="space-y-2">
+                {% if not drill_bit.has_active_work_order %}
                 <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}&type=FC_REPAIR"
                    class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                     <i data-lucide="wrench" class="w-4 h-4 text-orange-500 mr-2"></i>Create Repair WO
                 </a>
+                {% else %}
+                <div class="flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-400 cursor-not-allowed">
+                    <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>Active WO exists
+                </div>
+                {% endif %}
                 <a href="{% url 'workorders:drillbit_qr' drill_bit.pk %}"
                    class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                     <i data-lucide="printer" class="w-4 h-4 text-gray-500 mr-2"></i>Print Label
