@@ -1,182 +1,1123 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block title %}Router Sheet — {{ work_order.wo_number }} — ARDT FMS{% endblock %}
 
 {% block extra_css %}
 <style>
-    @media print {
-        .no-print { display: none !important; }
-        .print-only { display: block !important; }
+    /* ── Layout ────────────────────────────────────────────────── */
+    .rs-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 0;
+        min-height: calc(100vh - 200px);
     }
-    .print-only { display: none; }
+    @media (max-width: 1024px) {
+        .rs-layout { grid-template-columns: 1fr; }
+        .rs-sidebar { display: none; }
+        .rs-sidebar.mobile-open { display: block; }
+    }
+
+    /* ── Sticky Header ──────────────────────────────────────────── */
+    .rs-sticky-header {
+        position: sticky;
+        top: 64px;
+        z-index: 30;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        background: rgba(255,255,255,0.94);
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .dark .rs-sticky-header {
+        background: rgba(17,24,39,0.94);
+        border-color: #374151;
+    }
+
+    /* ── Stepper sidebar ────────────────────────────────────────── */
+    .rs-sidebar {
+        background: #f9fafb;
+        border-right: 1px solid #e5e7eb;
+        overflow-y: auto;
+        max-height: calc(100vh - 180px);
+        position: sticky;
+        top: 130px;
+        align-self: start;
+    }
+    .dark .rs-sidebar {
+        background: #111827;
+        border-color: #1f2937;
+    }
+
+    .step-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 10px 12px;
+        gap: 10px;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: all 0.15s;
+        position: relative;
+    }
+    .step-item:hover { background: rgba(59,130,246,0.06); }
+    .step-item.active {
+        border-left-color: #3b82f6;
+        background: rgba(59,130,246,0.08);
+    }
+    .dark .step-item.active { background: rgba(59,130,246,0.12); }
+    .step-item.done { opacity: 0.75; }
+    .step-item.done:hover { opacity: 1; }
+
+    /* connector line */
+    .step-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 22px;
+        top: 34px;
+        bottom: -10px;
+        width: 2px;
+        background: #e5e7eb;
+        z-index: 0;
+    }
+    .dark .step-item:not(:last-child)::after { background: #374151; }
+    .step-item.done:not(:last-child)::after { background: #10b981; }
+
+    .step-dot {
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700;
+        flex-shrink: 0;
+        position: relative; z-index: 1;
+        transition: all 0.2s;
+    }
+    .step-dot.done { background: #10b981; color: #fff; }
+    .step-dot.active { background: #3b82f6; color: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+    .step-dot.pending { background: #e5e7eb; color: #9ca3af; }
+    .dark .step-dot.pending { background: #374151; color: #6b7280; }
+    .step-dot.conditional { background: #f59e0b; color: #fff; }
+    .step-dot.qc { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+
+    /* ── Step detail panel ──────────────────────────────────────── */
+    .rs-detail {
+        padding: 1.25rem;
+        overflow-y: auto;
+    }
+
+    .step-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+    }
+    .dark .step-card {
+        background: #1f2937;
+        border-color: #374151;
+    }
+
+    /* Timer display */
+    .timer-display {
+        font-size: 2.5rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        font-family: ui-monospace, monospace;
+    }
+
+    /* Touch-friendly buttons */
+    .btn-action {
+        min-height: 44px;
+        min-width: 120px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.9375rem;
+        transition: all 0.15s;
+        padding: 0 1.25rem;
+        cursor: pointer;
+    }
+    .btn-start { background: #3b82f6; color: #fff; }
+    .btn-start:hover { background: #2563eb; }
+    .btn-complete { background: #10b981; color: #fff; }
+    .btn-complete:hover { background: #059669; }
+    .btn-skip { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+    .btn-skip:hover { background: #f9fafb; color: #374151; }
+    .dark .btn-skip { border-color: #4b5563; color: #9ca3af; }
+    .dark .btn-skip:hover { background: #374151; color: #d1d5db; }
+
+    /* Progress bar */
+    .prog-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: #e5e7eb;
+        overflow: hidden;
+    }
+    .dark .prog-bar { background: #374151; }
+    .prog-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #3b82f6, #10b981);
+        transition: width 0.5s ease;
+    }
+
+    /* Yes/No toggle */
+    .yn-btn {
+        flex: 1; padding: 10px; border-radius: 6px;
+        font-weight: 600; font-size: 0.875rem;
+        cursor: pointer; transition: all 0.15s;
+        border: 2px solid transparent;
+        text-align: center;
+    }
+    .yn-btn.yes-sel { background: #dcfce7; border-color: #16a34a; color: #15803d; }
+    .yn-btn.no-sel  { background: #fee2e2; border-color: #dc2626; color: #b91c1c; }
+    .yn-btn:not(.yes-sel):not(.no-sel) { background: #f3f4f6; color: #6b7280; }
+    .dark .yn-btn:not(.yes-sel):not(.no-sel) { background: #374151; color: #9ca3af; }
+
+    /* Section label */
+    .section-label {
+        font-size: 0.6875rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        color: #9ca3af;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Badge */
+    .badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 9999px;
+        font-size: 0.6875rem; font-weight: 600;
+    }
+    .badge-qc { background: #ede9fe; color: #7c3aed; }
+    .dark .badge-qc { background: rgba(109,40,217,0.2); color: #a78bfa; }
+    .badge-cond { background: #fef3c7; color: #b45309; }
+    .dark .badge-cond { background: rgba(217,119,6,0.2); color: #fbbf24; }
+    .badge-done { background: #dcfce7; color: #15803d; }
+    .dark .badge-done { background: rgba(16,185,129,0.15); color: #34d399; }
+    .badge-active { background: #dbeafe; color: #1d4ed8; }
+    .dark .badge-active { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge-pending { background: #f3f4f6; color: #6b7280; }
+    .dark .badge-pending { background: #374151; color: #9ca3af; }
+
+    /* Mobile step selector */
+    .mobile-step-nav {
+        display: none;
+    }
+    @media (max-width: 1024px) {
+        .mobile-step-nav { display: flex; }
+    }
+
+    /* ── Print Layout (QAS Professional Format) ─────────────────────── */
+    @media print {
+        /* Hide interactive / navigation elements */
+        .no-print,
+        .rs-sidebar,
+        .mobile-step-nav,
+        .btn-action,
+        .btn-start,
+        .btn-complete,
+        .btn-skip,
+        #mobile-sidebar,
+        [data-screen-section],
+        nav,
+        aside,
+        .photo-module-wrapper { display: none !important; }
+
+        /* Reset base layout offsets */
+        body { margin: 0 !important; padding: 0 !important; }
+        main, .ml-64, [class*="ml-64"] { margin-left: 0 !important; }
+        .mt-16, [class*="mt-16"] { margin-top: 0 !important; }
+        .p-6, [class*="p-6"] { padding: 0 !important; }
+
+        /* Layout: single column, show all panels */
+        .rs-layout {
+            display: block !important;
+            border: none !important;
+        }
+        .rs-sticky-header {
+            position: static !important;
+            background: #fff !important;
+            backdrop-filter: none !important;
+            border-bottom: 2px solid #000 !important;
+            padding: 0.5rem 0 !important;
+            margin: 0 !important;
+        }
+        .rs-detail { padding: 0 !important; }
+
+        /* Show all step panels as flat list */
+        .step-panel {
+            display: block !important;
+            page-break-inside: avoid;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 0.75rem;
+        }
+
+        /* Step cards: remove shadow/border, compact */
+        .step-card {
+            background: #fff !important;
+            border: 1px solid #ddd !important;
+            box-shadow: none !important;
+            margin-bottom: 0.5rem;
+            break-inside: avoid;
+        }
+
+        /* Typography: force dark-on-white */
+        * {
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .badge {
+            border: 1px solid #999 !important;
+            background: #f5f5f5 !important;
+        }
+        .badge-done { background: #dcfce7 !important; border-color: #15803d !important; }
+        .badge-active { background: #dbeafe !important; border-color: #1d4ed8 !important; }
+
+        /* Timer display: smaller for print */
+        .timer-display { font-size: 1.25rem !important; }
+
+        /* Progress bars: hide on print */
+        .prog-bar { display: none !important; }
+
+        /* Signature placeholders: show on print */
+        .print-signature-line { display: block !important; }
+
+        /* Page setup */
+        @page {
+            size: A4;
+            margin: 0.5in 0.5in 0.6in 0.5in;
+        }
+
+        /* Print header */
+        .print-header-block { display: block !important; }
+
+        /* Measurement placeholders: show on print */
+        .measurement-placeholder { display: block !important; }
+    }
 </style>
 {% endblock %}
 
 {% block page_header %}
-<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6 no-print">
-    <div class="flex items-start">
-        {% if wo_qr %}
-        <div class="hidden md:block mr-4 bg-white p-2 rounded-lg shadow-sm">
-            <img src="data:image/png;base64,{{ wo_qr }}" alt="QR Code" class="w-16 h-16">
+<!-- ── STICKY HEADER ──────────────────────────────────────────────── -->
+<div class="rs-sticky-header -mx-6 -mt-6 px-6 pt-3 pb-3 mb-0 no-print"
+     x-data>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+
+        <!-- Left: identity -->
+        <div class="flex items-center gap-3 min-w-0">
+            {% if wo_qr %}
+            <div class="hidden sm:block bg-white p-1 rounded border border-gray-200 dark:border-gray-600 flex-shrink-0">
+                <img src="data:image/png;base64,{{ wo_qr }}" alt="QR" class="w-10 h-10">
+            </div>
+            {% endif %}
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-mono font-bold text-gray-900 dark:text-white text-base">{{ work_order.wo_number }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ work_order.get_wo_type_display }}</span>
+                    {% if work_order.drill_bit %}
+                    <span class="text-xs text-gray-400 dark:text-gray-500">S/N: {{ work_order.drill_bit.serial_number }}</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Router Sheet
+                    {% if work_order.customer %} · {{ work_order.customer.name }}{% endif %}
+                </p>
+            </div>
         </div>
-        {% endif %}
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-            <p class="text-gray-600 dark:text-gray-400 mt-1">
-                {{ work_order.get_wo_type_display }}
-                {% if work_order.customer %} - {{ work_order.customer.name }}{% endif %}
-            </p>
+
+        <!-- Right: progress + actions -->
+        <div class="flex items-center gap-3">
+            <!-- Progress summary -->
+            <div class="hidden sm:block text-right">
+                {% with total=entries|length %}
+                {% with done_count=0 %}
+                {% for e in entries %}{% if e.is_complete %}{% with done_count=forloop.counter %}{% endwith %}{% endif %}{% endfor %}
+                <p class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    <span id="hdr-done">{{ entries|dictsort:"is_complete"|last|yesno:"??,??" }}</span>
+                    <span class="text-gray-400 font-normal"> / {{ total }} steps</span>
+                </p>
+                {% endwith %}
+                {% endwith %}
+                <div class="prog-bar w-32 mt-1">
+                    {% with total=entries|length %}
+                    {% with pct=0 %}
+                    <div class="prog-fill" id="hdr-prog" style="width: {% widthratio entries|length 1 entries|length %}%"></div>
+                    {% endwith %}
+                    {% endwith %}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Mobile: step list toggle -->
+                <button class="mobile-step-nav items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 text-sm gap-1.5"
+                        @click="document.getElementById('mobile-sidebar').classList.toggle('hidden')">
+                    <i data-lucide="list" class="w-4 h-4"></i>
+                    <span>Steps</span>
+                </button>
+
+                <button onclick="window.print()"
+                        class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 text-sm gap-1.5 hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Print</span>
+                </button>
+
+                <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+                   class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg text-sm gap-1.5 hover:bg-blue-700">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Job Card</span>
+                </a>
+            </div>
         </div>
     </div>
-    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
-        <button onclick="window.print()"
-                class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
-            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
-        </button>
-        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
-           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
-        </a>
+
+    <!-- Progress bar (full-width) -->
+    <div class="mt-2 prog-bar">
+        <div class="prog-fill" id="main-prog-bar"
+             style="width: {% with total=entries|length %}{% if total > 0 %}{% widthratio entries|dictsort:"is_complete"|dictsortreversed:"is_complete"|length total 100 %}{% else %}0{% endif %}{% endwith %}%">
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<!-- Print Header -->
-<div class="print-only mb-4">
-    <h1 class="text-xl font-bold">Router Sheet - {{ work_order.wo_number }}</h1>
-    <p>{{ work_order.get_wo_type_display }} | {{ work_order.customer.name|default:"--" }} | S/N: {{ work_order.drill_bit.serial_number|default:"--" }}</p>
+
+<!-- ── Print Header Block (hidden on screen, shown on print) ──────── -->
+<div class="print-header-block" style="display: none;">
+    <table style="width:100%; border-collapse:collapse; margin-bottom:0.75rem;">
+        <tr>
+            <td style="width:120px; padding:8px; border:1px solid #000; background:#f8f8f8; text-align:center; vertical-align:middle;">
+                <span style="font-family:Georgia,serif; font-size:22px; font-weight:bold; letter-spacing:2px;">ARDT</span>
+            </td>
+            <td style="padding:8px 12px; border:1px solid #000; vertical-align:middle;">
+                <div style="font-weight:bold; font-size:14px;">ARDT Drill Bit Services</div>
+                <div style="font-size:11px; color:#555;">Router Sheet &mdash; Process Step Tracking</div>
+            </td>
+            <td style="width:200px; padding:8px 12px; border:1px solid #000; font-size:10px; vertical-align:top;">
+                <div><strong>WO #:</strong> {{ work_order.wo_number }}</div>
+                <div><strong>S/N:</strong> {{ work_order.drill_bit.serial_number|default:"N/A" }}</div>
+                <div><strong>Type:</strong> {{ work_order.get_wo_type_display }}</div>
+                <div><strong>Date:</strong> {% now "d M Y" %}</div>
+            </td>
+        </tr>
+    </table>
 </div>
 
-<!-- Router Steps -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 no-print">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Process Steps</h3>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
-                {% with completed=entries|length %}
-                {% for e in entries %}{% if e.is_complete %}{% with c=forloop.counter %}{% endwith %}{% endif %}{% endfor %}
-                {% endwith %}
-                <span class="font-medium">Progress:</span>
-                {{ entries|length }} steps
+<!-- ── QR Scan Guidance Bar ───────────────────────────────────────── -->
+<div x-data="{ showQrTip: localStorage.getItem('rs_qr_tip_dismissed') !== 'true' }"
+     x-show="showQrTip"
+     x-transition
+     class="mb-3 no-print">
+    <div class="flex items-center gap-3 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+        <i data-lucide="scan-line" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+        <p class="text-blue-700 dark:text-blue-300 flex-1">
+            <strong>Tip:</strong> Scan the station QR code to auto-start/complete steps, or use the buttons below.
+        </p>
+        <button @click="showQrTip = false; localStorage.setItem('rs_qr_tip_dismissed', 'true')"
+                class="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 flex-shrink-0"
+                title="Dismiss">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Mobile step list (hidden by default) -->
+<div id="mobile-sidebar" class="hidden lg:hidden mb-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden no-print">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-300">
+        All Steps
+    </div>
+    <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
+        {% for entry in entries %}
+        <button onclick="selectStep({{ entry.step_number }}); document.getElementById('mobile-sidebar').classList.add('hidden');"
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700/50">
+            <span class="step-dot flex-shrink-0 {% if entry.is_complete %}done{% elif entry.qr_scan_start %}active{% else %}pending{% endif %}">
+                {% if entry.is_complete %}<i data-lucide="check" class="w-3 h-3"></i>
+                {% elif entry.qr_scan_start %}<i data-lucide="play" class="w-3 h-3"></i>
+                {% else %}{{ forloop.counter }}{% endif %}
+            </span>
+            <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ entry.step_description }}</span>
+            {% if entry.is_complete %}
+            <span class="ml-auto badge badge-done flex-shrink-0">Done</span>
+            {% elif entry.qr_scan_start %}
+            <span class="ml-auto badge badge-active flex-shrink-0">Active</span>
+            {% endif %}
+        </button>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── MAIN LAYOUT ─────────────────────────────────────────────────── -->
+<div class="rs-layout rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+     x-data="routerSheet()" x-init="init()">
+
+    <!-- ═══════════ SIDEBAR STEPPER ═══════════ -->
+    <div class="rs-sidebar no-print">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Process Steps</p>
+            <div class="flex items-center gap-2 mt-1">
+                <div class="flex-1 prog-bar h-1.5">
+                    <div class="prog-fill h-full" id="sidebar-prog"
+                         style="width: 0%"></div>
+                </div>
+                <span class="text-xs text-gray-500 dark:text-gray-400" id="sidebar-count">–/–</span>
             </div>
+        </div>
+
+        <div class="py-2">
+            {% for entry in entries %}
+            {% with step_num=entry.step_number %}
+            <div class="step-item {% if entry.is_complete %}done{% endif %}"
+                 id="sidebar-step-{{ step_num }}"
+                 data-step="{{ step_num }}"
+                 :class="activeStep === {{ step_num }} ? 'active' : ''"
+                 @click="selectStep({{ step_num }})">
+
+                <!-- Dot -->
+                <div class="step-dot flex-shrink-0
+                    {% if entry.is_complete %}done
+                    {% elif entry.qr_scan_start %}active
+                    {% else %}pending{% endif %}"
+                    id="dot-{{ step_num }}">
+                    {% if entry.is_complete %}
+                    <i data-lucide="check" class="w-3 h-3"></i>
+                    {% elif entry.qr_scan_start %}
+                    <i data-lucide="loader" class="w-3 h-3 animate-spin"></i>
+                    {% else %}
+                    {{ forloop.counter }}
+                    {% endif %}
+                </div>
+
+                <!-- Text -->
+                <div class="min-w-0 flex-1">
+                    <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate"
+                       title="{{ entry.step_description }}">
+                        {{ entry.step_description }}
+                    </p>
+                    <div class="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{{ entry.step_number }}</span>
+                        {% comment %} Look up the operation to show badges {% endcomment %}
+                        {% if entry.is_complete and entry.duration_minutes %}
+                        <span class="text-[10px] text-green-600 dark:text-green-400">{{ entry.duration_minutes }}min</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Status dot indicator -->
+                {% if entry.is_complete %}
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0"></i>
+                {% elif entry.qr_scan_start %}
+                <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-blue-500 flex-shrink-0 animate-pulse"></i>
+                {% endif %}
+            </div>
+            {% endwith %}
+            {% endfor %}
         </div>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
-                    <th class="px-4 py-3 font-medium w-16">Step</th>
-                    <th class="px-4 py-3 font-medium">Description</th>
-                    <th class="px-4 py-3 font-medium w-28">Operator</th>
-                    <th class="px-4 py-3 font-medium w-32">Start Time</th>
-                    <th class="px-4 py-3 font-medium w-32">End Time</th>
-                    <th class="px-4 py-3 font-medium w-24">Duration</th>
-                    <th class="px-4 py-3 font-medium w-28 no-print">Status</th>
-                    <th class="px-4 py-3 font-medium w-32 no-print">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for entry in entries %}
-                <tr class="{% if entry.is_complete %}bg-green-50 dark:bg-green-900/10{% elif entry.qr_scan_start %}bg-yellow-50 dark:bg-yellow-900/10{% endif %}"
-                    id="step-{{ entry.step_number }}">
-                    <td class="px-4 py-3 font-medium text-center">{{ entry.step_number }}</td>
-                    <td class="px-4 py-3">
-                        <span class="font-medium text-gray-900 dark:text-white">{{ entry.step_description }}</span>
-                        {% if entry.notes %}
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ entry.notes }}</p>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {{ entry.operator.get_short_name|default:"--" }}
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                        {% if entry.qr_scan_start %}
-                        {{ entry.qr_scan_start|date:"M d" }}<br>{{ entry.qr_scan_start|time:"H:i" }}
-                        {% else %}
-                        <span class="text-gray-400">--</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">
-                        {% if entry.qr_scan_end %}
-                        {{ entry.qr_scan_end|date:"M d" }}<br>{{ entry.qr_scan_end|time:"H:i" }}
-                        {% else %}
-                        <span class="text-gray-400">--</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {% if entry.duration_minutes %}
-                        <span class="font-medium">{{ entry.duration_minutes }}</span> min
-                        {% else %}
-                        --
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 no-print">
-                        {% if entry.is_complete %}
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            <i data-lucide="check" class="w-3 h-3 mr-1"></i>Done
-                        </span>
-                        {% elif entry.qr_scan_start %}
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            <i data-lucide="loader" class="w-3 h-3 mr-1 animate-spin"></i>Active
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                            Pending
-                        </span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3 no-print">
+    <!-- ═══════════ STEP DETAIL PANEL ═══════════ -->
+    <div class="rs-detail bg-white dark:bg-gray-900">
+
+        {% for entry in entries %}
+        <div id="panel-{{ entry.step_number }}"
+             class="step-panel"
+             style="display: none;">
+
+            <!-- ── Step header ── -->
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
+                        {% if entry.is_complete %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400
+                        {% elif entry.qr_scan_start %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                        {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                        {{ forloop.counter }}
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                            {{ entry.step_description }}
+                        </h2>
+                        <div class="flex items-center gap-2 mt-1 flex-wrap">
+                            <!-- Status badge -->
+                            {% if entry.is_complete %}
+                            <span class="badge badge-done">
+                                <i data-lucide="check" class="w-3 h-3"></i> Completed
+                            </span>
+                            {% elif entry.qr_scan_start %}
+                            <span class="badge badge-active">
+                                <i data-lucide="play" class="w-3 h-3"></i> In Progress
+                            </span>
+                            {% else %}
+                            <span class="badge badge-pending">Pending</span>
+                            {% endif %}
+
+                            <!-- Step number -->
+                            <span class="text-xs text-gray-400 font-mono">Op {{ entry.step_number }}</span>
+
+                            <!-- Operator -->
+                            {% if entry.operator %}
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                <i data-lucide="user" class="w-3 h-3 inline"></i>
+                                {{ entry.operator.get_short_name|default:entry.operator.username }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step nav (prev/next) -->
+                <div class="flex items-center gap-2 flex-shrink-0 no-print">
+                    {% if not forloop.first %}
+                    <button onclick="selectStep({{ entries|dictsort:'step_number' }})"
+                            class="inline-flex items-center px-2.5 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 gap-1"
+                            @click="prevStep()">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i> Prev
+                    </button>
+                    {% endif %}
+                    {% if not forloop.last %}
+                    <button class="inline-flex items-center px-2.5 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 gap-1"
+                            @click="nextStep()">
+                        Next <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ── Timer card ── -->
+            <div class="step-card mb-4">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
+                    <p class="section-label">Time Tracking</p>
+                </div>
+                <div class="px-5 py-4">
+                    <!-- Time stamps grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Started</p>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                {% if entry.qr_scan_start %}
+                                {{ entry.qr_scan_start|date:"M d" }}, {{ entry.qr_scan_start|time:"H:i" }}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Completed</p>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                {% if entry.qr_scan_end %}
+                                {{ entry.qr_scan_end|date:"M d" }}, {{ entry.qr_scan_end|time:"H:i" }}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Duration</p>
+                            <p class="text-sm font-bold {% if entry.duration_minutes %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                                {% if entry.duration_minutes %}
+                                {% if entry.duration_minutes >= 60 %}
+                                {{ entry.duration_minutes|floatformat:0|add:"0"|divisibleby:60 }}
+                                {% with h=entry.duration_minutes|divisibleby:60 m=entry.duration_minutes|add:"0" %}
+                                {{ entry.duration_minutes }} min
+                                {% endwith %}
+                                {% else %}
+                                {{ entry.duration_minutes }} min
+                                {% endif %}
+                                {% else %}—{% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Live timer (only shown when in-progress) -->
+                    {% if entry.qr_scan_start and not entry.is_complete %}
+                    <div class="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded-lg px-4 py-3 mb-4">
+                        <div>
+                            <p class="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide">Elapsed</p>
+                            <div class="timer-display text-blue-700 dark:text-blue-300"
+                                 id="timer-{{ entry.step_number }}"
+                                 data-start="{{ entry.qr_scan_start|date:'c' }}">
+                                00:00:00
+                            </div>
+                        </div>
+                        <i data-lucide="timer" class="w-10 h-10 text-blue-300 dark:text-blue-700"></i>
+                    </div>
+                    {% endif %}
+
+                    <!-- Action buttons -->
+                    <div class="flex flex-wrap items-center gap-3 no-print">
                         {% if not entry.is_complete %}
-                        <div class="flex space-x-1">
                             {% if not entry.qr_scan_start %}
-                            <form method="post" action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}" class="inline">
+                            <!-- START -->
+                            <form method="post"
+                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
+                                  class="inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="start">
-                                <button type="submit" class="inline-flex items-center px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
-                                    <i data-lucide="play" class="w-3 h-3 mr-1"></i>Start
+                                <button type="submit" class="btn-action btn-start">
+                                    <i data-lucide="play" class="w-5 h-5"></i>
+                                    Start Step
                                 </button>
                             </form>
                             {% else %}
-                            <form method="post" action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}" class="inline">
+                            <!-- COMPLETE -->
+                            <form method="post"
+                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
+                                  class="inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="end">
-                                <button type="submit" class="inline-flex items-center px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-                                    <i data-lucide="check" class="w-3 h-3 mr-1"></i>Complete
+                                <button type="submit" class="btn-action btn-complete">
+                                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                                    Mark Complete
                                 </button>
                             </form>
                             {% endif %}
+
+                            <!-- SKIP (for conditional steps) -->
+                            <form method="post"
+                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
+                                  class="inline"
+                                  onsubmit="return confirm('Skip step {{ entry.step_number }}?')">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="skip">
+                                <button type="submit" class="btn-action btn-skip">
+                                    <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                                    Skip
+                                </button>
+                            </form>
+
+                        {% else %}
+                        <!-- COMPLETED STATE -->
+                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                            <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                            <span class="font-semibold">Step completed</span>
                         </div>
                         {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No router steps defined for this work order
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+                    </div>
+                </div>
+            </div>
 
-<!-- QR Scanner Section (for future implementation) -->
-<div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 mt-6 no-print">
-    <div class="flex items-start">
-        <i data-lucide="qr-code" class="w-8 h-8 text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0"></i>
-        <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">QR Code Scanning</h3>
-            <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">
-                Scan the station QR code to automatically start/end steps. Each step tracks the operator and duration.
+            <!-- ── Measurements & Parameters (placeholder) ── -->
+            <!-- TODO: Add per-step measurement fields to RouterSheetEntry model -->
+            {% if "MEASUREMENT" in entry.step_description|upper or "GAUGE" in entry.step_description|upper or "INSPECTION" in entry.step_description|upper or "BRAZING" in entry.step_description|upper or "BRAZE" in entry.step_description|upper %}
+            <div class="step-card mb-4 measurement-placeholder">
+                <details class="group">
+                    <summary class="px-5 py-4 cursor-pointer flex items-center justify-between list-none">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="ruler" class="w-4 h-4 text-amber-500"></i>
+                            <p class="section-label mb-0">Measurements &amp; Parameters</p>
+                        </div>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div class="px-5 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-4">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-400 mb-0.5">TFA (Total Flow Area)</p>
+                                <p class="text-sm font-semibold text-gray-300 dark:text-gray-600">&mdash;</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-0.5">Gauge Reading 1</p>
+                                <p class="text-sm font-semibold text-gray-300 dark:text-gray-600">&mdash;</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-0.5">Gauge Reading 2</p>
+                                <p class="text-sm font-semibold text-gray-300 dark:text-gray-600">&mdash;</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400 mb-0.5">Gauge Reading 3</p>
+                                <p class="text-sm font-semibold text-gray-300 dark:text-gray-600">&mdash;</p>
+                            </div>
+                            {% if "BRAZING" in entry.step_description|upper or "BRAZE" in entry.step_description|upper %}
+                            <div>
+                                <p class="text-xs text-gray-400 mb-0.5">Temperature (&deg;C)</p>
+                                <p class="text-sm font-semibold text-gray-300 dark:text-gray-600">&mdash;</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-gray-400 italic mt-3">
+                            <i data-lucide="info" class="w-3 h-3 inline"></i>
+                            Measurement fields are placeholders &mdash; per-step data capture coming soon.
+                        </p>
+                    </div>
+                </details>
+            </div>
+            {% endif %}
+
+            <!-- ── Operator & Remarks ── -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+
+                <!-- Operator -->
+                <div class="step-card">
+                    <div class="px-5 py-4">
+                        <p class="section-label">Operator</p>
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold flex-shrink-0">
+                                {% if entry.operator %}
+                                {{ entry.operator.first_name|first|default:entry.operator.username|first|upper }}
+                                {% else %}?{% endif %}
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                    {% if entry.operator %}
+                                    {{ entry.operator.get_full_name|default:entry.operator.username }}
+                                    {% else %}
+                                    <span class="text-gray-400 font-normal">Not assigned</span>
+                                    {% endif %}
+                                </p>
+                                {% if entry.qr_scan_start %}
+                                <p class="text-xs text-gray-400">Scanned at {{ entry.qr_scan_start|time:"H:i" }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <!-- Signature placeholder -->
+                        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+                            {% if entry.operator %}
+                            <p class="text-xs text-gray-400 no-print">
+                                <i data-lucide="pen-tool" class="w-3 h-3 inline"></i>
+                                Operator: {{ entry.operator.get_full_name|default:entry.operator.username }} &mdash; Signature pending
+                            </p>
+                            {% else %}
+                            <p class="text-xs text-gray-400 no-print">
+                                <i data-lucide="pen-tool" class="w-3 h-3 inline"></i>
+                                Signature: awaiting operator assignment
+                            </p>
+                            {% endif %}
+                            <div class="print-signature-line" style="display: none;">
+                                <p style="font-size:10px; margin-top:8px; color:#666;">Signature: ____________________</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remarks -->
+                <div class="step-card">
+                    <div class="px-5 py-4">
+                        <p class="section-label">Remarks</p>
+                        {% if entry.remarks %}
+                        <p class="text-sm text-gray-700 dark:text-gray-300">{{ entry.remarks }}</p>
+                        {% else %}
+                        <p class="text-sm text-gray-400 italic">No remarks</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Photos (per-step, collapsible) ── -->
+            {% if work_order.drill_bit %}
+            <div class="step-card mb-4 photo-module-wrapper no-print">
+                <details class="group">
+                    <summary class="px-5 py-4 cursor-pointer flex items-center justify-between list-none">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="camera" class="w-4 h-4 text-blue-500"></i>
+                            <p class="section-label mb-0">Photos</p>
+                        </div>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div class="px-5 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-4">
+                        {% include "components/photo_module.html" with bit_pk=work_order.drill_bit.pk context_type="WO" context_id=work_order.pk %}
+                    </div>
+                </details>
+            </div>
+            {% endif %}
+
+            <!-- ── Yes/No Decision (Cerebro / O-Ring) ── -->
+            {% if entry.cerebro_removal is not None or entry.oring_removal is not None %}
+            <div class="step-card mb-4">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
+                    <p class="section-label">Decision Required</p>
+                </div>
+                <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% if entry.cerebro_removal is not None %}
+                    <div>
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cerebro Removal</p>
+                        <div class="flex gap-2">
+                            <div class="yn-btn {% if entry.cerebro_removal %}yes-sel{% endif %}">
+                                <i data-lucide="check" class="w-4 h-4 inline mr-1"></i>Yes
+                            </div>
+                            <div class="yn-btn {% if entry.cerebro_removal == False %}no-sel{% endif %}">
+                                <i data-lucide="x" class="w-4 h-4 inline mr-1"></i>No
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if entry.oring_removal is not None %}
+                    <div>
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">O-Ring Removal</p>
+                        <div class="flex gap-2">
+                            <div class="yn-btn {% if entry.oring_removal %}yes-sel{% endif %}">
+                                <i data-lucide="check" class="w-4 h-4 inline mr-1"></i>Yes
+                            </div>
+                            <div class="yn-btn {% if entry.oring_removal == False %}no-sel{% endif %}">
+                                <i data-lucide="x" class="w-4 h-4 inline mr-1"></i>No
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ── Linked Evaluations (contextual, based on step code) ── -->
+            {% if "DIE_CHECK" in entry.step_description|upper or "INSPECTION" in entry.step_description|upper or "EVALUATION" in entry.step_description|upper or "QC" in entry.step_description|upper or "PHOTOS" in entry.step_description|upper %}
+            <div class="step-card mb-4 border-violet-200 dark:border-violet-900/50">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                    <p class="section-label">Linked Quality Actions</p>
+                    <span class="badge badge-qc">
+                        <i data-lucide="shield-check" class="w-3 h-3"></i> QC Step
+                    </span>
+                </div>
+                <div class="px-5 py-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                        {% if "DIE_CHECK" in entry.step_description|upper %}
+                        {% with work_order.die_check_reports.last as dc %}
+                        <a href="{% url 'workorders:die_check_create' work_order.pk %}?step={{ entry.step_number }}"
+                           class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors group">
+                            <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-200 dark:group-hover:bg-violet-800/30 transition-colors">
+                                <i data-lucide="grid-2x2-check" class="w-4 h-4 text-violet-600 dark:text-violet-400"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Die Check Report</p>
+                                <p class="text-xs text-gray-400">FPI / Fluorescent Penetrant</p>
+                            </div>
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                        </a>
+                        {% endwith %}
+                        {% endif %}
+
+                        {% if "EVALUATION" in entry.step_description|upper or "PHOTOS" in entry.step_description|upper %}
+                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
+                           class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
+                                <i data-lucide="clipboard-list" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Cutter Evaluation</p>
+                                <p class="text-xs text-gray-400">Matrix / grid assessment</p>
+                            </div>
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                        </a>
+                        {% endif %}
+
+                        {% if "QC" in entry.step_description|upper or "INSPECTION" in entry.step_description|upper %}
+                        <a href="{% url 'workorders:e_checklist' work_order.pk %}"
+                           class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/30 transition-colors">
+                                <i data-lucide="check-square" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">QC Checklist</p>
+                                <p class="text-xs text-gray-400">15-point inspection</p>
+                            </div>
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                        </a>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ── Step metadata (collapsed info) ── -->
+            <div class="step-card">
+                <details class="group">
+                    <summary class="px-5 py-4 cursor-pointer flex items-center justify-between list-none">
+                        <p class="section-label mb-0">Step Info</p>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div class="px-5 pb-4 border-t border-gray-100 dark:border-gray-700/60 pt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Operation No.</p>
+                            <p class="text-sm font-mono text-gray-700 dark:text-gray-300">{{ entry.step_number }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Created</p>
+                            <p class="text-sm text-gray-700 dark:text-gray-300">{{ entry.created_at|date:"M d, Y" }}</p>
+                        </div>
+                        {% if entry.manual_date %}
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Manual Date</p>
+                            <p class="text-sm text-gray-700 dark:text-gray-300">{{ entry.manual_date }}</p>
+                        </div>
+                        {% endif %}
+                        {% if entry.station_qr %}
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Station QR</p>
+                            <p class="text-sm font-mono text-gray-700 dark:text-gray-300">{{ entry.station_qr }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </details>
+            </div>
+
+        </div><!-- /panel -->
+        {% endfor %}
+
+        <!-- Empty state -->
+        {% if not entries %}
+        <div class="flex flex-col items-center justify-center py-20 text-center">
+            <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
+                <i data-lucide="list-x" class="w-8 h-8 text-gray-400"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">No steps defined</h3>
+            <p class="text-sm text-gray-400 max-w-xs">
+                No process route has been assigned to this work order, or no steps have been generated yet.
             </p>
-            <p class="text-xs text-gray-500 dark:text-gray-500">
-                For mobile scanning, use the ARDT FMS mobile app or any QR scanner to open this page and click Start/Complete.
-            </p>
+        </div>
+        {% endif %}
+
+    </div><!-- /rs-detail -->
+</div><!-- /rs-layout -->
+
+<!-- Print-only summary table -->
+<div class="hidden print:block" style="margin-top:1.5rem; page-break-before:always;">
+    <h3 style="font-size:13px; font-weight:bold; margin-bottom:0.5rem; border-bottom:2px solid #000; padding-bottom:4px;">
+        Summary &mdash; All Process Steps
+    </h3>
+    <table style="width:100%; border-collapse:collapse; font-size:9pt;">
+        <thead>
+            <tr style="border-bottom:2px solid #666;">
+                <th style="padding:4px 6px; text-align:left; width:40px;">Op#</th>
+                <th style="padding:4px 6px; text-align:left;">Description</th>
+                <th style="padding:4px 6px; text-align:left; width:80px;">Operator</th>
+                <th style="padding:4px 6px; text-align:left; width:80px;">Start</th>
+                <th style="padding:4px 6px; text-align:left; width:80px;">End</th>
+                <th style="padding:4px 6px; text-align:left; width:50px;">Dur.</th>
+                <th style="padding:4px 6px; text-align:center; width:90px;">Signature</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr style="border-bottom:1px solid #ddd;">
+                <td style="padding:3px 6px; font-family:monospace; font-size:8pt;">{{ entry.step_number }}</td>
+                <td style="padding:3px 6px;">{{ entry.step_description }}</td>
+                <td style="padding:3px 6px; font-size:8pt;">{{ entry.operator.get_short_name|default:"—" }}</td>
+                <td style="padding:3px 6px; font-size:8pt;">{{ entry.qr_scan_start|date:"d/m H:i"|default:"—" }}</td>
+                <td style="padding:3px 6px; font-size:8pt;">{{ entry.qr_scan_end|date:"d/m H:i"|default:"—" }}</td>
+                <td style="padding:3px 6px; font-size:8pt;">{{ entry.duration_minutes|default:"—" }}{% if entry.duration_minutes %}m{% endif %}</td>
+                <td style="padding:3px 6px; text-align:center; font-size:8pt;">____________</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Print signatures block -->
+    <div style="margin-top:2rem; display:flex; gap:3rem;">
+        <div style="flex:1;">
+            <p style="font-size:9pt; font-weight:bold; margin-bottom:2rem;">Production Supervisor</p>
+            <div style="border-top:1px solid #000; width:200px; padding-top:4px;">
+                <span style="font-size:8pt;">Name &amp; Date</span>
+            </div>
+        </div>
+        <div style="flex:1;">
+            <p style="font-size:9pt; font-weight:bold; margin-bottom:2rem;">Quality Control</p>
+            <div style="border-top:1px solid #000; width:200px; padding-top:4px;">
+                <span style="font-size:8pt;">Name &amp; Date</span>
+            </div>
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Stepper data & step navigation ────────────────────────────────────
+const STEPS = [{% for e in entries %}{{ e.step_number }}{% if not forloop.last %},{% endif %}{% endfor %}];
+const DONE  = {{% for e in entries %}{{ e.step_number }}:{% if e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}};
+const ACTIVE = {{% for e in entries %}{{ e.step_number }}:{% if e.qr_scan_start and not e.is_complete %}true{% else %}false{% endif %}{% if not forloop.last %},{% endif %}{% endfor %}};
+
+function routerSheet() {
+    // Find first non-complete step, fallback to first step
+    const firstActive = STEPS.find(s => !DONE[s] && ACTIVE[s])
+                     || STEPS.find(s => !DONE[s])
+                     || STEPS[0];
+    return {
+        activeStep: firstActive || null,
+        steps: STEPS,
+
+        init() {
+            this.updateProgress();
+            if (this.activeStep) this.showPanel(this.activeStep);
+            this.startAllTimers();
+        },
+
+        selectStep(num) {
+            this.activeStep = num;
+            this.showPanel(num);
+        },
+
+        showPanel(num) {
+            document.querySelectorAll('.step-panel').forEach(p => p.style.display = 'none');
+            const panel = document.getElementById('panel-' + num);
+            if (panel) panel.style.display = 'block';
+
+            // Scroll sidebar item into view
+            const sidebarItem = document.getElementById('sidebar-step-' + num);
+            if (sidebarItem) sidebarItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        },
+
+        nextStep() {
+            const idx = this.steps.indexOf(this.activeStep);
+            if (idx < this.steps.length - 1) this.selectStep(this.steps[idx + 1]);
+        },
+
+        prevStep() {
+            const idx = this.steps.indexOf(this.activeStep);
+            if (idx > 0) this.selectStep(this.steps[idx - 1]);
+        },
+
+        updateProgress() {
+            const total = STEPS.length;
+            const done  = STEPS.filter(s => DONE[s]).length;
+            const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            const bars = ['sidebar-prog', 'main-prog-bar'];
+            bars.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.width = pct + '%';
+            });
+
+            const countEl = document.getElementById('sidebar-count');
+            if (countEl) countEl.textContent = done + '/' + total;
+        },
+
+        // ── Live timers ──────────────────────────────────────────────
+        startAllTimers() {
+            document.querySelectorAll('[data-start]').forEach(el => {
+                const startTime = new Date(el.dataset.start);
+                if (isNaN(startTime)) return;
+
+                const update = () => {
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                    const h = Math.floor(elapsed / 3600);
+                    const m = Math.floor((elapsed % 3600) / 60);
+                    const s = elapsed % 60;
+                    el.textContent = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+                };
+                update();
+                setInterval(update, 1000);
+            });
+        }
+    };
+}
+
+// Global helper (used by mobile sidebar buttons)
+function selectStep(num) {
+    // Trigger Alpine.js selectStep
+    const layout = document.querySelector('[x-data]');
+    if (layout && layout._x_dataStack) {
+        // Alpine v3 approach
+        layout.dispatchEvent(new CustomEvent('select-step', { detail: { step: num } }));
+    }
+    // Fallback: direct DOM manipulation
+    document.querySelectorAll('.step-panel').forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('panel-' + num);
+    if (panel) panel.style.display = 'block';
+    document.querySelectorAll('.step-item').forEach(item => {
+        item.classList.toggle('active', parseInt(item.dataset.step) === num);
+    });
+    const sidebarItem = document.getElementById('sidebar-step-' + num);
+    if (sidebarItem) sidebarItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+</script>
 {% endblock %}
