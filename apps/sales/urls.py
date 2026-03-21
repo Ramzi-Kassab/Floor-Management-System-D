@@ -6,6 +6,7 @@ URL patterns for customer, rig, well, and warehouse management.
 """
 
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -51,7 +52,7 @@ urlpatterns = [
     # ==========================================================================
     # WAREHOUSE URLS
     # ==========================================================================
-    path("warehouses/", views.WarehouseListView.as_view(), name="warehouse_list"),
+    path("warehouses/", RedirectView.as_view(url='/work-orders/all-locations/', permanent=False), name="warehouse_list"),
     path("warehouses/create/", views.WarehouseCreateView.as_view(), name="warehouse_create"),
     path("warehouses/<int:pk>/", views.WarehouseDetailView.as_view(), name="warehouse_detail"),
     path("warehouses/<int:pk>/edit/", views.WarehouseUpdateView.as_view(), name="warehouse_update"),

@@ -4,6 +4,7 @@ Version: 6.0 - Job Card Enhancement
 """
 
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 from . import views_jobcard
@@ -132,7 +133,7 @@ urlpatterns = [
     path("bit-events/", views_drillbit.BitEventListView.as_view(), name="bitevent_list"),
 
     # Locations
-    path("locations/", views_drillbit.LocationListView.as_view(), name="location_list"),
+    path("locations/", RedirectView.as_view(url='/work-orders/all-locations/', permanent=False), name="location_list"),
     path("locations/create/", views_drillbit.LocationCreateView.as_view(), name="location_create"),
     path("locations/<int:pk>/edit/", views_drillbit.LocationUpdateView.as_view(), name="location_edit"),
     path("locations/<int:pk>/delete/", views_drillbit.LocationDeleteView.as_view(), name="location_delete"),

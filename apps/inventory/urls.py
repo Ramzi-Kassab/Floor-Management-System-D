@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -27,7 +28,7 @@ urlpatterns = [
     path("category-attributes/<int:pk>/edit/", views.CategoryAttributeUpdateView.as_view(), name="category_attribute_update"),
     path("category-attributes/<int:pk>/delete/", views.CategoryAttributeDeleteView.as_view(), name="category_attribute_delete"),
     # Locations
-    path("locations/", views.LocationListView.as_view(), name="location_list"),
+    path("locations/", RedirectView.as_view(url='/work-orders/all-locations/', permanent=False), name="location_list"),
     path("locations/create/", views.LocationCreateView.as_view(), name="location_create"),
     path("locations/<int:pk>/edit/", views.LocationUpdateView.as_view(), name="location_update"),
     # Items
