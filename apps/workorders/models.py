@@ -78,7 +78,10 @@ class Location(models.Model):
         verbose_name_plural = "Locations"
 
     def __str__(self):
-        return f"{self.name} ({self.get_location_type_display()})"
+        type_display = self.get_location_type_display()
+        if type_display.lower() in self.name.lower():
+            return self.name
+        return f"{self.name} ({type_display})"
 
 
 class DrillBit(models.Model):
@@ -319,7 +322,7 @@ class DrillBit(models.Model):
     def move_to(self, location_code_or_type, reason='', user=None):
         """
         Move bit to a new location by code or location_type.
-        Creates BitEvent(TRANSFER) and updates current_location + bit_location.
+        Creates BitEvent(TRANSFER) and updates bit_location.
         Returns the new Location or None if not found.
         """
         from django.utils import timezone

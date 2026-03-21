@@ -2990,6 +2990,54 @@ def api_delete_transfer(request, pk):
 
 
 @login_required
+def api_edit_transfer(request, pk):
+    """Admin-only: edit a BitEvent transfer record (change location)."""
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    from apps.workorders.models import BitEvent
+    try:
+        event = BitEvent.objects.select_related('bit').get(pk=pk)
+    except BitEvent.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Event not found'})
+
+    new_location_id = data.get('location_id')
+    new_notes = data.get('notes')
+
+    if new_location_id:
+        new_loc = Location.objects.filter(pk=new_location_id, is_active=True).first()
+        if not new_loc:
+            return JsonResponse({'success': False, 'error': 'Location not found'})
+        old_loc = event.to_location or event.location
+        event.to_location = new_loc
+        event.location = new_loc
+        # Auto-update notes to reflect the location change
+        old_name = str(old_loc) if old_loc else '—'
+        event.notes = f'Corrected: {old_name} → {new_loc.name}. {new_notes or ""}'.strip()
+        # Also update the bit's current location if this is the latest event
+        latest = BitEvent.objects.filter(bit=event.bit).order_by('-event_date').first()
+        if latest and latest.pk == event.pk:
+            event.bit.bit_location = new_loc
+            event.bit.save(update_fields=['bit_location', 'updated_at'])
+    elif new_notes is not None:
+        event.notes = new_notes
+
+    event.save()
+    return JsonResponse({
+        'success': True,
+        'message': 'Transfer record updated.',
+        'location': str(event.to_location or event.location),
+    })
+
+
+@login_required
 def api_locations_list(request):
     """Return all active locations as JSON for dropdowns."""
     locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
@@ -3460,10 +3508,12 @@ def api_bit_timeline(request, bit_pk):
     # 2. BitEvents (lifecycle)
     for ev in BitEvent.objects.filter(bit=bit).select_related('location', 'from_location', 'to_location', 'performed_by').order_by('event_date'):
         where = ''
-        if ev.to_location:
-            where = f'{ev.from_location or "?"} → {ev.to_location}'
+        if ev.to_location and ev.from_location:
+            where = f'{ev.from_location.name} → {ev.to_location.name}'
+        elif ev.to_location:
+            where = f'→ {ev.to_location.name}'
         elif ev.location:
-            where = str(ev.location)
+            where = ev.location.name
         events.append({
             'date': ev.event_date.isoformat(),
             'type': 'event',
@@ -3473,6 +3523,7 @@ def api_bit_timeline(request, bit_pk):
             'who': _who(ev.performed_by),
             'where': where,
             'url': '',
+            'event_id': ev.pk,
         })
 
     # 3. Backload batch
