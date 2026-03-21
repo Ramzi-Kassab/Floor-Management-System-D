@@ -1023,7 +1023,10 @@ class LocationCreateView(LoginRequiredMixin, CreateView):
     model = Location
     template_name = "workorders/location_form.html"
     fields = ["code", "name", "location_type", "address", "is_active"]
-    success_url = reverse_lazy("workorders:location_list")
+
+    def get_success_url(self):
+        next_url = self.request.POST.get('next') or self.request.GET.get('next')
+        return next_url or reverse("workorders:all_locations")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

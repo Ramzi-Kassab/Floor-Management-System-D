@@ -13,11 +13,15 @@
             {{ total_bit_locs }} bit locations · {{ total_warehouses }} warehouses · {{ total_stock_locs }} stock bins
         </p>
     </div>
+    <button onclick="document.getElementById('addLocModal').classList.remove('hidden')"
+            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Location
+    </button>
 </div>
 {% endblock %}
 
 {% block content %}
-<div x-data="{ search: '', sourceFilter: '' }">
+<div x-data="{ search: '', sourceFilter: '', showInactive: false }">
 
     <!-- Filters -->
     <div class="flex items-center gap-3 mb-4 flex-wrap">
@@ -32,6 +36,9 @@
             <option value="Warehouse">Warehouses</option>
             <option value="Stock Bin">Stock Bins</option>
         </select>
+        <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <input type="checkbox" x-model="showInactive" class="rounded text-blue-600"> Show inactive
+        </label>
         <button x-show="search || sourceFilter" @click="search=''; sourceFilter='';"
                 class="text-xs text-red-500 hover:text-red-700">Clear</button>
     </div>
@@ -49,12 +56,13 @@
                         <th class="px-4 py-3 font-medium">Parent</th>
                         <th class="px-4 py-3 font-medium text-center">Bits</th>
                         <th class="px-4 py-3 font-medium text-center">Active</th>
+                        {% if request.user.is_superuser %}<th class="px-4 py-3 w-20"></th>{% endif %}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
                     {% for loc in all_locations %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                        x-show="(!search || '{{ loc.code }} {{ loc.name }} {{ loc.type }}'.toLowerCase().includes(search.toLowerCase())) && (!sourceFilter || '{{ loc.source }}' === sourceFilter)">
+                        x-show="(showInactive || {{ loc.active|yesno:'true,false' }}) && (!search || '{{ loc.code }} {{ loc.name }} {{ loc.type }}'.toLowerCase().includes(search.toLowerCase())) && (!sourceFilter || '{{ loc.source }}' === sourceFilter)">
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
                                 {% if loc.source == 'Bit Location' %}bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300
@@ -76,9 +84,25 @@
                             {% if loc.active %}
                             <span class="text-green-500"><i data-lucide="check" class="w-4 h-4 inline"></i></span>
                             {% else %}
-                            <span class="text-gray-300"><i data-lucide="x" class="w-4 h-4 inline"></i></span>
+                            <span class="text-red-300"><i data-lucide="x" class="w-4 h-4 inline"></i></span>
                             {% endif %}
                         </td>
+                        {% if request.user.is_superuser %}
+                        <td class="px-4 py-3 text-right">
+                            {% if loc.source == 'Bit Location' %}
+                            <div class="flex items-center gap-1 justify-end">
+                                <a href="{% url 'workorders:location_update' loc.pk %}" class="text-blue-400 hover:text-blue-600" title="Edit">
+                                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                </a>
+                                {% if not loc.bits and not loc.events %}
+                                <button onclick="toggleLocation({{ loc.pk }}, {{ loc.active|yesno:'true,false' }})" class="text-amber-400 hover:text-amber-600" title="{% if loc.active %}Deactivate{% else %}Activate{% endif %}">
+                                    <i data-lucide="{% if loc.active %}eye-off{% else %}eye{% endif %}" class="w-3.5 h-3.5"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -86,4 +110,67 @@
         </div>
     </div>
 </div>
+
+<!-- Add Location Modal -->
+<div id="addLocModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Add Location</h3>
+            <button onclick="document.getElementById('addLocModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form method="post" action="{% url 'workorders:location_create' %}" class="px-6 py-4 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'workorders:all_locations' %}">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+                <input name="code" type="text" required placeholder="e.g., WH-NEW"
+                       class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input name="name" type="text" required placeholder="e.g., New Warehouse"
+                       class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                <select name="location_type" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    {% for value, label in location_types %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address <span class="text-gray-400">(optional)</span></label>
+                <input name="address" type="text" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="document.getElementById('addLocModal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Location</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% csrf_token %}
+
+{% block extra_js %}
+<script>
+async function toggleLocation(pk, isActive) {
+    const action = isActive ? 'deactivate' : 'activate';
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this location?`)) return;
+    try {
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const r = await fetch(`/work-orders/api/toggle-location/${pk}/`, {
+            method: 'POST', headers: { 'X-CSRFToken': csrf }
+        });
+        const d = await r.json();
+        if (d.success) location.reload();
+        else alert(d.error);
+    } catch (e) { alert('Error: ' + e.message); }
+}
+</script>
+{% endblock %}
 {% endblock %}

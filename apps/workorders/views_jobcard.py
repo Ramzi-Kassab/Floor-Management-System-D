@@ -3038,6 +3038,26 @@ def api_edit_transfer(request, pk):
 
 
 @login_required
+def api_toggle_location(request, pk):
+    """Admin-only: activate/deactivate a location."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+    try:
+        loc = Location.objects.get(pk=pk)
+    except Location.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Location not found'})
+    loc.is_active = not loc.is_active
+    loc.save(update_fields=['is_active'])
+    return JsonResponse({
+        'success': True,
+        'is_active': loc.is_active,
+        'message': f'{loc.name} {"activated" if loc.is_active else "deactivated"}.'
+    })
+
+
+@login_required
 def api_locations_list(request):
     """Return all active locations as JSON for dropdowns."""
     locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
@@ -5723,9 +5743,10 @@ class AllLocationsView(LoginRequiredMixin, TemplateView):
         from apps.inventory.models import InventoryLocation
         from django.db.models import Count
 
-        # Bit Locations (workorders.Location) — with bit count
-        bit_locations = Location.objects.filter(is_active=True).annotate(
-            bit_count=Count('current_bits')
+        # Bit Locations (workorders.Location) — ALL (active + inactive) with bit and event counts
+        bit_locations = Location.objects.annotate(
+            bit_count=Count('current_bits', distinct=True),
+            event_count=Count('bit_events', distinct=True),
         ).order_by('location_type', 'name')
 
         # Warehouses (sales.Warehouse)
@@ -5739,39 +5760,43 @@ class AllLocationsView(LoginRequiredMixin, TemplateView):
         for loc in bit_locations:
             all_locs.append({
                 'source': 'Bit Location',
+                'pk': loc.pk,
                 'code': loc.code,
                 'name': loc.name,
                 'type': loc.get_location_type_display(),
                 'parent': '',
                 'bits': loc.bit_count,
+                'events': loc.event_count,
                 'active': loc.is_active,
-                'edit_url': f'/work-orders/locations/{loc.pk}/edit/',
             })
         for wh in warehouses:
             all_locs.append({
                 'source': 'Warehouse',
+                'pk': 0,
                 'code': wh.code,
                 'name': wh.name,
                 'type': 'Warehouse',
                 'parent': '',
                 'bits': '',
+                'events': '',
                 'active': wh.is_active if hasattr(wh, 'is_active') else True,
-                'edit_url': '',
             })
         for sl in stock_locations:
             all_locs.append({
                 'source': 'Stock Bin',
+                'pk': 0,
                 'code': sl.code,
                 'name': sl.name,
                 'type': 'Stock Location',
                 'parent': sl.warehouse.name if sl.warehouse else '',
                 'bits': '',
+                'events': '',
                 'active': sl.is_active,
-                'edit_url': '',
             })
 
         context['all_locations'] = all_locs
-        context['total_bit_locs'] = bit_locations.count()
+        context['total_bit_locs'] = bit_locations.filter(is_active=True).count()
         context['total_warehouses'] = warehouses.count()
         context['total_stock_locs'] = stock_locations.count()
+        context['location_types'] = Location.LocationType.choices
         return context
