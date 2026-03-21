@@ -16,7 +16,7 @@ from django.db.models import Q, Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 

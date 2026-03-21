@@ -215,7 +215,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
+                        <td colspan="7" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
                             <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
                             <p>No transfers recorded yet.</p>
                         </td>
@@ -230,6 +230,19 @@
 
 {% block extra_js %}
 <script>
+async function deleteTransfer(eventId, serial) {
+    if (!confirm(`Delete transfer record for ${serial}?\n\nThis will remove the BitEvent record. The bit's current location will NOT change.`)) return;
+    try {
+        const r = await fetch(`{% url "workorders:api_delete_transfer" pk=0 %}`.replace('/0/', '/' + eventId + '/'), {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+        });
+        const d = await r.json();
+        if (d.success) { location.reload(); }
+        else { alert(d.error); }
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
 function locationTransfers() {
     return {
         // Form state
@@ -276,7 +289,7 @@ function locationTransfers() {
 
         async loadLocations() {
             try {
-                const r = await fetch('/workorders/api/locations/');
+                const r = await fetch('{% url "workorders:api_locations_list" %}');
                 const data = await r.json();
                 this.locations = data.locations || [];
             } catch (e) {
@@ -298,7 +311,7 @@ function locationTransfers() {
             this.successMsg = '';
             this.errorMsg = '';
             try {
-                const r = await fetch(`/workorders/api/drill-bits/lookup/?serial=${encodeURIComponent(s)}`);
+                const r = await fetch(`{% url "workorders:drillbit_lookup_api" %}?serial=${encodeURIComponent(s)}`);
                 const data = await r.json();
                 if (data.found) {
                     this.bitData = data;
@@ -330,7 +343,7 @@ function locationTransfers() {
                     location_id: parseInt(this.destinationId),
                     reason: [this.reason, this.carriedBy ? `Carried by: ${this.carriedBy}` : ''].filter(Boolean).join(' | ')
                 };
-                const r = await fetch('/workorders/api/transfer-bit-location/', {
+                const r = await fetch('{% url "workorders:api_transfer_bit_location" %}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

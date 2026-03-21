@@ -1229,6 +1229,10 @@
                    class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
                     <i data-lucide="printer" class="w-4 h-4 text-gray-500 mr-2"></i>Print Label
                 </a>
+                <a href="{% url 'workorders:location_transfers' %}?serial={{ drill_bit.serial_number }}"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                    <i data-lucide="arrow-right-left" class="w-4 h-4 text-teal-500 mr-2"></i>Transfer Location
+                </a>
                 {% if drill_bit.status != 'SCRAPPED' %}
                 <a href="{% url 'workorders:drillbit_scrap' drill_bit.pk %}"
                    class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-sm text-orange-600 dark:text-orange-400"

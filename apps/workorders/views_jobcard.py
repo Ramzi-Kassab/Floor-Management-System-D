@@ -2005,7 +2005,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
 
         # ── PLANNED ENTRIES ──
         planned_qs = ProductionPlanEntry.objects.filter(
-            status=ProductionPlanEntry.Status.PLANNED
+            status__in=[ProductionPlanEntry.Status.PLANNED, ProductionPlanEntry.Status.PENDING_RELEASE]
         ).select_related(
             'drill_bit', 'drill_bit__design', 'drill_bit__brazing_bom', 'drill_bit__system_bom',
             'drill_bit__bom', 'drill_bit__account', 'account', 'created_by'
@@ -2046,6 +2046,8 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
                 'repair': bit.revision_number or 0,
                 'condition': bit.condition or '',
                 'level': bit.level or (bit.design.order_level if bit.design else ''),
+                'planStatus': entry.status,
+                'releaseDestination': bit.get_release_destination().name if bit.get_release_destination() else '',
             })
 
         # ── WIP + COMPLETED ──
@@ -2513,38 +2515,90 @@ def api_release_plan_entry(request):
     if entry.status != ProductionPlanEntry.Status.PLANNED:
         return JsonResponse({'success': False, 'error': f'Cannot release — status is {entry.get_status_display()}'})
 
-    # Mark as released
-    entry.status = ProductionPlanEntry.Status.RELEASED
-    entry.save(update_fields=['status', 'updated_at'])
+    bit = entry.drill_bit
+    if not bit:
+        return JsonResponse({'success': False, 'error': 'No drill bit linked to this plan entry'})
 
-    # Auto-create the Work Order
-    try:
-        wo, success, error_code, error_message = entry.create_work_order(user=request.user)
-        if not success:
-            # Revert to PLANNED if WO creation fails
+    # Determine release destination
+    dest = bit.get_release_destination()
+    dest_name = dest.name if dest else 'Production Floor'
+    dest_code = bit.get_release_destination_code()
+
+    # Check if bit is ALREADY at the destination (operator moved it beforehand)
+    current_loc = bit.bit_location
+    already_there = (current_loc and dest and
+                     (current_loc.pk == dest.pk or current_loc.code == dest_code or
+                      current_loc.location_type == 'WIP'))
+
+    if already_there:
+        # Bit is already at destination — create WO immediately, no pending
+        entry.status = ProductionPlanEntry.Status.RELEASED
+        entry.save(update_fields=['status', 'updated_at'])
+
+        try:
+            wo, success, error_code, error_message = entry.create_work_order(user=request.user)
+            if success:
+                bit.log_change('Plan Status', 'Planned', 'Released + WO Created', request.user)
+                bit.save(update_fields=['change_log', 'updated_at'])
+                try:
+                    from apps.notifications.services import notify
+                    notify(
+                        actor=request.user,
+                        verb=f"released and created WO {wo.wo_number} for",
+                        target=bit.serial_number,
+                        priority="HIGH",
+                        action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                        entity_type="WorkOrder",
+                        entity_id=wo.pk,
+                    )
+                except Exception:
+                    pass
+                return JsonResponse({
+                    'success': True,
+                    'status': 'RELEASED',
+                    'wo_created': True,
+                    'wo_number': wo.wo_number,
+                    'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                    'message': f'Bit already at {current_loc.name}.\nWO {wo.wo_number} created immediately!'
+                })
+            else:
+                entry.status = ProductionPlanEntry.Status.PLANNED
+                entry.save(update_fields=['status', 'updated_at'])
+                return JsonResponse({'success': False, 'error': f'WO creation failed: {error_message}'})
+        except Exception as e:
             entry.status = ProductionPlanEntry.Status.PLANNED
             entry.save(update_fields=['status', 'updated_at'])
-            return JsonResponse({
-                'success': False,
-                'error': f'Released but WO creation failed: {error_message}'
-            })
+            return JsonResponse({'success': False, 'error': str(e)})
 
-        # Auto-move bit to Production Floor (WIP)
-        if entry.drill_bit:
-            entry.drill_bit.move_to('WIP', f'Released for production — WO {wo.wo_number}', request.user)
+    else:
+        # Bit is NOT at destination — set PENDING_RELEASE, notify operator
+        entry.status = ProductionPlanEntry.Status.PENDING_RELEASE
+        entry.save(update_fields=['status', 'updated_at'])
+
+        bit.log_change('Plan Status', 'Planned', 'Pending Release', request.user)
+        bit.save(update_fields=['change_log', 'updated_at'])
+
+        try:
+            from apps.notifications.services import notify
+            notify(
+                actor=request.user,
+                verb=f"requests release of",
+                target=f"{bit.serial_number} to {dest_name}",
+                priority="HIGH",
+                action_url=reverse('workorders:location_transfers') + f'?serial={bit.serial_number}',
+                entity_type="DrillBit",
+                entity_id=bit.pk,
+            )
+        except Exception:
+            pass
 
         return JsonResponse({
             'success': True,
-            'wo_id': wo.pk,
-            'wo_number': wo.wo_number,
-            'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
-            'message': f'Released and WO {wo.wo_number} created.'
+            'status': 'PENDING_RELEASE',
+            'destination': dest_name,
+            'serial': bit.serial_number,
+            'message': f'Release initiated for {bit.serial_number}.\n\nWaiting for physical transfer to {dest_name}.\nWO will be created automatically once the bit arrives.'
         })
-    except Exception as e:
-        # Revert to PLANNED on error
-        entry.status = ProductionPlanEntry.Status.PLANNED
-        entry.save(update_fields=['status', 'updated_at'])
-        return JsonResponse({'success': False, 'error': f'Release failed: {str(e)}'})
 
 
 @login_required
@@ -2919,6 +2973,23 @@ def api_delete_evaluation(request, pk):
 
 @login_required
 @login_required
+@login_required
+def api_delete_transfer(request, pk):
+    """Admin-only: delete a BitEvent transfer record."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Admin access required'}, status=403)
+    from apps.workorders.models import BitEvent
+    try:
+        event = BitEvent.objects.get(pk=pk, event_type=BitEvent.EventType.TRANSFER)
+    except BitEvent.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Transfer record not found'})
+    event.delete()
+    return JsonResponse({'success': True, 'message': 'Transfer record deleted.'})
+
+
+@login_required
 def api_locations_list(request):
     """Return all active locations as JSON for dropdowns."""
     locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
@@ -2959,8 +3030,8 @@ def api_transfer_bit_location(request):
     except Location.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Location not found'})
 
-    from_location = bit.current_location or bit.bit_location
-    if from_location and from_location.pk == new_location.pk:
+    from_location = bit.bit_location
+    if from_location and (from_location.pk == new_location.pk or from_location.name == new_location.name):
         return JsonResponse({'success': False, 'error': 'Bit is already at this location'})
 
     # Log the change
@@ -2981,16 +3052,53 @@ def api_transfer_bit_location(request):
         performed_by=request.user,
     )
 
-    # Update bit location
-    bit.current_location = new_location
+    # Update bit location (bit_location = workorders.Location)
     bit.bit_location = new_location
-    bit.save(update_fields=['current_location', 'bit_location', 'change_log', 'updated_at'])
+    bit.save(update_fields=['bit_location', 'change_log', 'updated_at'])
+
+    # Check if this bit has a PENDING_RELEASE plan entry — auto-create WO on arrival
+    wo_created_msg = ''
+    pending_entry = ProductionPlanEntry.objects.filter(
+        drill_bit=bit, status=ProductionPlanEntry.Status.PENDING_RELEASE
+    ).select_related('account').first()
+
+    if pending_entry:
+        # Check if bit arrived at the correct release destination
+        expected_dest = bit.get_release_destination_code()
+        if new_location.code == expected_dest or new_location.location_type == 'WIP':
+            # Bit arrived — create WO automatically
+            pending_entry.status = ProductionPlanEntry.Status.RELEASED
+            pending_entry.save(update_fields=['status', 'updated_at'])
+
+            try:
+                wo, success, error_code, error_message = pending_entry.create_work_order(user=request.user)
+                if success:
+                    wo_created_msg = f' WO {wo.wo_number} auto-created!'
+                    bit.log_change('Plan Status', 'Pending Release', 'Released + WO Created', request.user)
+                    bit.save(update_fields=['change_log', 'updated_at'])
+                    # Notify planner
+                    try:
+                        from apps.notifications.services import notify
+                        notify(
+                            actor=request.user,
+                            verb=f"transferred and created WO {wo.wo_number} for",
+                            target=bit.serial_number,
+                            priority="HIGH",
+                            action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                            entity_type="WorkOrder",
+                            entity_id=wo.pk,
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                wo_created_msg = f' (WO creation failed: {str(e)})'
 
     return JsonResponse({
         'success': True,
         'from': str(from_location) if from_location else '—',
         'to': new_location.name,
-        'message': f'Bit transferred to {new_location.name}'
+        'wo_created': bool(wo_created_msg),
+        'message': f'Bit transferred to {new_location.name}.{wo_created_msg}'
     })
 
 
@@ -4437,18 +4545,41 @@ def _get_pocket_grid_context(drill_bit):
 
 
 def _apply_inspection_result_to_bit(bit, result, user=None):
-    """Set drill bit status + location based on inspection result."""
+    """
+    Set drill bit status + location based on inspection result.
+    Routes to different locations based on bit type:
+    - New bits (L3/L4/L5.5) → Components Warehouse (needs production)
+    - Ready bits (L5) → Finished Goods Warehouse (dispatch only)
+    - Repair bits (condition REPAIRED/USED/etc.) → Evaluation Area
+    - Rejected → stays in Receiving Area
+    """
     if result == ReceivingInspection.InspectionResult.REJECTED:
         bit.log_change('Status', bit.get_status_display(), 'Rejected', user)
         bit.status = DrillBit.Status.REJECTED
         bit.save(update_fields=['status', 'change_log', 'updated_at'])
-        bit.move_to('RCV-AREA', 'Inspection result: Rejected', user)
+        bit.move_to('RCV-AREA', 'Inspection result: Rejected — stays in Receiving', user)
     else:
-        # ACCEPTED or CONDITIONAL → move to Evaluation Area
+        # ACCEPTED or CONDITIONAL
         bit.log_change('Status', bit.get_status_display(), 'Received', user)
         bit.status = DrillBit.Status.RECEIVED
         bit.save(update_fields=['status', 'change_log', 'updated_at'])
-        bit.move_to('EVALUATION', f'Inspection result: {result}', user)
+
+        # Route based on bit type
+        level = bit.level or (bit.design.order_level if bit.design else '')
+        is_repair = bit.condition in ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
+
+        if level == '5':
+            # L5 Ready bits → Finished Goods (dispatch only, no production)
+            bit.move_to('WH-FG', f'Inspection {result}: L5 ready bit → Finished Goods', user)
+        elif is_repair:
+            # Repair bits → Evaluation Area (needs evaluation before planning)
+            bit.move_to('EVALUATION', f'Inspection {result}: Repair bit → Evaluation', user)
+        elif level in ('3', '4', '5.5'):
+            # New manufacturing bits → Components Warehouse
+            bit.move_to('WH-COMP', f'Inspection {result}: L{level} new bit → Components Warehouse', user)
+        else:
+            # Fallback → Evaluation Area
+            bit.move_to('EVALUATION', f'Inspection {result}', user)
 
 
 class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
@@ -5507,3 +5638,25 @@ class StandaloneThreadReportView(LoginRequiredMixin, TemplateView):
         if eval_pk:
             return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=eval_pk)
         return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOCATION TRANSFERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+class LocationTransferView(LoginRequiredMixin, TemplateView):
+    """Central page for transferring drill bits between locations."""
+    template_name = "workorders/location_transfers.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['recent_transfers'] = BitEvent.objects.filter(
+            event_type=BitEvent.EventType.TRANSFER
+        ).select_related(
+            'bit', 'location', 'from_location', 'to_location', 'performed_by'
+        ).order_by('-event_date')[:50]
+        context['locations'] = Location.objects.filter(
+            is_active=True
+        ).order_by('location_type', 'name')
+        context['pre_serial'] = self.request.GET.get('serial', '')
+        return context

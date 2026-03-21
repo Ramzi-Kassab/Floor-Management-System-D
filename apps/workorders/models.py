@@ -301,6 +301,21 @@ class DrillBit(models.Model):
             self.change_log = []
         self.change_log.append(entry)
 
+    def get_release_destination_code(self):
+        """Return the location code where this bit should go when released for production."""
+        level = self.level or (self.design.order_level if self.design else '')
+        if level in ('3', '5.5'):
+            return 'SUB-ARC'  # Sub Arc Welding Area
+        elif level == '4':
+            return 'PDC-EVAL'  # PDC Evaluation Area
+        else:
+            return 'WIP'  # General production floor (repair)
+
+    def get_release_destination(self):
+        """Return the Location object for release destination."""
+        code = self.get_release_destination_code()
+        return Location.objects.filter(code=code, is_active=True).first()
+
     def move_to(self, location_code_or_type, reason='', user=None):
         """
         Move bit to a new location by code or location_type.
@@ -314,13 +329,12 @@ class DrillBit(models.Model):
         ).first()
         if not new_loc:
             return None
-        from_loc = self.current_location or self.bit_location
+        from_loc = self.bit_location
         if from_loc and from_loc.pk == new_loc.pk:
             return new_loc  # already there
         self.log_change('Location', str(from_loc) if from_loc else '—', str(new_loc), user)
-        self.current_location = new_loc
         self.bit_location = new_loc
-        self.save(update_fields=['current_location', 'bit_location', 'change_log', 'updated_at'])
+        self.save(update_fields=['bit_location', 'change_log', 'updated_at'])
         BitEvent.objects.create(
             bit=self,
             event_type=BitEvent.EventType.TRANSFER,
@@ -3058,6 +3072,7 @@ class ProductionPlanEntry(models.Model):
 
     class Status(models.TextChoices):
         PLANNED = "PLANNED", "Planned"
+        PENDING_RELEASE = "PENDING_RELEASE", "Pending Release"
         RELEASED = "RELEASED", "Released"
         WO_CREATED = "WO_CREATED", "WO Created"
         REMOVED = "REMOVED", "Removed"

@@ -1128,7 +1128,9 @@ function ppRenderPlanned(q,acct){
     if(V('priority')) cells+=`<td><div class="td-inner"><span class="pr pr-${p.priority}">${p.priorityDisplay}</span></div></td>`;
     if(V('timeline')) cells+=`<td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;"><button class="btn btn-g" style="padding:2px 6px;font-size:11px;" onclick="ppOpenTimeline(${p.bitId},'planned')" title="Timeline">&#x1F552;</button></div></td>`;
     if(V('actions')) cells+=`<td onclick="event.stopPropagation()" style="text-align:center;"><div class="td-inner" style="align-items:center;flex-direction:row;gap:4px;">
-      <button class="btn btn-p" style="padding:3px 10px;font-size:11px;" onclick="ppRelease(${p.entryId},'${p.serial}','${p.account}')">Release</button>
+      ${p.planStatus==='PENDING_RELEASE'
+        ?'<span style="color:var(--yellow);font-size:11px;font-weight:600;">&#x23F3; Pending Move → '+p.releaseDestination+'</span>'
+        :'<button class="btn btn-p" style="padding:3px 10px;font-size:11px;" onclick="ppRelease('+p.entryId+',\''+p.serial+'\',\''+p.account+'\')">Release</button>'}
       <button class="btn btn-g" style="padding:3px 8px;font-size:11px;color:var(--red);" onclick="ppRemove(${p.entryId},'${p.serial}')" title="Remove">&#x2715;</button>
     </div></td>`;
     return `<tr class="pp-row" data-gi="${gi}" onmouseenter="ppOnRow(this)" onmouseleave="ppOffRow()" onclick="ppOpenPlannedDrawer(${p.entryId})">${cells}</tr>`;
@@ -1516,7 +1518,9 @@ function ppOpenPlannedDrawer(entryId){
     <div id="pp-plan-error" style="display:none;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--red);margin-top:12px;"></div>
     <div class="d-actions">
       <button class="btn btn-g" style="color:var(--red);" onclick="ppRemove(${p.entryId},'${p.serial}')">&#x2715; Remove</button>
-      <button class="btn btn-p" onclick="ppRelease(${p.entryId},'${p.serial}','${p.account}')">&#x1f680; Release &amp; Create WO</button>
+      ${p.planStatus==='PENDING_RELEASE'
+        ?'<div style="text-align:center;padding:6px;"><span style="color:var(--yellow);font-weight:600;">&#x23F3; Waiting for physical transfer to '+p.releaseDestination+'</span><br><span style="font-size:10px;color:var(--sub);">WO will be created automatically once bit arrives</span></div>'
+        :'<button class="btn btn-p" onclick="ppRelease('+p.entryId+',\''+p.serial+'\',\''+p.account+'\')">&#x1f680; Release</button>'}
     </div>`;
   // Pre-select current account
   const sel=document.getElementById('pp-plan-acct');
@@ -1652,7 +1656,7 @@ async function ppEditDueDateDirect(entryId, newDate) {
    ACTIONS
 ══════════════════════════════════════════ */
 async function ppRelease(entryId,serial,account){
-  if(!confirm(`Release ${serial} (${account}) for production?\n\nThis will create a Work Order automatically.`))return;
+  if(!confirm(`Release ${serial} (${account}) for production?\n\nIf bit is already at the production area → WO created immediately.\nIf not → operator will be notified to move it first.\n\nContinue?`))return;
   try{
     const r=await fetch('{% url "workorders:api_release_plan_entry" %}',{
       method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
@@ -1660,8 +1664,13 @@ async function ppRelease(entryId,serial,account){
     });
     const j=await r.json();
     if(j.success){
-      if(confirm(`${j.message}\n\nView the Work Order now?`)) window.location=j.redirect_url;
-      else location.reload();
+      if(j.wo_created && j.redirect_url){
+        if(confirm(`${j.message}\n\nView the Work Order now?`)) window.location=j.redirect_url;
+        else location.reload();
+      } else {
+        alert(j.message);
+        location.reload();
+      }
     } else {
       const el=document.getElementById('pp-plan-error');
       if(el){el.textContent=j.error;el.style.display='block';}

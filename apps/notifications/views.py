@@ -58,17 +58,24 @@ class NotificationListView(LoginRequiredMixin, ListView):
 
 
 class NotificationMarkReadView(LoginRequiredMixin, View):
-    """Mark a notification as read."""
+    """Mark a notification as read. GET = click from bell, POST = AJAX."""
+
+    def get(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notification.is_read = True
+        notification.read_at = timezone.now()
+        notification.save()
+        if notification.action_url:
+            return redirect(notification.action_url)
+        return redirect("notifications:notification_list")
 
     def post(self, request, pk):
         notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
         notification.is_read = True
         notification.read_at = timezone.now()
         notification.save()
-
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({"status": "ok"})
-
         if notification.action_url:
             return redirect(notification.action_url)
         return redirect("notifications:notification_list")

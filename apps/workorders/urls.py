@@ -60,6 +60,7 @@ urlpatterns = [
     path("api/update-bit-account/", views_jobcard.api_update_bit_account, name="api_update_bit_account"),
     path("api/assign-bit-bom/", views_jobcard.api_assign_bit_bom, name="api_assign_bit_bom"),
     path("api/transfer-bit-location/", views_jobcard.api_transfer_bit_location, name="api_transfer_bit_location"),
+    path("api/delete-transfer/<int:pk>/", views_jobcard.api_delete_transfer, name="api_delete_transfer"),
     path("api/locations/", views_jobcard.api_locations_list, name="api_locations_list"),
     path("api/change-wo-account/", views_jobcard.api_change_wo_account, name="api_change_wo_account"),
     # Planner Settings API
@@ -67,6 +68,9 @@ urlpatterns = [
     path("api/holiday/<int:pk>/delete/", views_jobcard.api_delete_holiday, name="api_delete_holiday"),
     path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
     path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
+
+    # Location Transfers
+    path("location-transfers/", views_jobcard.LocationTransferView.as_view(), name="location_transfers"),
 
     # Evaluation Route Builder
     path("evaluation-routes/", views_jobcard.EvaluationRouteBuilderView.as_view(), name="evaluation_route_builder"),
