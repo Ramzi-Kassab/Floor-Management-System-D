@@ -1213,6 +1213,8 @@ def api_drillbit_lookup(request):
         "customer_name": customer_name,
         "current_location": current_location,
         "from_location": from_location,
+        "release_destination_code": bit.get_release_destination_code(),
+        "level": bit.level or (bit.design.order_level if bit.design else ''),
         "received_date": received_date,
         "repair_count": repair_count,
         "rerun_count": rerun_count,

@@ -121,12 +121,17 @@ class NotificationBellView(LoginRequiredMixin, View):
         unread_count = get_unread_count(request.user)
         recent = get_recent_unread(request.user, limit=5)
         latest_id = recent[0].pk if recent else ""
+        # Recent read notifications
+        read_recent = Notification.objects.filter(
+            recipient=request.user, is_read=True
+        ).order_by('-created_at')[:5]
 
         html = render_to_string(
             "notifications/partials/bell_fragment.html",
             {
                 "unread_count": unread_count,
                 "recent_notifications": recent,
+                "read_notifications": read_recent,
                 "latest_id": latest_id,
             },
             request=request,

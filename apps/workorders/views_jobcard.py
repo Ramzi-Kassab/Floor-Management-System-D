@@ -2585,7 +2585,7 @@ def api_release_plan_entry(request):
                 verb=f"requests release of",
                 target=f"{bit.serial_number} to {dest_name}",
                 priority="HIGH",
-                action_url=reverse('workorders:location_transfers') + f'?serial={bit.serial_number}',
+                action_url=reverse('workorders:location_transfers') + f'?serial={bit.serial_number}&dest={dest_code}',
                 entity_type="DrillBit",
                 entity_id=bit.pk,
             )

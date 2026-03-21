@@ -126,6 +126,9 @@
                 <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.bit_state">
                     Status: <span x-text="bitData?.bit_state"></span>
                 </span>
+                <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.level">
+                    Level: <span class="font-semibold" x-text="'L' + bitData?.level"></span>
+                </span>
                 <span class="text-gray-600 dark:text-gray-400" x-show="bitData?.account_code">
                     Account: <span x-text="bitData?.account_code"></span>
                 </span>
@@ -317,6 +320,15 @@ function locationTransfers() {
                     this.bitData = data;
                     this.bitId = data.pk || data.drill_bit_id;
                     this.currentLocation = data.current_location || data.from_location || '—';
+                    // Auto-select destination from URL param or release destination
+                    const urlDest = new URLSearchParams(window.location.search).get('dest');
+                    if (urlDest) {
+                        const match = this.locations.find(l => l.code === urlDest || l.name === urlDest || l.id == urlDest);
+                        if (match) this.destinationId = String(match.id);
+                    } else if (data.release_destination_code) {
+                        const match = this.locations.find(l => l.code === data.release_destination_code);
+                        if (match) this.destinationId = String(match.id);
+                    }
                 } else {
                     this.bitData = null;
                     this.bitId = null;

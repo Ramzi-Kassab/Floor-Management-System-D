@@ -1,6 +1,6 @@
 {% load humanize %}
 {# HTMX-swapped bell fragment — self-contained Alpine.js component #}
-<div x-data="{ bellOpen: false }" class="relative"
+<div x-data="{ bellOpen: false, tab: 'unread' }" class="relative"
      data-unread-count="{{ unread_count }}"
      data-latest-id="{{ latest_id|default:'' }}">
 
@@ -27,35 +27,37 @@
          x-transition:leave-end="opacity-0 translate-y-1"
          @click.outside="bellOpen = false"
          class="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl
-                border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                border border-gray-200 dark:border-gray-700 z-[9999] overflow-hidden">
 
-        {# Header #}
-        <div class="flex items-center justify-between px-4 py-3 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
-            <h3 class="font-semibold text-gray-900 dark:text-white text-sm">
-                Notifications
+        {# Header with tabs #}
+        <div class="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
+            <div class="flex items-center justify-between px-4 pt-3 pb-0">
+                <h3 class="font-semibold text-gray-900 dark:text-white text-sm">Notifications</h3>
                 {% if unread_count > 0 %}
-                <span class="ml-1 text-xs font-medium text-blue-600 dark:text-blue-400">({{ unread_count }} unread)</span>
+                <form method="post" action="{% url 'notifications:notification_mark_all_read' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Mark all read</button>
+                </form>
                 {% endif %}
-            </h3>
-            {% if unread_count > 0 %}
-            <form method="post" action="{% url 'notifications:notification_mark_all_read' %}">
-                {% csrf_token %}
-                <button type="submit"
-                        class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
-                    Mark all read
+            </div>
+            <div class="flex px-4 mt-2 gap-4">
+                <button @click="tab='unread'" class="text-xs pb-2 font-medium border-b-2 transition-colors"
+                        :class="tab==='unread' ? 'text-blue-600 border-blue-600' : 'text-gray-400 border-transparent hover:text-gray-600'">
+                    Unread{% if unread_count > 0 %} ({{ unread_count }}){% endif %}
                 </button>
-            </form>
-            {% endif %}
+                <button @click="tab='read'" class="text-xs pb-2 font-medium border-b-2 transition-colors"
+                        :class="tab==='read' ? 'text-blue-600 border-blue-600' : 'text-gray-400 border-transparent hover:text-gray-600'">
+                    Recent
+                </button>
+            </div>
         </div>
 
-        {# Notification list #}
-        <div class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+        {# Unread tab #}
+        <div x-show="tab==='unread'" class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
             {% if recent_notifications %}
                 {% for n in recent_notifications %}
-                <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
-                            border-l-3 {% if n.priority == 'URGENT' %}border-l-red-500{% elif n.priority == 'HIGH' %}border-l-amber-500{% elif n.priority == 'LOW' %}border-l-gray-300{% else %}border-l-blue-500{% endif %}"
-                     style="border-left-width: 3px;">
-                    {# Icon based on priority #}
+                <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                     style="border-left: 3px solid {% if n.priority == 'URGENT' %}#ef4444{% elif n.priority == 'HIGH' %}#f59e0b{% else %}#3b82f6{% endif %};">
                     <div class="flex-shrink-0 mt-0.5">
                         {% if n.priority == 'URGENT' %}
                         <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
@@ -71,8 +73,6 @@
                         </div>
                         {% endif %}
                     </div>
-
-                    {# Content #}
                     <div class="flex-1 min-w-0">
                         {% if n.action_url %}
                         <a href="{% url 'notifications:notification_read' pk=n.pk %}"
@@ -84,25 +84,52 @@
                         {% endif %}
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {{ n.created_at|timesince }} ago
-                            {% if n.actor %}<span class="text-gray-400 dark:text-gray-500">by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
+                            {% if n.actor %}<span class="text-gray-400">by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
                         </p>
                     </div>
-
-                    {# Mark read button #}
-                    <form method="post" action="{% url 'notifications:notification_read' pk=n.pk %}"
-                          class="flex-shrink-0">
-                        {% csrf_token %}
-                        <button type="submit" title="Mark as read"
-                                class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </form>
+                    <a href="{% url 'notifications:notification_read' pk=n.pk %}" title="Mark as read"
+                       class="flex-shrink-0 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                    </a>
                 </div>
                 {% endfor %}
             {% else %}
                 <div class="px-4 py-8 text-center">
                     <i data-lucide="bell-off" class="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2"></i>
                     <p class="text-sm text-gray-500 dark:text-gray-400">No new notifications</p>
+                </div>
+            {% endif %}
+        </div>
+
+        {# Read tab #}
+        <div x-show="tab==='read'" x-cloak class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+            {% if read_notifications %}
+                {% for n in read_notifications %}
+                <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors opacity-70">
+                    <div class="flex-shrink-0 mt-0.5">
+                        <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        {% if n.action_url %}
+                        <a href="{{ n.action_url }}"
+                           class="text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 block truncate">
+                            {{ n.title }}
+                        </a>
+                        {% else %}
+                        <p class="text-sm text-gray-600 dark:text-gray-300 truncate">{{ n.title }}</p>
+                        {% endif %}
+                        <p class="text-xs text-gray-400 mt-0.5">
+                            {{ n.created_at|timesince }} ago
+                            {% if n.actor %}<span>by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="px-4 py-8 text-center">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No recent notifications</p>
                 </div>
             {% endif %}
         </div>
