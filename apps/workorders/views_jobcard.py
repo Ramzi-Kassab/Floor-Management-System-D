@@ -5711,3 +5711,67 @@ class LocationTransferView(LoginRequiredMixin, TemplateView):
         ).order_by('location_type', 'name')
         context['pre_serial'] = self.request.GET.get('serial', '')
         return context
+
+
+class AllLocationsView(LoginRequiredMixin, TemplateView):
+    """Unified view showing all locations from all 3 sources."""
+    template_name = "workorders/all_locations.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.sales.models import Warehouse
+        from apps.inventory.models import InventoryLocation
+        from django.db.models import Count
+
+        # Bit Locations (workorders.Location) — with bit count
+        bit_locations = Location.objects.filter(is_active=True).annotate(
+            bit_count=Count('current_bits')
+        ).order_by('location_type', 'name')
+
+        # Warehouses (sales.Warehouse)
+        warehouses = Warehouse.objects.all().order_by('name')
+
+        # Stock Locations (inventory.InventoryLocation)
+        stock_locations = InventoryLocation.objects.filter(is_active=True).order_by('warehouse__name', 'name')
+
+        # Build unified list
+        all_locs = []
+        for loc in bit_locations:
+            all_locs.append({
+                'source': 'Bit Location',
+                'code': loc.code,
+                'name': loc.name,
+                'type': loc.get_location_type_display(),
+                'parent': '',
+                'bits': loc.bit_count,
+                'active': loc.is_active,
+                'edit_url': f'/work-orders/locations/{loc.pk}/edit/',
+            })
+        for wh in warehouses:
+            all_locs.append({
+                'source': 'Warehouse',
+                'code': wh.code,
+                'name': wh.name,
+                'type': 'Warehouse',
+                'parent': '',
+                'bits': '',
+                'active': wh.is_active if hasattr(wh, 'is_active') else True,
+                'edit_url': '',
+            })
+        for sl in stock_locations:
+            all_locs.append({
+                'source': 'Stock Bin',
+                'code': sl.code,
+                'name': sl.name,
+                'type': 'Stock Location',
+                'parent': sl.warehouse.name if sl.warehouse else '',
+                'bits': '',
+                'active': sl.is_active,
+                'edit_url': '',
+            })
+
+        context['all_locations'] = all_locs
+        context['total_bit_locs'] = bit_locations.count()
+        context['total_warehouses'] = warehouses.count()
+        context['total_stock_locs'] = stock_locations.count()
+        return context

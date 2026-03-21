@@ -72,6 +72,7 @@ urlpatterns = [
 
     # Location Transfers
     path("location-transfers/", views_jobcard.LocationTransferView.as_view(), name="location_transfers"),
+    path("all-locations/", views_jobcard.AllLocationsView.as_view(), name="all_locations"),
 
     # Evaluation Route Builder
     path("evaluation-routes/", views_jobcard.EvaluationRouteBuilderView.as_view(), name="evaluation_route_builder"),

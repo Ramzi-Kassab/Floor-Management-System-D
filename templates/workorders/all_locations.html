@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}All Locations - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-6 h-6 text-blue-500"></i>
+            All Locations
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {{ total_bit_locs }} bit locations · {{ total_warehouses }} warehouses · {{ total_stock_locs }} stock bins
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="{ search: '', sourceFilter: '' }">
+
+    <!-- Filters -->
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
+        <div class="relative flex-1 max-w-xs">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-gray-400"></i>
+            <input x-model="search" type="text" placeholder="Search locations..."
+                   class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+        </div>
+        <select x-model="sourceFilter" class="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <option value="">All Sources</option>
+            <option value="Bit Location">Bit Locations</option>
+            <option value="Warehouse">Warehouses</option>
+            <option value="Stock Bin">Stock Bins</option>
+        </select>
+        <button x-show="search || sourceFilter" @click="search=''; sourceFilter='';"
+                class="text-xs text-red-500 hover:text-red-700">Clear</button>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <th class="px-4 py-3 font-medium">Source</th>
+                        <th class="px-4 py-3 font-medium">Code</th>
+                        <th class="px-4 py-3 font-medium">Name</th>
+                        <th class="px-4 py-3 font-medium">Type</th>
+                        <th class="px-4 py-3 font-medium">Parent</th>
+                        <th class="px-4 py-3 font-medium text-center">Bits</th>
+                        <th class="px-4 py-3 font-medium text-center">Active</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    {% for loc in all_locations %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                        x-show="(!search || '{{ loc.code }} {{ loc.name }} {{ loc.type }}'.toLowerCase().includes(search.toLowerCase())) && (!sourceFilter || '{{ loc.source }}' === sourceFilter)">
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium
+                                {% if loc.source == 'Bit Location' %}bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300
+                                {% elif loc.source == 'Warehouse' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300
+                                {% else %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300{% endif %}">
+                                {{ loc.source }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-300">{{ loc.code }}</td>
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ loc.name }}</td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ loc.type }}</td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ loc.parent|default:"—" }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if loc.bits %}
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{{ loc.bits }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if loc.active %}
+                            <span class="text-green-500"><i data-lucide="check" class="w-4 h-4 inline"></i></span>
+                            {% else %}
+                            <span class="text-gray-300"><i data-lucide="x" class="w-4 h-4 inline"></i></span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
