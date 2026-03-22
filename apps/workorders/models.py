@@ -1795,6 +1795,17 @@ class MasterProcess(models.Model):
         help_text='Included in all routes by default (unless excluded by a rule)'
     )
 
+    # Step mode — how the step is executed
+    class StepMode(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active — operator performs work"
+        PASSIVE = "PASSIVE", "Passive — wait/cooling, system tracks time and notifies next operator"
+        MULTI = "MULTI", "Multi-instance — can appear multiple times (e.g., Die Check)"
+
+    step_mode = models.CharField(
+        max_length=10, choices=StepMode.choices, default=StepMode.ACTIVE,
+        help_text='How this step is executed by the operator'
+    )
+
     # Ordering
     sort_order = models.IntegerField(default=100, help_text='Default sequence position')
 
