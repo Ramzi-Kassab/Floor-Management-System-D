@@ -207,6 +207,14 @@
                                            class="rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 w-4 h-4">
                                     Active
                                 </label>
+                                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span>Step Mode:</span>
+                                    <select x-model="p.step_mode" class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="ACTIVE">Active (operator works)</option>
+                                        <option value="PASSIVE">Passive (wait/cooling — notify next)</option>
+                                        <option value="MULTI">Multi-instance (insertable multiple times)</option>
+                                    </select>
+                                </label>
                             </div>
                             <div>
                                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Applies to Levels <span class="text-gray-400 font-normal">(comma-separated: 3, 4, 5.5 — empty = all)</span></label>
@@ -254,8 +262,31 @@
                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
                         </fieldset>
 
-                        <!-- Parameters -->
+                        <!-- Dedicated Page -->
                         <fieldset>
+                            <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Dedicated Page
+                            </legend>
+                            <select x-model="p.dedicated_page"
+                                    class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">— No dedicated page (use inline parameters)</option>
+                                <option value="die_check">Die Check Report</option>
+                                <option value="cutter_eval">Cutter Evaluation</option>
+                                <option value="lpt_report">LPT Pressure Test Report</option>
+                                <option value="thread_insp">API Thread Inspection</option>
+                                <option value="e_checklist">E-Checklist</option>
+                                <option value="receiving_insp">Receiving Inspection</option>
+                            </select>
+                            <template x-if="p.dedicated_page">
+                                <div class="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
+                                    <span>Technical data (parameters, checklists) is handled in the dedicated page. The step detail will show a large icon button linking to it.</span>
+                                </div>
+                            </template>
+                        </fieldset>
+
+                        <!-- Parameters (hidden if dedicated page selected) -->
+                        <fieldset x-show="!p.dedicated_page">
                             <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
                                 <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Parameters
                                 <span class="text-gray-300 dark:text-gray-600 font-normal normal-case">(what the operator records)</span>
@@ -307,8 +338,8 @@
                             </button>
                         </fieldset>
 
-                        <!-- Checklist -->
-                        <fieldset>
+                        <!-- Checklist (hidden if dedicated page selected) -->
+                        <fieldset x-show="!p.dedicated_page">
                             <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
                                 <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> QC Checklist
                             </legend>

@@ -59,6 +59,9 @@ class MasterProcessListView(LoginRequiredMixin, TemplateView):
                 "applies_to_repair": p.applies_to_repair,
                 "applies_to_levels": p.applies_to_levels or [],
                 "is_active": p.is_active,
+                "dedicated_page": p.dedicated_page or '',
+                "dedicated_icon": p.dedicated_icon or '',
+                "step_mode": p.step_mode or 'ACTIVE',
                 "rules": rules,
             })
 
@@ -93,10 +96,21 @@ def api_master_process_create(request):
     if not data:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-    code = (data.get("code") or "").strip()
     name = (data.get("name") or "").strip()
-    if not code or not name:
-        return JsonResponse({"error": "Code and name are required"}, status=400)
+    if not name:
+        return JsonResponse({"error": "Name is required"}, status=400)
+
+    # Auto-generate code from name if not provided
+    code = (data.get("code") or "").strip()
+    if not code:
+        # Generate: take first letters of each word, uppercase, add number if exists
+        words = name.upper().replace('(', '').replace(')', '').split()
+        base = '-'.join(w[:4] for w in words[:3])
+        code = base
+        suffix = 1
+        while MasterProcess.objects.filter(code=code).exists():
+            code = f"{base}-{suffix}"
+            suffix += 1
 
     if MasterProcess.objects.filter(code=code).exists():
         return JsonResponse({"error": f"Code '{code}' already exists"}, status=400)
@@ -134,7 +148,7 @@ def api_master_process_save(request, pk):
     for field in [
         "code", "name", "category", "description",
         "instructions_general", "procedure_reference", "procedure_doc_url",
-        "safety_notes",
+        "safety_notes", "dedicated_page", "dedicated_icon", "step_mode",
     ]:
         if field in data:
             setattr(p, field, (data[field] or "").strip() if isinstance(data[field], str) else data[field])
