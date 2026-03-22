@@ -3753,6 +3753,31 @@ class ProductionPlanEntry(models.Model):
             created_by=user,
         )
 
+        # Auto-populate router entries from Smart Route Engine
+        try:
+            steps = assemble_route_for_bit(self.drill_bit)
+            for idx, step_data in enumerate(steps):
+                proc = step_data['master_process']
+                RouterSheetEntry.objects.create(
+                    work_order=work_order,
+                    step_number=(idx + 1) * 10,  # 10, 20, 30...
+                    step_description=proc.name,
+                    instructions=step_data['instructions'] or '',
+                    procedure_reference=step_data['procedure_reference'] or '',
+                    safety_notes=step_data['safety_notes'] or '',
+                    parameters_template=step_data['parameters'],
+                    checklist_template=step_data['checklist'],
+                    source_operation=None,  # From master process, not from old route template
+                    step_type=(
+                        RouterSheetEntry.StepType.CONDITIONAL if not proc.is_default_included
+                        else RouterSheetEntry.StepType.STANDARD
+                    ),
+                )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            # Don't fail WO creation if route assembly fails
+
         # Update plan entry
         self.work_order = work_order
         self.status = self.Status.WO_CREATED

@@ -5908,6 +5908,24 @@ class RouterStepDetailView(LoginRequiredMixin, DetailView):
         context['qc_passed_json'] = _j.dumps(step.qc_passed)
         context['qc_remarks_json'] = _j.dumps(step.qc_remarks or '')
 
+        # Special instructions for this step + this bit
+        from apps.workorders.models import SpecialInstruction
+        bit = wo.drill_bit
+        if bit:
+            all_special = SpecialInstruction.objects.filter(is_active=True).select_related('design', 'target_process')
+            matching = []
+            for si in all_special:
+                # Match by step name (simple keyword match since we don't have master_process FK on RouterSheetEntry)
+                step_match = (si.target_process is None) or (
+                    si.target_process.name.lower() in step.step_description.lower() or
+                    step.step_description.lower() in si.target_process.name.lower()
+                )
+                if step_match and si.matches_bit(bit):
+                    matching.append(si)
+            context['special_instructions'] = matching
+        else:
+            context['special_instructions'] = []
+
         return context
 
 
