@@ -5908,6 +5908,35 @@ class RouterStepDetailView(LoginRequiredMixin, DetailView):
         context['qc_passed_json'] = _j.dumps(step.qc_passed)
         context['qc_remarks_json'] = _j.dumps(step.qc_remarks or '')
 
+        # Dedicated page — if this process has its own page, show big link instead of inline params
+        from apps.workorders.models import MasterProcess as _MP
+        dedicated_url = ''
+        dedicated_label = ''
+        # Match by step description to MasterProcess
+        mp = _MP.objects.filter(name__iexact=step.step_description, is_active=True).first()
+        if not mp:
+            # Fuzzy match
+            mp = _MP.objects.filter(name__icontains=step.step_description.split('(')[0].strip(), is_active=True).first()
+        if mp and mp.dedicated_url_name:
+            try:
+                # Build the URL — most dedicated pages need wo_pk
+                dedicated_url = reverse(mp.dedicated_url_name, kwargs={'wo_pk': wo.pk})
+                dedicated_label = mp.dedicated_url_label or 'Open Dedicated Page'
+            except Exception:
+                try:
+                    dedicated_url = reverse(mp.dedicated_url_name, args=[wo.pk])
+                    dedicated_label = mp.dedicated_url_label or 'Open Dedicated Page'
+                except Exception:
+                    pass
+            # Add return URL param so the dedicated page can link back
+            if dedicated_url:
+                step_url = reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step.step_number})
+                dedicated_url += f'?from_step={step.step_number}&return_url={step_url}'
+        context['dedicated_url'] = dedicated_url
+        context['dedicated_label'] = dedicated_label
+        context['has_dedicated_page'] = bool(dedicated_url)
+        context['step_mode'] = mp.step_mode if mp else 'ACTIVE'
+
         # Special instructions for this step + this bit
         from apps.workorders.models import SpecialInstruction
         bit = wo.drill_bit

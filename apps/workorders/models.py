@@ -1806,6 +1806,17 @@ class MasterProcess(models.Model):
         help_text='How this step is executed by the operator'
     )
 
+    # Dedicated page — if this process has its own full page, link to it
+    # URL pattern name (e.g., 'workorders:lpt_report_create') — step detail shows big link instead of inline params
+    dedicated_url_name = models.CharField(
+        max_length=100, blank=True,
+        help_text='Django URL name for dedicated page (e.g., workorders:lpt_report_create). If set, step detail shows a link instead of inline parameters.'
+    )
+    dedicated_url_label = models.CharField(
+        max_length=100, blank=True, default='',
+        help_text='Button label (e.g., "Open Die Check Report", "Open LPT Report")'
+    )
+
     # Ordering
     sort_order = models.IntegerField(default=100, help_text='Default sequence position')
 

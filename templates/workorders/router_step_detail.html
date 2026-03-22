@@ -430,6 +430,29 @@
     {% endif %}
 
     <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- DEDICATED PAGE LINK (replaces inline params/checklist)        -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if has_dedicated_page %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-700 p-8 text-center">
+        <div class="mb-4">
+            <div class="w-16 h-16 mx-auto bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4">
+                <i data-lucide="external-link" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-1">{{ dedicated_label }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">This process has a dedicated page with full forms, measurements, and checklists.</p>
+        </div>
+        <a href="{{ dedicated_url }}"
+           class="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-lg font-semibold transition-colors shadow-lg hover:shadow-xl"
+           style="min-height:56px;">
+            <i data-lucide="arrow-right-circle" class="w-6 h-6"></i>
+            {{ dedicated_label }}
+        </a>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">Complete the evaluation/report there, then return to this step to mark it complete.</p>
+    </div>
+    {% endif %}
+
+    {% if not has_dedicated_page %}
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <!-- SECTION 4: Measurements & Parameters                          -->
     <!-- ══════════════════════════════════════════════════════════════ -->
     {% if parameters %}
@@ -546,6 +569,7 @@
         </div>
     </div>
     {% endif %}
+    {% endif %}{# end not has_dedicated_page #}
 
     <!-- ══════════════════════════════════════════════════════════════ -->
     <!-- SECTION 6: Decisions (Cerebro / O-Ring)                       -->
