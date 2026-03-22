@@ -1807,15 +1807,67 @@ class MasterProcess(models.Model):
     )
 
     # Dedicated page — if this process has its own full page, link to it
-    # URL pattern name (e.g., 'workorders:lpt_report_create') — step detail shows big link instead of inline params
-    dedicated_url_name = models.CharField(
-        max_length=100, blank=True,
-        help_text='Django URL name for dedicated page (e.g., workorders:lpt_report_create). If set, step detail shows a link instead of inline parameters.'
+    class DedicatedPage(models.TextChoices):
+        NONE = "", "— No dedicated page (use inline parameters)"
+        DIE_CHECK = "die_check", "Die Check Report"
+        CUTTER_EVAL = "cutter_eval", "Cutter Evaluation"
+        LPT_REPORT = "lpt_report", "LPT Pressure Test Report"
+        THREAD_INSP = "thread_insp", "API Thread Inspection"
+        E_CHECKLIST = "e_checklist", "E-Checklist"
+        RECEIVING_INSP = "receiving_insp", "Receiving Inspection"
+
+    dedicated_page = models.CharField(
+        max_length=20, choices=DedicatedPage.choices, blank=True, default='',
+        help_text='Select the dedicated page for technical data entry. The step detail will show a large icon linking to this page.'
     )
-    dedicated_url_label = models.CharField(
-        max_length=100, blank=True, default='',
-        help_text='Button label (e.g., "Open Die Check Report", "Open LPT Report")'
+    # Lucide icon name for the dedicated page button
+    dedicated_icon = models.CharField(
+        max_length=30, blank=True, default='',
+        help_text='Lucide icon name (e.g., search, shield-check, droplet, clipboard-check)'
     )
+
+    # Legacy fields (kept for backward compat, prefer dedicated_page)
+    dedicated_url_name = models.CharField(max_length=100, blank=True)
+    dedicated_url_label = models.CharField(max_length=100, blank=True, default='')
+
+    @property
+    def resolved_dedicated_url_name(self):
+        """Get the Django URL name for this process's dedicated page."""
+        url_map = {
+            'die_check': 'workorders:die_check_create',
+            'cutter_eval': 'workorders:cutter_evaluation_create',
+            'lpt_report': 'workorders:lpt_report_create',
+            'thread_insp': 'workorders:api_thread_create',
+            'e_checklist': 'workorders:e_checklist',
+            'receiving_insp': 'workorders:receiving_inspection_list',
+        }
+        if self.dedicated_page:
+            return url_map.get(self.dedicated_page, '')
+        return self.dedicated_url_name
+
+    @property
+    def resolved_dedicated_label(self):
+        """Get the button label for this process's dedicated page."""
+        if self.dedicated_page:
+            return self.get_dedicated_page_display()
+        return self.dedicated_url_label
+
+    @property
+    def resolved_dedicated_icon(self):
+        """Get the Lucide icon for the dedicated page button."""
+        icon_map = {
+            'die_check': 'search',
+            'cutter_eval': 'grid-3x3',
+            'lpt_report': 'droplet',
+            'thread_insp': 'circle-dot',
+            'e_checklist': 'clipboard-check',
+            'receiving_insp': 'shield-check',
+        }
+        if self.dedicated_icon:
+            return self.dedicated_icon
+        if self.dedicated_page:
+            return icon_map.get(self.dedicated_page, 'external-link')
+        return 'external-link'
 
     # Ordering
     sort_order = models.IntegerField(default=100, help_text='Default sequence position')

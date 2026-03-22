@@ -5911,34 +5911,40 @@ class RouterStepDetailView(LoginRequiredMixin, DetailView):
         context['qc_passed_json'] = _j.dumps(step.qc_passed)
         context['qc_remarks_json'] = _j.dumps(step.qc_remarks or '')
 
-        # Dedicated page — if this process has its own page, show big link instead of inline params
+        # Dedicated page — if this process has its own page, show big icon link
         from apps.workorders.models import MasterProcess as _MP
         dedicated_url = ''
         dedicated_label = ''
-        # Match by step description to MasterProcess
+        dedicated_icon = 'external-link'
+        step_mode = 'ACTIVE'
+
+        # Match step to MasterProcess
         mp = _MP.objects.filter(name__iexact=step.step_description, is_active=True).first()
         if not mp:
-            # Fuzzy match
             mp = _MP.objects.filter(name__icontains=step.step_description.split('(')[0].strip(), is_active=True).first()
-        if mp and mp.dedicated_url_name:
-            try:
-                # Build the URL — most dedicated pages need wo_pk
-                dedicated_url = reverse(mp.dedicated_url_name, kwargs={'wo_pk': wo.pk})
-                dedicated_label = mp.dedicated_url_label or 'Open Dedicated Page'
-            except Exception:
+
+        if mp:
+            step_mode = mp.step_mode
+            url_name = mp.resolved_dedicated_url_name
+            if url_name:
                 try:
-                    dedicated_url = reverse(mp.dedicated_url_name, args=[wo.pk])
-                    dedicated_label = mp.dedicated_url_label or 'Open Dedicated Page'
+                    dedicated_url = reverse(url_name, kwargs={'wo_pk': wo.pk})
                 except Exception:
-                    pass
-            # Add return URL param so the dedicated page can link back
-            if dedicated_url:
-                step_url = reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step.step_number})
-                dedicated_url += f'?from_step={step.step_number}&return_url={step_url}'
+                    try:
+                        dedicated_url = reverse(url_name, args=[wo.pk])
+                    except Exception:
+                        pass
+                if dedicated_url:
+                    step_url = reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step.step_number})
+                    dedicated_url += f'?from_step={step.step_number}&return_url={step_url}'
+                    dedicated_label = mp.resolved_dedicated_label
+                    dedicated_icon = mp.resolved_dedicated_icon
+
         context['dedicated_url'] = dedicated_url
         context['dedicated_label'] = dedicated_label
+        context['dedicated_icon'] = dedicated_icon
         context['has_dedicated_page'] = bool(dedicated_url)
-        context['step_mode'] = mp.step_mode if mp else 'ACTIVE'
+        context['step_mode'] = step_mode
 
         # Special instructions for this step + this bit
         from apps.workorders.models import SpecialInstruction
