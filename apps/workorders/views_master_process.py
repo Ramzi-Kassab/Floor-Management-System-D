@@ -209,7 +209,10 @@ def api_inclusion_rule_save(request, process_pk):
     rule.field_path = (data.get("field_path") or "").strip()
     rule.operator = data.get("operator", "EQUALS")
     rule.value = (data.get("value") or "").strip()
-    rule.priority = int(data.get("priority", 10))
+    try:
+        rule.priority = int(data.get("priority") or 10)
+    except (ValueError, TypeError):
+        rule.priority = 10
     rule.description = (data.get("description") or "").strip()
 
     if not rule.field_path:

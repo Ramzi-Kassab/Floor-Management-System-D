@@ -390,7 +390,7 @@
                                     <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Size Factor JSON</label>
                                     <input type="text"
                                            :value="JSON.stringify((p.time_factors || {}).size_factor || {})"
-                                           @change="try { if(!p.time_factors) p.time_factors = {}; p.time_factors.size_factor = JSON.parse($event.target.value || '{}'); } catch(e) { flash('Invalid JSON', 'error'); }"
+                                           @change="parseSizeFactor(p, $event.target.value)"
                                            placeholder='{"8.5": 1.0, "12.25": 1.5}'
                                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-mono focus:ring-blue-500 focus:border-blue-500">
                                 </div>
@@ -660,6 +660,15 @@ function masterProcessPage() {
                 this.flash(e.message || 'Create failed', 'error');
             }
             this.creating = false;
+        },
+
+        parseSizeFactor(p, val) {
+            if (!p.time_factors) p.time_factors = {};
+            try {
+                p.time_factors.size_factor = JSON.parse(val || '{}');
+            } catch (e) {
+                this.flash('Invalid JSON for size factor', 'error');
+            }
         },
 
         async saveProcess(p) {
