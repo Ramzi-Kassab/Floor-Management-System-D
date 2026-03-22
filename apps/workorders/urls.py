@@ -257,12 +257,22 @@ urlpatterns = [
     path("repair-bom/create/", views.RepairBOMCreateView.as_view(), name="repairbom_create"),
     path("repair-bom/<int:pk>/edit/", views.RepairBOMUpdateView.as_view(), name="repairbom_update"),
     path("repair-bom/<int:pk>/delete/", views.RepairBOMDeleteView.as_view(), name="repairbom_delete"),
-    # ProcessRoute URLs (5 patterns)
+    # ProcessRoute URLs (5 patterns — legacy CRUD)
     path("process-routes/", views.ProcessRouteListView.as_view(), name="processroute_list"),
     path("process-routes/<int:pk>/", views.ProcessRouteDetailView.as_view(), name="processroute_detail"),
     path("process-routes/create/", views.ProcessRouteCreateView.as_view(), name="processroute_create"),
     path("process-routes/<int:pk>/edit/", views.ProcessRouteUpdateView.as_view(), name="processroute_update"),
     path("process-routes/<int:pk>/delete/", views.ProcessRouteDeleteView.as_view(), name="processroute_delete"),
+    # Route Template Builder (inline editor)
+    path("route-builder/<int:pk>/", views_jobcard.RouteBuilderView.as_view(), name="route_builder"),
+    path("route-builder/create/", views_jobcard.RouteBuilderCreateView.as_view(), name="route_builder_create"),
+    path("api/route/<int:pk>/save-header/", views_jobcard.api_route_save_header, name="api_route_save_header"),
+    path("api/route/<int:pk>/operation/<int:op_pk>/save/", views_jobcard.api_route_save_operation, name="api_route_save_operation"),
+    path("api/route/<int:pk>/operation/add/", views_jobcard.api_route_add_operation, name="api_route_add_operation"),
+    path("api/route/<int:pk>/operation/<int:op_pk>/delete/", views_jobcard.api_route_delete_operation, name="api_route_delete_operation"),
+    path("api/route/<int:pk>/reorder/", views_jobcard.api_route_reorder, name="api_route_reorder"),
+    path("api/route/<int:pk>/clone/", views_jobcard.api_route_clone, name="api_route_clone"),
+    path("api/route/<int:pk>/delete/", views_jobcard.api_route_delete, name="api_route_delete"),
     # WorkOrderCost URLs (5 patterns)
     path("costs/", views.WorkOrderCostListView.as_view(), name="workordercost_list"),
     path("costs/<int:pk>/", views.WorkOrderCostDetailView.as_view(), name="workordercost_detail"),

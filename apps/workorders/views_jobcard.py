@@ -6099,3 +6099,290 @@ def api_step_pause(request, wo_pk, step_number):
         })
 
     return JsonResponse({'error': f'Unknown action: {action}', 'success': False})
+
+
+# =============================================================================
+# ROUTE TEMPLATE BUILDER
+# =============================================================================
+
+class RouteBuilderView(LoginRequiredMixin, DetailView):
+    """Route template builder — edit all operations inline."""
+    model = ProcessRoute
+    template_name = "workorders/route_builder.html"
+    context_object_name = "route"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.sales.models import Account
+        context['operations'] = list(self.object.operations.order_by('sequence').values(
+            'pk', 'sequence', 'operation_code', 'operation_name', 'description',
+            'work_center', 'standard_hours', 'labor_rate', 'requires_qc',
+            'qc_checklist', 'is_conditional', 'has_yes_no', 'safety_requirements',
+            'instructions', 'procedure_reference', 'procedure_text',
+            'parameters_template', 'checklist_template', 'estimated_minutes',
+        ))
+        context['operations_json'] = _json.dumps(context['operations'], default=str)
+        context['accounts'] = Account.objects.filter(is_active=True).order_by('sort_order')
+        context['route_accounts'] = list(self.object.accounts.values_list('pk', flat=True))
+        context['route_accounts_json'] = _json.dumps(context['route_accounts'])
+        wc_qs = ProcessRouteOperation.objects.exclude(
+            work_center=''
+        ).values_list('work_center', flat=True).distinct().order_by('work_center')
+        context['work_centers'] = list(wc_qs)
+        context['work_centers_json'] = _json.dumps(context['work_centers'])
+        return context
+
+
+class RouteBuilderCreateView(LoginRequiredMixin, View):
+    """Create a new route and redirect to builder."""
+    def post(self, request):
+        count = ProcessRoute.objects.count()
+        route = ProcessRoute.objects.create(
+            route_number=f"RT-{count + 1:03d}",
+            name="New Route",
+            workflow_type="REPAIR",
+            created_by=request.user,
+        )
+        return redirect('workorders:route_builder', pk=route.pk)
+
+
+@login_required
+@require_POST
+def api_route_save_header(request, pk):
+    """Save route header fields."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    try:
+        data = _json.loads(request.body)
+    except _json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    update_fields = []
+    for field in ('name', 'route_number', 'description', 'workflow_type'):
+        if field in data:
+            setattr(route, field, data[field])
+            update_fields.append(field)
+
+    if 'version' in data:
+        try:
+            route.version = int(data['version'])
+            update_fields.append('version')
+        except (ValueError, TypeError):
+            pass
+
+    if 'is_active' in data:
+        route.is_active = bool(data['is_active'])
+        update_fields.append('is_active')
+
+    if update_fields:
+        route.save(update_fields=update_fields)
+
+    # Handle accounts M2M
+    if 'account_ids' in data:
+        route.accounts.set(data['account_ids'])
+
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_route_save_operation(request, pk, op_pk):
+    """Save a single operation's fields."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    op = get_object_or_404(ProcessRouteOperation, pk=op_pk, route=route)
+    try:
+        data = _json.loads(request.body)
+    except _json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    str_fields = (
+        'operation_code', 'operation_name', 'description', 'work_center',
+        'safety_requirements', 'instructions', 'procedure_reference',
+        'procedure_text', 'qc_checklist',
+    )
+    update_fields = []
+    for field in str_fields:
+        if field in data:
+            setattr(op, field, data[field] or '')
+            update_fields.append(field)
+
+    if 'sequence' in data:
+        try:
+            op.sequence = int(data['sequence'])
+            update_fields.append('sequence')
+        except (ValueError, TypeError):
+            pass
+
+    if 'estimated_minutes' in data:
+        val = data['estimated_minutes']
+        op.estimated_minutes = int(val) if val not in (None, '', 'null') else None
+        update_fields.append('estimated_minutes')
+
+    for dec_field in ('standard_hours', 'labor_rate'):
+        if dec_field in data:
+            try:
+                setattr(op, dec_field, float(data[dec_field] or 0))
+                update_fields.append(dec_field)
+            except (ValueError, TypeError):
+                pass
+
+    for bool_field in ('requires_qc', 'is_conditional', 'has_yes_no'):
+        if bool_field in data:
+            setattr(op, bool_field, bool(data[bool_field]))
+            update_fields.append(bool_field)
+
+    for json_field in ('parameters_template', 'checklist_template'):
+        if json_field in data:
+            setattr(op, json_field, data[json_field] if isinstance(data[json_field], list) else [])
+            update_fields.append(json_field)
+
+    if update_fields:
+        op.save(update_fields=update_fields)
+
+    return JsonResponse({'success': True, 'pk': op.pk})
+
+
+@login_required
+@require_POST
+def api_route_add_operation(request, pk):
+    """Add a new operation to the route."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    last_seq = route.operations.aggregate(Max('sequence'))['sequence__max'] or 0
+    next_seq = last_seq + 10
+
+    op = ProcessRouteOperation.objects.create(
+        route=route,
+        sequence=next_seq,
+        operation_code=f"OP-{next_seq}",
+        operation_name="New Operation",
+    )
+    return JsonResponse({
+        'success': True,
+        'operation': {
+            'pk': op.pk,
+            'sequence': op.sequence,
+            'operation_code': op.operation_code,
+            'operation_name': op.operation_name,
+            'description': '',
+            'work_center': '',
+            'standard_hours': '0.00',
+            'labor_rate': '0.00',
+            'requires_qc': False,
+            'qc_checklist': '',
+            'is_conditional': False,
+            'has_yes_no': False,
+            'safety_requirements': '',
+            'instructions': '',
+            'procedure_reference': '',
+            'procedure_text': '',
+            'parameters_template': [],
+            'checklist_template': [],
+            'estimated_minutes': None,
+        }
+    })
+
+
+@login_required
+@require_POST
+def api_route_delete_operation(request, pk, op_pk):
+    """Delete an operation from the route."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    op = get_object_or_404(ProcessRouteOperation, pk=op_pk, route=route)
+    op.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_route_reorder(request, pk):
+    """Reorder operations. POST body: { order: [op_pk1, op_pk2, ...] }"""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    try:
+        data = _json.loads(request.body)
+    except _json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    order = data.get('order', [])
+    if not order:
+        return JsonResponse({'error': 'No order provided'}, status=400)
+
+    with transaction.atomic():
+        # First set all to negative to avoid unique constraint collisions
+        for i, op_pk_val in enumerate(order):
+            ProcessRouteOperation.objects.filter(
+                pk=op_pk_val, route=route
+            ).update(sequence=-(i + 1))
+        # Then set to real values
+        for i, op_pk_val in enumerate(order):
+            ProcessRouteOperation.objects.filter(
+                pk=op_pk_val, route=route
+            ).update(sequence=(i + 1) * 10)
+
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_route_clone(request, pk):
+    """Clone a route with all its operations."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    operations = list(route.operations.order_by('sequence'))
+    account_ids = list(route.accounts.values_list('pk', flat=True))
+
+    # Generate unique route number
+    base = route.route_number + "-COPY"
+    suffix = ""
+    counter = 1
+    while ProcessRoute.objects.filter(route_number=base + suffix).exists():
+        counter += 1
+        suffix = f"-{counter}"
+
+    new_route = ProcessRoute.objects.create(
+        route_number=base + suffix,
+        name=route.name + " (Copy)",
+        description=route.description,
+        repair_type=route.repair_type,
+        bit_types=route.bit_types,
+        workflow_type=route.workflow_type,
+        is_active=False,
+        version=1,
+        created_by=request.user,
+    )
+    new_route.accounts.set(account_ids)
+
+    for op in operations:
+        ProcessRouteOperation.objects.create(
+            route=new_route,
+            sequence=op.sequence,
+            operation_code=op.operation_code,
+            operation_name=op.operation_name,
+            description=op.description,
+            work_center=op.work_center,
+            standard_hours=op.standard_hours,
+            labor_rate=op.labor_rate,
+            requires_qc=op.requires_qc,
+            qc_checklist=op.qc_checklist,
+            is_conditional=op.is_conditional,
+            has_yes_no=op.has_yes_no,
+            safety_requirements=op.safety_requirements,
+            instructions=op.instructions,
+            procedure_reference=op.procedure_reference,
+            procedure_text=op.procedure_text,
+            parameters_template=op.parameters_template,
+            checklist_template=op.checklist_template,
+            estimated_minutes=op.estimated_minutes,
+        )
+
+    return JsonResponse({
+        'success': True,
+        'new_pk': new_route.pk,
+        'new_route_number': new_route.route_number,
+    })
+
+
+@login_required
+@require_POST
+def api_route_delete(request, pk):
+    """Delete a route entirely."""
+    route = get_object_or_404(ProcessRoute, pk=pk)
+    route.delete()
+    return JsonResponse({'success': True})
