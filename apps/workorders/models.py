@@ -2151,6 +2151,7 @@ def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
         'bit.serial': drill_bit.serial_number,
         'bit.size': float(drill_bit.size) if drill_bit.size else 0,
         'bit.type': drill_bit.bit_type or '',
+        'bit.account': drill_bit.account.code if drill_bit.account else '',
     }
 
     if drill_bit.design:
