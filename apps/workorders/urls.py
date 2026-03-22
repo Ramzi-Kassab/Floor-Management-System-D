@@ -11,6 +11,7 @@ from . import views_jobcard
 from . import views_drillbit
 from . import views_photos
 from . import views_receiving
+from . import views_master_process
 
 app_name = "workorders"
 
@@ -202,6 +203,19 @@ urlpatterns = [
     path("instruction-rules/create/", views_jobcard.InstructionRuleCreateView.as_view(), name="instruction_rule_create"),
     path("instruction-rules/<int:pk>/edit/", views_jobcard.InstructionRuleUpdateView.as_view(), name="instruction_rule_update"),
     path("instruction-rules/<int:pk>/delete/", views_jobcard.InstructionRuleDeleteView.as_view(), name="instruction_rule_delete"),
+
+    # Master Process Library
+    path("master-processes/", views_master_process.MasterProcessListView.as_view(), name="master_process_list"),
+    path("api/master-processes/create/", views_master_process.api_master_process_create, name="api_master_process_create"),
+    path("api/master-processes/<int:pk>/save/", views_master_process.api_master_process_save, name="api_master_process_save"),
+    path("api/master-processes/<int:pk>/delete/", views_master_process.api_master_process_delete, name="api_master_process_delete"),
+    path("api/master-processes/<int:process_pk>/rules/save/", views_master_process.api_inclusion_rule_save, name="api_inclusion_rule_save"),
+    path("api/inclusion-rules/<int:pk>/delete/", views_master_process.api_inclusion_rule_delete, name="api_inclusion_rule_delete"),
+
+    # Special Instructions
+    path("special-instructions/", views_master_process.SpecialInstructionListView.as_view(), name="special_instruction_list"),
+    path("api/special-instructions/save/", views_master_process.api_special_instruction_save, name="api_special_instruction_save"),
+    path("api/special-instructions/<int:pk>/delete/", views_master_process.api_special_instruction_delete, name="api_special_instruction_delete"),
 
     # ========================================================================
     # WORK ORDER VIEWS (Consolidated)
