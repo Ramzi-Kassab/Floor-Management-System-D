@@ -491,10 +491,12 @@
 
                 <!-- Text -->
                 <div class="min-w-0 flex-1">
-                    <p class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate"
-                       title="{{ entry.step_description }}">
+                    <a href="{% url 'workorders:router_step_detail' wo_pk=work_order.pk step_number=entry.step_number %}"
+                       class="text-xs font-medium text-gray-800 dark:text-gray-200 leading-tight truncate block hover:text-blue-600 dark:hover:text-blue-400"
+                       title="{{ entry.step_description }}"
+                       @click.stop>
                         {{ entry.step_description }}
-                    </p>
+                    </a>
                     <div class="flex items-center gap-1 mt-0.5 flex-wrap">
                         <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{{ entry.step_number }}</span>
                         {% comment %} Look up the operation to show badges {% endcomment %}
@@ -534,9 +536,10 @@
                         {{ forloop.counter }}
                     </div>
                     <div>
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                        <a href="{% url 'workorders:router_step_detail' wo_pk=work_order.pk step_number=entry.step_number %}"
+                           class="text-lg font-bold text-gray-900 dark:text-white leading-tight hover:text-blue-600 dark:hover:text-blue-400 block">
                             {{ entry.step_description }}
-                        </h2>
+                        </a>
                         <div class="flex items-center gap-2 mt-1 flex-wrap">
                             <!-- Status badge -->
                             {% if entry.is_complete %}

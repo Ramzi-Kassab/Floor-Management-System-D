@@ -1683,6 +1683,42 @@ class ProcessRouteOperation(models.Model):
     # Safety
     safety_requirements = models.TextField(blank=True)
 
+    # Operator instructions (shown on the step work page)
+    instructions = models.TextField(
+        blank=True,
+        help_text='Step-by-step instructions for the operator. Shown on the work page.'
+    )
+
+    # Procedure reference (QAS document + section)
+    procedure_reference = models.CharField(
+        max_length=200, blank=True,
+        help_text='Reference to procedure document, e.g., "QAS/1006 Rev L, Section 4.11"'
+    )
+    procedure_text = models.TextField(
+        blank=True,
+        help_text='Relevant procedure text to display on the work page'
+    )
+
+    # Parameters template — what the operator needs to record
+    # List of dicts: [{name, type (number/text/choice/bool), unit, required, min, max, choices}]
+    parameters_template = models.JSONField(
+        default=list, blank=True,
+        help_text='Parameters to collect: [{name, type, unit, required, min, max}]'
+    )
+
+    # QC Checklist template — structured checklist items
+    # List of dicts: [{text, required}]
+    checklist_template = models.JSONField(
+        default=list, blank=True,
+        help_text='QC checklist items: [{text, required}]'
+    )
+
+    # Estimated duration
+    estimated_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text='Expected duration in minutes'
+    )
+
     class Meta:
         db_table = "process_route_operations"
         ordering = ["route", "sequence"]
@@ -2933,6 +2969,56 @@ class RouterSheetEntry(models.Model):
     # Special fields for certain steps
     cerebro_removal = models.BooleanField(null=True, blank=True, help_text="Cerebro Removal: Yes/No/NA")
     oring_removal = models.BooleanField(null=True, blank=True, help_text="Cer. O-Ring Removal: Yes/No/NA")
+
+    # Step type — how this step was added
+    class StepType(models.TextChoices):
+        STANDARD = "STANDARD", "Standard (from route template)"
+        ADDED = "ADDED", "Added (by evaluator/engineer)"
+        CONDITIONAL = "CONDITIONAL", "Conditional (if applicable)"
+
+    step_type = models.CharField(
+        max_length=15, choices=StepType.choices, default=StepType.STANDARD
+    )
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="router_steps_added",
+        help_text='Who added this step (if non-standard)'
+    )
+    added_reason = models.TextField(blank=True, help_text='Why this step was added')
+
+    # Operator-recorded data
+    parameters_data = models.JSONField(
+        default=dict, blank=True,
+        help_text='Recorded parameter values: {param_name: value}'
+    )
+    checklist_data = models.JSONField(
+        default=dict, blank=True,
+        help_text='Recorded checklist checks: {item_index: true/false}'
+    )
+
+    # Step instructions (copied from template or custom)
+    instructions = models.TextField(blank=True, help_text='Instructions for this step')
+    procedure_reference = models.CharField(max_length=200, blank=True)
+    safety_notes = models.TextField(blank=True)
+
+    # Parameters template for this specific step (copied from ProcessRouteOperation or custom)
+    parameters_template = models.JSONField(default=list, blank=True)
+    checklist_template = models.JSONField(default=list, blank=True)
+
+    # Link back to the source operation (for standard steps)
+    source_operation = models.ForeignKey(
+        'ProcessRouteOperation', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='router_entries',
+        help_text='The ProcessRouteOperation this step was created from'
+    )
+
+    # Pause tracking
+    paused_at = models.DateTimeField(null=True, blank=True)
+    total_paused_seconds = models.IntegerField(default=0)
+
+    # QC result for this step (if requires_qc)
+    qc_passed = models.BooleanField(null=True, blank=True)
+    qc_remarks = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

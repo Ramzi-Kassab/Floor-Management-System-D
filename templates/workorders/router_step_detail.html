@@ -1,0 +1,1103 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Step {{ step.step_number }} — {{ step.step_description }} — {{ work_order.wo_number }} — ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Sticky header ─────────────────────────────────────────────── */
+    .rsd-sticky {
+        position: sticky;
+        top: 64px;
+        z-index: 30;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        background: rgba(255,255,255,0.94);
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .dark .rsd-sticky {
+        background: rgba(17,24,39,0.94);
+        border-color: #374151;
+    }
+
+    /* ── Timer ──────────────────────────────────────────────────────── */
+    .timer-display {
+        font-size: 2.75rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+    .timer-display-sm {
+        font-size: 1.75rem;
+    }
+
+    /* ── Touch-friendly buttons ────────────────────────────────────── */
+    .btn-action {
+        min-height: 48px;
+        min-width: 140px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 0.625rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.15s;
+        padding: 0 1.5rem;
+        cursor: pointer;
+        border: none;
+    }
+    .btn-start { background: #10b981; color: #fff; }
+    .btn-start:hover { background: #059669; }
+    .btn-pause { background: #f59e0b; color: #fff; }
+    .btn-pause:hover { background: #d97706; }
+    .btn-resume { background: #3b82f6; color: #fff; }
+    .btn-resume:hover { background: #2563eb; }
+    .btn-complete { background: #10b981; color: #fff; }
+    .btn-complete:hover { background: #059669; }
+    .btn-skip { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+    .btn-skip:hover { background: #f9fafb; color: #374151; }
+    .dark .btn-skip { border-color: #4b5563; color: #9ca3af; }
+    .dark .btn-skip:hover { background: #374151; color: #d1d5db; }
+    .btn-sm {
+        min-height: 36px;
+        min-width: 100px;
+        font-size: 0.875rem;
+        padding: 0 1rem;
+        border-radius: 0.5rem;
+    }
+
+    /* ── Section card ──────────────────────────────────────────────── */
+    .section-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    .dark .section-card {
+        background: #1f2937;
+        border-color: #374151;
+    }
+    .section-header {
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+    }
+    .section-header:hover { background: rgba(0,0,0,0.02); }
+    .dark .section-header:hover { background: rgba(255,255,255,0.02); }
+    .section-label {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6b7280;
+    }
+    .dark .section-label { color: #9ca3af; }
+    .section-body {
+        padding: 1rem 1.25rem;
+        border-top: 1px solid #f3f4f6;
+    }
+    .dark .section-body { border-top-color: #374151; }
+
+    /* ── Badge ──────────────────────────────────────────────────────── */
+    .badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 10px; border-radius: 9999px;
+        font-size: 0.6875rem; font-weight: 600;
+    }
+    .badge-pending { background: #f3f4f6; color: #6b7280; }
+    .dark .badge-pending { background: #374151; color: #9ca3af; }
+    .badge-active { background: #dbeafe; color: #1d4ed8; }
+    .dark .badge-active { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge-paused { background: #fef3c7; color: #b45309; }
+    .dark .badge-paused { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .badge-done { background: #dcfce7; color: #15803d; }
+    .dark .badge-done { background: rgba(16,185,129,0.15); color: #34d399; }
+    .badge-qc { background: #ede9fe; color: #7c3aed; }
+    .dark .badge-qc { background: rgba(109,40,217,0.2); color: #a78bfa; }
+    .badge-added { background: #fce7f3; color: #be185d; }
+    .dark .badge-added { background: rgba(190,24,93,0.15); color: #f472b6; }
+    .badge-cond { background: #fef3c7; color: #b45309; }
+    .dark .badge-cond { background: rgba(217,119,6,0.2); color: #fbbf24; }
+
+    /* ── Decision radio cards ──────────────────────────────────────── */
+    .decision-card {
+        padding: 10px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-align: center;
+        transition: all 0.15s;
+        border: 2px solid #e5e7eb;
+        min-width: 80px;
+    }
+    .dark .decision-card { border-color: #4b5563; }
+    .decision-card.sel-yes { border-color: #16a34a; background: #dcfce7; color: #15803d; }
+    .decision-card.sel-no { border-color: #dc2626; background: #fee2e2; color: #b91c1c; }
+    .decision-card.sel-na { border-color: #6b7280; background: #f3f4f6; color: #6b7280; }
+
+    /* ── Monospace ──────────────────────────────────────────────────── */
+    .mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+
+    /* ── Progress mini bar ──────────────────────────────────────────── */
+    .prog-bar {
+        height: 4px; border-radius: 2px; background: #e5e7eb; overflow: hidden;
+    }
+    .dark .prog-bar { background: #374151; }
+    .prog-fill {
+        height: 100%; border-radius: 2px;
+        background: linear-gradient(90deg, #3b82f6, #10b981);
+        transition: width 0.5s ease;
+    }
+
+    /* ── Print ──────────────────────────────────────────────────────── */
+    @media print {
+        .no-print, nav, aside, .rsd-sticky { display: none !important; }
+        body { margin: 0 !important; padding: 0 !important; }
+        main, .ml-64, [class*="ml-64"] { margin-left: 0 !important; }
+        .mt-16, [class*="mt-16"] { margin-top: 0 !important; }
+        .p-6, [class*="p-6"] { padding: 0 !important; }
+        .section-card { border: 1px solid #ccc !important; box-shadow: none !important; break-inside: avoid; }
+        * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .timer-display { font-size: 1rem !important; }
+        @page { size: A4; margin: 0.5in; }
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<!-- ── STICKY HEADER ──────────────────────────────────────────────── -->
+<div class="rsd-sticky -mx-6 -mt-6 px-4 sm:px-6 py-3 mb-0">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+
+        <!-- Left: Step identity -->
+        <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
+                    {% if step.is_complete %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400
+                    {% elif step.paused_at %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400
+                    {% elif step.qr_scan_start %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                    {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                    {{ current_step_index }}
+                </span>
+                <h1 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight truncate">
+                    {{ step.step_description }}
+                </h1>
+                {% if step.is_complete %}
+                <span class="badge badge-done"><i data-lucide="check" class="w-3 h-3"></i> Complete</span>
+                {% elif step.paused_at %}
+                <span class="badge badge-paused"><i data-lucide="pause" class="w-3 h-3"></i> Paused</span>
+                {% elif step.qr_scan_start %}
+                <span class="badge badge-active"><i data-lucide="play" class="w-3 h-3"></i> In Progress</span>
+                {% else %}
+                <span class="badge badge-pending">Pending</span>
+                {% endif %}
+                {% if step.step_type == 'ADDED' %}
+                <span class="badge badge-added">Added</span>
+                {% elif step.step_type == 'CONDITIONAL' %}
+                <span class="badge badge-cond">Conditional</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+                <span class="mono font-semibold">{{ work_order.wo_number }}</span>
+                {% if drill_bit %}
+                <span>S/N: <span class="mono">{{ drill_bit.serial_number }}</span></span>
+                {% endif %}
+                {% if drill_bit.design and drill_bit.design.size %}
+                <span>{{ drill_bit.design.size }}</span>
+                {% endif %}
+                <span>{{ work_order.get_wo_type_display }}</span>
+            </div>
+        </div>
+
+        <!-- Right: Navigation -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+            {% if prev_step %}
+            <a href="{% url 'workorders:router_step_detail' wo_pk=work_order.pk step_number=prev_step.step_number %}"
+               class="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 gap-1">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Prev</span>
+            </a>
+            {% endif %}
+
+            <span class="text-xs text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">
+                {{ current_step_index }} / {{ total_steps }}
+            </span>
+
+            {% if next_step %}
+            <a href="{% url 'workorders:router_step_detail' wo_pk=work_order.pk step_number=next_step.step_number %}"
+               class="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 gap-1">
+                <span class="hidden sm:inline">Next</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </a>
+            {% endif %}
+
+            <a href="{% url 'workorders:router_sheet' pk=work_order.pk %}"
+               class="inline-flex items-center px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 gap-1"
+               title="Back to Router Sheet">
+                <i data-lucide="list" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">All Steps</span>
+            </a>
+
+            <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+               class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 gap-1">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Job Card</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Mini progress bar -->
+    <div class="prog-bar mt-2">
+        <div class="prog-fill" style="width: {{ progress_pct }}%"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="stepPage()" x-init="init()" class="max-w-4xl mx-auto">
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: Timer & Actions                                    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="section-card" id="section-timer">
+        <div class="px-5 py-5">
+
+            {% if step.is_complete %}
+            <!-- COMPLETED STATE -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                    <i data-lucide="check-circle-2" class="w-7 h-7 text-emerald-600 dark:text-emerald-400"></i>
+                </div>
+                <div>
+                    <p class="text-lg font-bold text-emerald-700 dark:text-emerald-400">Step Completed</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {% if step.operator %}by {{ step.operator.get_full_name|default:step.operator.username }}{% endif %}
+                    </p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Started</p>
+                    <p class="text-sm font-semibold mono text-gray-800 dark:text-gray-200">
+                        {% if step.qr_scan_start %}{{ step.qr_scan_start|date:"M d, H:i" }}{% else %}&mdash;{% endif %}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Completed</p>
+                    <p class="text-sm font-semibold mono text-gray-800 dark:text-gray-200">
+                        {% if step.qr_scan_end %}{{ step.qr_scan_end|date:"M d, H:i" }}{% else %}&mdash;{% endif %}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Duration</p>
+                    <p class="text-sm font-bold mono text-emerald-600 dark:text-emerald-400">
+                        {% if step.duration_minutes %}{{ step.duration_minutes }} min{% else %}&mdash;{% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% elif step.qr_scan_start %}
+            <!-- IN PROGRESS / PAUSED STATE -->
+            <div class="flex flex-col items-center mb-5">
+                <p class="text-xs font-semibold uppercase tracking-wide mb-1"
+                   :class="isPaused ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'">
+                    <span x-show="!isPaused">Elapsed Time</span>
+                    <span x-show="isPaused">Paused</span>
+                </p>
+                <div class="timer-display"
+                     :class="isPaused ? 'text-amber-600 dark:text-amber-400' : 'text-blue-700 dark:text-blue-300'"
+                     x-text="timerDisplay">
+                    00:00:00
+                </div>
+                {% if step.total_paused_seconds %}
+                <p class="text-xs text-gray-400 mt-1">
+                    Total paused: {{ step.total_paused_seconds }}s
+                </p>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3">
+                <!-- Pause / Resume -->
+                <template x-if="!isPaused">
+                    <button @click="pauseStep()" class="btn-action btn-pause btn-sm" :disabled="saving">
+                        <i data-lucide="pause" class="w-5 h-5"></i>
+                        Pause
+                    </button>
+                </template>
+                <template x-if="isPaused">
+                    <button @click="resumeStep()" class="btn-action btn-resume btn-sm" :disabled="saving">
+                        <i data-lucide="play" class="w-5 h-5"></i>
+                        Resume
+                    </button>
+                </template>
+
+                <!-- Complete -->
+                <button @click="completeStep()" class="btn-action btn-complete" :disabled="saving">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    Complete Step
+                </button>
+
+                <!-- Skip -->
+                <button @click="skipStep()" class="btn-action btn-skip btn-sm" :disabled="saving">
+                    <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                    Skip
+                </button>
+            </div>
+
+            {% else %}
+            <!-- NOT STARTED -->
+            <div class="flex flex-col items-center py-4">
+                <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
+                    <i data-lucide="play" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">This step has not been started yet.</p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <button @click="startStep()" class="btn-action btn-start" :disabled="saving">
+                        <i data-lucide="play" class="w-6 h-6"></i>
+                        Start Step
+                    </button>
+                    <button @click="skipStep()" class="btn-action btn-skip btn-sm" :disabled="saving">
+                        <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                        Skip
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: Instructions                                       -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if instructions or safety_notes %}
+    <div class="section-card" x-data="{ open: true }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="book-open" class="w-4 h-4 text-blue-500"></i>
+                <span class="section-label mb-0">Instructions</span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            {% if safety_notes %}
+            <div class="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg mb-4">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"></i>
+                <div>
+                    <p class="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-1">Safety Warning</p>
+                    <p class="text-sm text-amber-700 dark:text-amber-300 whitespace-pre-line">{{ safety_notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+            {% if instructions %}
+            <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-line">{{ instructions }}</div>
+            {% else %}
+            <p class="text-sm text-gray-400 italic">No specific instructions for this step.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: Procedure Reference                                -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if procedure_reference or procedure_text %}
+    <div class="section-card" x-data="{ open: false }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i>
+                <span class="section-label mb-0">Procedure Reference</span>
+                {% if procedure_reference %}
+                <span class="text-xs text-indigo-600 dark:text-indigo-400 font-medium">{{ procedure_reference }}</span>
+                {% endif %}
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            {% if procedure_text %}
+            <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-line">{{ procedure_text }}</div>
+            {% else %}
+            <p class="text-sm text-gray-400 italic">No procedure text provided. Refer to {{ procedure_reference }}.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: Measurements & Parameters                          -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if parameters %}
+    <div class="section-card" x-data="{ open: true }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="ruler" class="w-4 h-4 text-amber-500"></i>
+                <span class="section-label mb-0">Measurements &amp; Parameters</span>
+                <span class="text-xs text-gray-400" x-text="paramFilled + '/' + {{ parameters|length }}"></span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {% for param in parameters %}
+                <div class="flex flex-col">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ param.name }}
+                        {% if param.required %}<span class="text-red-500">*</span>{% endif %}
+                        {% if param.unit %}<span class="text-xs text-gray-400">({{ param.unit }})</span>{% endif %}
+                    </label>
+
+                    {% if param.type == 'bool' %}
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox"
+                               class="sr-only peer param-input"
+                               data-param="{{ param.name }}"
+                               :checked="parametersData['{{ param.name }}']"
+                               @change="parametersData['{{ param.name }}'] = $el.checked; autoSave()">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-gray-500 peer-checked:bg-blue-600"></div>
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400" x-text="parametersData['{{ param.name }}'] ? 'Yes' : 'No'"></span>
+                    </label>
+
+                    {% elif param.type == 'choice' %}
+                    <select class="param-input w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            data-param="{{ param.name }}"
+                            x-model="parametersData['{{ param.name }}']"
+                            @change="autoSave()">
+                        <option value="">-- Select --</option>
+                        {% for choice in param.choices %}
+                        <option value="{{ choice }}">{{ choice }}</option>
+                        {% endfor %}
+                    </select>
+
+                    {% elif param.type == 'number' %}
+                    <input type="number"
+                           class="param-input w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 mono text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           data-param="{{ param.name }}"
+                           {% if param.min is not None %}min="{{ param.min }}"{% endif %}
+                           {% if param.max is not None %}max="{{ param.max }}"{% endif %}
+                           step="any"
+                           x-model="parametersData['{{ param.name }}']"
+                           @blur="autoSave()"
+                           @keydown.enter="$el.blur()"
+                           placeholder="{% if param.min is not None and param.max is not None %}{{ param.min }} — {{ param.max }}{% endif %}">
+                    {% if param.min is not None or param.max is not None %}
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        {% if param.min is not None %}Min: {{ param.min }}{% endif %}
+                        {% if param.min is not None and param.max is not None %} · {% endif %}
+                        {% if param.max is not None %}Max: {{ param.max }}{% endif %}
+                    </p>
+                    {% endif %}
+
+                    {% else %}
+                    <!-- text / default -->
+                    <input type="text"
+                           class="param-input w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           data-param="{{ param.name }}"
+                           x-model="parametersData['{{ param.name }}']"
+                           @blur="autoSave()"
+                           @keydown.enter="$el.blur()">
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="text-xs text-gray-400 mt-3">
+                <i data-lucide="save" class="w-3 h-3 inline"></i>
+                Values auto-save when you leave a field.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: QC Checklist                                       -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if checklist %}
+    <div class="section-card" x-data="{ open: true }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="check-square" class="w-4 h-4 text-violet-500"></i>
+                <span class="section-label mb-0">QC Checklist</span>
+                <span class="text-xs" :class="checklistDone === {{ checklist|length }} ? 'text-emerald-600' : 'text-gray-400'"
+                      x-text="checklistDone + '/' + {{ checklist|length }}"></span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            <div class="space-y-3">
+                {% for item in checklist %}
+                <label class="flex items-start gap-3 cursor-pointer group p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <input type="checkbox"
+                           class="mt-1 w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                           :checked="checklistData['{{ forloop.counter0 }}']"
+                           @change="checklistData['{{ forloop.counter0 }}'] = $el.checked; autoSave()">
+                    <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white"
+                          :class="checklistData['{{ forloop.counter0 }}'] && 'line-through text-gray-400 dark:text-gray-500'">
+                        {{ item.text }}
+                        {% if item.required %}<span class="text-red-500 text-xs ml-1">(required)</span>{% endif %}
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 6: Decisions (Cerebro / O-Ring)                       -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if show_decisions %}
+    <div class="section-card">
+        <div class="section-header" style="cursor: default;">
+            <div class="flex items-center gap-2">
+                <i data-lucide="git-branch" class="w-4 h-4 text-teal-500"></i>
+                <span class="section-label mb-0">Decisions</span>
+            </div>
+        </div>
+        <div class="section-body">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {% if show_cerebro %}
+                <div>
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cerebro Removal</p>
+                    <div class="flex gap-2">
+                        <button type="button" class="decision-card flex-1" :class="cerebro === true && 'sel-yes'" @click="cerebro = true; autoSave()">Yes</button>
+                        <button type="button" class="decision-card flex-1" :class="cerebro === false && 'sel-no'" @click="cerebro = false; autoSave()">No</button>
+                        <button type="button" class="decision-card flex-1" :class="cerebro === null && 'sel-na'" @click="cerebro = null; autoSave()">N/A</button>
+                    </div>
+                </div>
+                {% endif %}
+                {% if show_oring %}
+                <div>
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">O-Ring Removal</p>
+                    <div class="flex gap-2">
+                        <button type="button" class="decision-card flex-1" :class="oring === true && 'sel-yes'" @click="oring = true; autoSave()">Yes</button>
+                        <button type="button" class="decision-card flex-1" :class="oring === false && 'sel-no'" @click="oring = false; autoSave()">No</button>
+                        <button type="button" class="decision-card flex-1" :class="oring === null && 'sel-na'" @click="oring = null; autoSave()">N/A</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 7: Photos                                             -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if drill_bit %}
+    <div class="section-card no-print" x-data="{ open: false }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="camera" class="w-4 h-4 text-blue-500"></i>
+                <span class="section-label mb-0">Photos</span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            {% include "components/photo_module.html" with bit_pk=drill_bit.pk context_type="WO" context_id=work_order.pk %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 8: Remarks                                            -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="section-card">
+        <div class="section-header" style="cursor: default;">
+            <div class="flex items-center gap-2">
+                <i data-lucide="message-square" class="w-4 h-4 text-gray-500"></i>
+                <span class="section-label mb-0">Remarks</span>
+                <span x-show="remarksSaved" x-transition class="text-xs text-emerald-500">Saved</span>
+            </div>
+        </div>
+        <div class="section-body">
+            <textarea x-model="remarks"
+                      @blur="autoSave()"
+                      rows="3"
+                      class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                      placeholder="Enter any remarks, observations, or notes..."></textarea>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 9: QC Result (if step has QC requirement)             -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if source_op_requires_qc %}
+    <div class="section-card">
+        <div class="section-header" style="cursor: default;">
+            <div class="flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-4 h-4 text-violet-500"></i>
+                <span class="section-label mb-0">QC Sign-off</span>
+                <span class="badge badge-qc">QC Required</span>
+            </div>
+        </div>
+        <div class="section-body">
+            <div class="flex items-center gap-4 mb-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="qc_result" value="true" :checked="qcPassed === true" @change="qcPassed = true; autoSave()" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                    <span class="text-sm font-medium text-emerald-700 dark:text-emerald-400">Pass</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="qc_result" value="false" :checked="qcPassed === false" @change="qcPassed = false; autoSave()" class="w-4 h-4 text-red-600 focus:ring-red-500">
+                    <span class="text-sm font-medium text-red-700 dark:text-red-400">Fail</span>
+                </label>
+            </div>
+            <textarea x-model="qcRemarks"
+                      @blur="autoSave()"
+                      rows="2"
+                      class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                      placeholder="QC remarks..."></textarea>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 10: Linked Actions                                    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="section-card no-print">
+        <div class="section-header" style="cursor: default;">
+            <div class="flex items-center gap-2">
+                <i data-lucide="link" class="w-4 h-4 text-gray-500"></i>
+                <span class="section-label mb-0">Actions</span>
+            </div>
+        </div>
+        <div class="section-body">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                {% if 'die check' in step.step_description|lower or 'die_check' in step.step_description|lower %}
+                <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=DIE_CHECK"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="grid-2x2-check" class="w-4 h-4 text-violet-600 dark:text-violet-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Die Check Report</p>
+                        <p class="text-xs text-gray-400">FPI / Fluorescent Penetrant</p>
+                    </div>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                </a>
+                {% endif %}
+
+                {% if 'evaluation' in step.step_description|lower or 'qc' in step.step_description|lower %}
+                <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="clipboard-list" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Cutter Evaluation</p>
+                        <p class="text-xs text-gray-400">Matrix / grid assessment</p>
+                    </div>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                </a>
+                {% endif %}
+
+                <!-- Report Issue (NCR) -->
+                <button type="button" disabled
+                        class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 opacity-50 cursor-not-allowed">
+                    <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="alert-circle" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Report Issue (NCR)</p>
+                        <p class="text-xs text-gray-400">Coming soon</p>
+                    </div>
+                </button>
+
+                <!-- Add Step -->
+                <button type="button" @click="showAddStepModal = true"
+                        class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Request Additional Step</p>
+                        <p class="text-xs text-gray-400">Add a step after this one</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 11: Step Info (metadata)                              -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="section-card" x-data="{ open: false }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-gray-400"></i>
+                <span class="section-label mb-0">Step Info</span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Operation No.</p>
+                    <p class="font-mono text-gray-700 dark:text-gray-300">{{ step.step_number }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Step Type</p>
+                    <p class="text-gray-700 dark:text-gray-300">{{ step.get_step_type_display }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Created</p>
+                    <p class="text-gray-700 dark:text-gray-300">{{ step.created_at|date:"M d, Y H:i" }}</p>
+                </div>
+                {% if step.added_by %}
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Added By</p>
+                    <p class="text-gray-700 dark:text-gray-300">{{ step.added_by.get_full_name|default:step.added_by.username }}</p>
+                </div>
+                {% endif %}
+                {% if step.added_reason %}
+                <div class="col-span-2">
+                    <p class="text-xs text-gray-400 mb-0.5">Reason</p>
+                    <p class="text-gray-700 dark:text-gray-300">{{ step.added_reason }}</p>
+                </div>
+                {% endif %}
+                {% if step.station_qr %}
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Station QR</p>
+                    <p class="font-mono text-gray-700 dark:text-gray-300">{{ step.station_qr }}</p>
+                </div>
+                {% endif %}
+                {% if estimated_minutes %}
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Estimated Duration</p>
+                    <p class="text-gray-700 dark:text-gray-300">{{ estimated_minutes }} min</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- ADD STEP MODAL                                                -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div x-show="showAddStepModal" x-transition.opacity
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+         @keydown.escape.window="showAddStepModal = false"
+         style="display: none;">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+             @click.outside="showAddStepModal = false">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-base font-bold text-gray-900 dark:text-white">Request Additional Step</h3>
+                <button @click="showAddStepModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="px-5 py-4 space-y-4">
+                <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Step Description <span class="text-red-500">*</span></label>
+                    <input type="text" x-model="newStepDesc"
+                           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="e.g., Additional grinding pass">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Insert Position</label>
+                    <select x-model="newStepPosition"
+                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="after">After current step (#{{ step.step_number }})</option>
+                        <option value="end">At end of router</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Reason <span class="text-red-500">*</span></label>
+                    <textarea x-model="newStepReason" rows="2"
+                              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                              placeholder="Why is this step needed?"></textarea>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                <button @click="showAddStepModal = false"
+                        class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    Cancel
+                </button>
+                <button @click="addStep()"
+                        :disabled="!newStepDesc.trim() || !newStepReason.trim() || saving"
+                        class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                    Add Step
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="toast" x-transition
+         class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium"
+         :class="toastType === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'"
+         style="display: none;"
+         x-text="toastMsg"></div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function stepPage() {
+    const CSRF = '{{ csrf_token }}';
+    const WO_PK = {{ work_order.pk }};
+    const STEP_NUM = {{ step.step_number }};
+    const SAVE_URL = '{% url "workorders:api_step_save_data" wo_pk=work_order.pk step_number=step.step_number %}';
+    const SCAN_URL = '{% url "workorders:api_router_step_scan" wo_pk=work_order.pk step_number=step.step_number %}';
+    const ADD_URL = '{% url "workorders:api_step_add" wo_pk=work_order.pk %}';
+    const SKIP_URL = '{% url "workorders:api_step_skip" wo_pk=work_order.pk step_number=step.step_number %}';
+    const PAUSE_URL = '{% url "workorders:api_step_pause" wo_pk=work_order.pk step_number=step.step_number %}';
+
+    // Start time for timer
+    const startISO = '{{ step.qr_scan_start|date:"c"|default:"" }}';
+    const isComplete = {{ step.is_complete|yesno:"true,false" }};
+    const initialPaused = {{ step.paused_at|yesno:"true,false" }};
+    const totalPausedSec = {{ step.total_paused_seconds|default:"0" }};
+
+    return {
+        // Timer state
+        isPaused: initialPaused,
+        timerDisplay: '00:00:00',
+        timerInterval: null,
+
+        // Data state
+        parametersData: {{ parameters_data_json|safe }},
+        checklistData: {{ checklist_data_json|safe }},
+        remarks: {{ remarks_json|safe }},
+        cerebro: {{ cerebro_json|safe }},
+        oring: {{ oring_json|safe }},
+        qcPassed: {{ qc_passed_json|safe }},
+        qcRemarks: {{ qc_remarks_json|safe }},
+
+        // Save state
+        saving: false,
+        saveTimeout: null,
+        remarksSaved: false,
+
+        // Add step modal
+        showAddStepModal: false,
+        newStepDesc: '',
+        newStepReason: '',
+        newStepPosition: 'after',
+
+        // Toast
+        toast: false,
+        toastMsg: '',
+        toastType: 'success',
+
+        get paramFilled() {
+            return Object.values(this.parametersData).filter(v => v !== '' && v !== null && v !== undefined).length;
+        },
+
+        get checklistDone() {
+            return Object.values(this.checklistData).filter(v => v === true).length;
+        },
+
+        init() {
+            if (startISO && !isComplete) {
+                this.startTimer();
+            }
+        },
+
+        startTimer() {
+            const start = new Date(startISO).getTime();
+            const pausedTotal = totalPausedSec * 1000;
+            const update = () => {
+                if (this.isPaused) return;
+                const now = Date.now();
+                const elapsed = Math.max(0, Math.floor((now - start - pausedTotal) / 1000));
+                const h = Math.floor(elapsed / 3600);
+                const m = Math.floor((elapsed % 3600) / 60);
+                const s = elapsed % 60;
+                this.timerDisplay = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+            };
+            update();
+            this.timerInterval = setInterval(update, 1000);
+        },
+
+        async _post(url, body) {
+            const fd = new FormData();
+            fd.append('csrfmiddlewaretoken', CSRF);
+            for (const [k, v] of Object.entries(body || {})) {
+                fd.append(k, v);
+            }
+            const r = await fetch(url, { method: 'POST', body: fd });
+            return r.json();
+        },
+
+        async _postJSON(url, body) {
+            const r = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(body),
+            });
+            return r.json();
+        },
+
+        showToast(msg, type) {
+            this.toastMsg = msg;
+            this.toastType = type || 'success';
+            this.toast = true;
+            setTimeout(() => { this.toast = false; }, 3000);
+        },
+
+        // ── Actions ──────────────────────────────────────────────
+        async startStep() {
+            this.saving = true;
+            try {
+                const res = await this._post(SCAN_URL, { action: 'start' });
+                if (res.success) {
+                    window.location.reload();
+                } else {
+                    this.showToast(res.error || 'Failed to start', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+
+        async completeStep() {
+            // Check required checklist items
+            {% if checklist %}
+            const requiredItems = [{% for item in checklist %}{% if item.required %}{{ forloop.counter0 }},{% endif %}{% endfor %}];
+            for (const idx of requiredItems) {
+                if (!this.checklistData[String(idx)]) {
+                    this.showToast('Please complete all required checklist items first.', 'error');
+                    return;
+                }
+            }
+            {% endif %}
+
+            if (!confirm('Mark this step as complete?')) return;
+            this.saving = true;
+            try {
+                // Save data first
+                await this.saveData();
+                // Then complete
+                const res = await this._post(SCAN_URL, { action: 'end' });
+                if (res.success) {
+                    window.location.reload();
+                } else {
+                    this.showToast(res.error || 'Failed to complete', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+
+        async skipStep() {
+            if (!confirm('Skip this step? A reason is recommended.')) return;
+            this.saving = true;
+            try {
+                const res = await this._postJSON(SKIP_URL, { reason: this.remarks || 'Skipped by operator' });
+                if (res.success) {
+                    window.location.reload();
+                } else {
+                    this.showToast(res.error || 'Failed to skip', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+
+        async pauseStep() {
+            this.saving = true;
+            try {
+                const res = await this._postJSON(PAUSE_URL, { action: 'pause' });
+                if (res.success) {
+                    this.isPaused = true;
+                    this.showToast('Step paused', 'success');
+                } else {
+                    this.showToast(res.error || 'Failed to pause', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+
+        async resumeStep() {
+            this.saving = true;
+            try {
+                const res = await this._postJSON(PAUSE_URL, { action: 'resume' });
+                if (res.success) {
+                    this.isPaused = false;
+                    this.startTimer();
+                    this.showToast('Step resumed', 'success');
+                } else {
+                    this.showToast(res.error || 'Failed to resume', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+
+        // ── Data save ────────────────────────────────────────────
+        autoSave() {
+            clearTimeout(this.saveTimeout);
+            this.saveTimeout = setTimeout(() => this.saveData(), 600);
+        },
+
+        async saveData() {
+            try {
+                const body = {
+                    parameters_data: this.parametersData,
+                    checklist_data: this.checklistData,
+                    remarks: this.remarks,
+                    cerebro: this.cerebro,
+                    oring: this.oring,
+                    qc_passed: this.qcPassed,
+                    qc_remarks: this.qcRemarks,
+                };
+                const res = await this._postJSON(SAVE_URL, body);
+                if (res.success) {
+                    this.remarksSaved = true;
+                    setTimeout(() => { this.remarksSaved = false; }, 2000);
+                }
+            } catch (e) {
+                console.error('Save failed:', e);
+            }
+        },
+
+        // ── Add step ─────────────────────────────────────────────
+        async addStep() {
+            if (!this.newStepDesc.trim() || !this.newStepReason.trim()) return;
+            this.saving = true;
+            try {
+                const res = await this._postJSON(ADD_URL, {
+                    description: this.newStepDesc,
+                    after_step: this.newStepPosition === 'after' ? STEP_NUM : null,
+                    reason: this.newStepReason,
+                });
+                if (res.success) {
+                    this.showAddStepModal = false;
+                    this.showToast('Step added successfully', 'success');
+                    // Navigate to the new step
+                    if (res.step_number) {
+                        setTimeout(() => {
+                            window.location.href = '{% url "workorders:router_step_detail" wo_pk=work_order.pk step_number=1 %}'.replace('/1/', '/' + res.step_number + '/');
+                        }, 800);
+                    } else {
+                        setTimeout(() => window.location.reload(), 800);
+                    }
+                } else {
+                    this.showToast(res.error || 'Failed to add step', 'error');
+                }
+            } catch (e) {
+                this.showToast('Network error', 'error');
+            }
+            this.saving = false;
+        },
+    };
+}
+</script>
+{% endblock %}

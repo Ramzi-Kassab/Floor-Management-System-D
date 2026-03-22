@@ -185,6 +185,13 @@ urlpatterns = [
     path("<int:wo_pk>/router-sheet/<int:step_number>/scan/", views_jobcard.router_step_scan, name="router_step_scan"),
     path("<int:wo_pk>/router-sheet/<int:step_number>/api-scan/", views_jobcard.api_router_step_scan, name="api_router_step_scan"),
 
+    # Router Step Detail (operator work page)
+    path("<int:wo_pk>/router/<int:step_number>/", views_jobcard.RouterStepDetailView.as_view(), name="router_step_detail"),
+    path("<int:wo_pk>/router/api/save-data/<int:step_number>/", views_jobcard.api_step_save_data, name="api_step_save_data"),
+    path("<int:wo_pk>/router/api/add-step/", views_jobcard.api_step_add, name="api_step_add"),
+    path("<int:wo_pk>/router/api/skip/<int:step_number>/", views_jobcard.api_step_skip, name="api_step_skip"),
+    path("<int:wo_pk>/router/api/pause/<int:step_number>/", views_jobcard.api_step_pause, name="api_step_pause"),
+
     # QC Forms
     path("<int:wo_pk>/e-checklist/", views_jobcard.EvaluationChecklistView.as_view(), name="e_checklist"),
     path("<int:wo_pk>/lpt-report/create/", views_jobcard.LPTReportCreateView.as_view(), name="lpt_report_create"),

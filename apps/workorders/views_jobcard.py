@@ -5800,3 +5800,302 @@ class AllLocationsView(LoginRequiredMixin, TemplateView):
         context['total_stock_locs'] = stock_locations.count()
         context['location_types'] = Location.LocationType.choices
         return context
+
+
+# =============================================================================
+# ROUTER STEP DETAIL — Operator Work Page
+# =============================================================================
+
+class RouterStepDetailView(LoginRequiredMixin, DetailView):
+    """
+    Dedicated page for a single router step.
+    The operator's main work page — instructions, measurements, checklist, photos.
+    """
+    model = RouterSheetEntry
+    template_name = "workorders/router_step_detail.html"
+    context_object_name = "step"
+
+    def get_object(self, queryset=None):
+        wo = get_object_or_404(
+            WorkOrder.objects.select_related('drill_bit', 'drill_bit__design', 'drill_bit__design__size', 'account', 'customer'),
+            pk=self.kwargs['wo_pk'],
+        )
+        self._wo = wo
+        return get_object_or_404(
+            RouterSheetEntry.objects.select_related('operator', 'added_by', 'source_operation'),
+            work_order=wo,
+            step_number=self.kwargs['step_number'],
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        step = self.object
+        wo = self._wo
+
+        entries = list(wo.router_entries.order_by('step_number'))
+        current_idx = next((i for i, e in enumerate(entries) if e.pk == step.pk), 0)
+
+        context['work_order'] = wo
+        context['drill_bit'] = wo.drill_bit
+        context['total_steps'] = len(entries)
+        context['current_step_index'] = current_idx + 1
+        context['prev_step'] = entries[current_idx - 1] if current_idx > 0 else None
+        context['next_step'] = entries[current_idx + 1] if current_idx < len(entries) - 1 else None
+        context['all_steps'] = entries
+
+        # Progress
+        done_count = sum(1 for e in entries if e.is_complete)
+        context['progress_pct'] = round(done_count / len(entries) * 100) if entries else 0
+
+        # Parameters template (from step or source operation)
+        params = step.parameters_template or []
+        if not params and step.source_operation:
+            params = step.source_operation.parameters_template or []
+        context['parameters'] = params
+
+        # Checklist template
+        checklist = step.checklist_template or []
+        if not checklist and step.source_operation:
+            checklist = step.source_operation.checklist_template or []
+        context['checklist'] = checklist
+
+        # Instructions
+        instructions = step.instructions
+        if not instructions and step.source_operation:
+            instructions = step.source_operation.instructions
+        context['instructions'] = instructions
+
+        # Procedure
+        proc_ref = step.procedure_reference
+        proc_text = ''
+        if not proc_ref and step.source_operation:
+            proc_ref = step.source_operation.procedure_reference
+            proc_text = step.source_operation.procedure_text or ''
+        context['procedure_reference'] = proc_ref
+        context['procedure_text'] = proc_text
+
+        # Safety
+        safety = step.safety_notes
+        if not safety and step.source_operation:
+            safety = step.source_operation.safety_requirements
+        context['safety_notes'] = safety
+
+        # Estimated minutes
+        est_min = None
+        if step.source_operation and step.source_operation.estimated_minutes:
+            est_min = step.source_operation.estimated_minutes
+        context['estimated_minutes'] = est_min
+
+        # QC required
+        requires_qc = False
+        if step.source_operation and step.source_operation.requires_qc:
+            requires_qc = True
+        context['source_op_requires_qc'] = requires_qc
+
+        # Decision fields visibility
+        desc_lower = step.step_description.lower()
+        context['show_cerebro'] = 'cerebro' in desc_lower
+        context['show_oring'] = 'o-ring' in desc_lower or 'oring' in desc_lower or 'o ring' in desc_lower
+        context['show_decisions'] = context['show_cerebro'] or context['show_oring']
+
+        # JSON data for Alpine.js
+        import json as _j
+        context['parameters_data_json'] = _j.dumps(step.parameters_data or {})
+        context['checklist_data_json'] = _j.dumps(step.checklist_data or {})
+        context['remarks_json'] = _j.dumps(step.remarks or '')
+        context['cerebro_json'] = _j.dumps(step.cerebro_removal)
+        context['oring_json'] = _j.dumps(step.oring_removal)
+        context['qc_passed_json'] = _j.dumps(step.qc_passed)
+        context['qc_remarks_json'] = _j.dumps(step.qc_remarks or '')
+
+        return context
+
+
+@login_required
+def api_step_save_data(request, wo_pk, step_number):
+    """Save parameters, checklist, remarks, decisions, QC for a router step."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+    entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
+
+    try:
+        data = _json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    changed = False
+
+    if 'parameters_data' in data and isinstance(data['parameters_data'], dict):
+        entry.parameters_data = data['parameters_data']
+        changed = True
+
+    if 'checklist_data' in data and isinstance(data['checklist_data'], dict):
+        entry.checklist_data = data['checklist_data']
+        changed = True
+
+    if 'remarks' in data:
+        entry.remarks = str(data['remarks'] or '')
+        changed = True
+
+    if 'cerebro' in data:
+        entry.cerebro_removal = data['cerebro']
+        changed = True
+
+    if 'oring' in data:
+        entry.oring_removal = data['oring']
+        changed = True
+
+    if 'qc_passed' in data:
+        entry.qc_passed = data['qc_passed']
+        changed = True
+
+    if 'qc_remarks' in data:
+        entry.qc_remarks = str(data['qc_remarks'] or '')
+        changed = True
+
+    if changed:
+        entry.save()
+
+    return JsonResponse({'success': True})
+
+
+@login_required
+def api_step_add(request, wo_pk):
+    """Add a new step to a WO router. POST body: { description, after_step, reason }"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+
+    try:
+        data = _json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    description = (data.get('description') or '').strip()
+    reason = (data.get('reason') or '').strip()
+    after_step = data.get('after_step')  # step_number or None for end
+
+    if not description:
+        return JsonResponse({'error': 'Description is required'}, status=400)
+    if not reason:
+        return JsonResponse({'error': 'Reason is required'}, status=400)
+
+    entries = list(wo.router_entries.order_by('step_number'))
+    if not entries:
+        new_step_num = 10
+    elif after_step is not None:
+        # Find the step and compute next number
+        after_idx = next((i for i, e in enumerate(entries) if e.step_number == after_step), None)
+        if after_idx is not None and after_idx < len(entries) - 1:
+            # Insert between after_step and the next step
+            cur_num = entries[after_idx].step_number
+            next_num = entries[after_idx + 1].step_number
+            if next_num - cur_num > 1:
+                new_step_num = cur_num + 1
+            else:
+                # Need to renumber: shift all subsequent steps up
+                with transaction.atomic():
+                    for e in reversed(entries[after_idx + 1:]):
+                        e.step_number = e.step_number + 10
+                        e.save(update_fields=['step_number'])
+                new_step_num = cur_num + 1
+        else:
+            # After last step
+            new_step_num = entries[-1].step_number + 1
+    else:
+        new_step_num = entries[-1].step_number + 1
+
+    new_entry = RouterSheetEntry.objects.create(
+        work_order=wo,
+        step_number=new_step_num,
+        step_description=description,
+        step_type=RouterSheetEntry.StepType.ADDED,
+        added_by=request.user,
+        added_reason=reason,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'step_number': new_entry.step_number,
+        'pk': new_entry.pk,
+    })
+
+
+@login_required
+def api_step_skip(request, wo_pk, step_number):
+    """Skip a step with optional reason."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+    entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
+
+    if entry.is_complete:
+        return JsonResponse({'error': 'Step already completed', 'success': False})
+
+    try:
+        data = _json.loads(request.body)
+    except (ValueError, TypeError):
+        data = {}
+
+    reason = (data.get('reason') or '').strip()
+    if reason and not entry.remarks:
+        entry.remarks = f"[SKIPPED] {reason}"
+    elif reason:
+        entry.remarks = entry.remarks + f"\n[SKIPPED] {reason}"
+    else:
+        if not entry.remarks:
+            entry.remarks = "[SKIPPED]"
+
+    entry.is_complete = True
+    entry.save()
+
+    return JsonResponse({'success': True, 'step_number': step_number, 'action': 'skipped'})
+
+
+@login_required
+def api_step_pause(request, wo_pk, step_number):
+    """Pause or resume a step. POST body: { action: 'pause' | 'resume' }"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+    entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
+
+    try:
+        data = _json.loads(request.body)
+    except (ValueError, TypeError):
+        data = {}
+
+    action = data.get('action', 'pause')
+
+    if action == 'pause':
+        if not entry.qr_scan_start:
+            return JsonResponse({'error': 'Step not started', 'success': False})
+        if entry.is_complete:
+            return JsonResponse({'error': 'Step already completed', 'success': False})
+        if entry.paused_at:
+            return JsonResponse({'error': 'Already paused', 'success': False})
+
+        entry.paused_at = timezone.now()
+        entry.save(update_fields=['paused_at'])
+        return JsonResponse({'success': True, 'action': 'paused', 'paused_at': entry.paused_at.isoformat()})
+
+    elif action == 'resume':
+        if not entry.paused_at:
+            return JsonResponse({'error': 'Not paused', 'success': False})
+
+        pause_duration = int((timezone.now() - entry.paused_at).total_seconds())
+        entry.total_paused_seconds = (entry.total_paused_seconds or 0) + pause_duration
+        entry.paused_at = None
+        entry.save(update_fields=['paused_at', 'total_paused_seconds'])
+        return JsonResponse({
+            'success': True,
+            'action': 'resumed',
+            'total_paused_seconds': entry.total_paused_seconds,
+        })
+
+    return JsonResponse({'error': f'Unknown action: {action}', 'success': False})
