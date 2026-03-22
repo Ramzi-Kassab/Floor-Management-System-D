@@ -407,16 +407,28 @@
                                 <template x-for="(ip, ipi) in (p.insertion_points || [])" :key="ipi">
                                     <div class="p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg">
                                         <div class="flex items-center gap-2 mb-2 flex-wrap">
-                                            <input type="text" x-model="ip.context" placeholder="Context (e.g., RECEIVING)"
-                                                   class="w-32 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
+                                            <select x-model="ip.context" class="w-36 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                <option value="">-- Context --</option>
+                                                <option value="RECEIVING">Receiving</option>
+                                                <option value="POST-BRAZING">Post-Brazing</option>
+                                                <option value="POST-TIP-GRINDING">Post-Tip Grinding</option>
+                                                <option value="POST-REWORK">Post-Rework</option>
+                                                <option value="POST-ASSEMBLY">Post-Assembly</option>
+                                                <option value="FINAL">Final</option>
+                                                <option value="AD-HOC">Ad-Hoc (Manual)</option>
+                                            </select>
                                             <input type="text" x-model="ip.label" placeholder="Display label"
                                                    class="flex-1 min-w-[150px] rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
-                                            <span class="text-xs text-gray-400">after:</span>
-                                            <input type="text" x-model="ip.after_process_code" placeholder="Process code (e.g., GAUGE-MEAS)"
-                                                   class="w-36 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
+                                            <span class="text-xs text-gray-400">Insert after:</span>
+                                            <select x-model="ip.after_process_code" class="w-48 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                <option value="">-- End of route --</option>
+                                                <template x-for="ap in allProcesses.filter(x => x.pk !== p.pk && x.is_active)" :key="ap.pk">
+                                                    <option :value="ap.code" x-text="ap.name"></option>
+                                                </template>
+                                            </select>
                                             <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                                                 <input type="checkbox" :checked="ip.auto_include !== false" @change="ip.auto_include = $event.target.checked"
-                                                       class="rounded border-gray-300 text-indigo-600 w-3.5 h-3.5"> Auto
+                                                       class="rounded border-gray-300 text-indigo-600 w-3.5 h-3.5"> Auto-include
                                             </label>
                                             <button @click="p.insertion_points.splice(ipi, 1)" class="text-red-400 hover:text-red-600">
                                                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -427,13 +439,44 @@
                                             <template x-for="(r, ri) in (ip.rules || [])" :key="ri">
                                                 <div class="flex items-center gap-1.5 text-xs">
                                                     <span class="text-indigo-500 font-medium">if</span>
-                                                    <input type="text" x-model="r.field" placeholder="field" class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
-                                                    <select x-model="r.op" class="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                    <select x-model="r.field" class="w-36 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                        <option value="">-- field --</option>
+                                                        <option value="bit.is_repair">Bit is Repair</option>
+                                                        <option value="bit.is_new">Bit is New</option>
+                                                        <option value="bit.level">Bit Level</option>
+                                                        <option value="bit.size">Bit Size</option>
+                                                        <option value="design.body_material">Body Material</option>
+                                                        <option value="design.has_ports">Has Ports</option>
+                                                        <option value="tech.has_cerebro">Has Cerebro</option>
+                                                        <option value="eval.needs_buildup">Needs Build Up</option>
+                                                        <option value="eval.needs_grinding">Needs Grinding</option>
+                                                        <option value="eval.needs_rework">Needs Rework</option>
+                                                        <option value="eval.needs_thread_repair">Needs Thread Repair</option>
+                                                        <option value="eval.needs_debraze">Needs De-braze</option>
+                                                        <option value="eval.needs_usr">Needs USR</option>
+                                                    </select>
+                                                    <select x-model="r.op" class="w-24 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
                                                         <option value="EQUALS">equals</option>
                                                         <option value="NOT_EQUALS">not equals</option>
+                                                        <option value="GT">greater than</option>
+                                                        <option value="LT">less than</option>
                                                         <option value="EXISTS">exists</option>
                                                     </select>
-                                                    <input type="text" x-model="r.val" placeholder="value" class="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                    <select x-model="r.val" x-show="r.op !== 'EXISTS' && r.op !== 'NOT_EXISTS'"
+                                                            class="w-24 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                        <option value="">--</option>
+                                                        <option value="True">True</option>
+                                                        <option value="False">False</option>
+                                                        <option value="3">L3</option>
+                                                        <option value="4">L4</option>
+                                                        <option value="5">L5</option>
+                                                        <option value="5.5">L5.5</option>
+                                                        <option value="S">Steel (S)</option>
+                                                        <option value="M">Matrix (M)</option>
+                                                        <option value="8.5">8 1/2</option>
+                                                        <option value="12">12</option>
+                                                        <option value="16">16</option>
+                                                    </select>
                                                     <button @click="ip.rules.splice(ri, 1)" class="text-red-400 hover:text-red-600"><i data-lucide="x" class="w-3 h-3"></i></button>
                                                 </div>
                                             </template>
