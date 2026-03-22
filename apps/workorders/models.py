@@ -1795,6 +1795,15 @@ class MasterProcess(models.Model):
         help_text='Included in all routes by default (unless excluded by a rule)'
     )
 
+    # Multi-instance insertion points (for MULTI mode processes like Die Check)
+    # Each entry: {context, label, after_process_code, rules: [{field, op, val}]}
+    # If empty, the process appears once at its sort_order position
+    insertion_points = models.JSONField(
+        default=list, blank=True,
+        help_text='For MULTI mode: where to insert instances. '
+                  '[{context, label, after_process_code, rules: [{field, op, val}]}]'
+    )
+
     # Step mode — how the step is executed
     class StepMode(models.TextChoices):
         ACTIVE = "ACTIVE", "Active — operator performs work"
@@ -2219,11 +2228,16 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
     else:
         processes = processes.filter(applies_to_new=True)
 
-    # Filter by level (if specified on the process)
+    # ── PASS 1: Collect non-MULTI processes ──
     applicable = []
+    multi_processes = []
+
     for proc in processes:
-        # Level filter
         if proc.applies_to_levels and level and level not in proc.applies_to_levels:
+            continue
+
+        if proc.step_mode == 'MULTI' and proc.insertion_points:
+            multi_processes.append(proc)
             continue
 
         # Evaluate inclusion/exclusion rules
@@ -2234,32 +2248,27 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
                 include = True
             elif rule.rule_type == 'EXCLUDE_IF' and matches:
                 include = False
-                break  # Exclude wins immediately
+                break
 
         if include:
             applicable.append(proc)
 
-    # Sort by sort_order
     applicable.sort(key=lambda p: p.sort_order)
 
-    # Build step list with resolved parameters and special instructions
+    # Helper to build a step dict
     today = timezone.now().date()
     all_special = SpecialInstruction.objects.filter(is_active=True).select_related('design', 'target_process')
 
-    steps = []
-    for proc in applicable:
-        # Resolve parameters for this bit's size
+    def _build_step(proc, label_override=None):
         params = proc.get_parameter_ranges(drill_bit)
-
-        # Get special instructions for this step + this bit
         step_instructions = [
             si for si in all_special
             if (si.target_process_id is None or si.target_process_id == proc.pk)
             and si.matches_bit(drill_bit)
         ]
-
-        steps.append({
+        return {
             'master_process': proc,
+            'name_override': label_override,
             'estimated_minutes': proc.estimate_minutes(drill_bit),
             'parameters': params,
             'checklist': proc.checklist_items or [],
@@ -2270,7 +2279,54 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
             'safety_notes': proc.safety_notes,
             'requires_qc': proc.requires_qc,
             'category': proc.category,
-        })
+        }
+
+    # Build initial step list
+    steps = [_build_step(proc) for proc in applicable]
+
+    # ── PASS 2: Insert MULTI-instance processes at their insertion points ──
+    for proc in multi_processes:
+        for ip in proc.insertion_points:
+            # Check auto_include flag
+            if not ip.get('auto_include', True):
+                continue  # Skip manual/non-auto entries
+
+            # Evaluate per-insertion-point rules
+            ip_rules = ip.get('rules', [])
+            ip_matches = True
+            for r in ip_rules:
+                field_val = context.get(r.get('field', ''))
+                op = r.get('op', 'EQUALS')
+                val = r.get('val', '')
+                # Simple evaluation
+                if op == 'EQUALS':
+                    if str(field_val).lower() != str(val).lower():
+                        ip_matches = False
+                        break
+                elif op == 'NOT_EQUALS':
+                    if str(field_val).lower() == str(val).lower():
+                        ip_matches = False
+                        break
+                elif op == 'EXISTS':
+                    if not field_val:
+                        ip_matches = False
+                        break
+
+            if not ip_matches:
+                continue
+
+            # Find the insertion position (after the specified process)
+            after_code = ip.get('after_process_code')
+            insert_idx = len(steps)  # Default: end
+            if after_code:
+                for i, s in enumerate(steps):
+                    if s['master_process'].code == after_code:
+                        insert_idx = i + 1
+                        break
+
+            # Insert the step
+            label = ip.get('label', proc.name)
+            steps.insert(insert_idx, _build_step(proc, label_override=label))
 
     return steps
 
@@ -3874,7 +3930,7 @@ class ProductionPlanEntry(models.Model):
                 RouterSheetEntry.objects.create(
                     work_order=work_order,
                     step_number=(idx + 1) * 10,  # 10, 20, 30...
-                    step_description=proc.name,
+                    step_description=step_data.get('name_override') or proc.name,
                     instructions=step_data['instructions'] or '',
                     procedure_reference=step_data['procedure_reference'] or '',
                     safety_notes=step_data['safety_notes'] or '',
