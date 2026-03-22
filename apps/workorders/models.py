@@ -3454,6 +3454,45 @@ class RouterSheetEntry(models.Model):
     operator_signature = models.ImageField(upload_to="signatures/", null=True, blank=True)
 
     # Status
+    class StepStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        PAUSED = "PAUSED", "Paused"
+        ON_HOLD = "ON_HOLD", "On Hold"
+        WAITING_QC = "WAITING_QC", "Waiting QC"
+        WAITING_APPROVAL = "WAITING_APPROVAL", "Waiting Approval"
+        WAITING_TECH = "WAITING_TECH", "Waiting Technical Team"
+        SKIPPED = "SKIPPED", "Skipped"
+        COMPLETED = "COMPLETED", "Completed"
+
+    class HoldReason(models.TextChoices):
+        NONE = "", "—"
+        EQUIPMENT_FAILURE = "EQUIPMENT", "Equipment Failure"
+        MAINTENANCE = "MAINTENANCE", "Maintenance Required"
+        MATERIAL_SHORTAGE = "MATERIAL", "Lack of Material"
+        SAFETY_ISSUE = "SAFETY", "Safety Issue"
+        MEETING = "MEETING", "Meeting / Break"
+        QUALITY_HOLD = "QUALITY", "Quality Hold"
+        TECHNICAL_REVIEW = "TECH_REVIEW", "Technical Review Required"
+        APPROVAL_NEEDED = "APPROVAL", "Approval Needed"
+        NCR_OPEN = "NCR", "NCR Open"
+        REWORK_NEEDED = "REWORK", "Rework Required"
+        WAITING_PARTS = "PARTS", "Waiting for Parts"
+        OTHER = "OTHER", "Other (see remarks)"
+
+    step_status = models.CharField(
+        max_length=20, choices=StepStatus.choices, default=StepStatus.PENDING
+    )
+    hold_reason = models.CharField(
+        max_length=15, choices=HoldReason.choices, blank=True, default='',
+        help_text='Why this step is on hold or waiting'
+    )
+    hold_since = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the step was put on hold'
+    )
+    hold_notes = models.TextField(blank=True, help_text='Additional details about the hold')
+
     is_complete = models.BooleanField(default=False)
 
     # Remarks

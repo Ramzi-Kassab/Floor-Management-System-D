@@ -1479,6 +1479,7 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.qr_scan_start = timezone.now()
         entry.operator = request.user
         entry.station_qr = station_qr
+        entry.step_status = RouterSheetEntry.StepStatus.IN_PROGRESS
         entry.save()
 
         return JsonResponse({
@@ -1495,6 +1496,8 @@ def api_router_step_scan(request, wo_pk, step_number):
             return JsonResponse({'error': 'Step already completed', 'success': False})
         entry.qr_scan_end = timezone.now()
         entry.is_complete = True
+        entry.step_status = RouterSheetEntry.StepStatus.COMPLETED
+        entry.hold_reason = ''
         entry.save()
 
         # Notify only when ALL router steps are now complete
@@ -6119,6 +6122,9 @@ def api_step_pause(request, wo_pk, step_number):
 
     action = data.get('action', 'pause')
 
+    hold_reason = data.get('hold_reason', '')
+    hold_notes = data.get('hold_notes', '')
+
     if action == 'pause':
         if not entry.qr_scan_start:
             return JsonResponse({'error': 'Step not started', 'success': False})
@@ -6128,17 +6134,72 @@ def api_step_pause(request, wo_pk, step_number):
             return JsonResponse({'error': 'Already paused', 'success': False})
 
         entry.paused_at = timezone.now()
-        entry.save(update_fields=['paused_at'])
+        entry.step_status = RouterSheetEntry.StepStatus.PAUSED
+        entry.save(update_fields=['paused_at', 'step_status'])
         return JsonResponse({'success': True, 'action': 'paused', 'paused_at': entry.paused_at.isoformat()})
 
-    elif action == 'resume':
-        if not entry.paused_at:
-            return JsonResponse({'error': 'Not paused', 'success': False})
+    elif action == 'hold':
+        # Put step on hold with a reason
+        entry.step_status = RouterSheetEntry.StepStatus.ON_HOLD
+        entry.hold_reason = hold_reason
+        entry.hold_notes = hold_notes
+        entry.hold_since = timezone.now()
+        if not entry.paused_at and entry.qr_scan_start:
+            entry.paused_at = timezone.now()
+        update_fields = ['step_status', 'hold_reason', 'hold_notes', 'hold_since']
+        if entry.paused_at:
+            update_fields.append('paused_at')
+        entry.save(update_fields=update_fields)
 
-        pause_duration = int((timezone.now() - entry.paused_at).total_seconds())
-        entry.total_paused_seconds = (entry.total_paused_seconds or 0) + pause_duration
-        entry.paused_at = None
-        entry.save(update_fields=['paused_at', 'total_paused_seconds'])
+        # Notify planner about the delay
+        try:
+            from apps.notifications.services import notify
+            notify(
+                actor=request.user,
+                verb=f"put step on hold:",
+                target=f"{entry.step_description} ({entry.get_hold_reason_display()}) — WO {wo.wo_number}",
+                priority="HIGH",
+                action_url=reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step_number}),
+                entity_type="RouterSheetEntry",
+                entity_id=entry.pk,
+            )
+        except Exception:
+            pass
+
+        return JsonResponse({
+            'success': True, 'action': 'on_hold',
+            'hold_reason': entry.get_hold_reason_display(),
+            'hold_since': entry.hold_since.isoformat(),
+        })
+
+    elif action == 'waiting_qc':
+        entry.step_status = RouterSheetEntry.StepStatus.WAITING_QC
+        entry.save(update_fields=['step_status'])
+        return JsonResponse({'success': True, 'action': 'waiting_qc'})
+
+    elif action == 'waiting_approval':
+        entry.step_status = RouterSheetEntry.StepStatus.WAITING_APPROVAL
+        entry.save(update_fields=['step_status'])
+        return JsonResponse({'success': True, 'action': 'waiting_approval'})
+
+    elif action == 'waiting_tech':
+        entry.step_status = RouterSheetEntry.StepStatus.WAITING_TECH
+        entry.save(update_fields=['step_status'])
+        return JsonResponse({'success': True, 'action': 'waiting_tech'})
+
+    elif action == 'resume':
+        if not entry.paused_at and entry.step_status not in ('ON_HOLD', 'PAUSED', 'WAITING_QC', 'WAITING_APPROVAL', 'WAITING_TECH'):
+            return JsonResponse({'error': 'Not paused or on hold', 'success': False})
+
+        if entry.paused_at:
+            pause_duration = int((timezone.now() - entry.paused_at).total_seconds())
+            entry.total_paused_seconds = (entry.total_paused_seconds or 0) + pause_duration
+            entry.paused_at = None
+        entry.step_status = RouterSheetEntry.StepStatus.IN_PROGRESS
+        entry.hold_reason = ''
+        entry.hold_notes = ''
+        entry.hold_since = None
+        entry.save(update_fields=['paused_at', 'total_paused_seconds', 'step_status', 'hold_reason', 'hold_notes', 'hold_since'])
         return JsonResponse({
             'success': True,
             'action': 'resumed',
