@@ -62,6 +62,7 @@ class MasterProcessListView(LoginRequiredMixin, TemplateView):
                 "dedicated_page": p.dedicated_page or '',
                 "dedicated_icon": p.dedicated_icon or '',
                 "step_mode": p.step_mode or 'ACTIVE',
+                "insertion_points": p.insertion_points or [],
                 "rules": rules,
             })
 
@@ -165,7 +166,7 @@ def api_master_process_save(request, pk):
             setattr(p, field, bool(data[field]))
 
     # JSON fields
-    for field in ["time_factors", "parameters_spec", "checklist_items", "applies_to_levels"]:
+    for field in ["time_factors", "parameters_spec", "checklist_items", "applies_to_levels", "insertion_points"]:
         if field in data:
             setattr(p, field, data[field])
 

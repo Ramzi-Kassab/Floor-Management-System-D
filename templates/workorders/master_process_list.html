@@ -397,8 +397,62 @@
                             </div>
                         </fieldset>
 
-                        <!-- Inclusion Rules -->
-                        <fieldset>
+                        <!-- Insertion Points (MULTI mode only) -->
+                        <fieldset x-show="p.step_mode === 'MULTI'">
+                            <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
+                                <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Insertion Points
+                                <span class="text-gray-300 dark:text-gray-600 font-normal normal-case">(where this process appears in the route)</span>
+                            </legend>
+                            <div class="space-y-2">
+                                <template x-for="(ip, ipi) in (p.insertion_points || [])" :key="ipi">
+                                    <div class="p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg">
+                                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                            <input type="text" x-model="ip.context" placeholder="Context (e.g., RECEIVING)"
+                                                   class="w-32 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
+                                            <input type="text" x-model="ip.label" placeholder="Display label"
+                                                   class="flex-1 min-w-[150px] rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                            <span class="text-xs text-gray-400">after:</span>
+                                            <input type="text" x-model="ip.after_process_code" placeholder="Process code (e.g., GAUGE-MEAS)"
+                                                   class="w-36 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
+                                            <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+                                                <input type="checkbox" :checked="ip.auto_include !== false" @change="ip.auto_include = $event.target.checked"
+                                                       class="rounded border-gray-300 text-indigo-600 w-3.5 h-3.5"> Auto
+                                            </label>
+                                            <button @click="p.insertion_points.splice(ipi, 1)" class="text-red-400 hover:text-red-600">
+                                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                        <!-- Per-point rules -->
+                                        <div class="ml-4 space-y-1">
+                                            <template x-for="(r, ri) in (ip.rules || [])" :key="ri">
+                                                <div class="flex items-center gap-1.5 text-xs">
+                                                    <span class="text-indigo-500 font-medium">if</span>
+                                                    <input type="text" x-model="r.field" placeholder="field" class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs font-mono">
+                                                    <select x-model="r.op" class="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                        <option value="EQUALS">equals</option>
+                                                        <option value="NOT_EQUALS">not equals</option>
+                                                        <option value="EXISTS">exists</option>
+                                                    </select>
+                                                    <input type="text" x-model="r.val" placeholder="value" class="w-20 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
+                                                    <button @click="ip.rules.splice(ri, 1)" class="text-red-400 hover:text-red-600"><i data-lucide="x" class="w-3 h-3"></i></button>
+                                                </div>
+                                            </template>
+                                            <button @click="if(!ip.rules) ip.rules = []; ip.rules.push({field:'', op:'EQUALS', val:''})"
+                                                    class="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1 mt-1">
+                                                <i data-lucide="plus" class="w-3 h-3"></i> Add condition
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <button @click="if(!p.insertion_points) p.insertion_points = []; p.insertion_points.push({context:'', label:'', after_process_code:'', auto_include:true, rules:[]})"
+                                    class="mt-2 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1">
+                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add insertion point
+                            </button>
+                        </fieldset>
+
+                        <!-- Inclusion Rules (hidden for MULTI mode — use insertion points instead) -->
+                        <fieldset x-show="p.step_mode !== 'MULTI'">
                             <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
                                 <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> Inclusion Rules
                                 <span class="text-gray-300 dark:text-gray-600 font-normal normal-case" x-text="'(' + (p.rules || []).length + ')'"></span>
@@ -425,10 +479,42 @@
                                                 <option :value="op.value" x-text="op.label"></option>
                                             </template>
                                         </select>
-                                        <input type="text" x-model="rule.value" placeholder="Value"
-                                               x-show="rule.operator !== 'EXISTS' && rule.operator !== 'NOT_EXISTS'"
-                                               class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                        <input type="number" x-model.number="rule.priority" placeholder="Pri" title="Priority"
+                                        <template x-if="rule.operator !== 'EXISTS' && rule.operator !== 'NOT_EXISTS'">
+                                            <select x-model="rule.value"
+                                                    class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
+                                                <option value="">-- select --</option>
+                                                <optgroup label="Boolean">
+                                                    <option value="True">True</option>
+                                                    <option value="False">False</option>
+                                                </optgroup>
+                                                <optgroup label="Level">
+                                                    <option value="3">L3</option>
+                                                    <option value="4">L4</option>
+                                                    <option value="5">L5</option>
+                                                    <option value="5.5">L5.5</option>
+                                                </optgroup>
+                                                <optgroup label="Body Material">
+                                                    <option value="S">Steel (S)</option>
+                                                    <option value="M">Matrix (M)</option>
+                                                </optgroup>
+                                                <optgroup label="Bit Type">
+                                                    <option value="FC">FC (Fixed Cutter)</option>
+                                                    <option value="RC">RC (Roller Cone)</option>
+                                                </optgroup>
+                                                <optgroup label="Comma-separated (for IN_LIST)">
+                                                    <option value="3,4">L3, L4</option>
+                                                    <option value="3,5.5">L3, L5.5</option>
+                                                    <option value="LSTK,ARAMCO">LSTK, ARAMCO</option>
+                                                </optgroup>
+                                                <optgroup label="Size thresholds">
+                                                    <option value="8.5">8 1/2</option>
+                                                    <option value="12">12</option>
+                                                    <option value="12.25">12 1/4</option>
+                                                    <option value="16">16</option>
+                                                </optgroup>
+                                            </select>
+                                        </template>
+                                        <input type="number" x-model.number="rule.priority" placeholder="Pri" title="Priority (higher = first)"
                                                class="w-14 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
                                         <button @click="saveRule(p, rule, ri)"
                                                 class="p-1.5 text-blue-500 hover:text-blue-700 transition flex-shrink-0" title="Save rule">
