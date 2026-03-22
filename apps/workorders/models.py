@@ -1730,6 +1730,477 @@ class ProcessRouteOperation(models.Model):
         return f"{self.route.route_number} Seq {self.sequence}: {self.operation_name}"
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SMART ROUTE ENGINE — Master Process Library + Rules + Special Instructions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MasterProcess(models.Model):
+    """
+    Library of all possible process steps for PDC bit manufacturing/repair.
+    Each step has rules for when it applies and parameter specs tied to bit attributes.
+    """
+
+    class Category(models.TextChoices):
+        RECEIVING = "RECEIVING", "Receiving & Setup"
+        EVALUATION = "EVALUATION", "Evaluation & Inspection"
+        PREPARATION = "PREPARATION", "Preparation"
+        BRAZING = "BRAZING", "Brazing"
+        GRINDING = "GRINDING", "Grinding & Finishing"
+        ASSEMBLY = "ASSEMBLY", "Assembly"
+        THREADING = "THREADING", "Threading & Connection"
+        QC = "QC", "Quality Control"
+        FINISHING = "FINISHING", "Finishing & Coating"
+        DISPATCH = "DISPATCH", "Pack & Dispatch"
+        SPECIAL = "SPECIAL", "Special Operations"
+
+    code = models.CharField(max_length=30, unique=True, help_text='Unique process code, e.g., BRAZE-L1, BUILDUP, PRESSURE-TEST')
+    name = models.CharField(max_length=200)
+    category = models.CharField(max_length=20, choices=Category.choices)
+    description = models.TextField(blank=True)
+
+    # Instructions (general — from procedure, applies to all bits)
+    instructions_general = models.TextField(blank=True, help_text='General instructions from the procedure')
+    procedure_reference = models.CharField(max_length=200, blank=True, help_text='e.g., QAS/1006 Rev L, Section 4.11')
+    procedure_doc_url = models.URLField(blank=True, help_text='Link to procedure document')
+    safety_notes = models.TextField(blank=True)
+
+    # Default time estimate (base, adjusted per bit)
+    default_estimated_minutes = models.IntegerField(default=30)
+
+    # Time multipliers based on bit attributes (JSON)
+    # e.g., {"per_cutter": 2, "per_blade": 5, "size_factor": {"8.5": 1.0, "12.25": 1.5, "16": 2.0}}
+    time_factors = models.JSONField(
+        default=dict, blank=True,
+        help_text='Time adjustment factors: {per_cutter, per_blade, size_factor: {size: multiplier}}'
+    )
+
+    # Parameter specifications — what the operator records
+    # [{name, type, unit, required, out_of_range_action,
+    #   ranges: {size_display: {min, max}, ...} OR default_min/default_max}]
+    parameters_spec = models.JSONField(
+        default=list, blank=True,
+        help_text='Parameter specs with size-dependent ranges'
+    )
+
+    # QC Checklist items
+    checklist_items = models.JSONField(
+        default=list, blank=True,
+        help_text='QC checklist: [{text, required}]'
+    )
+
+    # Flags
+    requires_qc = models.BooleanField(default=False)
+    is_default_included = models.BooleanField(
+        default=True,
+        help_text='Included in all routes by default (unless excluded by a rule)'
+    )
+
+    # Ordering
+    sort_order = models.IntegerField(default=100, help_text='Default sequence position')
+
+    # Applies to (broad filter)
+    applies_to_new = models.BooleanField(default=True, help_text='Applies to new bit manufacture')
+    applies_to_repair = models.BooleanField(default=True, help_text='Applies to bit repair')
+    applies_to_levels = models.JSONField(
+        default=list, blank=True,
+        help_text='Which levels: ["3","4","5.5"] or empty for all'
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "master_processes"
+        ordering = ["sort_order", "category", "name"]
+        verbose_name = "Master Process"
+        verbose_name_plural = "Master Processes"
+
+    def __str__(self):
+        return f"[{self.code}] {self.name}"
+
+    def estimate_minutes(self, drill_bit):
+        """Calculate estimated time for a specific bit based on time_factors."""
+        base = self.default_estimated_minutes
+        factors = self.time_factors or {}
+        multiplier = 1.0
+
+        if drill_bit.design:
+            size_str = str(drill_bit.size) if drill_bit.size else ''
+            size_factors = factors.get('size_factor', {})
+            if size_str in size_factors:
+                multiplier *= size_factors[size_str]
+
+            if 'per_blade' in factors and drill_bit.design.no_of_blades:
+                base += factors['per_blade'] * drill_bit.design.no_of_blades
+
+            if 'per_cutter' in factors and drill_bit.design.total_pockets_count:
+                base += factors['per_cutter'] * drill_bit.design.total_pockets_count
+
+        return int(base * multiplier)
+
+    def get_parameter_ranges(self, drill_bit):
+        """Return parameter specs with min/max resolved for the specific bit size."""
+        specs = self.parameters_spec or []
+        size_display = ''
+        if drill_bit.design and drill_bit.design.size:
+            size_display = str(drill_bit.design.size.size_display) if hasattr(drill_bit.design.size, 'size_display') else str(drill_bit.design.size)
+
+        resolved = []
+        for spec in specs:
+            p = dict(spec)  # copy
+            ranges = p.pop('ranges', {})
+            if size_display and size_display in ranges:
+                p['min'] = ranges[size_display].get('min')
+                p['max'] = ranges[size_display].get('max')
+            elif 'default_min' in p:
+                p['min'] = p.pop('default_min', None)
+                p['max'] = p.pop('default_max', None)
+            resolved.append(p)
+        return resolved
+
+
+class ProcessInclusionRule(models.Model):
+    """
+    Rules that determine whether a MasterProcess step is included or excluded
+    for a specific bit. Evaluated against bit/design/BOM/evaluation attributes.
+    """
+
+    class RuleType(models.TextChoices):
+        INCLUDE_IF = "INCLUDE_IF", "Include if condition is true"
+        EXCLUDE_IF = "EXCLUDE_IF", "Exclude if condition is true"
+
+    class Operator(models.TextChoices):
+        EQUALS = "EQUALS", "equals"
+        NOT_EQUALS = "NOT_EQUALS", "does not equal"
+        GREATER_THAN = "GT", "greater than"
+        LESS_THAN = "LT", "less than"
+        CONTAINS = "CONTAINS", "contains"
+        EXISTS = "EXISTS", "exists / is not empty"
+        NOT_EXISTS = "NOT_EXISTS", "does not exist / is empty"
+        IN_LIST = "IN_LIST", "is one of (comma-separated)"
+
+    master_process = models.ForeignKey(
+        MasterProcess, on_delete=models.CASCADE, related_name="inclusion_rules"
+    )
+    rule_type = models.CharField(max_length=15, choices=RuleType.choices)
+
+    # What field to check
+    # Dot notation: design.body_material, design.port_count, design.has_ports,
+    # bom.has_dynamic_cutters, eval.needs_buildup, tech.cerebro_force, bit.level, etc.
+    field_path = models.CharField(
+        max_length=100,
+        help_text='Field to evaluate: design.port_count, design.body_material, bit.level, '
+                  'tech.cerebro_force, tech.has_cerebro, eval.needs_buildup, bom.has_dynamic_cutters'
+    )
+    operator = models.CharField(max_length=15, choices=Operator.choices)
+    value = models.CharField(
+        max_length=200, blank=True,
+        help_text='Value to compare against. For EXISTS/NOT_EXISTS, leave empty.'
+    )
+
+    priority = models.IntegerField(default=10, help_text='Higher priority rules evaluated first')
+    description = models.CharField(max_length=200, blank=True, help_text='Human-readable rule description')
+
+    class Meta:
+        db_table = "process_inclusion_rules"
+        ordering = ["-priority", "master_process"]
+        verbose_name = "Process Inclusion Rule"
+
+    def __str__(self):
+        return f"{self.master_process.code}: {self.get_rule_type_display()} {self.field_path} {self.get_operator_display()} {self.value}"
+
+    def evaluate(self, context):
+        """Evaluate this rule against a context dict. Returns True if rule matches."""
+        field_val = context.get(self.field_path, None)
+
+        if self.operator == 'EXISTS':
+            return field_val is not None and field_val != '' and field_val != 0 and field_val is not False
+        if self.operator == 'NOT_EXISTS':
+            return field_val is None or field_val == '' or field_val == 0 or field_val is False
+
+        # Convert value for comparison
+        compare_val = self.value
+        if isinstance(field_val, (int, float)):
+            try:
+                compare_val = float(self.value)
+            except (ValueError, TypeError):
+                pass
+        if isinstance(field_val, bool):
+            compare_val = self.value.lower() in ('true', '1', 'yes')
+
+        if self.operator == 'EQUALS':
+            return str(field_val).lower() == str(compare_val).lower()
+        if self.operator == 'NOT_EQUALS':
+            return str(field_val).lower() != str(compare_val).lower()
+        if self.operator == 'GT':
+            try:
+                return float(field_val) > float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        if self.operator == 'LT':
+            try:
+                return float(field_val) < float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        if self.operator == 'CONTAINS':
+            return str(compare_val).lower() in str(field_val).lower()
+        if self.operator == 'IN_LIST':
+            items = [v.strip().lower() for v in str(compare_val).split(',')]
+            return str(field_val).lower() in items
+
+        return False
+
+
+class SpecialInstruction(models.Model):
+    """
+    Design/serial/size/material-specific instructions that appear on step work pages.
+    Multi-level: can target a specific design MAT, serial number, size range,
+    body material, or any combination. Time-limited support.
+    """
+
+    class Priority(models.TextChoices):
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High — operator must acknowledge"
+        CRITICAL = "CRITICAL", "Critical — blocks step completion"
+
+    class AppliesTo(models.TextChoices):
+        ALL = "ALL", "All bits"
+        DESIGN = "DESIGN", "Specific design MAT"
+        SERIAL = "SERIAL", "Specific serial number"
+        SIZE = "SIZE", "Size range"
+        MATERIAL = "MATERIAL", "Body material"
+        COMBINATION = "COMBINATION", "Multiple criteria"
+
+    # What step this instruction appears on (null = all steps)
+    target_process = models.ForeignKey(
+        MasterProcess, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="special_instructions",
+        help_text='Which step this appears on. Blank = appears on all steps.'
+    )
+
+    instruction_text = models.TextField(help_text='The instruction to display')
+    priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.NORMAL)
+    applies_to = models.CharField(max_length=15, choices=AppliesTo.choices, default=AppliesTo.ALL)
+
+    # Targeting criteria (all optional — combined with AND)
+    design = models.ForeignKey(
+        'technology.Design', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='special_instructions',
+        help_text='Specific design MAT (e.g., for MAT X undercut gauge by Y)'
+    )
+    serial_number = models.CharField(
+        max_length=20, blank=True,
+        help_text='Specific serial (e.g., for SN Z hold and call technical team)'
+    )
+    size_min = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    size_max = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    body_material = models.CharField(
+        max_length=50, blank=True,
+        help_text='Body material filter (e.g., M for Matrix, S for Steel)'
+    )
+
+    # Time-limited
+    valid_from = models.DateField(null=True, blank=True, help_text='Active from this date')
+    valid_to = models.DateField(null=True, blank=True, help_text='Active until this date')
+
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='special_instructions_created'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "special_instructions"
+        ordering = ["-priority", "-created_at"]
+        verbose_name = "Special Instruction"
+
+    def __str__(self):
+        target = []
+        if self.design:
+            target.append(f"MAT:{self.design.mat_no}")
+        if self.serial_number:
+            target.append(f"SN:{self.serial_number}")
+        if self.size_min or self.size_max:
+            target.append(f"Size:{self.size_min or '?'}-{self.size_max or '?'}")
+        if self.body_material:
+            target.append(f"Mat:{self.body_material}")
+        return f"[{self.get_priority_display()}] {' '.join(target) or 'ALL'}: {self.instruction_text[:50]}"
+
+    def matches_bit(self, drill_bit):
+        """Check if this instruction applies to the given drill bit."""
+        from django.utils import timezone
+        today = timezone.now().date()
+
+        if not self.is_active:
+            return False
+        if self.valid_from and today < self.valid_from:
+            return False
+        if self.valid_to and today > self.valid_to:
+            return False
+        if self.design and drill_bit.design_id != self.design_id:
+            return False
+        if self.serial_number and drill_bit.serial_number != self.serial_number:
+            return False
+        if self.size_min and drill_bit.size and drill_bit.size < self.size_min:
+            return False
+        if self.size_max and drill_bit.size and drill_bit.size > self.size_max:
+            return False
+        if self.body_material and drill_bit.design:
+            if drill_bit.design.body_material != self.body_material:
+                return False
+        return True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROUTE ASSEMBLY ENGINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
+    """
+    Build a context dict from a drill bit and its related data.
+    Used by ProcessInclusionRule.evaluate() to determine which steps apply.
+    """
+    ctx = {
+        'bit.level': drill_bit.level or '',
+        'bit.condition': drill_bit.condition or '',
+        'bit.serial': drill_bit.serial_number,
+        'bit.size': float(drill_bit.size) if drill_bit.size else 0,
+        'bit.type': drill_bit.bit_type or '',
+    }
+
+    if drill_bit.design:
+        d = drill_bit.design
+        ctx.update({
+            'design.mat_no': d.mat_no or '',
+            'design.body_material': d.body_material or '',
+            'design.no_of_blades': d.no_of_blades or 0,
+            'design.total_pockets_count': d.total_pockets_count or 0,
+            'design.port_count': d.port_count or 0,
+            'design.has_ports': bool(d.port_count and d.port_count > 0),
+            'design.nozzle_count': d.nozzle_count or 0,
+            'design.erosion_sleeve': d.erosion_sleeve,
+            'design.size_display': str(d.size.size_display) if d.size and hasattr(d.size, 'size_display') else '',
+        })
+        # Special technologies
+        tech_names = list(d.special_technologies.values_list('name', flat=True))
+        ctx['design.special_technologies'] = ','.join(tech_names)
+        ctx['tech.has_cerebro'] = any('cerebro' in t.lower() for t in tech_names)
+        ctx['tech.has_crush_shear'] = any('crush' in t.lower() for t in tech_names)
+        ctx['tech.has_erosion_sleeve'] = any('erosion' in t.lower() for t in tech_names)
+        ctx['tech.has_shankless'] = any('shankless' in t.lower() for t in tech_names)
+
+    # BOM data
+    bom = drill_bit.brazing_bom or drill_bit.bom
+    if bom:
+        ctx['bom.code'] = bom.code or ''
+        ctx['bom.has_lines'] = bom.lines.exists() if hasattr(bom, 'lines') else False
+
+    # New vs repair
+    repair_conditions = ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
+    ctx['bit.is_repair'] = drill_bit.condition in repair_conditions
+    ctx['bit.is_new'] = not ctx['bit.is_repair']
+
+    # Evaluation data (from evaluator decisions)
+    if evaluation_data:
+        ctx.update({f'eval.{k}': v for k, v in evaluation_data.items()})
+
+    # Technical instructions data
+    if technical_data:
+        ctx.update({f'tech.{k}': v for k, v in technical_data.items()})
+
+    return ctx
+
+
+def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None):
+    """
+    Assemble a customized route for a specific drill bit.
+
+    Returns a list of dicts, each representing a step:
+    [{
+        master_process: MasterProcess,
+        estimated_minutes: int,
+        parameters: [{name, type, unit, min, max, required, out_of_range_action}],
+        checklist: [{text, required}],
+        special_instructions: [SpecialInstruction],
+        instructions: str,
+        procedure_reference: str,
+        safety_notes: str,
+    }]
+    """
+    from django.utils import timezone
+
+    context = build_route_context(drill_bit, evaluation_data, technical_data)
+
+    # Get all active master processes
+    level = drill_bit.level or (drill_bit.design.order_level if drill_bit.design else '')
+    is_repair = context.get('bit.is_repair', False)
+
+    processes = MasterProcess.objects.filter(is_active=True).prefetch_related('inclusion_rules')
+
+    # Filter by new/repair applicability
+    if is_repair:
+        processes = processes.filter(applies_to_repair=True)
+    else:
+        processes = processes.filter(applies_to_new=True)
+
+    # Filter by level (if specified on the process)
+    applicable = []
+    for proc in processes:
+        # Level filter
+        if proc.applies_to_levels and level and level not in proc.applies_to_levels:
+            continue
+
+        # Evaluate inclusion/exclusion rules
+        include = proc.is_default_included
+        for rule in proc.inclusion_rules.all():
+            matches = rule.evaluate(context)
+            if rule.rule_type == 'INCLUDE_IF' and matches:
+                include = True
+            elif rule.rule_type == 'EXCLUDE_IF' and matches:
+                include = False
+                break  # Exclude wins immediately
+
+        if include:
+            applicable.append(proc)
+
+    # Sort by sort_order
+    applicable.sort(key=lambda p: p.sort_order)
+
+    # Build step list with resolved parameters and special instructions
+    today = timezone.now().date()
+    all_special = SpecialInstruction.objects.filter(is_active=True).select_related('design', 'target_process')
+
+    steps = []
+    for proc in applicable:
+        # Resolve parameters for this bit's size
+        params = proc.get_parameter_ranges(drill_bit)
+
+        # Get special instructions for this step + this bit
+        step_instructions = [
+            si for si in all_special
+            if (si.target_process_id is None or si.target_process_id == proc.pk)
+            and si.matches_bit(drill_bit)
+        ]
+
+        steps.append({
+            'master_process': proc,
+            'estimated_minutes': proc.estimate_minutes(drill_bit),
+            'parameters': params,
+            'checklist': proc.checklist_items or [],
+            'special_instructions': step_instructions,
+            'instructions': proc.instructions_general,
+            'procedure_reference': proc.procedure_reference,
+            'procedure_doc_url': proc.procedure_doc_url,
+            'safety_notes': proc.safety_notes,
+            'requires_qc': proc.requires_qc,
+            'category': proc.category,
+        })
+
+    return steps
+
+
 # NOTE: OperationExecution model REMOVED (Feb 2026) — never written to in production.
 # RouterSheetEntry is the active step-tracking system for work orders.
 

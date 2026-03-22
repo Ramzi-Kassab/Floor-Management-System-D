@@ -44,6 +44,10 @@ from .models import (
     BackloadBatchAttachment,
     BackloadItem,
     BOMPendingRequest,
+    # Smart Route Engine
+    MasterProcess,
+    ProcessInclusionRule,
+    SpecialInstruction,
 )
 
 
@@ -458,3 +462,28 @@ class BOMPendingRequestAdmin(admin.ModelAdmin):
     search_fields = ["drill_bit__serial_number"]
     readonly_fields = ["created_at"]
     raw_id_fields = ["drill_bit", "requested_by", "assigned_by"]
+
+
+# =============================================================================
+# SMART ROUTE ENGINE
+# =============================================================================
+
+class ProcessInclusionRuleInline(admin.TabularInline):
+    model = ProcessInclusionRule
+    extra = 1
+
+@admin.register(MasterProcess)
+class MasterProcessAdmin(admin.ModelAdmin):
+    list_display = ["code", "name", "category", "default_estimated_minutes", "requires_qc", "is_default_included", "sort_order", "is_active"]
+    list_filter = ["category", "requires_qc", "is_active", "applies_to_new", "applies_to_repair"]
+    search_fields = ["code", "name"]
+    list_editable = ["sort_order", "is_active"]
+    inlines = [ProcessInclusionRuleInline]
+
+@admin.register(SpecialInstruction)
+class SpecialInstructionAdmin(admin.ModelAdmin):
+    list_display = ["__str__", "priority", "applies_to", "is_active", "valid_from", "valid_to"]
+    list_filter = ["priority", "applies_to", "is_active"]
+    search_fields = ["instruction_text", "serial_number"]
+    raw_id_fields = ["design", "target_process", "created_by"]
+
