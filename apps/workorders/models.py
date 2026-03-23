@@ -1795,13 +1795,27 @@ class MasterProcess(models.Model):
         help_text='Included in all routes by default (unless excluded by a rule)'
     )
 
+    # ── RULE EXPRESSION (replaces old ProcessInclusionRule rows) ──
+    # Nested JSON with AND/OR/NOT logic:
+    # {"type": "AND", "conditions": [
+    #   {"field": "bit.is_repair", "op": "EQUALS", "val": "True"},
+    #   {"type": "OR", "conditions": [
+    #     {"field": "bit.account", "op": "EQUALS", "val": "ARAMCO"},
+    #     {"field": "bit.size", "op": "GT", "val": "12"}
+    #   ]}
+    # ]}
+    # Empty = no conditions (always included if is_default_included=True)
+    rule_expression = models.JSONField(
+        default=dict, blank=True,
+        help_text='Inclusion/exclusion rule as nested AND/OR/NOT expression'
+    )
+
     # Multi-instance insertion points (for MULTI mode processes like Die Check)
-    # Each entry: {context, label, after_process_code, rules: [{field, op, val}]}
-    # If empty, the process appears once at its sort_order position
+    # Each entry has its own rule_expression for per-position logic
+    # [{context, label, after_process_code, auto_include, rule_expression: {...}}]
     insertion_points = models.JSONField(
         default=list, blank=True,
-        help_text='For MULTI mode: where to insert instances. '
-                  '[{context, label, after_process_code, rules: [{field, op, val}]}]'
+        help_text='For MULTI mode: where to insert instances with per-point rules'
     )
 
     # Step mode — how the step is executed
@@ -2140,6 +2154,111 @@ class SpecialInstruction(models.Model):
 # ROUTE ASSEMBLY ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def evaluate_rule_expression(expr, context):
+    """
+    Recursively evaluate a rule expression tree against a context dict.
+
+    Expression format:
+    - Group: {"type": "AND"|"OR"|"NOT", "conditions": [...]}
+    - Leaf:  {"field": "bit.is_repair", "op": "EQUALS", "val": "True"}
+
+    Returns True if the expression matches, False otherwise.
+    Empty/null expression = True (no conditions = always matches).
+    """
+    if not expr:
+        return True
+
+    expr_type = expr.get('type', '').upper()
+
+    # ── LEAF CONDITION ──
+    if 'field' in expr and not expr_type:
+        field_val = context.get(expr.get('field', ''))
+        op = expr.get('op', 'EQUALS').upper()
+        compare_val = expr.get('val', '')
+
+        # EXISTS / NOT_EXISTS
+        if op == 'EXISTS':
+            return field_val is not None and field_val != '' and field_val != 0 and field_val is not False
+        if op == 'NOT_EXISTS':
+            return field_val is None or field_val == '' or field_val == 0 or field_val is False
+
+        # Type coercion for comparison
+        if isinstance(field_val, bool):
+            compare_val = str(compare_val).lower() in ('true', '1', 'yes')
+            return (field_val == compare_val) if op == 'EQUALS' else (field_val != compare_val)
+
+        if isinstance(field_val, (int, float)):
+            try:
+                compare_val = float(compare_val)
+            except (ValueError, TypeError):
+                compare_val = 0
+
+        if op == 'EQUALS':
+            return str(field_val).lower() == str(compare_val).lower()
+        elif op == 'NOT_EQUALS':
+            return str(field_val).lower() != str(compare_val).lower()
+        elif op == 'GT':
+            try:
+                return float(field_val) > float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        elif op == 'LT':
+            try:
+                return float(field_val) < float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        elif op == 'GTE':
+            try:
+                return float(field_val) >= float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        elif op == 'LTE':
+            try:
+                return float(field_val) <= float(compare_val)
+            except (ValueError, TypeError):
+                return False
+        elif op == 'CONTAINS':
+            return str(compare_val).lower() in str(field_val).lower()
+        elif op == 'IN_LIST':
+            items = [v.strip().lower() for v in str(compare_val).split(',')]
+            return str(field_val).lower() in items
+        elif op == 'NOT_IN_LIST':
+            items = [v.strip().lower() for v in str(compare_val).split(',')]
+            return str(field_val).lower() not in items
+
+        return False
+
+    # ── GROUP: AND ──
+    if expr_type == 'AND':
+        conditions = expr.get('conditions', [])
+        if not conditions:
+            return True
+        return all(evaluate_rule_expression(c, context) for c in conditions)
+
+    # ── GROUP: OR ──
+    elif expr_type == 'OR':
+        conditions = expr.get('conditions', [])
+        if not conditions:
+            return True
+        return any(evaluate_rule_expression(c, context) for c in conditions)
+
+    # ── GROUP: NOT ──
+    elif expr_type == 'NOT':
+        conditions = expr.get('conditions', [])
+        if not conditions:
+            return True
+        # NOT applies to the first condition (or AND of all)
+        if len(conditions) == 1:
+            return not evaluate_rule_expression(conditions[0], context)
+        return not all(evaluate_rule_expression(c, context) for c in conditions)
+
+    # Unknown — treat as leaf
+    if 'field' in expr:
+        return evaluate_rule_expression({**expr, 'type': ''}, context)
+
+    return True
+
+
 def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
     """
     Build a context dict from a drill bit and its related data.
@@ -2241,15 +2360,19 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
             multi_processes.append(proc)
             continue
 
-        # Evaluate inclusion/exclusion rules
-        include = proc.is_default_included
-        for rule in proc.inclusion_rules.all():
-            matches = rule.evaluate(context)
-            if rule.rule_type == 'INCLUDE_IF' and matches:
-                include = True
-            elif rule.rule_type == 'EXCLUDE_IF' and matches:
-                include = False
-                break
+        # Evaluate rule expression (new system) — if set, it determines inclusion
+        if proc.rule_expression:
+            include = evaluate_rule_expression(proc.rule_expression, context)
+        else:
+            # No rule expression — fall back to is_default_included + old ProcessInclusionRule
+            include = proc.is_default_included
+            for rule in proc.inclusion_rules.all():
+                matches = rule.evaluate(context)
+                if rule.rule_type == 'INCLUDE_IF' and matches:
+                    include = True
+                elif rule.rule_type == 'EXCLUDE_IF' and matches:
+                    include = False
+                    break
 
         if include:
             applicable.append(proc)
@@ -2292,28 +2415,17 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
             if not ip.get('auto_include', True):
                 continue  # Skip manual/non-auto entries
 
-            # Evaluate per-insertion-point rules
-            ip_rules = ip.get('rules', [])
-            ip_matches = True
-            for r in ip_rules:
-                field_val = context.get(r.get('field', ''))
-                op = r.get('op', 'EQUALS')
-                val = r.get('val', '')
-                # Simple evaluation
-                if op == 'EQUALS':
-                    if str(field_val).lower() != str(val).lower():
-                        ip_matches = False
-                        break
-                elif op == 'NOT_EQUALS':
-                    if str(field_val).lower() == str(val).lower():
-                        ip_matches = False
-                        break
-                elif op == 'EXISTS':
-                    if not field_val:
-                        ip_matches = False
-                        break
+            # Evaluate per-insertion-point rule expression
+            ip_rule = ip.get('rule_expression', ip.get('rules', []))
+            # Support both new format (rule_expression dict) and old format (rules list)
+            if isinstance(ip_rule, list):
+                # Old format: list of {field, op, val} — treat as AND
+                if ip_rule:
+                    ip_rule = {'type': 'AND', 'conditions': ip_rule}
+                else:
+                    ip_rule = {}
 
-            if not ip_matches:
+            if not evaluate_rule_expression(ip_rule, context):
                 continue
 
             # Find the insertion position (after the specified process)

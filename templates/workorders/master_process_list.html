@@ -29,6 +29,21 @@
     .dark .mp-cat-FINISHING { background: rgba(234,179,8,0.2); color: #fde047; }
     .dark .mp-cat-DISPATCH { background: rgba(34,197,94,0.2); color: #86efac; }
     .dark .mp-cat-SPECIAL { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    /* Rule expression block styling */
+    .rb-block { border-left: 3px solid; border-radius: 0.5rem; padding: 0.5rem 0.5rem 0.5rem 0.75rem; margin-top: 0.25rem; }
+    .rb-block-AND { border-color: #3b82f6; background: rgba(59,130,246,0.04); }
+    .rb-block-OR { border-color: #f59e0b; background: rgba(245,158,11,0.04); }
+    .rb-block-NOT { border-color: #ef4444; background: rgba(239,68,68,0.04); }
+    .dark .rb-block-AND { background: rgba(59,130,246,0.08); }
+    .dark .rb-block-OR { background: rgba(245,158,11,0.08); }
+    .dark .rb-block-NOT { background: rgba(239,68,68,0.08); }
+    .rb-type-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; }
+    .rb-type-AND { background: #dbeafe; color: #1e40af; }
+    .rb-type-OR { background: #fef3c7; color: #92400e; }
+    .rb-type-NOT { background: #fecaca; color: #991b1b; }
+    .dark .rb-type-AND { background: rgba(59,130,246,0.3); color: #93c5fd; }
+    .dark .rb-type-OR { background: rgba(245,158,11,0.3); color: #fcd34d; }
+    .dark .rb-type-NOT { background: rgba(239,68,68,0.3); color: #fca5a5; }
 </style>
 {% endblock %}
 
@@ -122,8 +137,8 @@
                         <i data-lucide="clock" class="w-3 h-3"></i><span x-text="p.default_estimated_minutes + ' min'"></span>
                     </span>
                     <!-- Rules count -->
-                    <span x-show="p.rules.length > 0" class="mp-flag bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                          x-text="p.rules.length + ' rule' + (p.rules.length > 1 ? 's' : '')"></span>
+                    <span x-show="countRuleLeaves(p.rule_expression) > 0" class="mp-flag bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                          x-text="countRuleLeaves(p.rule_expression) + ' rule' + (countRuleLeaves(p.rule_expression) > 1 ? 's' : '')"></span>
                     <!-- Chevron -->
                     <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200"
                        :class="p._expanded ? 'rotate-180' : ''"></i>
@@ -434,198 +449,41 @@
                                                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
                                             </button>
                                         </div>
-                                        <!-- Per-point rules -->
-                                        <div class="ml-4 space-y-1">
-                                            <template x-for="(r, ri) in (ip.rules || [])" :key="ri">
-                                                <div class="flex items-center gap-1.5 text-xs">
-                                                    <span class="text-indigo-500 font-medium">if</span>
-                                                    <select x-model="r.field" class="w-36 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
-                                                        <option value="">-- field --</option>
-                                                        <optgroup label="Bit">
-                                                            <option value="bit.is_repair">Bit is Repair</option>
-                                                            <option value="bit.is_new">Bit is New</option>
-                                                            <option value="bit.level">Bit Level</option>
-                                                            <option value="bit.size">Bit Size</option>
-                                                            <option value="bit.type">Bit Type (FC/RC)</option>
-                                                            <option value="bit.account">Business Unit</option>
-                                                        </optgroup>
-                                                        <optgroup label="Design">
-                                                            <option value="design.body_material">Body Material</option>
-                                                            <option value="design.has_ports">Has Ports</option>
-                                                            <option value="design.port_count">Port Count</option>
-                                                            <option value="design.no_of_blades">Number of Blades</option>
-                                                            <option value="design.mat_no">Design MAT</option>
-                                                        </optgroup>
-                                                        <optgroup label="Technology">
-                                                            <option value="tech.has_cerebro">Has Cerebro</option>
-                                                            <option value="tech.has_crush_shear">Has Crush & Shear</option>
-                                                            <option value="tech.has_erosion_sleeve">Has Erosion Sleeve</option>
-                                                            <option value="tech.has_shankless">Has Shankless</option>
-                                                        </optgroup>
-                                                        <optgroup label="Evaluation">
-                                                            <option value="eval.needs_buildup">Needs Build Up</option>
-                                                            <option value="eval.needs_grinding">Needs Grinding</option>
-                                                            <option value="eval.needs_rework">Needs Rework</option>
-                                                            <option value="eval.needs_thread_repair">Needs Thread Repair</option>
-                                                            <option value="eval.needs_debraze">Needs De-braze</option>
-                                                            <option value="eval.needs_usr">Needs USR</option>
-                                                            <option value="eval.needs_hardfacing">Needs Hardfacing</option>
-                                                        </optgroup>
-                                                        <optgroup label="BOM">
-                                                            <option value="bom.has_dynamic_cutters">Has Dynamic Cutters</option>
-                                                            <option value="bom.has_lines">Has BOM Lines</option>
-                                                        </optgroup>
-                                                    </select>
-                                                    <select x-model="r.op" class="w-24 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
-                                                        <option value="EQUALS">equals</option>
-                                                        <option value="NOT_EQUALS">not equals</option>
-                                                        <option value="GT">greater than</option>
-                                                        <option value="LT">less than</option>
-                                                        <option value="EXISTS">exists</option>
-                                                    </select>
-                                                    <select x-model="r.val" x-show="r.op !== 'EXISTS' && r.op !== 'NOT_EXISTS'"
-                                                            class="w-24 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs">
-                                                        <option value="">--</option>
-                                                        <optgroup label="Boolean">
-                                                            <option value="True">True</option>
-                                                            <option value="False">False</option>
-                                                        </optgroup>
-                                                        <optgroup label="Level">
-                                                            <option value="3">L3</option>
-                                                            <option value="4">L4</option>
-                                                            <option value="5">L5</option>
-                                                            <option value="5.5">L5.5</option>
-                                                        </optgroup>
-                                                        <optgroup label="Body Material">
-                                                            <option value="S">Steel (S)</option>
-                                                            <option value="M">Matrix (M)</option>
-                                                        </optgroup>
-                                                        <optgroup label="Bit Type">
-                                                            <option value="FC">FC</option>
-                                                            <option value="RC">RC</option>
-                                                        </optgroup>
-                                                        <optgroup label="Business Unit">
-                                                            <option value="GAS">Gas</option>
-                                                            <option value="UR-SALES">UR Sales</option>
-                                                            <option value="EXP">Exp</option>
-                                                            <option value="OFFSHORE">Offshore</option>
-                                                            <option value="OIL">Oil</option>
-                                                            <option value="UR-SPERRY">UR Rental - Sperry</option>
-                                                            <option value="UR-OTHER">UR Rental - Other</option>
-                                                            <option value="LSTK">LSTK</option>
-                                                            <option value="ARAMCO">Aramco</option>
-                                                            <option value="TTR">TTR</option>
-                                                            <option value="DEBRAZE">Debraze</option>
-                                                            <option value="SAFETY-STOCK">Safety Stock</option>
-                                                        </optgroup>
-                                                        <optgroup label="Size">
-                                                            <option value="3.625">3 5/8</option>
-                                                            <option value="5.875">5 7/8</option>
-                                                            <option value="6.125">6 1/8</option>
-                                                            <option value="8.375">8 3/8</option>
-                                                            <option value="8.5">8 1/2</option>
-                                                            <option value="12">12</option>
-                                                            <option value="12.25">12 1/4</option>
-                                                            <option value="16">16</option>
-                                                        </optgroup>
-                                                    </select>
-                                                    <button @click="ip.rules.splice(ri, 1)" class="text-red-400 hover:text-red-600"><i data-lucide="x" class="w-3 h-3"></i></button>
-                                                </div>
-                                            </template>
-                                            <button @click="if(!ip.rules) ip.rules = []; ip.rules.push({field:'', op:'EQUALS', val:''})"
-                                                    class="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1 mt-1">
-                                                <i data-lucide="plus" class="w-3 h-3"></i> Add condition
-                                            </button>
+                                        <!-- Per-point rule expression builder -->
+                                        <div class="ml-4 mt-2" x-init="if(!ip.rule_expression) ip.rule_expression = {}">
+                                            <div x-html="(function(){ void _rbVersion; return renderRuleBlock(ip.rule_expression, 'ip-' + p.pk + '-' + ipi, 0, ip, 'rule_expression'); })()"></div>
+                                            <div x-show="!ip.rule_expression || !ip.rule_expression.type" class="flex items-center gap-2 mt-1">
+                                                <button @click="ip.rule_expression = {type:'AND', conditions:[{field:'',op:'EQUALS',val:''}]}; $nextTick(()=>{if(window.lucide) lucide.createIcons();})"
+                                                        class="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                                                    <i data-lucide="plus" class="w-3 h-3"></i> Add rule expression
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </template>
                             </div>
-                            <button @click="if(!p.insertion_points) p.insertion_points = []; p.insertion_points.push({context:'', label:'', after_process_code:'', auto_include:true, rules:[]})"
+                            <button @click="if(!p.insertion_points) p.insertion_points = []; p.insertion_points.push({context:'', label:'', after_process_code:'', auto_include:true, rule_expression:{}})"
                                     class="mt-2 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1">
                                 <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add insertion point
                             </button>
                         </fieldset>
 
-                        <!-- Inclusion Rules (hidden for MULTI mode — use insertion points instead) -->
-                        <fieldset x-show="p.step_mode !== 'MULTI'">
+                        <!-- Rule Expression (process-level) -->
+                        <fieldset>
                             <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
-                                <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> Inclusion Rules
-                                <span class="text-gray-300 dark:text-gray-600 font-normal normal-case" x-text="'(' + (p.rules || []).length + ')'"></span>
+                                <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> Rule Expression
+                                <span class="text-gray-300 dark:text-gray-600 font-normal normal-case">(when should this process be included?)</span>
                             </legend>
-                            <div class="space-y-2">
-                                <template x-for="(rule, ri) in p.rules" :key="ri">
-                                    <div class="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex-wrap">
-                                        <select x-model="rule.rule_type"
-                                                class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                            <template x-for="rt in ruleTypes" :key="rt.value">
-                                                <option :value="rt.value" x-text="rt.label"></option>
-                                            </template>
-                                        </select>
-                                        <select x-model="rule.field_path"
-                                                class="w-48 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                            <option value="">-- field --</option>
-                                            <template x-for="fp in fieldPaths" :key="fp">
-                                                <option :value="fp" x-text="fp"></option>
-                                            </template>
-                                        </select>
-                                        <select x-model="rule.operator"
-                                                class="w-32 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                            <template x-for="op in operators" :key="op.value">
-                                                <option :value="op.value" x-text="op.label"></option>
-                                            </template>
-                                        </select>
-                                        <template x-if="rule.operator !== 'EXISTS' && rule.operator !== 'NOT_EXISTS'">
-                                            <select x-model="rule.value"
-                                                    class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                                <option value="">-- select --</option>
-                                                <optgroup label="Boolean">
-                                                    <option value="True">True</option>
-                                                    <option value="False">False</option>
-                                                </optgroup>
-                                                <optgroup label="Level">
-                                                    <option value="3">L3</option>
-                                                    <option value="4">L4</option>
-                                                    <option value="5">L5</option>
-                                                    <option value="5.5">L5.5</option>
-                                                </optgroup>
-                                                <optgroup label="Body Material">
-                                                    <option value="S">Steel (S)</option>
-                                                    <option value="M">Matrix (M)</option>
-                                                </optgroup>
-                                                <optgroup label="Bit Type">
-                                                    <option value="FC">FC (Fixed Cutter)</option>
-                                                    <option value="RC">RC (Roller Cone)</option>
-                                                </optgroup>
-                                                <optgroup label="Comma-separated (for IN_LIST)">
-                                                    <option value="3,4">L3, L4</option>
-                                                    <option value="3,5.5">L3, L5.5</option>
-                                                    <option value="LSTK,ARAMCO">LSTK, ARAMCO</option>
-                                                </optgroup>
-                                                <optgroup label="Size thresholds">
-                                                    <option value="8.5">8 1/2</option>
-                                                    <option value="12">12</option>
-                                                    <option value="12.25">12 1/4</option>
-                                                    <option value="16">16</option>
-                                                </optgroup>
-                                            </select>
-                                        </template>
-                                        <input type="number" x-model.number="rule.priority" placeholder="Pri" title="Priority (higher = first)"
-                                               class="w-14 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">
-                                        <button @click="saveRule(p, rule, ri)"
-                                                class="p-1.5 text-blue-500 hover:text-blue-700 transition flex-shrink-0" title="Save rule">
-                                            <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                                        </button>
-                                        <button @click="deleteRule(p, rule, ri)"
-                                                class="p-1 text-gray-400 hover:text-red-500 transition flex-shrink-0" title="Delete rule">
-                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                                        </button>
-                                    </div>
-                                </template>
+                            <div x-init="if(!p.rule_expression) p.rule_expression = {}">
+                                <div x-html="(function(){ void _rbVersion; return renderRuleBlock(p.rule_expression, 'proc-' + p.pk, 0, p, 'rule_expression'); })()"></div>
+                                <div x-show="!p.rule_expression || !p.rule_expression.type" class="flex items-center gap-2 mt-1">
+                                    <span class="text-xs text-gray-400 dark:text-gray-500 italic">No rule expression — process uses "Default included" flag only.</span>
+                                    <button @click="p.rule_expression = {type:'AND', conditions:[{field:'',op:'EQUALS',val:''}]}; $nextTick(()=>{if(window.lucide) lucide.createIcons();})"
+                                            class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1">
+                                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Rule Expression
+                                    </button>
+                                </div>
                             </div>
-                            <button @click="addRule(p)"
-                                    class="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition">
-                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Rule
-                            </button>
                         </fieldset>
 
                         <!-- Action Bar -->
@@ -665,7 +523,7 @@
             <span class="flex items-center gap-1"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> <strong x-text="allProcesses.filter(p => p.is_active).length" class="text-gray-900 dark:text-white"></strong> active</span>
             <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Est. total: <strong x-text="allProcesses.filter(p => p.is_active).reduce((s, p) => s + (p.default_estimated_minutes || 0), 0)" class="text-gray-900 dark:text-white"></strong> min</span>
             <span class="flex items-center gap-1"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> <strong x-text="allProcesses.filter(p => p.requires_qc).length" class="text-gray-900 dark:text-white"></strong> QC steps</span>
-            <span class="flex items-center gap-1"><i data-lucide="git-branch" class="w-3.5 h-3.5"></i> <strong x-text="allProcesses.reduce((s, p) => s + (p.rules || []).length, 0)" class="text-gray-900 dark:text-white"></strong> rules</span>
+            <span class="flex items-center gap-1"><i data-lucide="git-branch" class="w-3.5 h-3.5"></i> <strong x-text="allProcesses.reduce((s, p) => s + countRuleLeaves(p.rule_expression), 0)" class="text-gray-900 dark:text-white"></strong> rules</span>
         </div>
     </div>
 
@@ -751,6 +609,7 @@ function masterProcessPage() {
             'bit.level', 'bit.size', 'bit.is_new', 'bit.is_repair',
         ],
 
+        _rbVersion: 0,
         toast: { show: false, message: '', type: 'success', _timeout: null },
 
         init() {
@@ -829,6 +688,9 @@ function masterProcessPage() {
                     applies_to_levels: [],
                     is_active: true,
                     rules: [],
+                    rule_expression: {},
+                    insertion_points: [],
+                    step_mode: 'ACTIVE',
                     _expanded: true,
                     _saving: false,
                 };
@@ -876,6 +738,10 @@ function masterProcessPage() {
                     applies_to_new: !!p.applies_to_new,
                     applies_to_repair: !!p.applies_to_repair,
                     applies_to_levels: p.applies_to_levels || [],
+                    step_mode: p.step_mode || 'ACTIVE',
+                    dedicated_page: p.dedicated_page || '',
+                    insertion_points: p.insertion_points || [],
+                    rule_expression: p.rule_expression || {},
                 });
                 this.flash(`"${p.code}" saved`);
             } catch(e) {
@@ -946,6 +812,250 @@ function masterProcessPage() {
             this.flash('Rule deleted');
         },
 
+        // ---- Rule Expression Block Builder ----
+
+        _fieldOptions() {
+            return `<option value="">-- field --</option>`
+                + `<optgroup label="Bit">`
+                + `<option value="bit.is_repair">Bit is Repair</option>`
+                + `<option value="bit.is_new">Bit is New</option>`
+                + `<option value="bit.level">Bit Level</option>`
+                + `<option value="bit.size">Bit Size</option>`
+                + `<option value="bit.type">Bit Type (FC/RC)</option>`
+                + `<option value="bit.account">Business Unit</option>`
+                + `</optgroup>`
+                + `<optgroup label="Design">`
+                + `<option value="design.body_material">Body Material</option>`
+                + `<option value="design.has_ports">Has Ports</option>`
+                + `<option value="design.port_count">Port Count</option>`
+                + `<option value="design.no_of_blades">Number of Blades</option>`
+                + `<option value="design.mat_no">Design MAT</option>`
+                + `</optgroup>`
+                + `<optgroup label="Technology">`
+                + `<option value="tech.has_cerebro">Has Cerebro</option>`
+                + `<option value="tech.has_crush_shear">Has Crush &amp; Shear</option>`
+                + `<option value="tech.has_erosion_sleeve">Has Erosion Sleeve</option>`
+                + `<option value="tech.has_shankless">Has Shankless</option>`
+                + `</optgroup>`
+                + `<optgroup label="Evaluation">`
+                + `<option value="eval.needs_buildup">Needs Build Up</option>`
+                + `<option value="eval.needs_grinding">Needs Grinding</option>`
+                + `<option value="eval.needs_rework">Needs Rework</option>`
+                + `<option value="eval.needs_thread_repair">Needs Thread Repair</option>`
+                + `<option value="eval.needs_debraze">Needs De-braze</option>`
+                + `<option value="eval.needs_usr">Needs USR</option>`
+                + `<option value="eval.needs_hardfacing">Needs Hardfacing</option>`
+                + `</optgroup>`
+                + `<optgroup label="BOM">`
+                + `<option value="bom.has_dynamic_cutters">Has Dynamic Cutters</option>`
+                + `<option value="bom.has_lines">Has BOM Lines</option>`
+                + `</optgroup>`;
+        },
+
+        _operatorOptions() {
+            return `<option value="EQUALS">equals</option>`
+                + `<option value="NOT_EQUALS">not equals</option>`
+                + `<option value="GT">greater than</option>`
+                + `<option value="LT">less than</option>`
+                + `<option value="GTE">&gt;=</option>`
+                + `<option value="LTE">&lt;=</option>`
+                + `<option value="CONTAINS">contains</option>`
+                + `<option value="IN_LIST">is one of</option>`
+                + `<option value="NOT_IN_LIST">is not one of</option>`
+                + `<option value="EXISTS">exists</option>`
+                + `<option value="NOT_EXISTS">not exists</option>`;
+        },
+
+        _valueOptions() {
+            return `<option value="">--</option>`
+                + `<optgroup label="Boolean">`
+                + `<option value="True">True</option>`
+                + `<option value="False">False</option>`
+                + `</optgroup>`
+                + `<optgroup label="Level">`
+                + `<option value="3">L3</option>`
+                + `<option value="4">L4</option>`
+                + `<option value="5">L5</option>`
+                + `<option value="5.5">L5.5</option>`
+                + `</optgroup>`
+                + `<optgroup label="Body Material">`
+                + `<option value="S">Steel (S)</option>`
+                + `<option value="M">Matrix (M)</option>`
+                + `</optgroup>`
+                + `<optgroup label="Bit Type">`
+                + `<option value="FC">FC</option>`
+                + `<option value="RC">RC</option>`
+                + `</optgroup>`
+                + `<optgroup label="Business Unit">`
+                + `<option value="GAS">Gas</option>`
+                + `<option value="UR-SALES">UR Sales</option>`
+                + `<option value="EXP">Exp</option>`
+                + `<option value="OFFSHORE">Offshore</option>`
+                + `<option value="OIL">Oil</option>`
+                + `<option value="UR-SPERRY">UR Rental - Sperry</option>`
+                + `<option value="UR-OTHER">UR Rental - Other</option>`
+                + `<option value="LSTK">LSTK</option>`
+                + `<option value="ARAMCO">Aramco</option>`
+                + `<option value="TTR">TTR</option>`
+                + `<option value="DEBRAZE">Debraze</option>`
+                + `<option value="SAFETY-STOCK">Safety Stock</option>`
+                + `</optgroup>`
+                + `<optgroup label="Size">`
+                + `<option value="3.625">3 5/8</option>`
+                + `<option value="5.875">5 7/8</option>`
+                + `<option value="6.125">6 1/8</option>`
+                + `<option value="8.375">8 3/8</option>`
+                + `<option value="8.5">8 1/2</option>`
+                + `<option value="12">12</option>`
+                + `<option value="12.25">12 1/4</option>`
+                + `<option value="16">16</option>`
+                + `</optgroup>`;
+        },
+
+        _setSelected(html, value) {
+            // Insert 'selected' into the option that matches value
+            if (!value) return html;
+            const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;');
+            return html.replace(
+                new RegExp(`(<option value="${escaped}")>`),
+                `$1 selected>`
+            );
+        },
+
+        /**
+         * Render a rule expression node to HTML string.
+         * parentObj + parentKey identify where this expression lives so event handlers can mutate it.
+         * prefix = unique id prefix for this block's event handlers.
+         * depth = nesting depth for limiting.
+         */
+        renderRuleBlock(expr, prefix, depth, parentObj, parentKey) {
+            if (!expr || (!expr.type && !expr.field)) return '';
+            const MAX_DEPTH = 3;
+
+            // Leaf condition (has field, op, val)
+            if (expr.field !== undefined || (!expr.type && !expr.conditions)) {
+                return this._renderLeaf(expr, prefix, parentObj, parentKey);
+            }
+
+            // Group node (AND / OR / NOT)
+            const groupType = (expr.type || 'AND').toUpperCase();
+            const conditions = expr.conditions || [];
+            const labelClass = 'rb-type-' + groupType;
+            const blockClass = 'rb-block-' + groupType;
+
+            let html = `<div class="rb-block ${blockClass}">`;
+            // Header row: label + remove block button
+            html += `<div class="flex items-center gap-2 mb-1.5">`;
+            html += `<span class="rb-type-label ${labelClass}">${groupType}</span>`;
+            html += `<button onclick="window._rbRemoveBlock('${prefix}')" class="ml-auto p-0.5 text-gray-400 hover:text-red-500 transition" title="Remove block"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+            html += `</div>`;
+
+            // Render each condition
+            for (let i = 0; i < conditions.length; i++) {
+                const c = conditions[i];
+                const childPrefix = prefix + '-' + i;
+                if (c.type && c.conditions !== undefined) {
+                    // Nested group
+                    if (depth < MAX_DEPTH) {
+                        html += this.renderRuleBlock(c, childPrefix, depth + 1, conditions, i);
+                    } else {
+                        html += `<div class="text-xs text-red-400 italic ml-2">Max nesting depth reached</div>`;
+                    }
+                } else {
+                    // Leaf
+                    html += this._renderLeaf(c, childPrefix, conditions, i);
+                }
+            }
+
+            // Add buttons
+            html += `<div class="flex items-center gap-2 mt-1.5 flex-wrap">`;
+            html += `<button onclick="window._rbAddLeaf('${prefix}')" class="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Condition</button>`;
+            if (depth < MAX_DEPTH) {
+                html += `<button onclick="window._rbAddGroup('${prefix}', 'AND')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> AND</button>`;
+                html += `<button onclick="window._rbAddGroup('${prefix}', 'OR')" class="text-xs text-amber-500 hover:text-amber-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> OR</button>`;
+                html += `<button onclick="window._rbAddGroup('${prefix}', 'NOT')" class="text-xs text-red-400 hover:text-red-600 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> NOT</button>`;
+            }
+            html += `</div>`;
+            html += `</div>`;
+            return html;
+        },
+
+        _renderLeaf(c, prefix, parentArr, parentIdx) {
+            const fieldSel = this._setSelected(this._fieldOptions(), c.field || '');
+            const opSel = this._setSelected(this._operatorOptions(), c.op || 'EQUALS');
+            const valSel = this._setSelected(this._valueOptions(), c.val || '');
+            const hideVal = (c.op === 'EXISTS' || c.op === 'NOT_EXISTS') ? ' style="display:none"' : '';
+
+            let html = `<div class="flex items-center gap-1.5 py-1 flex-wrap">`;
+            html += `<select onchange="window._rbSetLeafField('${prefix}', this.value)" class="w-40 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">${fieldSel}</select>`;
+            html += `<select onchange="window._rbSetLeafOp('${prefix}', this.value)" class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">${opSel}</select>`;
+            html += `<select onchange="window._rbSetLeafVal('${prefix}', this.value)"${hideVal} class="w-28 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500">${valSel}</select>`;
+            html += `<button onclick="window._rbRemoveLeaf('${prefix}')" class="p-0.5 text-gray-400 hover:text-red-500 transition flex-shrink-0" title="Remove"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+            html += `</div>`;
+            return html;
+        },
+
+        /**
+         * Navigate the rule tree to find the node at a given prefix path.
+         * Returns {parent, key, node} or null.
+         * prefix format: "proc-42" (root) or "proc-42-0-1" (conditions[0].conditions[1])
+         */
+        _rbResolve(prefix) {
+            // Parse prefix: first part identifies the process/ip, rest is path into conditions
+            const parts = prefix.split('-');
+            // Find which process/ip this belongs to
+            let rootObj, rootKey;
+            if (parts[0] === 'proc') {
+                const pk = parseInt(parts[1]);
+                rootObj = this.allProcesses.find(p => p.pk === pk);
+                if (!rootObj) return null;
+                rootKey = 'rule_expression';
+                parts.splice(0, 2); // remove "proc", "42"
+            } else if (parts[0] === 'ip') {
+                // Format: ip-{pk}-{ipi}-...path
+                const pk = parseInt(parts[1]);
+                const ipi = parseInt(parts[2]);
+                const proc = this.allProcesses.find(p => p.pk === pk);
+                if (!proc || !proc.insertion_points || !proc.insertion_points[ipi]) return null;
+                rootObj = proc.insertion_points[ipi];
+                rootKey = 'rule_expression';
+                parts.splice(0, 3); // remove "ip", "pk", "ipi"
+            } else {
+                return null;
+            }
+
+            if (parts.length === 0) {
+                return { parent: rootObj, key: rootKey, node: rootObj[rootKey] };
+            }
+
+            // Walk the conditions tree
+            let node = rootObj[rootKey];
+            for (let i = 0; i < parts.length; i++) {
+                const idx = parseInt(parts[i]);
+                if (!node || !node.conditions || idx >= node.conditions.length) return null;
+                if (i === parts.length - 1) {
+                    return { parent: node.conditions, key: idx, node: node.conditions[idx] };
+                }
+                node = node.conditions[idx];
+            }
+            return null;
+        },
+
+        _rbTriggerRerender() {
+            // Bump version counter to force x-html re-evaluation
+            // (x-html expressions reference _rbVersion so Alpine detects the change)
+            this._rbVersion++;
+        },
+
+        countRuleLeaves(expr) {
+            if (!expr || typeof expr !== 'object') return 0;
+            if (expr.field !== undefined) return 1;
+            if (expr.conditions && Array.isArray(expr.conditions)) {
+                return expr.conditions.reduce((s, c) => s + this.countRuleLeaves(c), 0);
+            }
+            return 0;
+        },
+
         // ---- Helpers ----
         flash(msg, type = 'success') {
             if (this.toast._timeout) clearTimeout(this.toast._timeout);
@@ -972,6 +1082,77 @@ function masterProcessPage() {
         },
     };
 }
+</script>
+
+<!-- Rule Builder window-level callbacks (bridge onclick to Alpine component) -->
+<script>
+(function() {
+    function getAlpine() {
+        const el = document.querySelector('[x-data="masterProcessPage()"]');
+        if (!el) return null;
+        // Alpine v3: _x_dataStack[0] is the component data
+        if (el._x_dataStack && el._x_dataStack.length) return el._x_dataStack[0];
+        // Fallback: Alpine.$data()
+        if (typeof Alpine !== 'undefined') try { return Alpine.$data(el); } catch(e) {}
+        return null;
+    }
+
+    window._rbSetLeafField = function(prefix, val) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r) return;
+        if (Array.isArray(r.parent)) { r.parent[r.key].field = val; }
+        else { r.parent[r.key].field = val; }
+        a._rbTriggerRerender();
+    };
+    window._rbSetLeafOp = function(prefix, val) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r) return;
+        const leaf = Array.isArray(r.parent) ? r.parent[r.key] : r.parent[r.key];
+        leaf.op = val;
+        a._rbTriggerRerender();
+    };
+    window._rbSetLeafVal = function(prefix, val) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r) return;
+        const leaf = Array.isArray(r.parent) ? r.parent[r.key] : r.parent[r.key];
+        leaf.val = val;
+        a._rbTriggerRerender();
+    };
+    window._rbRemoveLeaf = function(prefix) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r) return;
+        if (Array.isArray(r.parent)) {
+            r.parent.splice(r.key, 1);
+        } else {
+            r.parent[r.key] = {};
+        }
+        a._rbTriggerRerender();
+    };
+    window._rbRemoveBlock = function(prefix) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r) return;
+        if (Array.isArray(r.parent)) {
+            r.parent.splice(r.key, 1);
+        } else {
+            r.parent[r.key] = {};
+        }
+        a._rbTriggerRerender();
+    };
+    window._rbAddLeaf = function(prefix) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r || !r.node) return;
+        if (!r.node.conditions) r.node.conditions = [];
+        r.node.conditions.push({field: '', op: 'EQUALS', val: ''});
+        a._rbTriggerRerender();
+    };
+    window._rbAddGroup = function(prefix, type) {
+        const a = getAlpine(); if (!a) return;
+        const r = a._rbResolve(prefix); if (!r || !r.node) return;
+        if (!r.node.conditions) r.node.conditions = [];
+        r.node.conditions.push({type: type, conditions: [{field: '', op: 'EQUALS', val: ''}]});
+        a._rbTriggerRerender();
+    };
+})();
 </script>
 
 <!-- Data islands -->
