@@ -1125,6 +1125,15 @@
             <div class="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed" x-html="modal.body"></p>
 
+                <!-- Force delete confirmation input -->
+                <template x-if="modal._force">
+                    <div>
+                        <input type="text" x-model="modal.forceConfirmText" placeholder='Type "DELETE" to confirm'
+                               class="w-full px-3 py-2 border-2 border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
+                               @keydown.enter="if(modal.forceConfirmText==='DELETE') executeAction()">
+                    </div>
+                </template>
+
                 <!-- Delete options -->
                 <template x-if="modal.type === 'delete'">
                     <div class="space-y-4">
@@ -1226,14 +1235,20 @@ function woActions() {
             Object.assign(this.modal, {
                 open: true, loading: false, error: '',
                 reverseTransaction: false, destinationId: '', planAction: 'planner', notes: '',
+                _force: false, forceConfirmText: '',
                 ...cfg
             });
             this.$nextTick(() => { if(typeof lucide!=='undefined') lucide.createIcons(); });
         },
 
         async executeAction() {
-            this.modal.loading = true;
             this.modal.error = '';
+            // Force delete requires typing "DELETE"
+            if (this.modal._force && this.modal.forceConfirmText !== 'DELETE') {
+                this.modal.error = 'Type "DELETE" to confirm force deletion.';
+                return;
+            }
+            this.modal.loading = true;
             try {
                 await this.modal._action(this);
             } catch(e) {
@@ -1317,20 +1332,16 @@ function transitionWO(target) {
 
 function deleteWorkOrder(force) {
     const comp = window._woModal;
-
-    if (force) {
-        const input = prompt('Type "DELETE" to force-delete this Work Order and ALL related data:');
-        if (input !== 'DELETE') return;
-    }
-
     comp.openModal({
         type: 'delete', color: 'red',
         title: force ? 'Force Delete Work Order' : 'Delete Work Order',
         subtitle: '{{ work_order.wo_number }}',
         body: force
-            ? 'This permanently deletes the WO and all related data (evaluations, router steps, etc.).'
+            ? 'This permanently deletes the WO and <strong>all related data</strong> (evaluations, router steps, reports).<br><br>Type <strong>DELETE</strong> below to confirm:'
             : 'This deletes the WO. Only possible if no production work has started.',
         confirmLabel: force ? 'Force Delete' : 'Delete WO',
+        _force: !!force,
+        forceConfirmText: '',
         _action: async (ctx) => {
             const d = await ctx._apiPost('{% url "workorders:api_delete_wo" work_order.pk %}', {
                 force: !!force,
