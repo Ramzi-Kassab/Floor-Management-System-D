@@ -1107,7 +1107,7 @@
 {% csrf_token %}
 
 <!-- ═══════════════ ACTION MODAL ═══════════════ -->
-<div x-data="woActions()" x-cloak>
+<div x-data="woActions()" x-cloak x-init="window._woModal = $data">
     <!-- Backdrop + Modal -->
     <div x-show="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="closeModal()">
         <div x-show="modal.open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
@@ -1258,7 +1258,7 @@ function woActions() {
 /* ═══════════ ACTION FUNCTIONS (called from buttons) ═══════════ */
 
 function markAsReleased() {
-    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const comp = window._woModal;
     comp.openModal({
         type: 'confirm', color: 'blue',
         title: 'Mark as Released',
@@ -1273,7 +1273,7 @@ function markAsReleased() {
 }
 
 function approveWorkOrder() {
-    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const comp = window._woModal;
     const isPending = '{{ work_order.status }}' === 'PENDING';
     comp.openModal({
         type: 'confirm', color: 'indigo',
@@ -1292,7 +1292,7 @@ function approveWorkOrder() {
 }
 
 function transitionWO(target) {
-    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const comp = window._woModal;
     const cfg = {
         'QC_PENDING':  { color: 'purple', title: 'Send to QC', body: 'Production work is complete. This sends the bit for quality inspection.', confirmLabel: 'Send to QC' },
         'QC_PASSED':   { color: 'green',  title: 'QC Passed',  body: 'Quality check passed. The bit is approved.', confirmLabel: 'Confirm QC Pass' },
@@ -1316,7 +1316,7 @@ function transitionWO(target) {
 }
 
 function deleteWorkOrder(force) {
-    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const comp = window._woModal;
 
     if (force) {
         const input = prompt('Type "DELETE" to force-delete this Work Order and ALL related data:');
