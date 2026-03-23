@@ -1657,48 +1657,67 @@ async function ppEditDueDateDirect(entryId, newDate) {
    PLANNER MODAL SYSTEM
 ══════════════════════════════════════════ */
 let _ppModal = null;
+const _ppColors = {
+  blue:   { bg: '#eff6ff', border: '#bfdbfe', accent: '#2563eb', headerBg: '#dbeafe' },
+  green:  { bg: '#f0fdf4', border: '#bbf7d0', accent: '#16a34a', headerBg: '#dcfce7' },
+  red:    { bg: '#fef2f2', border: '#fecaca', accent: '#dc2626', headerBg: '#fee2e2' },
+  orange: { bg: '#fff7ed', border: '#fed7aa', accent: '#ea580c', headerBg: '#ffedd5' },
+  purple: { bg: '#faf5ff', border: '#e9d5ff', accent: '#9333ea', headerBg: '#f3e8ff' },
+  cyan:   { bg: '#ecfeff', border: '#a5f3fc', accent: '#0891b2', headerBg: '#cffafe' },
+};
+
 function ppShowModal(cfg) {
+  const c = _ppColors[cfg.color || 'blue'] || _ppColors.blue;
   if (!_ppModal) {
     const d = document.createElement('div');
     d.id = 'pp-modal-root';
     d.innerHTML = `
-      <div id="pp-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)ppHideModal()">
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
-          <div id="pp-m-header" style="padding:16px 20px;border-bottom:1px solid var(--border);"></div>
+      <div id="pp-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.12);backdrop-filter:blur(2px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)ppHideModal()">
+        <div id="pp-m-card" style="border-radius:16px;width:100%;max-width:440px;overflow:hidden;animation:ppSlideIn .2s ease-out;">
+          <div id="pp-m-header" style="padding:16px 20px;"></div>
           <div id="pp-m-body" style="padding:16px 20px;max-height:50vh;overflow-y:auto;"></div>
-          <div id="pp-m-footer" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;"></div>
+          <div id="pp-m-footer" style="padding:12px 20px;display:flex;justify-content:flex-end;gap:8px;"></div>
         </div>
       </div>`;
+    const style = document.createElement('style');
+    style.textContent = '@keyframes ppSlideIn{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:none}}';
+    d.appendChild(style);
     document.body.appendChild(d);
     _ppModal = d;
   }
+  const card = document.getElementById('pp-m-card');
+  card.style.background = c.bg;
+  card.style.border = '2px solid ' + c.border;
+  card.style.boxShadow = '0 12px 40px rgba(0,0,0,.15)';
+  document.getElementById('pp-m-header').style.cssText = `padding:16px 20px;background:${c.headerBg};border-bottom:1px solid ${c.border};`;
   document.getElementById('pp-m-header').innerHTML = `
-    <div style="font-size:15px;font-weight:700;color:var(--fg);">${cfg.title||''}</div>
-    ${cfg.subtitle?'<div style="font-size:12px;color:var(--sub);margin-top:2px;">'+cfg.subtitle+'</div>':''}`;
+    <div style="font-size:15px;font-weight:700;color:${c.accent};">${cfg.title||''}</div>
+    ${cfg.subtitle?'<div style="font-size:12px;color:#6b7280;margin-top:2px;font-family:var(--mono);">'+cfg.subtitle+'</div>':''}`;
+  document.getElementById('pp-m-body').style.cssText = `padding:16px 20px;max-height:50vh;overflow-y:auto;background:${c.bg};`;
   document.getElementById('pp-m-body').innerHTML = cfg.body || '';
+  document.getElementById('pp-m-footer').style.cssText = `padding:12px 20px;display:flex;justify-content:flex-end;gap:8px;background:${c.headerBg};border-top:1px solid ${c.border};`;
   document.getElementById('pp-m-footer').innerHTML = `
-    <button class="btn btn-g" onclick="ppHideModal()">Cancel</button>
-    <button class="btn btn-p" id="pp-m-ok" style="${cfg.btnStyle||''}">${cfg.btnLabel||'Confirm'}</button>`;
+    <button class="btn btn-g" onclick="ppHideModal()" style="background:white;border:1px solid ${c.border};color:#374151;">Cancel</button>
+    <button class="btn btn-p" id="pp-m-ok" style="background:${c.accent};color:white;border:none;padding:6px 16px;border-radius:8px;font-weight:600;cursor:pointer;">${cfg.btnLabel||'Confirm'}</button>`;
   document.getElementById('pp-m-ok').onclick = () => { ppHideModal(); if(cfg.onConfirm) cfg.onConfirm(); };
   _ppModal.style.display = 'block';
 }
 function ppHideModal() { if(_ppModal) _ppModal.style.display='none'; }
 
 function ppResultModal(cfg) {
-  /* Success/error result with optional navigation */
+  const c = _ppColors[cfg.resultColor || 'green'] || _ppColors.green;
   ppShowModal({
     title: cfg.title,
-    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;white-space:pre-line;">${cfg.message}</div>` +
-          (cfg.link ? `<a href="${cfg.link}" style="display:inline-flex;align-items:center;gap:4px;margin-top:12px;font-size:12px;color:var(--accent);font-weight:600;">Open &rarr;</a>` : ''),
+    color: cfg.resultColor || 'green',
+    body: `<div style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-line;">${cfg.message}</div>` +
+          (cfg.link ? `<a href="${cfg.link}" style="display:inline-flex;align-items:center;gap:4px;margin-top:14px;font-size:13px;color:${c.accent};font-weight:600;text-decoration:none;">Open &rarr;</a>` : ''),
     btnLabel: cfg.stayLabel || 'Stay on Planner',
-    btnStyle: 'background:var(--cyan);',
     onConfirm: () => { if(cfg.onStay) cfg.onStay(); else location.reload(); }
   });
   if (cfg.link) {
-    // Add "Go to page" button
     const footer = document.getElementById('pp-m-footer');
     const goBtn = document.createElement('button');
-    goBtn.className = 'btn btn-p';
+    goBtn.style.cssText = `background:${c.accent};color:white;border:none;padding:6px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;`;
     goBtn.textContent = cfg.goLabel || 'Open Page';
     goBtn.onclick = () => { window.location = cfg.link; };
     footer.insertBefore(goBtn, footer.firstChild);
@@ -1712,12 +1731,12 @@ async function ppRelease(entryId,serial,account){
   ppShowModal({
     title: 'Release for Production',
     subtitle: `${serial} (${account})`,
-    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;">
+    color: 'blue',
+    body: `<div style="font-size:13px;color:#374151;line-height:1.6;">
       If the bit is already at the production area, the WO will be created immediately.<br><br>
       If not, the operator will be notified to transfer the bit first.
     </div>`,
     btnLabel: 'Release',
-    btnStyle: 'background:var(--accent);',
     onConfirm: async () => {
       try {
         const r = await fetch('{% url "workorders:api_release_plan_entry" %}', {
@@ -1749,9 +1768,9 @@ async function ppCreateWo(entryId,serial,account){
   ppShowModal({
     title: 'Create Work Order',
     subtitle: `${serial} (${account})`,
-    body: '<div style="font-size:13px;color:var(--sub);">This will create a Work Order for this planned bit.</div>',
+    color: 'cyan',
+    body: '<div style="font-size:13px;color:#374151;">This will create a Work Order for this planned bit.</div>',
     btnLabel: 'Create WO',
-    btnStyle: 'background:var(--accent);',
     onConfirm: async () => {
       try {
         const r = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
@@ -1822,12 +1841,12 @@ async function ppChangeWoAccount(woId, woNum){
   ppShowModal({
     title: 'Change WO Account',
     subtitle: woNum,
-    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;">
-      This will <strong>cancel</strong> the current WO and create a <strong>new WO</strong> under "${newAcct}".<br><br>
+    color: 'orange',
+    body: `<div style="font-size:13px;color:#374151;line-height:1.6;">
+      This will <strong>cancel</strong> the current WO and create a <strong>new WO</strong> under "<strong>${newAcct}</strong>".<br><br>
       All completed route steps will be copied to the new WO.
     </div>`,
     btnLabel: 'Change Account',
-    btnStyle: 'background:var(--orange);',
     onConfirm: async () => {
       try{
         const r=await fetch('{% url "workorders:api_change_wo_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({wo_id:woId,account_code:newAcct})});
@@ -1886,9 +1905,9 @@ async function ppRemove(entryId,serial){
   ppShowModal({
     title: 'Remove from Plan',
     subtitle: serial,
-    body: '<div style="font-size:13px;color:var(--sub);">The bit will be removed from the production plan.<br>Its previous status and location will be restored.</div>',
+    color: 'red',
+    body: '<div style="font-size:13px;color:#374151;">The bit will be removed from the production plan.<br>Its previous status and location will be restored.</div>',
     btnLabel: 'Remove',
-    btnStyle: 'background:var(--red);',
     onConfirm: async () => {
       try{
         const r=await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
