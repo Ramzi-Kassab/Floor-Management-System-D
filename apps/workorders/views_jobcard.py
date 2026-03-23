@@ -3406,10 +3406,9 @@ def api_delete_work_order(request, pk):
             notif_lines.append("Plan entry marked as Production Cancelled.")
         notif_message = '\n'.join(notif_lines)
 
-        # Action URL: always link to drill bit detail when bit exists
-        # (user needs to verify location/status regardless of planner decision)
+        # Action URL: Location Transfers page so user can move the bit
         if bit:
-            notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
+            notif_url = reverse('workorders:location_transfers') + f'?serial={bit.serial_number}'
         elif return_to_planner:
             notif_url = reverse('workorders:production_planner')
         else:
