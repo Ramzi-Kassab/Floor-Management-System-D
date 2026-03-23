@@ -320,13 +320,11 @@ function locationTransfers() {
                     this.bitData = data;
                     this.bitId = data.pk || data.drill_bit_id;
                     this.currentLocation = data.current_location || data.from_location || '—';
-                    // Auto-select destination from URL param or release destination
+                    // Auto-select destination ONLY from explicit URL param (e.g. ?dest=EVAL-AREA)
+                    // Never auto-guess — user must choose the destination
                     const urlDest = new URLSearchParams(window.location.search).get('dest');
                     if (urlDest) {
                         const match = this.locations.find(l => l.code === urlDest || l.name === urlDest || l.id == urlDest);
-                        if (match) this.destinationId = String(match.id);
-                    } else if (data.release_destination_code) {
-                        const match = this.locations.find(l => l.code === data.release_destination_code);
                         if (match) this.destinationId = String(match.id);
                     }
                 } else {
