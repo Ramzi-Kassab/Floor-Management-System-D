@@ -827,7 +827,7 @@ function ppExportCSV() {
   const keys = ppColKeys.filter(k=>ppIsColVisible(k)&&k!=='timeline'&&k!=='actions'&&k!=='route');
   const src = viewName==='ready'?'ready':viewName==='planned'?'planned':'wip';
   const data = ppLastFilteredData;
-  if (!data.length) { alert('No data to export'); return; }
+  if (!data.length) { window.showToast('No data to export', 'warning'); return; }
 
   const headers = keys.map(k=>PP_COL_LABELS[k]||k);
   const rows = data.map(r=>keys.map(k=>{
@@ -1631,9 +1631,9 @@ async function ppUpdateField(entryId, field, value) {
       }
       if (msgEl) { msgEl.textContent='✓ '+d.message; msgEl.style.display='block'; setTimeout(()=>msgEl.style.display='none',2500); }
     } else {
-      alert(d.error);
+      window.showToast(d.error || 'Update failed', 'error');
     }
-  } catch(e) { alert('Error: '+e.message); }
+  } catch(e) { window.showToast('Error: '+e.message, 'error'); }
 }
 
 async function ppEditDueDateDirect(entryId, newDate) {
@@ -1649,49 +1649,127 @@ async function ppEditDueDateDirect(entryId, newDate) {
       const p = D.planned.find(e=>e.entryId===entryId);
       if (p) { p.dueDate = newDate; p.overdue = new Date(newDate) < new Date(); }
       if (msgEl) { msgEl.textContent='✓ Due date updated'; msgEl.style.display='block'; setTimeout(()=>msgEl.style.display='none',2500); }
-    } else { alert(d.error); }
-  } catch(e) { alert('Error: '+e.message); }
+    } else { window.showToast(d.error || 'Update failed', 'error'); }
+  } catch(e) { window.showToast('Error: '+e.message, 'error'); }
+}
+
+/* ══════════════════════════════════════════
+   PLANNER MODAL SYSTEM
+══════════════════════════════════════════ */
+let _ppModal = null;
+function ppShowModal(cfg) {
+  if (!_ppModal) {
+    const d = document.createElement('div');
+    d.id = 'pp-modal-root';
+    d.innerHTML = `
+      <div id="pp-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)ppHideModal()">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;">
+          <div id="pp-m-header" style="padding:16px 20px;border-bottom:1px solid var(--border);"></div>
+          <div id="pp-m-body" style="padding:16px 20px;max-height:50vh;overflow-y:auto;"></div>
+          <div id="pp-m-footer" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(d);
+    _ppModal = d;
+  }
+  document.getElementById('pp-m-header').innerHTML = `
+    <div style="font-size:15px;font-weight:700;color:var(--fg);">${cfg.title||''}</div>
+    ${cfg.subtitle?'<div style="font-size:12px;color:var(--sub);margin-top:2px;">'+cfg.subtitle+'</div>':''}`;
+  document.getElementById('pp-m-body').innerHTML = cfg.body || '';
+  document.getElementById('pp-m-footer').innerHTML = `
+    <button class="btn btn-g" onclick="ppHideModal()">Cancel</button>
+    <button class="btn btn-p" id="pp-m-ok" style="${cfg.btnStyle||''}">${cfg.btnLabel||'Confirm'}</button>`;
+  document.getElementById('pp-m-ok').onclick = () => { ppHideModal(); if(cfg.onConfirm) cfg.onConfirm(); };
+  _ppModal.style.display = 'block';
+}
+function ppHideModal() { if(_ppModal) _ppModal.style.display='none'; }
+
+function ppResultModal(cfg) {
+  /* Success/error result with optional navigation */
+  ppShowModal({
+    title: cfg.title,
+    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;white-space:pre-line;">${cfg.message}</div>` +
+          (cfg.link ? `<a href="${cfg.link}" style="display:inline-flex;align-items:center;gap:4px;margin-top:12px;font-size:12px;color:var(--accent);font-weight:600;">Open &rarr;</a>` : ''),
+    btnLabel: cfg.stayLabel || 'Stay on Planner',
+    btnStyle: 'background:var(--cyan);',
+    onConfirm: () => { if(cfg.onStay) cfg.onStay(); else location.reload(); }
+  });
+  if (cfg.link) {
+    // Add "Go to page" button
+    const footer = document.getElementById('pp-m-footer');
+    const goBtn = document.createElement('button');
+    goBtn.className = 'btn btn-p';
+    goBtn.textContent = cfg.goLabel || 'Open Page';
+    goBtn.onclick = () => { window.location = cfg.link; };
+    footer.insertBefore(goBtn, footer.firstChild);
+  }
 }
 
 /* ══════════════════════════════════════════
    ACTIONS
 ══════════════════════════════════════════ */
 async function ppRelease(entryId,serial,account){
-  if(!confirm(`Release ${serial} (${account}) for production?\n\nIf bit is already at the production area → WO created immediately.\nIf not → operator will be notified to move it first.\n\nContinue?`))return;
-  try{
-    const r=await fetch('{% url "workorders:api_release_plan_entry" %}',{
-      method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-      body:JSON.stringify({entry_id:entryId})
-    });
-    const j=await r.json();
-    if(j.success){
-      if(j.wo_created && j.redirect_url){
-        const go = confirm(`${j.message}\n\n→ OK = Open the Work Order page\n→ Cancel = Stay on the planner\n\n(The bit has been released in both cases)`);
-        if(go) window.location=j.redirect_url;
-        else location.reload();
-      } else if(j.wo_number){
-        alert(`${j.message}\n\nWO ${j.wo_number} created. Print the Release Paper from the WO page.`);
-        location.reload();
-      } else {
-        alert(j.message);
-        location.reload();
-      }
-    } else {
-      const el=document.getElementById('pp-plan-error');
-      if(el){el.textContent=j.error;el.style.display='block';}
-      else alert(j.error);
+  ppShowModal({
+    title: 'Release for Production',
+    subtitle: `${serial} (${account})`,
+    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;">
+      If the bit is already at the production area, the WO will be created immediately.<br><br>
+      If not, the operator will be notified to transfer the bit first.
+    </div>`,
+    btnLabel: 'Release',
+    btnStyle: 'background:var(--accent);',
+    onConfirm: async () => {
+      try {
+        const r = await fetch('{% url "workorders:api_release_plan_entry" %}', {
+          method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+          body: JSON.stringify({entry_id:entryId})
+        });
+        const j = await r.json();
+        if (j.success) {
+          if (j.wo_created && j.redirect_url) {
+            ppResultModal({
+              title: 'Released Successfully',
+              message: j.message,
+              link: j.redirect_url,
+              goLabel: 'Open Work Order',
+              stayLabel: 'Stay on Planner'
+            });
+          } else {
+            ppResultModal({ title: 'Release Initiated', message: j.message });
+          }
+        } else {
+          window.showToast(j.error || 'Release failed', 'error');
+        }
+      } catch(e) { window.showToast('Network error', 'error'); }
     }
-  }catch(e){alert('Network error');}
+  });
 }
 
 async function ppCreateWo(entryId,serial,account){
-  if(!confirm(`Create Work Order for ${serial} (${account})?`))return;
-  try{
-    const r=await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
-    const j=await r.json();
-    if(j.success){ if(confirm(`WO ${j.wo_number} created! View it now?`)) window.location=j.redirect_url; else location.reload(); }
-    else{ const el=document.getElementById('pp-plan-error'); if(el){el.textContent=j.error;el.style.display='block';} else alert(j.error); }
-  }catch(e){alert('Network error');}
+  ppShowModal({
+    title: 'Create Work Order',
+    subtitle: `${serial} (${account})`,
+    body: '<div style="font-size:13px;color:var(--sub);">This will create a Work Order for this planned bit.</div>',
+    btnLabel: 'Create WO',
+    btnStyle: 'background:var(--accent);',
+    onConfirm: async () => {
+      try {
+        const r = await fetch(`{% url "workorders:api_create_wo_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+        const j = await r.json();
+        if (j.success) {
+          ppResultModal({
+            title: 'Work Order Created',
+            message: `WO ${j.wo_number} created successfully.`,
+            link: j.redirect_url,
+            goLabel: 'Open Work Order',
+            stayLabel: 'Stay on Planner'
+          });
+        } else {
+          window.showToast(j.error || 'Failed', 'error');
+        }
+      } catch(e) { window.showToast('Network error', 'error'); }
+    }
+  });
 }
 
 async function ppChangePlanAccount(entryId){
@@ -1740,16 +1818,32 @@ async function ppChangeWoAccount(woId, woNum){
   const msg=document.getElementById('pp-wo-acct-msg');
   if(!sel||!sel.value){msg.textContent='Select an account';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';return;}
   msg.style.display='none';
-  if(!confirm(`Change account for ${woNum}?\n\nThis will cancel the current WO and create a new one under "${sel.value}".\nAll route progress will be copied to the new WO.`))return;
-  try{
-    const r=await fetch('{% url "workorders:api_change_wo_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({wo_id:woId,account_code:sel.value})});
-    const j=await r.json();
-    if(j.success){
-      if(confirm(`New WO ${j.new_wo_number} created (${j.router_entries_copied} route steps copied). View it now?`))
-        window.location=j.redirect_url;
-      else location.reload();
-    }else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
-  }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+  const newAcct = sel.value;
+  ppShowModal({
+    title: 'Change WO Account',
+    subtitle: woNum,
+    body: `<div style="font-size:13px;color:var(--sub);line-height:1.6;">
+      This will <strong>cancel</strong> the current WO and create a <strong>new WO</strong> under "${newAcct}".<br><br>
+      All completed route steps will be copied to the new WO.
+    </div>`,
+    btnLabel: 'Change Account',
+    btnStyle: 'background:var(--orange);',
+    onConfirm: async () => {
+      try{
+        const r=await fetch('{% url "workorders:api_change_wo_account" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify({wo_id:woId,account_code:newAcct})});
+        const j=await r.json();
+        if(j.success){
+          ppResultModal({
+            title: 'Account Changed',
+            message: `New WO ${j.new_wo_number} created (${j.router_entries_copied} route steps copied).`,
+            link: j.redirect_url,
+            goLabel: 'Open New WO',
+            stayLabel: 'Stay on Planner'
+          });
+        }else{msg.textContent=j.error||'Failed';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+      }catch(e){msg.textContent='Network error';msg.style.display='block';msg.style.background='rgba(255,77,94,.1)';msg.style.color='var(--red)';}
+    }
+  });
 }
 
 function ppOpenWoAccountDrawer(woId){
@@ -1789,12 +1883,21 @@ function ppOpenWoAccountDrawer(woId){
 }
 
 async function ppRemove(entryId,serial){
-  if(!confirm(`Remove ${serial} from plan?`))return;
-  try{
-    const r=await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
-    const j=await r.json();
-    if(j.success) location.reload(); else alert(j.error||'Failed');
-  }catch(e){alert('Network error');}
+  ppShowModal({
+    title: 'Remove from Plan',
+    subtitle: serial,
+    body: '<div style="font-size:13px;color:var(--sub);">The bit will be removed from the production plan.<br>Its previous status and location will be restored.</div>',
+    btnLabel: 'Remove',
+    btnStyle: 'background:var(--red);',
+    onConfirm: async () => {
+      try{
+        const r=await fetch(`{% url "workorders:api_remove_from_plan" %}?entry_id=${entryId}`,{method:'POST',headers:{'X-CSRFToken':CSRF}});
+        const j=await r.json();
+        if(j.success) { window.showToast(`${serial} removed from plan`, 'success'); location.reload(); }
+        else window.showToast(j.error||'Failed', 'error');
+      }catch(e){ window.showToast('Network error', 'error'); }
+    }
+  });
 }
 
 /* ══════════════════════════════════════════
