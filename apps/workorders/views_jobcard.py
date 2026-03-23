@@ -3500,7 +3500,7 @@ def api_delete_work_order(request, pk):
         'success': True,
         'wo_number': wo_number,
         'bit_id': bit_id,
-        'reversed_to': reversed_to,
+        'suggested_dest': suggested_dest,
         'message': result_msg,
     })
 
