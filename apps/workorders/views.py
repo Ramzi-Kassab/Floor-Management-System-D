@@ -220,7 +220,7 @@ class DrillBitListView(LoginRequiredMixin, ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        queryset = DrillBit.objects.select_related("design", "customer", "current_location", "created_by").order_by(
+        queryset = DrillBit.objects.select_related("design", "customer", "bit_location", "created_by").order_by(
             "-created_at"
         )
 
@@ -265,7 +265,7 @@ class DrillBitDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return DrillBit.objects.select_related(
-            "design", "customer", "current_location", "rig", "well", "created_by"
+            "design", "customer", "bit_location", "rig", "well", "created_by"
         ).prefetch_related("work_orders", "evaluations")
 
     def get_context_data(self, **kwargs):
@@ -543,7 +543,7 @@ def export_drill_bits_csv(request):
     )
 
     # Build queryset with same filters as list view
-    queryset = DrillBit.objects.select_related("customer", "current_location").order_by("-created_at")
+    queryset = DrillBit.objects.select_related("customer", "bit_location").order_by("-created_at")
 
     # Apply filters from request
     status = request.GET.get("status")
@@ -567,7 +567,7 @@ def export_drill_bits_csv(request):
                 bit.iadc_code,
                 bit.get_status_display(),
                 bit.customer.name if bit.customer else "",
-                bit.current_location.name if bit.current_location else "",
+                bit.bit_location.name if bit.bit_location else "",
                 str(bit.total_hours),
                 bit.total_footage,
                 bit.run_count,

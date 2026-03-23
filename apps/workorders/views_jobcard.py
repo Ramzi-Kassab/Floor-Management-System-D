@@ -792,7 +792,7 @@ class DrillBitListEnhancedView(LoginRequiredMixin, ListView):
             "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
             "account",
-            "customer", "rig", "well", "current_location", "bit_location"
+            "customer", "rig", "well", "bit_location"
         ).prefetch_related(
             "design__special_technologies"
         ).order_by("-created_at")
@@ -878,7 +878,7 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             "design__application_ref", "design__formation_type_ref",
             "design__upper_section_type", "design__connection_type_ref",
             "design__connection_size_ref",
-            "customer", "rig", "well", "current_location",
+            "customer", "rig", "well",
             "bit_location", "bit_size_ref", "product_type", "created_by",
             "bom", "bom__smi_type", "brazing_bom", "brazing_bom__smi_type",
             "system_bom", "system_bom__smi_type",
@@ -1560,6 +1560,14 @@ def api_router_step_scan(request, wo_pk, step_number):
                 'error': f'Cannot start — WO status is "{wo.get_status_display()}". WO must be approved (Active) before starting work.',
                 'success': False
             })
+
+        # Location validation — warn if bit is not at a production-ready location
+        location_warning = ''
+        if wo.drill_bit and wo.drill_bit.bit_location:
+            loc = wo.drill_bit.bit_location
+            if loc.location_type in ('RECEIVING', 'WAREHOUSE', 'DISPATCH', 'TRANSIT'):
+                location_warning = f'Note: bit is at {loc.name} — not a production area.'
+
         entry.qr_scan_start = timezone.now()
         entry.operator = request.user
         entry.station_qr = station_qr
@@ -1576,6 +1584,7 @@ def api_router_step_scan(request, wo_pk, step_number):
             'action': 'started',
             'started_at': entry.qr_scan_start.isoformat(),
             'operator': request.user.get_short_name() or request.user.username,
+            'warning': location_warning,
         })
     elif action == 'end':
         if not entry.qr_scan_start:
@@ -2610,6 +2619,11 @@ def api_release_plan_entry(request):
         return JsonResponse({'success': False, 'error': 'Plan entry not found'})
 
     if entry.status != ProductionPlanEntry.Status.PLANNED:
+        if entry.status == ProductionPlanEntry.Status.PENDING_RELEASE:
+            msg = 'Already released — waiting for physical transfer to destination.'
+            if entry.work_order:
+                msg += f' WO: {entry.work_order.wo_number}'
+            return JsonResponse({'success': False, 'error': msg})
         return JsonResponse({'success': False, 'error': f'Cannot release — status is {entry.get_status_display()}'})
 
     bit = entry.drill_bit
@@ -2928,9 +2942,19 @@ def api_mark_wo_released(request, pk):
     wo.status = WorkOrder.Status.RELEASED
     wo.save(update_fields=['status', 'updated_at'])
 
+    from django.utils import timezone as _tz
     if wo.drill_bit:
         wo.drill_bit.log_change('WO Status', 'Pending', 'Released (transaction confirmed)', request.user)
         wo.drill_bit.save(update_fields=['change_log', 'updated_at'])
+        BitEvent.objects.create(
+            bit=wo.drill_bit,
+            event_type=BitEvent.EventType.NOTE,
+            event_date=_tz.now(),
+            location=wo.drill_bit.bit_location,
+            work_order=wo,
+            notes=f'WO {wo.wo_number} marked as Released (transaction confirmed) by {request.user.get_full_name() or request.user.username}.',
+            performed_by=request.user,
+        )
 
     # Notify — manager needs to approve
     try:
@@ -2975,35 +2999,60 @@ def api_approve_work_order(request, pk):
 
     old_status = wo.get_status_display()
     from django.utils import timezone as _tz
+
+    # Location warning (non-blocking)
+    location_warning = ''
+    bit = wo.drill_bit
+    if bit:
+        loc = bit.bit_location
+        if loc and loc.location_type in ('RECEIVING', 'WAREHOUSE', 'DISPATCH'):
+            location_warning = f'Warning: bit is at {loc.name} ({loc.get_location_type_display()}), not at a production area.'
+
     wo.status = WorkOrder.Status.ACTIVE
     wo.approved_by = request.user
     wo.approved_at = _tz.now()
     wo.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
 
-    # Log on bit
-    if wo.drill_bit:
-        wo.drill_bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
-        wo.drill_bit.save(update_fields=['change_log', 'updated_at'])
+    # BitEvent for audit trail
+    if bit:
+        bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
+        bit.save(update_fields=['change_log', 'updated_at'])
+        BitEvent.objects.create(
+            bit=bit,
+            event_type=BitEvent.EventType.NOTE,
+            event_date=_tz.now(),
+            location=bit.bit_location,
+            work_order=wo,
+            notes=f'WO {wo.wo_number} approved by {request.user.get_full_name() or request.user.username}. Status: {old_status} → Active.',
+            performed_by=request.user,
+        )
 
     # Notify
     try:
         from apps.notifications.services import notify
+        serial = bit.serial_number if bit else '?'
+        step_count = wo.router_entries.count()
         notify(
             actor=request.user,
-            verb=f"approved WO {wo.wo_number} —",
-            target=f"production can start for {wo.drill_bit.serial_number if wo.drill_bit else '?'}",
+            title=f"WO {wo.wo_number} approved — production can start",
+            message=f"Serial: {serial}\nRoute: {step_count} steps\n{location_warning}" if location_warning else f"Serial: {serial}\nRoute: {step_count} steps",
             priority="HIGH",
-            action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
-            entity_type="WorkOrder",
-            entity_id=wo.pk,
+            action_url=reverse('workorders:router_sheet', args=[wo.pk]),
+            entity_type="WorkOrder", entity_id=wo.pk,
+            verb="",
         )
     except Exception:
         pass
 
+    msg = f'WO {wo.wo_number} approved. Production can start.'
+    if location_warning:
+        msg += f'\n\n{location_warning}'
+
     return JsonResponse({
         'success': True,
         'wo_number': wo.wo_number,
-        'message': f'WO {wo.wo_number} approved. Production can start.'
+        'warning': location_warning,
+        'message': msg,
     })
 
 
@@ -3530,7 +3579,7 @@ def api_transfer_bit_location(request):
     """
     Transfer a drill bit to a new location.
     POST body: { bit_id, location_id, reason }
-    Creates a BitEvent(TRANSFER) and updates DrillBit.current_location + bit_location.
+    Creates a BitEvent(TRANSFER) and updates DrillBit.bit_location.
     """
     import json
     if request.method != 'POST':
@@ -3548,7 +3597,7 @@ def api_transfer_bit_location(request):
         return JsonResponse({'success': False, 'error': 'bit_id and location_id required'})
 
     try:
-        bit = DrillBit.objects.select_related('current_location', 'bit_location').get(pk=bit_id)
+        bit = DrillBit.objects.select_related('bit_location').get(pk=bit_id)
     except DrillBit.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Drill bit not found'})
 
@@ -3631,6 +3680,16 @@ def api_transfer_bit_location(request):
                         pass
             except Exception as e:
                 wo_created_msg = f' (WO creation failed: {str(e)})'
+
+    # Gap 2.1: Also check for orphaned PENDING WOs (created manually, no plan entry)
+    if not pending_entry and (new_location.location_type in ('WIP', 'EVALUATION', 'INSPECTION')):
+        pending_wo = WorkOrder.objects.filter(
+            drill_bit=bit, status=WorkOrder.Status.PENDING
+        ).first()
+        if pending_wo:
+            pending_wo.status = WorkOrder.Status.RELEASED
+            pending_wo.save(update_fields=['status', 'updated_at'])
+            wo_created_msg += f' WO {pending_wo.wo_number} auto-released (bit arrived at production area).'
 
     return JsonResponse({
         'success': True,
@@ -4101,19 +4160,32 @@ def api_bit_timeline(request, bit_pk):
                 'status': '', 'who': h.get('changed_by', ''), 'where': '', 'url': '',
             })
 
-    # 6. Work Orders (creation + milestones only)
-    for wo in WorkOrder.objects.filter(drill_bit=bit).select_related('account', 'created_by').order_by('created_at'):
+    # 6. Work Orders (creation + milestones)
+    for wo in WorkOrder.objects.filter(drill_bit=bit).select_related('account', 'created_by', 'approved_by').order_by('created_at'):
         wo_url = reverse('workorders:workorder_detail_enhanced', args=[wo.pk])
         events.append({
             'date': wo.created_at.isoformat(),
             'type': 'wo',
             'action': f'WO {wo.wo_number} Created',
             'detail': f'Type: {wo.get_wo_type_display()}, Account: {wo.account.code if wo.account else "—"}',
-            'status': wo.get_status_display(),
+            'status': 'Pending',
             'who': _who(wo.created_by),
             'where': '',
             'url': wo_url,
         })
+        # Approval milestone
+        if wo.approved_by and wo.approved_at:
+            events.append({
+                'date': wo.approved_at.isoformat(),
+                'type': 'wo',
+                'action': f'WO {wo.wo_number} — Approved',
+                'detail': f'Production authorized',
+                'status': 'Active',
+                'who': _who(wo.approved_by),
+                'where': '',
+                'url': wo_url,
+            })
+        # Production start
         first_step = wo.router_entries.filter(qr_scan_start__isnull=False).order_by('qr_scan_start').first()
         if first_step:
             events.append({
@@ -4126,7 +4198,8 @@ def api_bit_timeline(request, bit_pk):
                 'where': '',
                 'url': reverse('workorders:router_sheet', args=[wo.pk]),
             })
-        if wo.status in ('COMPLETED', 'QC_PASSED', 'CANCELLED'):
+        # Final status
+        if wo.status in ('COMPLETED', 'QC_PASSED', 'QC_FAILED', 'CANCELLED'):
             events.append({
                 'date': wo.updated_at.isoformat(),
                 'type': 'wo',

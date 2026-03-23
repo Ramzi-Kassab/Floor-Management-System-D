@@ -262,7 +262,8 @@ class DrillBit(models.Model):
     # Status
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.UNREGISTERED)
 
-    # Location
+    # DEPRECATED: Use bit_location (FK to workorders.Location) instead.
+    # Kept for backward compatibility with old data. Never updated in production code.
     current_location = models.ForeignKey(
         "sales.Warehouse", on_delete=models.SET_NULL, null=True, blank=True, related_name="stored_bits"
     )

@@ -85,7 +85,7 @@ class DrillBitAdmin(admin.ModelAdmin):
     ]
     list_filter = ["bit_type", "status", "lifecycle_status", "physical_status", "customer"]
     search_fields = ["serial_number", "qr_code", "mat_number"]
-    list_select_related = ["design", "customer", "current_location", "bit_location"]
+    list_select_related = ["design", "customer", "bit_location"]
     readonly_fields = ["created_at", "updated_at", "qr_code"]
     fieldsets = (
         ("Basic Info", {

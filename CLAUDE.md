@@ -1891,24 +1891,163 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **Full message display**: Removed `truncate` class. Shows `message` field below title when different from title (multi-line with `whitespace-pre-line`). "Open" link to action URL.
 - **Wider dropdown**: `w-[28rem]` (448px), taller scroll: `max-h-[28rem]`.
 
-#### Known Gaps (Documented for Future Fix)
-- **Gap: `current_location` (Warehouse FK) stale**: Never updated. Should be deprecated. All code uses `bit_location`.
-- **Gap: No location validation before step start**: Router step can start even if bit isn't physically at production location.
-- **Gap: WO status transitions missing BitEvents**: `mark_released` and `approve` update change_log but don't create BitEvents (only change_log). Consider adding WO_RELEASED / WO_APPROVED event types.
-- **Gap: Timeline missing mid-workflow events**: PENDING→RELEASED and RELEASED→ACTIVE transitions not shown in `api_bit_timeline`. Only creation and final status visible.
+#### Gap Fixes (Mar 23, 2026 — Session 2)
+All 19 audited gaps resolved:
 
-#### Key Files Modified
-- `apps/workorders/models.py`: Added `RELEASED_TO_PROD`, `NOTE`, `WO_CANCELLED` to `BitEvent.EventType`. Added `CANCELLED` to `ProductionPlanEntry.Status`. Component fields already existed.
-- `apps/workorders/views_jobcard.py`: `ReleasePaperView`, `api_mark_wo_released`, `api_toggle_bit_component`, rewritten `api_delete_work_order` with `_handle_bit_after_delete`/`_handle_plan_entry_after_delete`/`_get_plan_entry_for_bit` helpers.
-- `apps/workorders/urls.py`: Added `release_paper`, `api_mark_wo_released`, `api_toggle_bit_component` URL patterns.
-- `templates/workorders/workorder_detail_enhanced.html`: 6-step stepper, approval/release buttons, approve JS.
-- `templates/workorders/release_paper.html`: NEW — printable release paper.
-- `templates/workorders/drillbit_detail_enhanced.html`: Component tracking section.
-- `templates/workorders/production_planner.html`: Clearer release confirm messages.
-- `templates/notifications/partials/bell_fragment.html`: Full message display, wider dropdown.
-- `templates/includes/topnav.html`: Unchanged (HTMX polling preserved).
-- `templates/base.html`: HTMX beforeSwap/afterSwap handlers for bell state persistence.
-- Migrations: `0059` (CANCELLED status + WO_CANCELLED event type), `0060` (RELEASED_TO_PROD event type).
+**HIGH — Fixed:**
+- **`current_location` deprecated**: All `select_related`, forms, views, admin, templates switched to `bit_location`. Field kept on model with deprecation comment for backward compat. Old `drillbits/drillbit_form.html` location dropdown replaced with read-only display.
+- **Approval location warning**: `api_approve_work_order` now warns (non-blocking) if bit is at RECEIVING/WAREHOUSE/DISPATCH location. Warning included in response and notification.
+- **Router step start location warning**: `api_router_step_scan` action='start' returns `warning` field if bit is at non-production location (RECEIVING/WAREHOUSE/DISPATCH/TRANSIT).
+
+**MEDIUM — Fixed:**
+- **Timeline WO milestones**: `api_bit_timeline` now shows WO Approved event (from `approved_by`/`approved_at` fields) and QC_FAILED in final status. Approval shows who approved.
+- **Orphaned PENDING WO auto-release**: `api_transfer_bit_location` now checks for PENDING WOs with no plan entry when bit arrives at WIP/EVALUATION/INSPECTION location. Auto-transitions to RELEASED.
+- **Double-release friendlier message**: `api_release_plan_entry` returns specific message for PENDING_RELEASE state: "Already released — waiting for physical transfer" with WO number.
+
+**LOW — Fixed:**
+- **mark_released BitEvent**: `api_mark_wo_released` now creates BitEvent(NOTE) linked to WO with full details.
+- **approve BitEvent**: `api_approve_work_order` creates BitEvent(NOTE) linked to WO recording who approved.
+- **Approval notification enhanced**: Now includes serial number, step count, and links to router sheet (not just WO detail).
+
+---
+
+### System Relations: Drill Bits ↔ Planner ↔ WO ↔ Processes ↔ Routes
+
+#### Entity Relationship Diagram
+```
+DrillBit (serial_number, design, BOMs, bit_location, status, components)
+    │
+    ├── has Design (L3/L4) → has BOMs (L5) → has BOMLines → InventoryItems (cutters)
+    │
+    ├── has Account (Business Unit) — drives WO numbering, pricing, workflow type
+    │
+    ├── tracked by BitEvents (RECEIVED, TRANSFER, RELEASED_TO_PROD, WO_CANCELLED, NOTE...)
+    │       ├── from_location → Location
+    │       ├── to_location → Location
+    │       └── work_order → WorkOrder (nullable, links event to specific WO)
+    │
+    ├── queued in ProductionPlanEntry (status: PLANNED → PENDING_RELEASE → RELEASED → WO_CREATED / CANCELLED)
+    │       ├── account → Account
+    │       ├── intended_wo_type (FC_REPAIR, FC_NEW, etc.)
+    │       ├── work_order → WorkOrder (set when WO created)
+    │       └── notes: [prev_status:X] [prev_location:CODE] [pre_release_location:CODE]
+    │
+    └── worked on via WorkOrder (status: PENDING → RELEASED → ACTIVE → IN_PROGRESS → QC → COMPLETED)
+            ├── wo_number (auto-generated from Account.generate_wo_number())
+            ├── drill_bit → DrillBit
+            ├── account → Account
+            ├── approved_by / approved_at
+            │
+            ├── has RouterSheetEntry[] (step_number: 10, 20, 30...)
+            │       ├── step_description, instructions, safety_notes
+            │       ├── parameters_template (JSONField — from MasterProcess)
+            │       ├── checklist_template (JSONField — from MasterProcess)
+            │       ├── source_operation → MasterProcess (nullable)
+            │       ├── step_status: PENDING → IN_PROGRESS → COMPLETED / ON_HOLD / SKIPPED
+            │       └── qr_scan_start / qr_scan_end / operator
+            │
+            ├── has CutterEvaluationMatrix[] (evaluations at various stages)
+            ├── has LPT reports, Thread inspections, Die checks
+            └── has RepairBOM[] (repair-specific BOMs)
+```
+
+#### Smart Route Engine: How Routes Are Built
+```
+MasterProcess (43+ processes: DEBRAZE, SUB-ARC, BRAZING, DIE-CHECK, FINAL-QC, etc.)
+    ├── code, name, category (PREPARATION, PRODUCTION, QC, FINISHING, etc.)
+    ├── sort_order (determines position in route)
+    ├── is_default_included (true = always in route, false = conditional)
+    ├── step_mode: STANDARD / PASSIVE / QC_GATE / MULTI_INSTANCE
+    ├── parameters_spec (JSONField — field definitions for operator data entry)
+    ├── checklist_items (JSONField — verification checklist)
+    ├── rule_expression (JSONField — AND/OR/NOT logic for inclusion)
+    ├── insertion_points (JSONField — for MULTI_INSTANCE processes like DIE-CHECK)
+    ├── dedicated_page (URL name for processes with their own pages)
+    │
+    ├── has ProcessInclusionRule[] (simple field-based rules as alternative to rule_expression)
+    │       ├── field_path: 'bit.level', 'bit.has_cerebro', 'design.body_material', etc.
+    │       ├── operator: EQUALS, NOT_EQUALS, IN, CONTAINS, GT, LT, etc.
+    │       └── value: comparison target
+    │
+    └── has SpecialInstruction[] (design/serial/size-specific instructions)
+            ├── design FK, serial_number, size_range, body_material
+            └── instruction_text (shown to operator on step detail page)
+
+assemble_route_for_bit(drill_bit):
+    1. Build context dict from bit properties:
+       bit.level, bit.has_cerebro, bit.is_painted, design.body_material,
+       design.port_count, bom.has_dynamic_cutters, eval.needs_buildup, etc.
+    2. Filter MasterProcesses by applicability (new/repair, level)
+    3. Evaluate rule_expression for each process against context
+    4. Pass 1: Collect non-MULTI processes, sort by sort_order
+    5. Pass 2: Insert MULTI-instance processes at insertion_points
+    6. Return step list with parameters, checklists, special instructions
+```
+
+#### Complete Lifecycle Flow
+```
+RECEIVING:
+  Backload batch → DrillBit registered (UNREGISTERED/RECEIVED)
+  → Receiving Inspection (ACCEPTED/REJECTED/CONDITIONAL)
+  → Location: Receiving Area or Backload Area
+
+PLANNING:
+  Drill Bit List → Assign Account (BU modal) → Add to Planner
+  → ProductionPlanEntry created (PLANNED)
+  → [prev_status] + [prev_location] saved on entry notes
+  → Planner view: Planned tab with filters, columns, priority, due dates
+
+RELEASE:
+  Planner → Release button
+  → RELEASED_TO_PROD BitEvent created (from_location = current, to_location = destination)
+  → If bit already at WIP location → WO created as RELEASED immediately
+  → If not → WO created as PENDING, notification sent to operator
+
+PHYSICAL TRANSACTION:
+  Location Transfers page → Operator confirms transfer
+  → api_transfer_bit_location updates bit.bit_location
+  → TRANSFER BitEvent with from/to locations
+  → Auto-detects PENDING_RELEASE plan entry → WO PENDING → RELEASED
+  → Also auto-releases orphaned PENDING WOs when bit arrives at production area
+
+APPROVAL:
+  WO Detail → "Approve WO" button (manager)
+  → RELEASED → ACTIVE (or PENDING → ACTIVE to skip)
+  → Location warning if bit not at production area
+  → BitEvent(NOTE) created for audit trail
+  → Notification with router sheet link
+
+PRODUCTION:
+  Router Sheet → Start step (QR scan / button)
+  → WO ACTIVE → IN_PROGRESS on first step
+  → Location warning if bit not at production area
+  → Steps progress: PENDING → IN_PROGRESS → COMPLETED
+  → Each step: parameters data entry, checklist verification, timer
+  → QC steps may require inspection pass/fail
+
+WO DELETION (if needed before production starts):
+  WO Detail → Delete → 3-step confirmation
+  → Reverse transaction? (bit back to pre-release location from RELEASED_TO_PROD event)
+  → Return to planner? (PLANNED) or Cancel production? (CANCELLED)
+  → WO_CANCELLED BitEvent for full audit trail
+```
+
+#### Location Tracking Architecture
+```
+DrillBit.bit_location → workorders.Location (SINGLE SOURCE OF TRUTH)
+DrillBit.current_location → sales.Warehouse (DEPRECATED — never updated, kept for old data)
+
+Every location change creates:
+  BitEvent(TRANSFER) with from_location, to_location, location, performed_by
+
+Special events:
+  BitEvent(RELEASED_TO_PROD) — records pre-release location for reversal
+  BitEvent(WO_CANCELLED) — records deletion context
+  BitEvent(NOTE) — records status transitions (approval, release confirmation)
+
+Location types: RECEIVING, WIP, EVALUATION, INSPECTION, QC, REPAIR_SHOP,
+                WAREHOUSE, DISPATCH, RIG, SCRAP, USA, FACTORY, TRANSIT
+```
 
 ## Need Help?
 

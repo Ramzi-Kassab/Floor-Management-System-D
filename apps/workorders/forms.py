@@ -287,7 +287,6 @@ class DrillBitForm(forms.ModelForm):
             "size",
             "iadc_code",
             "status",
-            "current_location",
             "customer",
             "rig",
             "well",
@@ -327,11 +326,7 @@ class DrillBitForm(forms.ModelForm):
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 }
             ),
-            "current_location": forms.Select(
-                attrs={
-                    "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                }
-            ),
+            # current_location removed — use Location Transfers page for location changes
             "customer": forms.Select(
                 attrs={
                     "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
