@@ -58,26 +58,33 @@ class NotificationListView(LoginRequiredMixin, ListView):
 
 
 class NotificationMarkReadView(LoginRequiredMixin, View):
-    """Mark a notification as read. GET = click from bell, POST = AJAX."""
+    """Mark a notification as read without navigating away.
+    GET and POST both mark as read. Neither consumes the action_url —
+    the notification stays clickable via its action_url at any time."""
 
     def get(self, request, pk):
         notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save()
-        if notification.action_url:
-            return redirect(notification.action_url)
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=["is_read", "read_at"])
+        # Redirect back to where the user came from (or notification list)
+        referer = request.META.get("HTTP_REFERER", "")
+        if referer:
+            return redirect(referer)
         return redirect("notifications:notification_list")
 
     def post(self, request, pk):
         notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save()
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=["is_read", "read_at"])
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({"status": "ok"})
-        if notification.action_url:
-            return redirect(notification.action_url)
+        referer = request.META.get("HTTP_REFERER", "")
+        if referer:
+            return redirect(referer)
         return redirect("notifications:notification_list")
 
 

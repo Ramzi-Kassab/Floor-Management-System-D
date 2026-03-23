@@ -3406,11 +3406,12 @@ def api_delete_work_order(request, pk):
             notif_lines.append("Plan entry marked as Production Cancelled.")
         notif_message = '\n'.join(notif_lines)
 
-        # Action URL: link to the most relevant page for the recipient
-        if return_to_planner:
-            notif_url = reverse('workorders:production_planner')
-        elif bit:
+        # Action URL: always link to drill bit detail when bit exists
+        # (user needs to verify location/status regardless of planner decision)
+        if bit:
             notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
+        elif return_to_planner:
+            notif_url = reverse('workorders:production_planner')
         else:
             notif_url = reverse('workorders:workorder_list_enhanced')
 

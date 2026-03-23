@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block title %}Notifications - ARDT FMS{% endblock %}
 
@@ -49,43 +50,80 @@
     {% if notifications %}
     <div class="divide-y divide-gray-200 dark:divide-gray-700">
         {% for notification in notifications %}
-        <div class="p-4 {% if not notification.is_read %}bg-blue-50 dark:bg-blue-900/20{% endif %} hover:bg-gray-50 dark:hover:bg-gray-700/30">
-            <div class="flex items-start justify-between">
-                <div class="flex items-start flex-1">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0
-                        {% if notification.priority == 'URGENT' %}bg-red-100 text-red-600
-                        {% elif notification.priority == 'HIGH' %}bg-orange-100 text-orange-600
-                        {% else %}bg-blue-100 text-blue-600{% endif %}">
-                        <i data-lucide="bell" class="w-5 h-5"></i>
+        <div class="p-4 {% if not notification.is_read %}bg-blue-50/50 dark:bg-blue-900/10{% endif %} hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+             style="border-left: 3px solid {% if notification.priority == 'URGENT' %}#ef4444{% elif notification.priority == 'HIGH' %}#f59e0b{% elif not notification.is_read %}#3b82f6{% else %}#e5e7eb{% endif %};">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex items-start flex-1 gap-3 min-w-0">
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
+                        {% if notification.priority == 'URGENT' %}bg-red-100 dark:bg-red-900/30
+                        {% elif notification.priority == 'HIGH' %}bg-amber-100 dark:bg-amber-900/30
+                        {% elif not notification.is_read %}bg-blue-100 dark:bg-blue-900/30
+                        {% else %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        {% if notification.priority == 'URGENT' %}
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                        {% elif notification.priority == 'HIGH' %}
+                        <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
+                        {% elif not notification.is_read %}
+                        <i data-lucide="bell" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                        {% else %}
+                        <i data-lucide="check-circle" class="w-4 h-4 text-gray-400"></i>
+                        {% endif %}
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h3 class="font-medium text-gray-900 dark:text-white">{{ notification.title }}</h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ notification.message|truncatewords:20 }}</p>
-                        <div class="flex items-center mt-2 text-xs text-gray-500">
+                        {# Title — always clickable if action_url exists #}
+                        {% if notification.action_url %}
+                        <a href="{{ notification.action_url }}"
+                           class="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 block">
+                            {{ notification.title }}
+                        </a>
+                        {% else %}
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ notification.title }}</p>
+                        {% endif %}
+
+                        {# Full message (not truncated) #}
+                        {% if notification.message and notification.message != notification.title %}
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 leading-relaxed whitespace-pre-line">{{ notification.message }}</p>
+                        {% endif %}
+
+                        {# Action link — always visible, reusable #}
+                        {% if notification.action_url %}
+                        <a href="{{ notification.action_url }}"
+                           class="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium mt-2">
+                            <i data-lucide="external-link" class="w-3 h-3"></i>Open
+                        </a>
+                        {% endif %}
+
+                        <div class="flex items-center gap-3 mt-2 text-xs text-gray-400 dark:text-gray-500">
                             <span>{{ notification.created_at|timesince }} ago</span>
+                            {% if notification.actor %}
+                            <span>· {{ notification.actor.get_full_name|default:notification.actor.username }}</span>
+                            {% endif %}
                             {% if notification.priority != 'NORMAL' %}
-                            <span class="ml-2 px-2 py-0.5 rounded-full
-                                {% if notification.priority == 'URGENT' %}bg-red-100 text-red-800
-                                {% elif notification.priority == 'HIGH' %}bg-orange-100 text-orange-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold
+                                {% if notification.priority == 'URGENT' %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300
+                                {% elif notification.priority == 'HIGH' %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">
                                 {{ notification.get_priority_display }}
                             </span>
+                            {% endif %}
+                            {% if notification.is_read %}
+                            <span class="text-gray-400">· Read {{ notification.read_at|timesince }} ago</span>
                             {% endif %}
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2 ml-4">
+                <div class="flex items-center gap-1 flex-shrink-0">
                     {% if not notification.is_read %}
                     <form method="post" action="{% url 'notifications:notification_read' notification.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="p-2 text-gray-400 hover:text-blue-600" title="Mark as read">
+                        <button type="submit" class="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Mark as read">
                             <i data-lucide="check" class="w-4 h-4"></i>
                         </button>
                     </form>
                     {% endif %}
                     <form method="post" action="{% url 'notifications:notification_delete' notification.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="p-2 text-gray-400 hover:text-red-600" title="Delete">
+                        <button type="submit" class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </form>
@@ -102,4 +140,22 @@
     </div>
     {% endif %}
 </div>
+
+{% if is_paginated %}
+<div class="mt-4 flex justify-center">
+    <nav class="inline-flex rounded-lg shadow-sm">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&is_read={{ current_is_read }}&priority={{ current_priority }}"
+           class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-l-lg bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300">Previous</a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm border-t border-b border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&is_read={{ current_is_read }}&priority={{ current_priority }}"
+           class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-r-lg bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300">Next</a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
 {% endblock %}
