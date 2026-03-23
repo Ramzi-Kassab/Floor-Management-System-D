@@ -2192,7 +2192,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
             status__in=[ProductionPlanEntry.Status.PLANNED, ProductionPlanEntry.Status.PENDING_RELEASE]
         ).select_related(
             'drill_bit', 'drill_bit__design', 'drill_bit__brazing_bom', 'drill_bit__system_bom',
-            'drill_bit__bom', 'drill_bit__account', 'account', 'created_by'
+            'drill_bit__bom', 'drill_bit__account', 'drill_bit__bit_location', 'account', 'created_by'
         ).order_by('sequence', '-priority', 'planned_date')
         if account_filter:
             planned_qs = planned_qs.filter(account__code=account_filter)
@@ -2230,6 +2230,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
                 'repair': bit.revision_number or 0,
                 'condition': bit.condition or '',
                 'level': bit.level or (bit.design.order_level if bit.design else ''),
+                'location': bit.bit_location.name if bit.bit_location else '',
                 'planStatus': entry.status,
                 'releaseDestination': bit.get_release_destination().name if bit.get_release_destination() else '',
             })

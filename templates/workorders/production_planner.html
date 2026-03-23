@@ -1411,7 +1411,7 @@ function ppOpenReadyDrawer(bitId){
   document.getElementById('pp-db-content').innerHTML=`
     <div class="ds-label">Drill Bit Info</div>
     <div class="d-grid">
-      <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${bit.serial}</p></div>
+      <div class="d-field"><label>Serial</label><p><a href="/work-orders/drill-bits/enhanced/${bit.id}/" style="font-family:var(--mono);color:var(--cyan);text-decoration:none;border-bottom:1px dashed var(--cyan);" title="Open Drill Bit Detail">${bit.serial}</a></p></div>
       <div class="d-field"><label>Size</label><p>${bit.size||'—'}</p></div>
       <div class="d-field"><label>Type</label><p>${bit.type||'—'}</p></div>
       <div class="d-field"><label>MAT No.</label><p style="font-family:var(--mono);font-size:11px;">${bit.mat||'—'}</p></div>
@@ -1462,16 +1462,17 @@ async function ppConfirmAdd(serial){
 function ppOpenPlannedDrawer(entryId){
   const p=D.planned.find(e=>e.entryId===entryId); if(!p)return;
   document.getElementById('pp-dh-content').innerHTML=`
-    <div class="d-title">${p.serial}</div>
+    <div class="d-title"><a href="/work-orders/drill-bits/enhanced/${p.bitId}/" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--cyan);" title="Open Drill Bit Detail">${p.serial}</a></div>
     <div class="d-id">Plan Entry #${p.entryId} &middot; ${p.account||'No account'}</div>
     <div style="display:flex;gap:6px;margin-top:8px;"><span class="st s-ip">Planned</span><span class="pr pr-${p.priority}">${p.priorityDisplay}</span></div>`;
   const nrVal = (p.intendedType&&p.intendedType.toLowerCase().includes('repair'))||p.repair>0?'FC_REPAIR':'FC_NEW';
   document.getElementById('pp-db-content').innerHTML=`
     <div class="ds-label">Details</div>
     <div class="d-grid">
-      <div class="d-field"><label>Serial</label><p style="font-family:var(--mono);color:var(--cyan);">${p.serial}</p></div>
+      <div class="d-field"><label>Serial</label><p><a href="/work-orders/drill-bits/enhanced/${p.bitId}/" style="font-family:var(--mono);color:var(--cyan);text-decoration:none;border-bottom:1px dashed var(--cyan);" title="Open Drill Bit Detail">${p.serial}</a></p></div>
       <div class="d-field"><label>Size</label><p>${sizeFrac(p.size)}</p></div>
       <div class="d-field"><label>Type</label><p>${p.type||'—'}</p></div>
+      <div class="d-field"><label>Location</label><p style="font-size:11px;">${p.location||'—'}</p></div>
       <div class="d-field"><label>Design MAT</label><p style="font-family:var(--mono);font-size:11px;">${p.designMat||'—'}</p></div>
       <div class="d-field"><label>System MAT</label><p style="font-family:var(--mono);font-size:11px;">${p.systemMat||'—'}</p></div>
       <div class="d-field"><label>Brazing MAT</label><p style="font-family:var(--mono);font-size:11px;color:var(--orange);">${p.brazingMat||'—'}</p></div>
