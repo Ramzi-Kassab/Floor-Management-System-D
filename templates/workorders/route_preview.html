@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Route Preview — ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <i data-lucide="eye" class="w-6 h-6 text-blue-500"></i>
+            Route Preview
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Simulate route assembly — see what steps the engine would generate for a specific bit</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="routePreview()" x-init="init()" class="space-y-6">
+
+    <!-- Input Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <i data-lucide="settings" class="w-5 h-5 text-blue-500"></i>
+            Configuration
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Option 1: Lookup by serial -->
+            <div class="lg:col-span-3">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lookup by Serial Number</label>
+                <div class="flex gap-2">
+                    <input type="text" x-model="serial" placeholder="Enter serial number..."
+                           @keydown.enter="lookupBit()"
+                           class="flex-1 max-w-xs border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <button @click="lookupBit()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                        <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Lookup
+                    </button>
+                    <span class="text-xs text-gray-400 self-center">or configure manually below</span>
+                </div>
+                <p x-show="lookupResult" class="text-xs text-green-600 mt-1" x-text="lookupResult"></p>
+                <p x-show="lookupError" class="text-xs text-red-600 mt-1" x-text="lookupError"></p>
+            </div>
+
+            <!-- Manual config -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Level</label>
+                <select x-model="config.level" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="3">L3</option>
+                    <option value="4">L4</option>
+                    <option value="5">L5</option>
+                    <option value="5.5">L5.5</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New / Repair</label>
+                <select x-model="config.is_repair" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="false">New</option>
+                    <option value="true">Repair</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Business Unit</label>
+                <select x-model="config.account" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="">— Any —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.code }}">{{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size</label>
+                <select x-model="config.size" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="8.5">8 1/2</option>
+                    <option value="3.625">3 5/8</option>
+                    <option value="5.875">5 7/8</option>
+                    <option value="6.125">6 1/8</option>
+                    <option value="8.375">8 3/8</option>
+                    <option value="12.25">12 1/4</option>
+                    <option value="16">16</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Body Material</label>
+                <select x-model="config.body_material" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="S">Steel (S)</option>
+                    <option value="M">Matrix (M)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Has Ports</label>
+                <select x-model="config.has_ports" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Evaluation options -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Evaluation Findings (optional)</h3>
+            <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_buildup" class="rounded text-blue-600"> Build Up
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_grinding" class="rounded text-blue-600"> Grinding
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_rework" class="rounded text-blue-600"> Rework
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_debraze" class="rounded text-blue-600"> De-braze
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_thread_repair" class="rounded text-blue-600"> Thread Repair
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_usr" class="rounded text-blue-600"> USR
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_hardfacing" class="rounded text-blue-600"> Hardfacing
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.has_cerebro" class="rounded text-blue-600"> Cerebro
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.has_dynamic_cutters" class="rounded text-blue-600"> Dynamic Cutters
+                </label>
+            </div>
+        </div>
+
+        <!-- Generate button -->
+        <div class="mt-4 flex items-center gap-3">
+            <button @click="generatePreview()" :disabled="generating"
+                    class="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                <i data-lucide="play" class="w-4 h-4"></i>
+                <span x-text="generating ? 'Generating...' : 'Generate Route Preview'"></span>
+            </button>
+            <span x-show="steps.length > 0" class="text-sm text-gray-500">
+                <span x-text="steps.length" class="font-bold text-gray-900 dark:text-white"></span> steps,
+                <span x-text="totalMinutes" class="font-bold text-gray-900 dark:text-white"></span> min estimated
+            </span>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <template x-if="steps.length > 0">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="list-ordered" class="w-5 h-5 text-blue-500"></i>
+                    Assembled Route
+                </h2>
+                <div class="text-xs text-gray-400">
+                    Config: L<span x-text="config.level"></span> |
+                    <span x-text="config.is_repair === 'true' ? 'Repair' : 'New'"></span> |
+                    <span x-text="config.account || 'Any'"></span> |
+                    <span x-text="config.size + '\"'"></span>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th class="px-4 py-3 font-medium w-12">#</th>
+                            <th class="px-4 py-3 font-medium">Step</th>
+                            <th class="px-4 py-3 font-medium">Category</th>
+                            <th class="px-4 py-3 font-medium">Code</th>
+                            <th class="px-4 py-3 font-medium text-center">Est. Min</th>
+                            <th class="px-4 py-3 font-medium text-center">Params</th>
+                            <th class="px-4 py-3 font-medium text-center">Checks</th>
+                            <th class="px-4 py-3 font-medium text-center">QC</th>
+                            <th class="px-4 py-3 font-medium">Mode</th>
+                            <th class="px-4 py-3 font-medium">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        <template x-for="(step, idx) in steps" :key="idx">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td class="px-4 py-3 font-mono text-gray-400" x-text="idx + 1"></td>
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white" x-text="step.name"></td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                          :class="{
+                                            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': step.category === 'RECEIVING',
+                                            'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300': step.category === 'EVALUATION',
+                                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300': step.category === 'PREPARATION',
+                                            'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300': step.category === 'BRAZING',
+                                            'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300': step.category === 'GRINDING',
+                                            'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300': step.category === 'ASSEMBLY',
+                                            'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300': step.category === 'THREADING',
+                                            'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300': step.category === 'QC',
+                                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': step.category === 'FINISHING',
+                                            'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': step.category === 'DISPATCH',
+                                            'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': step.category === 'SPECIAL',
+                                          }" x-text="step.category"></span>
+                                </td>
+                                <td class="px-4 py-3 font-mono text-xs text-gray-500" x-text="step.code"></td>
+                                <td class="px-4 py-3 text-center font-mono" x-text="step.estimated_minutes"></td>
+                                <td class="px-4 py-3 text-center" x-text="step.params_count || '—'"></td>
+                                <td class="px-4 py-3 text-center" x-text="step.checks_count || '—'"></td>
+                                <td class="px-4 py-3 text-center">
+                                    <span x-show="step.requires_qc" class="text-purple-500"><i data-lucide="shield-check" class="w-4 h-4 inline"></i></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span x-show="step.step_mode === 'PASSIVE'" class="text-xs text-amber-600 font-medium">Passive</span>
+                                    <span x-show="step.step_mode === 'MULTI'" class="text-xs text-indigo-600 font-medium">Multi</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span x-show="step.is_conditional" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Conditional</span>
+                                    <span x-show="step.has_dedicated_page" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Has Page</span>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+</div>
+
+{% csrf_token %}
+
+{% block extra_js %}
+<script>
+function routePreview() {
+    return {
+        serial: '',
+        lookupResult: '',
+        lookupError: '',
+        generating: false,
+        steps: [],
+        totalMinutes: 0,
+        config: {
+            level: '4',
+            is_repair: 'false',
+            account: '',
+            size: '8.5',
+            body_material: 'S',
+            has_ports: 'false',
+            needs_buildup: false,
+            needs_grinding: false,
+            needs_rework: false,
+            needs_debraze: false,
+            needs_thread_repair: false,
+            needs_usr: false,
+            needs_hardfacing: false,
+            has_cerebro: false,
+            has_dynamic_cutters: false,
+        },
+
+        init() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('serial')) {
+                this.serial = params.get('serial');
+                this.lookupBit();
+            }
+        },
+
+        async lookupBit() {
+            if (!this.serial.trim()) return;
+            this.lookupResult = '';
+            this.lookupError = '';
+            try {
+                const r = await fetch(`{% url "workorders:drillbit_lookup_api" %}?serial=${encodeURIComponent(this.serial.trim())}`);
+                const d = await r.json();
+                if (d.found) {
+                    this.config.level = d.level || d.design_level || '4';
+                    this.config.size = d.size || '8.5';
+                    this.config.account = d.account_code || '';
+                    this.config.body_material = d.body_material || 'S';
+                    this.config.is_repair = (d.condition === 'REPAIRED' || d.condition === 'USED') ? 'true' : 'false';
+                    this.lookupResult = `Found: ${d.serial_number} — L${this.config.level}, ${this.config.is_repair === 'true' ? 'Repair' : 'New'}, ${d.size_display || this.config.size}"`;
+                } else {
+                    this.lookupError = 'Bit not found';
+                }
+            } catch (e) {
+                this.lookupError = 'Lookup failed';
+            }
+        },
+
+        async generatePreview() {
+            this.generating = true;
+            this.steps = [];
+            try {
+                const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const r = await fetch('{% url "workorders:api_route_preview" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                    body: JSON.stringify(this.config)
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.steps = d.steps;
+                    this.totalMinutes = d.total_minutes;
+                } else {
+                    alert(d.error || 'Preview failed');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            this.generating = false;
+            this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+    };
+}
+</script>
+{% endblock %}
+{% endblock %}

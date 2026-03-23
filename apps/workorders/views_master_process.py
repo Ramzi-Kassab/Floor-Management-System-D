@@ -388,3 +388,151 @@ def api_special_instruction_delete(request, pk):
     si = get_object_or_404(SpecialInstruction, pk=pk)
     si.delete()
     return JsonResponse({"ok": True})
+
+
+# =============================================================================
+# ROUTE PREVIEW (simulation)
+# =============================================================================
+
+class RoutePreviewView(LoginRequiredMixin, TemplateView):
+    """Simulate route assembly — see what steps the engine would generate."""
+    template_name = "workorders/route_preview.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.sales.models import Account
+        context['accounts'] = Account.objects.filter(is_active=True).order_by('sort_order')
+        return context
+
+
+@login_required
+def api_route_preview(request):
+    """
+    Simulate route assembly from configuration (no real drill bit needed).
+    POST body: config dict with level, is_repair, account, size, body_material, etc.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    data = _parse_json_body(request)
+    if not data:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    from apps.workorders.models import (
+        MasterProcess, evaluate_rule_expression, SpecialInstruction
+    )
+
+    # Build a synthetic context from the config
+    is_repair = str(data.get('is_repair', 'false')).lower() in ('true', '1')
+    context = {
+        'bit.level': data.get('level', '4'),
+        'bit.size': float(data.get('size', 8.5)),
+        'bit.type': 'FC',
+        'bit.account': data.get('account', ''),
+        'bit.is_repair': is_repair,
+        'bit.is_new': not is_repair,
+        'bit.condition': 'USED' if is_repair else 'COMPONENTS',
+        'design.body_material': data.get('body_material', 'S'),
+        'design.has_ports': str(data.get('has_ports', 'false')).lower() in ('true', '1'),
+        'design.port_count': 1 if str(data.get('has_ports', 'false')).lower() in ('true', '1') else 0,
+        'design.no_of_blades': 6,
+        'design.total_pockets_count': 50,
+        'tech.has_cerebro': bool(data.get('has_cerebro', False)),
+        'tech.has_crush_shear': False,
+        'bom.has_dynamic_cutters': bool(data.get('has_dynamic_cutters', False)),
+        'eval.needs_buildup': bool(data.get('needs_buildup', False)),
+        'eval.needs_grinding': bool(data.get('needs_grinding', False)),
+        'eval.needs_rework': bool(data.get('needs_rework', False)),
+        'eval.needs_debraze': bool(data.get('needs_debraze', False)),
+        'eval.needs_thread_repair': bool(data.get('needs_thread_repair', False)),
+        'eval.needs_usr': bool(data.get('needs_usr', False)),
+        'eval.needs_hardfacing': bool(data.get('needs_hardfacing', False)),
+    }
+
+    level = context['bit.level']
+
+    # Get all active processes
+    processes = MasterProcess.objects.filter(is_active=True).prefetch_related('inclusion_rules')
+    if is_repair:
+        processes = processes.filter(applies_to_repair=True)
+    else:
+        processes = processes.filter(applies_to_new=True)
+
+    # Pass 1: non-MULTI
+    applicable = []
+    multi_processes = []
+    for proc in processes:
+        if proc.applies_to_levels and level and level not in proc.applies_to_levels:
+            continue
+        if proc.step_mode == 'MULTI' and proc.insertion_points:
+            multi_processes.append(proc)
+            continue
+        if proc.rule_expression:
+            include = evaluate_rule_expression(proc.rule_expression, context)
+        else:
+            include = proc.is_default_included
+            for rule in proc.inclusion_rules.all():
+                matches = rule.evaluate(context)
+                if rule.rule_type == 'INCLUDE_IF' and matches:
+                    include = True
+                elif rule.rule_type == 'EXCLUDE_IF' and matches:
+                    include = False
+                    break
+        if include:
+            applicable.append(proc)
+
+    applicable.sort(key=lambda p: p.sort_order)
+
+    # Build steps
+    steps = []
+    for proc in applicable:
+        steps.append({
+            'code': proc.code,
+            'name': proc.name,
+            'category': proc.category,
+            'estimated_minutes': proc.default_estimated_minutes,
+            'params_count': len(proc.parameters_spec or []),
+            'checks_count': len(proc.checklist_items or []),
+            'requires_qc': proc.requires_qc,
+            'step_mode': proc.step_mode,
+            'is_conditional': not proc.is_default_included,
+            'has_dedicated_page': bool(proc.dedicated_page),
+        })
+
+    # Pass 2: MULTI insertion points
+    for proc in multi_processes:
+        for ip in (proc.insertion_points or []):
+            if not ip.get('auto_include', True):
+                continue
+            ip_rule = ip.get('rule_expression', ip.get('rules', []))
+            if isinstance(ip_rule, list):
+                ip_rule = {'type': 'AND', 'conditions': ip_rule} if ip_rule else {}
+            if not evaluate_rule_expression(ip_rule, context):
+                continue
+            after_code = ip.get('after_process_code', '')
+            insert_idx = len(steps)
+            if after_code:
+                for i, s in enumerate(steps):
+                    if s['code'] == after_code:
+                        insert_idx = i + 1
+                        break
+            steps.insert(insert_idx, {
+                'code': proc.code,
+                'name': ip.get('label', proc.name),
+                'category': proc.category,
+                'estimated_minutes': proc.default_estimated_minutes,
+                'params_count': len(proc.parameters_spec or []),
+                'checks_count': len(proc.checklist_items or []),
+                'requires_qc': proc.requires_qc,
+                'step_mode': proc.step_mode,
+                'is_conditional': True,
+                'has_dedicated_page': bool(proc.dedicated_page),
+            })
+
+    total_minutes = sum(s['estimated_minutes'] for s in steps)
+    return JsonResponse({
+        'success': True,
+        'steps': steps,
+        'total_minutes': total_minutes,
+        'step_count': len(steps),
+    })

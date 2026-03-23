@@ -72,6 +72,10 @@ urlpatterns = [
     path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
     path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
 
+    # Route Preview
+    path("route-preview/", views_master_process.RoutePreviewView.as_view(), name="route_preview"),
+    path("api/route-preview/", views_master_process.api_route_preview, name="api_route_preview"),
+
     # Location Transfers
     path("location-transfers/", views_jobcard.LocationTransferView.as_view(), name="location_transfers"),
     path("all-locations/", views_jobcard.AllLocationsView.as_view(), name="all_locations"),
