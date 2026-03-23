@@ -3358,13 +3358,15 @@ def api_delete_work_order(request, pk):
                 bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD
             ).order_by('-event_date').first()
         wo.delete()
+        suggested_dest = None
         if bit:
-            _handle_bit_after_delete(bit, wo_number, 'force-deleted by admin', reverse_transaction, request.user, release_event=force_release_event)
+            suggested_dest = _handle_bit_after_delete(bit, wo_number, 'force-deleted by admin', request.user, release_event=force_release_event)
         plan_entry = _get_plan_entry_for_bit(bit)
         if plan_entry:
             _handle_plan_entry_after_delete(plan_entry, return_to_planner, wo_number, request.user)
         return JsonResponse({
             'success': True, 'wo_number': wo_number, 'bit_id': bit_id,
+            'suggested_dest': suggested_dest,
             'message': f'Work Order {wo_number} force-deleted.'
         })
 
@@ -3424,13 +3426,18 @@ def api_delete_work_order(request, pk):
     # Delete the WO
     wo.delete()
 
-    # Handle bit status + location reversal
+    # Handle bit status (no location change — user confirms transfer on Location Transfers page)
     result_msg = f'Work Order {wo_number} deleted (was {wo_status_was}).'
-    reversed_to = None
+    suggested_dest = None
     if bit:
-        reversed_to = _handle_bit_after_delete(bit, wo_number, f'deleted (was {wo_status_was})', reverse_transaction, request.user, release_event=release_event, destination_id=destination_id)
-        if reversed_to:
-            result_msg += f' Bit moved back to {reversed_to}.'
+        suggested_dest = _handle_bit_after_delete(bit, wo_number, f'deleted (was {wo_status_was})', request.user, release_event=release_event)
+        # If user chose a specific destination in the modal, use that instead
+        if destination_id:
+            dest_loc = Location.objects.filter(pk=destination_id, is_active=True).first()
+            if dest_loc:
+                suggested_dest = dest_loc.code
+        if reverse_transaction and suggested_dest:
+            result_msg += f' Please confirm the transfer on the Bit Movements page.'
 
     # Handle plan entry
     plan_msg = ''
@@ -3449,10 +3456,13 @@ def api_delete_work_order(request, pk):
         notif_title = f"WO {wo_number} deleted for {serial}"
         notif_lines = [f"Work Order {wo_number} (was {wo_status_was}) has been deleted."]
         notif_lines.append(f"Serial: {serial}")
-        if reversed_to:
-            notif_lines.append(f"Transaction reversed — bit moved back to {reversed_to}.")
+        cur = bit.bit_location.name if bit and bit.bit_location else 'unknown'
+        if reverse_transaction and suggested_dest:
+            dest_name = Location.objects.filter(code=suggested_dest).values_list('name', flat=True).first() or suggested_dest
+            notif_lines.append(f"Current location: {cur}")
+            notif_lines.append(f"Transfer needed: {cur} → {dest_name}")
+            notif_lines.append("Click Open to confirm the transfer.")
         else:
-            cur = bit.bit_location.name if bit and bit.bit_location else 'unknown'
             notif_lines.append(f"Bit remains at {cur}.")
         if return_to_planner:
             notif_lines.append("Returned to planner as Planned — can be re-released.")
@@ -3460,9 +3470,12 @@ def api_delete_work_order(request, pk):
             notif_lines.append("Plan entry marked as Production Cancelled.")
         notif_message = '\n'.join(notif_lines)
 
-        # Action URL: Location Transfers to verify the move (no ?dest= so no auto-fill)
-        if bit:
-            notif_url = reverse('workorders:location_transfers') + f'?serial={bit.serial_number}'
+        # Action URL
+        if bit and reverse_transaction and suggested_dest:
+            # User wants to move the bit — link to Location Transfers with destination pre-filled
+            notif_url = reverse('workorders:location_transfers') + f'?serial={bit.serial_number}&dest={suggested_dest}'
+        elif bit:
+            notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
         elif return_to_planner:
             notif_url = reverse('workorders:production_planner')
         else:
@@ -3521,19 +3534,14 @@ def _handle_plan_entry_after_delete(entry, return_to_planner, wo_number, user):
                else ['status', 'notes', 'updated_at'])
 
 
-def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, release_event=None, destination_id=None):
+def _handle_bit_after_delete(bit, wo_number, reason, user, release_event=None):
     """
     After WO deletion:
     - Restore bit status from plan entry [prev_status:X]
-    - If reverse_transaction: move bit to destination_id (user-chosen) or
-      fall back to RELEASED_TO_PROD event's from_location
     - Create WO_CANCELLED BitEvent for audit trail
+    - Does NOT move the bit — the user confirms the transfer on Location Transfers page
 
-    Args:
-        release_event: Pre-fetched RELEASED_TO_PROD BitEvent (fetched BEFORE WO deletion)
-        destination_id: User-chosen destination Location pk (overrides auto-detection)
-
-    Returns: name of location bit was moved to (or None)
+    Returns: destination Location code to suggest (or None)
     """
     import re
     from django.utils import timezone as _tz
@@ -3563,44 +3571,6 @@ def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, 
         else:
             restored_status = bit.status
 
-    # ── Restore location ──
-    reversed_to = None
-    if reverse_transaction:
-        # Priority 1: User-chosen destination
-        original_location = None
-        if destination_id:
-            original_location = Location.objects.filter(pk=destination_id, is_active=True).first()
-
-        # Priority 2: RELEASED_TO_PROD event from_location
-        if not original_location:
-            original_location = release_event.from_location if release_event else None
-
-        # Priority 3: [prev_location:CODE] from plan entry notes
-        if not original_location and plan_entry and plan_entry.notes:
-            m = re.search(r'\[prev_location:([\w-]+)\]', plan_entry.notes)
-            if m:
-                original_location = Location.objects.filter(code=m.group(1), is_active=True).first()
-
-        if original_location:
-            current_loc = bit.bit_location
-            if not current_loc or current_loc.pk != original_location.pk:
-                bit.bit_location = original_location
-                bit.log_change('Location',
-                               str(current_loc) if current_loc else '—',
-                               str(original_location), user)
-                reversed_to = original_location.name
-
-                BitEvent.objects.create(
-                    bit=bit,
-                    event_type=BitEvent.EventType.TRANSFER,
-                    event_date=_tz.now(),
-                    from_location=current_loc,
-                    to_location=original_location,
-                    location=original_location,
-                    notes=f'Transaction reversed: WO {wo_number} {reason}. Bit returned to {original_location.name}.',
-                    performed_by=user,
-                )
-
     # ── Update status ──
     if restored_status != bit.status:
         bit.log_change('Status', old_status_display,
@@ -3608,23 +3578,27 @@ def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, 
         bit.status = restored_status
 
     # ── Audit event ──
-    event_notes = f'WO {wo_number} {reason}.'
-    if reversed_to:
-        event_notes += f' Transaction reversed, bit returned to {reversed_to}.'
-    else:
-        event_notes += f' Bit remains at {bit.bit_location.name if bit.bit_location else "unknown"}.'
-
     BitEvent.objects.create(
         bit=bit,
         event_type=BitEvent.EventType.WO_CANCELLED,
         event_date=_tz.now(),
         location=bit.bit_location,
-        notes=event_notes,
+        notes=f'WO {wo_number} {reason}. Bit at {bit.bit_location.name if bit.bit_location else "unknown"}. Transfer pending confirmation.',
         performed_by=user,
     )
 
-    bit.save(update_fields=['status', 'bit_location', 'change_log', 'updated_at'])
-    return reversed_to
+    bit.save(update_fields=['status', 'change_log', 'updated_at'])
+
+    # Determine suggested destination for the notification link
+    suggested_dest = None
+    if release_event and release_event.from_location:
+        suggested_dest = release_event.from_location.code
+    elif plan_entry and plan_entry.notes:
+        m = re.search(r'\[prev_location:([\w-]+)\]', plan_entry.notes)
+        if m:
+            suggested_dest = m.group(1)
+
+    return suggested_dest
 
 
     # api_restore_plan_entry REMOVED — plan entry restoration now handled by

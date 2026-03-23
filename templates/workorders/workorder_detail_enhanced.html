@@ -1372,14 +1372,14 @@ function deleteWorkOrder(force) {
                 destination_id: ctx.modal.destinationId ? parseInt(ctx.modal.destinationId) : null,
                 return_to_planner: ctx.modal.planAction === 'planner',
             });
-            // Navigate to Location Transfers if bit was moved, else planner/bit detail
-            const bitId = d.bit_id;
-            if (ctx.modal.reverseTransaction && bitId) {
-                window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
+            // Navigate based on user's choices
+            if (ctx.modal.reverseTransaction && d.suggested_dest) {
+                // Go to Location Transfers with serial + destination pre-filled
+                window.location.href = '{% url "workorders:location_transfers" %}?serial={{ work_order.drill_bit.serial_number|default:"" }}&dest=' + d.suggested_dest;
             } else if (ctx.modal.planAction === 'planner') {
                 window.location.href = '{% url "workorders:production_planner" %}';
-            } else if (bitId) {
-                window.location.href = '/work-orders/drill-bits/enhanced/' + bitId + '/';
+            } else if (d.bit_id) {
+                window.location.href = '/work-orders/drill-bits/enhanced/' + d.bit_id + '/';
             } else {
                 window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
             }
