@@ -520,8 +520,10 @@ class DrillBit(models.Model):
 
     # Work Order statuses that indicate active/in-progress work
     ACTIVE_WO_STATUSES = [
-        'DRAFT', 'PLANNED', 'RELEASED', 'IN_PROGRESS',
-        'ON_HOLD', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED'
+        'PENDING', 'RELEASED', 'ACTIVE', 'IN_PROGRESS',
+        'ON_HOLD', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED',
+        # Legacy
+        'DRAFT', 'PLANNED',
     ]
 
     # Work Order statuses that indicate completed/finalized work
@@ -745,16 +747,19 @@ class WorkOrder(models.Model):
         OTHER = "OTHER", "Other"
 
     class Status(models.TextChoices):
-        DRAFT = "DRAFT", "Draft"
-        PLANNED = "PLANNED", "Planned"
-        RELEASED = "RELEASED", "Released"
-        IN_PROGRESS = "IN_PROGRESS", "In Progress"
+        PENDING = "PENDING", "Pending"              # WO created, waiting for physical transaction
+        RELEASED = "RELEASED", "Released"            # Physical transaction done, waiting for manager approval
+        ACTIVE = "ACTIVE", "Active"                  # Manager approved, production can start
+        IN_PROGRESS = "IN_PROGRESS", "In Progress"   # First step started
         ON_HOLD = "ON_HOLD", "On Hold"
         QC_PENDING = "QC_PENDING", "QC Pending"
         QC_PASSED = "QC_PASSED", "QC Passed"
         QC_FAILED = "QC_FAILED", "QC Failed"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
+        # Legacy (kept for existing data)
+        DRAFT = "DRAFT", "Draft"
+        PLANNED = "PLANNED", "Planned"
 
     class Priority(models.TextChoices):
         LOW = "LOW", "Low"
@@ -934,16 +939,19 @@ class WorkOrder(models.Model):
 
     # Status transition rules — forward flow with hold/cancel branches
     STATUS_TRANSITIONS = {
-        'DRAFT': ['PLANNED', 'RELEASED', 'CANCELLED'],
-        'PLANNED': ['RELEASED', 'ON_HOLD', 'CANCELLED'],
-        'RELEASED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
-        'IN_PROGRESS': ['QC_PENDING', 'ON_HOLD', 'CANCELLED'],
-        'ON_HOLD': ['PLANNED', 'RELEASED', 'IN_PROGRESS', 'CANCELLED'],
+        'PENDING': ['RELEASED', 'CANCELLED'],                    # WO created, waiting transaction
+        'RELEASED': ['ACTIVE', 'ON_HOLD', 'CANCELLED'],          # Transaction done, waiting approval
+        'ACTIVE': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],       # Approved, production can start
+        'IN_PROGRESS': ['QC_PENDING', 'ON_HOLD', 'CANCELLED'],   # First step started
+        'ON_HOLD': ['PENDING', 'RELEASED', 'ACTIVE', 'IN_PROGRESS', 'CANCELLED'],
         'QC_PENDING': ['QC_PASSED', 'QC_FAILED', 'ON_HOLD'],
         'QC_FAILED': ['IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
         'QC_PASSED': ['COMPLETED'],
         'COMPLETED': [],  # terminal
         'CANCELLED': [],  # terminal
+        # Legacy
+        'DRAFT': ['PLANNED', 'PENDING', 'RELEASED', 'CANCELLED'],
+        'PLANNED': ['PENDING', 'RELEASED', 'ON_HOLD', 'CANCELLED'],
     }
 
     class Meta:
@@ -4028,14 +4036,14 @@ class ProductionPlanEntry(models.Model):
             from django.utils import timezone
             wo_number = f"WO-{timezone.now().strftime('%Y%m%d%H%M%S')}"
 
-        # Create the work order with RELEASED status (ready to start)
+        # Create the work order with PENDING status (waiting for physical transaction)
         work_order = WorkOrder.objects.create(
             wo_number=wo_number,
             wo_type=wo_type,
             drill_bit=self.drill_bit,
             design=self.drill_bit.design,
             account=self.account or self.drill_bit.account,
-            status=WorkOrder.Status.RELEASED,
+            status=WorkOrder.Status.PENDING,
             priority=self.priority,
             planned_start=self.planned_date,
             created_by=user,

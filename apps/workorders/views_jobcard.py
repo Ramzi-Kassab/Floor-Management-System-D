@@ -1476,11 +1476,22 @@ def api_router_step_scan(request, wo_pk, step_number):
     if action == 'start':
         if entry.qr_scan_start:
             return JsonResponse({'error': 'Step already started', 'success': False})
+        # Check WO status — must be ACTIVE or IN_PROGRESS to start work
+        if wo.status not in (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+                             WorkOrder.Status.RELEASED):  # RELEASED allowed for legacy
+            return JsonResponse({
+                'error': f'Cannot start — WO status is "{wo.get_status_display()}". WO must be approved (Active) before starting work.',
+                'success': False
+            })
         entry.qr_scan_start = timezone.now()
         entry.operator = request.user
         entry.station_qr = station_qr
         entry.step_status = RouterSheetEntry.StepStatus.IN_PROGRESS
         entry.save()
+        # Auto-update WO status to IN_PROGRESS if it was ACTIVE
+        if wo.status in (WorkOrder.Status.ACTIVE, WorkOrder.Status.RELEASED):
+            wo.status = WorkOrder.Status.IN_PROGRESS
+            wo.save(update_fields=['status', 'updated_at'])
 
         return JsonResponse({
             'success': True,
@@ -2534,14 +2545,17 @@ def api_release_plan_entry(request):
                       current_loc.location_type == 'WIP'))
 
     if already_there:
-        # Bit is already at destination — create WO immediately, no pending
+        # Bit is already at destination — create WO (PENDING) then immediately RELEASED
         entry.status = ProductionPlanEntry.Status.RELEASED
         entry.save(update_fields=['status', 'updated_at'])
 
         try:
             wo, success, error_code, error_message = entry.create_work_order(user=request.user)
             if success:
-                bit.log_change('Plan Status', 'Planned', 'Released + WO Created', request.user)
+                # Transaction already done (bit at destination) → WO RELEASED
+                wo.status = WorkOrder.Status.RELEASED
+                wo.save(update_fields=['status', 'updated_at'])
+                bit.log_change('Plan Status', 'Planned', 'Released (bit already at destination)', request.user)
                 bit.save(update_fields=['change_log', 'updated_at'])
                 try:
                     from apps.notifications.services import notify
@@ -2574,9 +2588,15 @@ def api_release_plan_entry(request):
             return JsonResponse({'success': False, 'error': str(e)})
 
     else:
-        # Bit is NOT at destination — set PENDING_RELEASE, notify operator
+        # Bit is NOT at destination — create WO in PENDING + set PENDING_RELEASE
         entry.status = ProductionPlanEntry.Status.PENDING_RELEASE
         entry.save(update_fields=['status', 'updated_at'])
+
+        # Create WO now in PENDING so release paper can be printed with WO data
+        try:
+            wo, wo_success, _, wo_error = entry.create_work_order(user=request.user)
+        except Exception as e:
+            wo, wo_success, wo_error = None, False, str(e)
 
         bit.log_change('Plan Status', 'Planned', 'Pending Release', request.user)
         bit.save(update_fields=['change_log', 'updated_at'])
@@ -2600,7 +2620,8 @@ def api_release_plan_entry(request):
             'status': 'PENDING_RELEASE',
             'destination': dest_name,
             'serial': bit.serial_number,
-            'message': f'Release initiated for {bit.serial_number}.\n\nWaiting for physical transfer to {dest_name}.\nWO will be created automatically once the bit arrives.'
+            'wo_number': wo.wo_number if wo else '',
+            'message': f'Release initiated for {bit.serial_number}.\n\nWO {wo.wo_number if wo else "?"} created (Pending).\nWaiting for physical transfer to {dest_name}.\nAfter transfer → WO Released → Manager approval → Active.'
         })
 
 
@@ -2765,6 +2786,57 @@ def api_update_plan_due_date(request):
 # =============================================================================
 # PLANNER — Update Account (plan entry, drill bit, or WO)
 # =============================================================================
+
+@login_required
+@login_required
+def api_approve_work_order(request, pk):
+    """
+    Manager approval: changes WO from RELEASED to ACTIVE.
+    Production can start only after this approval.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    try:
+        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+    except WorkOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Work Order not found'})
+
+    if wo.status != WorkOrder.Status.RELEASED:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot approve — WO status is "{wo.get_status_display()}". Only Released WOs can be approved.'
+        })
+
+    wo.status = WorkOrder.Status.ACTIVE
+    wo.save(update_fields=['status', 'updated_at'])
+
+    # Log on bit
+    if wo.drill_bit:
+        wo.drill_bit.log_change('WO Status', 'Released', 'Active (approved)', request.user)
+        wo.drill_bit.save(update_fields=['change_log', 'updated_at'])
+
+    # Notify
+    try:
+        from apps.notifications.services import notify
+        notify(
+            actor=request.user,
+            verb=f"approved WO {wo.wo_number} —",
+            target=f"production can start for {wo.drill_bit.serial_number if wo.drill_bit else '?'}",
+            priority="HIGH",
+            action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+            entity_type="WorkOrder",
+            entity_id=wo.pk,
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'success': True,
+        'wo_number': wo.wo_number,
+        'message': f'WO {wo.wo_number} approved. Production can start.'
+    })
+
 
 @login_required
 def api_delete_work_order(request, pk):
@@ -3137,15 +3209,27 @@ def api_transfer_bit_location(request):
         # Check if bit arrived at the correct release destination
         expected_dest = bit.get_release_destination_code()
         if new_location.code == expected_dest or new_location.location_type == 'WIP':
-            # Bit arrived — create WO automatically
+            # Bit arrived at destination — WO already exists in PENDING, change to RELEASED
             pending_entry.status = ProductionPlanEntry.Status.RELEASED
             pending_entry.save(update_fields=['status', 'updated_at'])
 
             try:
-                wo, success, error_code, error_message = pending_entry.create_work_order(user=request.user)
-                if success:
-                    wo_created_msg = f' WO {wo.wo_number} auto-created!'
-                    bit.log_change('Plan Status', 'Pending Release', 'Released + WO Created', request.user)
+                # WO was already created in PENDING when planner initiated release
+                wo = pending_entry.work_order
+                if not wo:
+                    # Fallback: create WO if somehow not created yet
+                    wo, success, error_code, error_message = pending_entry.create_work_order(user=request.user)
+                    if not success:
+                        wo_created_msg = f' (WO creation failed: {error_message})'
+                        wo = None
+
+                if wo:
+                    # Transaction done → WO RELEASED (waiting manager approval to become ACTIVE)
+                    if wo.status == WorkOrder.Status.PENDING:
+                        wo.status = WorkOrder.Status.RELEASED
+                        wo.save(update_fields=['status', 'updated_at'])
+                    wo_created_msg = f' WO {wo.wo_number} released! Waiting for approval to start.'
+                    bit.log_change('Plan Status', 'Pending Release', 'Released (transaction done)', request.user)
                     bit.save(update_fields=['change_log', 'updated_at'])
                     # Notify planner
                     try:

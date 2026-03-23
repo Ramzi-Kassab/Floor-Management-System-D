@@ -72,6 +72,9 @@ urlpatterns = [
     path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
     path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
 
+    # WO Approval
+    path("api/approve-wo/<int:pk>/", views_jobcard.api_approve_work_order, name="api_approve_wo"),
+
     # Route Preview
     path("route-preview/", views_master_process.RoutePreviewView.as_view(), name="route_preview"),
     path("api/route-preview/", views_master_process.api_route_preview, name="api_route_preview"),
