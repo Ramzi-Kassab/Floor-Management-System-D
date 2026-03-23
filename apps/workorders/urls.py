@@ -53,7 +53,7 @@ urlpatterns = [
     path("api/release-plan-entry/", views_jobcard.api_release_plan_entry, name="api_release_plan_entry"),
     path("api/delete-wo/<int:pk>/", views_jobcard.api_delete_work_order, name="api_delete_wo"),
     path("api/delete-evaluation/<int:pk>/", views_jobcard.api_delete_evaluation, name="api_delete_evaluation"),
-    path("api/restore-plan-entry/<int:bit_pk>/", views_jobcard.api_restore_plan_entry, name="api_restore_plan_entry"),
+    # api_restore_plan_entry REMOVED — handled by _handle_plan_entry_after_delete()
     path("api/remove-from-plan/", views_jobcard.api_remove_from_plan, name="api_remove_from_plan"),
     path("api/update-plan-due-date/", views_jobcard.api_update_plan_due_date, name="api_update_plan_due_date"),
     path("api/update-plan-entry/", views_jobcard.api_update_plan_entry, name="api_update_plan_entry"),

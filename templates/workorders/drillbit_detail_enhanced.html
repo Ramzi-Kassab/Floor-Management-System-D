@@ -163,6 +163,41 @@
 
     <!-- Main Info -->
     <div class="space-y-6" :class="rightSidebarOpen ? 'lg:col-span-2' : 'lg:col-span-1'">
+
+        <!-- Production Status Bar -->
+        {% if active_wo or plan_entry %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="activity" class="w-5 h-5 text-blue-500"></i>
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Production Status</span>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    {% if plan_entry %}
+                    <a href="{% url 'workorders:production_planner' %}"
+                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800/50 hover:bg-orange-100 transition-colors">
+                        <i data-lucide="calendar-range" class="w-3 h-3"></i>
+                        In Planner: {{ plan_entry.get_status_display }}
+                    </a>
+                    {% endif %}
+                    {% if active_wo %}
+                    <a href="{% url 'workorders:workorder_detail_enhanced' active_wo.pk %}"
+                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                        {% if active_wo.status == 'IN_PROGRESS' %}bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800/50
+                        {% elif active_wo.status == 'ACTIVE' %}bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800/50
+                        {% elif active_wo.status == 'QC_PENDING' %}bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800/50
+                        {% elif active_wo.status == 'COMPLETED' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800/50
+                        {% else %}bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/50{% endif %}
+                        hover:opacity-90 transition-colors">
+                        <i data-lucide="file-text" class="w-3 h-3"></i>
+                        {{ active_wo.wo_number }} — {{ active_wo.get_status_display }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Bit Details -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Bit Details</h3>

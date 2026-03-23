@@ -396,6 +396,51 @@
                 <!-- ---- LEFT COLUMN (2/3) ---- -->
                 <div class="lg:col-span-2 space-y-5">
 
+                    <!-- Status Guidance Banner -->
+                    {% if work_order.status == 'PENDING' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700">
+                        <i data-lucide="info" class="w-5 h-5 text-slate-500 flex-shrink-0"></i>
+                        <div class="text-sm text-slate-700 dark:text-slate-300">
+                            <strong>Next:</strong> Print the <a href="{% url 'workorders:release_paper' work_order.pk %}" class="text-blue-600 dark:text-blue-400 underline">Release Paper</a>, then transfer the bit to the production area. Once transferred, click <strong>Mark as Released</strong>.
+                        </div>
+                    </div>
+                    {% elif work_order.status == 'RELEASED' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-blue-500 flex-shrink-0"></i>
+                        <div class="text-sm text-blue-700 dark:text-blue-300">
+                            <strong>Next:</strong> Waiting for manager approval. {% if request.user.is_staff %}Click <strong>Approve WO</strong> in Quick Actions to authorize production.{% else %}A manager needs to approve this WO before work can start.{% endif %}
+                        </div>
+                    </div>
+                    {% elif work_order.status == 'ACTIVE' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800/30">
+                        <i data-lucide="play" class="w-5 h-5 text-indigo-500 flex-shrink-0"></i>
+                        <div class="text-sm text-indigo-700 dark:text-indigo-300">
+                            <strong>Ready for production.</strong> Open the <a href="{% url 'workorders:router_sheet' work_order.pk %}" class="text-indigo-600 dark:text-indigo-400 underline font-medium">Router Sheet</a> to start the first step.
+                        </div>
+                    </div>
+                    {% elif work_order.status == 'QC_PENDING' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800/30">
+                        <i data-lucide="search" class="w-5 h-5 text-purple-500 flex-shrink-0"></i>
+                        <div class="text-sm text-purple-700 dark:text-purple-300">
+                            <strong>Sent to QC.</strong> {% if request.user.is_staff %}Review evaluations and click <strong>QC Passed</strong> or <strong>QC Failed</strong> in Quick Actions.{% else %}Waiting for QC evaluation.{% endif %}
+                        </div>
+                    </div>
+                    {% elif work_order.status == 'QC_FAILED' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30">
+                        <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+                        <div class="text-sm text-red-700 dark:text-red-300">
+                            <strong>QC Failed — rework needed.</strong> Click <strong>Start Rework</strong> in Quick Actions to resume production.
+                        </div>
+                    </div>
+                    {% elif work_order.status == 'ON_HOLD' %}
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30">
+                        <i data-lucide="pause-circle" class="w-5 h-5 text-amber-500 flex-shrink-0"></i>
+                        <div class="text-sm text-amber-700 dark:text-amber-300">
+                            <strong>On Hold.</strong> Click <strong>Resume Work</strong> in Quick Actions when ready to continue.
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- Current Activity -->
                     {% if router_entries %}
                     <div class="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl p-4 border border-green-200 dark:border-green-800/30">

@@ -1021,6 +1021,20 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             context["pocket_config_data_json"] = _json.dumps(config_data)
             context["config_total"] = sum(cfg.count for cfg in pocket_configs)
 
+        # ── Production status (planner + active WO) ──
+        plan_entry = ProductionPlanEntry.objects.filter(
+            drill_bit=bit
+        ).exclude(
+            status__in=[ProductionPlanEntry.Status.REMOVED, ProductionPlanEntry.Status.CANCELLED]
+        ).select_related('account').order_by('-created_at').first()
+        context["plan_entry"] = plan_entry
+
+        active_wo = WorkOrder.objects.filter(
+            drill_bit=bit,
+            status__in=['PENDING', 'RELEASED', 'ACTIVE', 'IN_PROGRESS', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED', 'ON_HOLD']
+        ).order_by('-created_at').first()
+        context["active_wo"] = active_wo
+
         return context
 
 
@@ -3552,19 +3566,8 @@ def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, 
     return reversed_to
 
 
-@login_required
-def api_restore_plan_entry(request, bit_pk):
-    """Restore a WO_CREATED plan entry back to PLANNED status for a given bit."""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
-    entry = ProductionPlanEntry.objects.filter(
-        drill_bit_id=bit_pk, status=ProductionPlanEntry.Status.WO_CREATED
-    ).first()
-    if not entry:
-        return JsonResponse({'success': False, 'error': 'No plan entry found to restore.'})
-    entry.status = ProductionPlanEntry.Status.PLANNED
-    entry.save(update_fields=['status', 'updated_at'])
-    return JsonResponse({'success': True, 'message': 'Bit returned to planner.'})
+    # api_restore_plan_entry REMOVED — plan entry restoration now handled by
+    # _handle_plan_entry_after_delete() in the WO deletion flow.
 
 
 @login_required
