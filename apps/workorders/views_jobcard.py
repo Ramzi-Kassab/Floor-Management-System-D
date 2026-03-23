@@ -1685,17 +1685,26 @@ def api_router_step_scan(request, wo_pk, step_number):
         total = RouterSheetEntry.objects.filter(work_order=wo).count()
         done = RouterSheetEntry.objects.filter(work_order=wo, is_complete=True).count()
         if total > 0 and done >= total:
-            # All steps done — move bit to Finished Goods
-            if wo.drill_bit:
-                wo.drill_bit.move_to('WH-FG', f'All router steps completed — WO {wo.wo_number}', request.user)
+            # All steps done — notify (no silent location move per rule)
+            bit = wo.drill_bit
+            serial = bit.serial_number if bit else '?'
+            # Determine suggested destination based on bit level
+            level = bit.level if bit else ''
+            if level in ('3', '4', '5.5'):
+                dest_code, dest_label = 'WH-COMP', 'Components Warehouse'
+            else:
+                dest_code, dest_label = 'WH-FG', 'Finished Goods Warehouse'
+            transfer_url = reverse('workorders:location_transfers') + f'?serial={serial}&dest={dest_code}' if bit else ''
+
             notify(
                 actor=request.user,
-                verb="completed all router steps for",
-                target=wo.wo_number,
+                title=f"All router steps completed — WO {wo.wo_number}",
+                message=f"Serial: {serial}\nAll {total} steps done.\nTransfer needed → {dest_label}",
                 priority="HIGH",
-                action_url=f"/workorders/{wo.pk}/router-sheet/",
+                action_url=transfer_url,
                 entity_type="WorkOrder",
                 entity_id=wo.pk,
+                verb="",
             )
 
         return JsonResponse({
