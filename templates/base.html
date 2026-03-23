@@ -316,6 +316,40 @@
             {% endif %}
         });
 
+        // Keep notification dropdown open across HTMX poll refreshes
+        // Before the swap: save the open state + scroll position + active tab
+        document.body.addEventListener('htmx:beforeSwap', function(evt) {
+            if (evt.detail.target && evt.detail.target.id === 'notification-bell-container') {
+                var container = evt.detail.target;
+                var wasOpen = container.getAttribute('data-bell-open') === 'true';
+                var activeTab = 'unread';
+                try {
+                    var tabBtn = container.querySelector('.border-blue-600');
+                    if (tabBtn && tabBtn.textContent.trim().startsWith('Recent')) activeTab = 'read';
+                } catch(e) {}
+                // Store on the container (survives the swap since target element persists)
+                container._bellWasOpen = wasOpen;
+                container._bellTab = activeTab;
+            }
+        });
+        // After the swap: restore the state on the new Alpine component
+        document.body.addEventListener('htmx:afterSwap', function _bellRestore(evt) {
+            if (evt.detail.target && evt.detail.target.id === 'notification-bell-container') {
+                var container = evt.detail.target;
+                if (container._bellWasOpen) {
+                    // Wait for Alpine to init the new component, then set bellOpen
+                    requestAnimationFrame(function() {
+                        var comp = container.querySelector('[x-data]');
+                        if (comp && comp._x_dataStack) {
+                            comp._x_dataStack[0].bellOpen = true;
+                            comp._x_dataStack[0].tab = container._bellTab || 'unread';
+                        }
+                        container._bellWasOpen = false;
+                    });
+                }
+            }
+        }, true);  // useCapture=true so it runs before the icon re-init handler
+
         // Re-initialize icons after HTMX swaps
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             lucide.createIcons();

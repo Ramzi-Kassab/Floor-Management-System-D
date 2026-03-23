@@ -651,6 +651,63 @@
                 {% endif %}
             </div>
 
+            <!-- Component Tracking -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4"
+                 x-data="{
+                    toggling: null,
+                    async toggleComponent(field) {
+                        this.toggling = field;
+                        try {
+                            const r = await fetch('{% url "workorders:api_toggle_bit_component" drill_bit.pk %}', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                                body: JSON.stringify({field: field})
+                            });
+                            const d = await r.json();
+                            if (d.success) { location.reload(); }
+                            else { alert(d.error || 'Failed'); }
+                        } catch(e) { alert('Error: ' + e.message); }
+                        this.toggling = null;
+                    }
+                 }">
+                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                    Components & Accessories
+                </h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {% with c=drill_bit %}
+                    {% comment %} Cerebro {% endcomment %}
+                    <button @click="toggleComponent('has_cerebro_installed')" :disabled="toggling"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all
+                        {% if c.has_cerebro_installed %}bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300{% else %}bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400{% endif %} hover:shadow-sm">
+                        <i data-lucide="{% if c.has_cerebro_installed %}check-circle{% else %}circle{% endif %}" class="w-4 h-4 {% if c.has_cerebro_installed %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}"></i>
+                        Cerebro
+                    </button>
+                    {% comment %} Nozzles {% endcomment %}
+                    <button @click="toggleComponent('has_nozzles_installed')" :disabled="toggling"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all
+                        {% if c.has_nozzles_installed %}bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300{% else %}bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400{% endif %} hover:shadow-sm">
+                        <i data-lucide="{% if c.has_nozzles_installed %}check-circle{% else %}circle{% endif %}" class="w-4 h-4 {% if c.has_nozzles_installed %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}"></i>
+                        Nozzles
+                    </button>
+                    {% comment %} Erosion Sleeve {% endcomment %}
+                    <button @click="toggleComponent('has_erosion_sleeve_installed')" :disabled="toggling"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all
+                        {% if c.has_erosion_sleeve_installed %}bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300{% else %}bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400{% endif %} hover:shadow-sm">
+                        <i data-lucide="{% if c.has_erosion_sleeve_installed %}check-circle{% else %}circle{% endif %}" class="w-4 h-4 {% if c.has_erosion_sleeve_installed %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}"></i>
+                        Erosion Sleeve
+                    </button>
+                    {% comment %} Painted {% endcomment %}
+                    <button @click="toggleComponent('is_painted')" :disabled="toggling"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all
+                        {% if c.is_painted %}bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300{% else %}bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400{% endif %} hover:shadow-sm">
+                        <i data-lucide="{% if c.is_painted %}check-circle{% else %}circle{% endif %}" class="w-4 h-4 {% if c.is_painted %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}"></i>
+                        Painted
+                    </button>
+                    {% endwith %}
+                </div>
+            </div>
+
             <!-- Pocket Layout (replicates design_pockets.html grid, read-only) -->
             {% if pocket_configs %}
             <div class="border-t border-gray-200 dark:border-gray-700 pt-4"

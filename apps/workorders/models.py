@@ -654,6 +654,9 @@ class BitEvent(models.Model):
         RELOCATION = "RELOCATION", "Relocation (Rig to Rig)"
         SCRAPPED = "SCRAPPED", "Scrapped"
         BODY_SAVED = "BODY_SAVED", "Body Saved"
+        RELEASED_TO_PROD = "RELEASED_TO_PROD", "Released to Production"
+        NOTE = "NOTE", "Note"
+        WO_CANCELLED = "WO_CANCELLED", "Work Order Cancelled"
 
     bit = models.ForeignKey(
         DrillBit,
@@ -3931,6 +3934,7 @@ class ProductionPlanEntry(models.Model):
         PENDING_RELEASE = "PENDING_RELEASE", "Pending Release"
         RELEASED = "RELEASED", "Released"
         WO_CREATED = "WO_CREATED", "WO Created"
+        CANCELLED = "CANCELLED", "Production Cancelled"
         REMOVED = "REMOVED", "Removed"
 
     class Priority(models.TextChoices):

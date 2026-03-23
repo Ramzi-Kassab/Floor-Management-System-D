@@ -682,6 +682,83 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         return sorted(instructions, key=lambda x: -x.priority)
 
 
+class ReleasePaperView(LoginRequiredMixin, DetailView):
+    """
+    Printable Release Paper for a Work Order.
+    Shows WO identification, bit details, route summary, component status, QR code.
+    """
+    model = WorkOrder
+    template_name = "workorders/release_paper.html"
+    context_object_name = "work_order"
+
+    def get_queryset(self):
+        return WorkOrder.objects.select_related(
+            "drill_bit__design__size", "drill_bit__design__hdbs_type_ref",
+            "drill_bit__design__smi_type_ref",
+            "drill_bit__brazing_bom", "drill_bit__system_bom",
+            "drill_bit__bit_location", "drill_bit__account",
+            "account", "design", "bom", "created_by", "approved_by",
+        ).prefetch_related("router_entries")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = self.object
+        bit = wo.drill_bit
+
+        context["page_title"] = f"Release Paper - {wo.wo_number}"
+
+        # QR codes
+        from apps.workorders.utils import generate_work_order_qr, generate_drill_bit_qr
+        base_url = getattr(settings, "SITE_URL", None)
+        context["qr_code"] = generate_work_order_qr(wo, base_url)
+        if bit:
+            context["bit_qr_code"] = generate_drill_bit_qr(bit, base_url)
+
+        # Router entries sorted
+        context["router_entries"] = wo.router_entries.order_by("step_number")
+
+        # Destination
+        if bit:
+            dest = bit.get_release_destination()
+            context["destination"] = dest.name if dest else "Evaluation Area"
+            context["current_location"] = bit.bit_location.name if bit.bit_location else "--"
+        else:
+            context["destination"] = "Evaluation Area"
+            context["current_location"] = "--"
+
+        # BOM summary
+        if bit:
+            active_bom = bit.brazing_bom or bit.system_bom or bit.bom
+            if active_bom and hasattr(active_bom, 'lines'):
+                context["bom_lines"] = active_bom.lines.select_related('item').order_by('id')[:20]
+            else:
+                context["bom_lines"] = []
+        else:
+            context["bom_lines"] = []
+
+        # Component status
+        if bit:
+            context["components"] = [
+                ("Cerebro Device", bit.has_cerebro_installed),
+                ("Nozzles", bit.has_nozzles_installed),
+                ("Erosion Sleeve", bit.has_erosion_sleeve_installed),
+                ("Painted", bit.is_painted),
+            ]
+        else:
+            context["components"] = []
+
+        # WO type display
+        context["wo_type_display"] = wo.get_wo_type_display() if wo.wo_type else "Unknown"
+
+        # Size display
+        if bit and bit.design and bit.design.size:
+            context["size_display"] = bit.design.size.size_display
+        else:
+            context["size_display"] = "--"
+
+        return context
+
+
 # =============================================================================
 # DRILL BIT LIFECYCLE VIEWS
 # =============================================================================
@@ -2440,8 +2517,14 @@ def api_add_to_plan(request):
         drill_bit.account = account
         update_fields += ['account', 'change_log']
 
-    # Save previous status on the plan entry so we can restore on cancel
-    entry.notes = (entry.notes or '') + (f'\n[prev_status:{drill_bit.status}]' if drill_bit.status else '')
+    # Save previous status AND location on the plan entry so we can restore on cancel/delete
+    loc_code = drill_bit.bit_location.code if drill_bit.bit_location else ''
+    meta = ''
+    if drill_bit.status:
+        meta += f'\n[prev_status:{drill_bit.status}]'
+    if loc_code:
+        meta += f'\n[prev_location:{loc_code}]'
+    entry.notes = (entry.notes or '') + meta
     entry.save(update_fields=['notes'])
 
     drill_bit.save(update_fields=update_fields)
@@ -2534,6 +2617,7 @@ def api_release_plan_entry(request):
         return JsonResponse({'success': False, 'error': 'No drill bit linked to this plan entry'})
 
     # Determine release destination
+    pre_release_loc = bit.bit_location  # snapshot before anything changes
     dest = bit.get_release_destination()
     dest_name = dest.name if dest else 'Production Floor'
     dest_code = bit.get_release_destination_code()
@@ -2545,16 +2629,31 @@ def api_release_plan_entry(request):
                       current_loc.location_type == 'WIP'))
 
     if already_there:
-        # Bit is already at destination — create WO (PENDING) then immediately RELEASED
+        # Bit is already at destination — create WO and set it to RELEASED immediately
         entry.status = ProductionPlanEntry.Status.RELEASED
         entry.save(update_fields=['status', 'updated_at'])
 
         try:
             wo, success, error_code, error_message = entry.create_work_order(user=request.user)
             if success:
-                # Transaction already done (bit at destination) → WO RELEASED
-                wo.status = WorkOrder.Status.RELEASED
-                wo.save(update_fields=['status', 'updated_at'])
+                # Force WO to RELEASED — bit is already at production area
+                WorkOrder.objects.filter(pk=wo.pk).update(status=WorkOrder.Status.RELEASED)
+                wo.refresh_from_db(fields=['status'])
+
+                # Create RELEASED_TO_PROD event — this is the audit record for reversal
+                from django.utils import timezone as _tz
+                BitEvent.objects.create(
+                    bit=bit,
+                    event_type=BitEvent.EventType.RELEASED_TO_PROD,
+                    event_date=_tz.now(),
+                    from_location=pre_release_loc,
+                    to_location=current_loc,
+                    location=current_loc,
+                    work_order=wo,
+                    notes=f'Released to production (already at {current_loc.name}). WO {wo.wo_number} created.',
+                    performed_by=request.user,
+                )
+
                 bit.log_change('Plan Status', 'Planned', 'Released (bit already at destination)', request.user)
                 bit.save(update_fields=['change_log', 'updated_at'])
                 try:
@@ -2576,7 +2675,7 @@ def api_release_plan_entry(request):
                     'wo_created': True,
                     'wo_number': wo.wo_number,
                     'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
-                    'message': f'Bit already at {current_loc.name}.\nWO {wo.wo_number} created immediately!'
+                    'message': f'Bit already at {current_loc.name}.\nWO {wo.wo_number} created and released!'
                 })
             else:
                 entry.status = ProductionPlanEntry.Status.PLANNED
@@ -2598,6 +2697,20 @@ def api_release_plan_entry(request):
         except Exception as e:
             wo, wo_success, wo_error = None, False, str(e)
 
+        # Create RELEASED_TO_PROD event — records pre-release location for reversal
+        from django.utils import timezone as _tz
+        BitEvent.objects.create(
+            bit=bit,
+            event_type=BitEvent.EventType.RELEASED_TO_PROD,
+            event_date=_tz.now(),
+            from_location=pre_release_loc,
+            to_location=dest,
+            location=pre_release_loc or dest,
+            work_order=wo,
+            notes=f'Released to production. WO {wo.wo_number if wo else "?"} created (Pending). Bit needs transfer to {dest_name}.',
+            performed_by=request.user,
+        )
+
         bit.log_change('Plan Status', 'Planned', 'Pending Release', request.user)
         bit.save(update_fields=['change_log', 'updated_at'])
 
@@ -2618,9 +2731,11 @@ def api_release_plan_entry(request):
         return JsonResponse({
             'success': True,
             'status': 'PENDING_RELEASE',
+            'wo_created': True,
             'destination': dest_name,
             'serial': bit.serial_number,
             'wo_number': wo.wo_number if wo else '',
+            'redirect_url': reverse('workorders:workorder_detail_enhanced', args=[wo.pk]) if wo else '',
             'message': f'Release initiated for {bit.serial_number}.\n\nWO {wo.wo_number if wo else "?"} created (Pending).\nWaiting for physical transfer to {dest_name}.\nAfter transfer → WO Released → Manager approval → Active.'
         })
 
@@ -2646,18 +2761,25 @@ def api_remove_from_plan(request):
     if entry.status == ProductionPlanEntry.Status.WO_CREATED:
         return JsonResponse({'success': False, 'error': 'Cannot remove - Work Order already created'})
 
-    # Restore previous status on the drill bit if we stored it
+    # Restore previous status AND location on the drill bit if we stored them
+    import re
     bit = entry.drill_bit
     if bit and entry.notes:
-        import re
+        # Restore status
         m = re.search(r'\[prev_status:(\w+)\]', entry.notes)
         if m:
-            prev_status = m.group(1)
-            # Validate the status is a real choice
             valid_statuses = [s.value for s in DrillBit.Status]
-            if prev_status in valid_statuses:
-                bit.status = prev_status
-                bit.save(update_fields=['status', 'updated_at'])
+            if m.group(1) in valid_statuses:
+                bit.status = m.group(1)
+
+        # Restore location
+        m = re.search(r'\[prev_location:([\w-]+)\]', entry.notes)
+        if m:
+            orig_loc = Location.objects.filter(code=m.group(1), is_active=True).first()
+            if orig_loc and (not bit.bit_location or bit.bit_location.pk != orig_loc.pk):
+                bit.bit_location = orig_loc
+
+        bit.save(update_fields=['status', 'bit_location', 'updated_at'])
 
     # Mark as removed (soft delete)
     entry.status = ProductionPlanEntry.Status.REMOVED
@@ -2788,11 +2910,54 @@ def api_update_plan_due_date(request):
 # =============================================================================
 
 @login_required
+def api_mark_wo_released(request, pk):
+    """Mark WO as Released (confirms physical transaction is done). PENDING → RELEASED."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+    except WorkOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Work Order not found'})
+
+    if wo.status != WorkOrder.Status.PENDING:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot mark as released — WO status is "{wo.get_status_display()}". Only Pending WOs can be released.'
+        })
+
+    wo.status = WorkOrder.Status.RELEASED
+    wo.save(update_fields=['status', 'updated_at'])
+
+    if wo.drill_bit:
+        wo.drill_bit.log_change('WO Status', 'Pending', 'Released (transaction confirmed)', request.user)
+        wo.drill_bit.save(update_fields=['change_log', 'updated_at'])
+
+    # Notify — manager needs to approve
+    try:
+        from apps.notifications.services import notify
+        serial = wo.drill_bit.serial_number if wo.drill_bit else '?'
+        notify(
+            actor=request.user,
+            verb=f"confirmed transaction for WO {wo.wo_number} —",
+            target=f"{serial} ready for approval",
+            priority="HIGH",
+            action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+            entity_type="WorkOrder", entity_id=wo.pk,
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'success': True,
+        'message': f'WO {wo.wo_number} marked as Released. Waiting for manager approval.'
+    })
+
+
 @login_required
 def api_approve_work_order(request, pk):
     """
-    Manager approval: changes WO from RELEASED to ACTIVE.
-    Production can start only after this approval.
+    Manager approval: changes WO from RELEASED (or PENDING) to ACTIVE.
+    PENDING → ACTIVE skips the Released step (manager confirms transaction + approves in one action).
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
@@ -2802,18 +2967,22 @@ def api_approve_work_order(request, pk):
     except WorkOrder.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Work Order not found'})
 
-    if wo.status != WorkOrder.Status.RELEASED:
+    if wo.status not in (WorkOrder.Status.RELEASED, WorkOrder.Status.PENDING):
         return JsonResponse({
             'success': False,
-            'error': f'Cannot approve — WO status is "{wo.get_status_display()}". Only Released WOs can be approved.'
+            'error': f'Cannot approve — WO status is "{wo.get_status_display()}". Only Pending or Released WOs can be approved.'
         })
 
+    old_status = wo.get_status_display()
+    from django.utils import timezone as _tz
     wo.status = WorkOrder.Status.ACTIVE
-    wo.save(update_fields=['status', 'updated_at'])
+    wo.approved_by = request.user
+    wo.approved_at = _tz.now()
+    wo.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
 
     # Log on bit
     if wo.drill_bit:
-        wo.drill_bit.log_change('WO Status', 'Released', 'Active (approved)', request.user)
+        wo.drill_bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
         wo.drill_bit.save(update_fields=['change_log', 'updated_at'])
 
     # Notify
@@ -2839,154 +3008,369 @@ def api_approve_work_order(request, pk):
 
 
 @login_required
+def api_toggle_bit_component(request, pk):
+    """Toggle a component boolean field on a DrillBit (Cerebro, nozzles, erosion sleeve, painted)."""
+    import json as _json
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        data = _json.loads(request.body)
+    except _json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    ALLOWED = {
+        'has_cerebro_installed': 'Cerebro Device',
+        'has_nozzles_installed': 'Nozzles',
+        'has_erosion_sleeve_installed': 'Erosion Sleeve',
+        'is_painted': 'Painted',
+    }
+    field = data.get('field')
+    if field not in ALLOWED:
+        return JsonResponse({'success': False, 'error': f'Invalid field: {field}'}, status=400)
+
+    try:
+        bit = DrillBit.objects.get(pk=pk)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    old_val = getattr(bit, field)
+    new_val = not old_val
+    setattr(bit, field, new_val)
+    bit.log_change(ALLOWED[field], str(old_val), str(new_val), request.user)
+    bit.save(update_fields=[field, 'change_log', 'updated_at'])
+
+    return JsonResponse({
+        'success': True,
+        'field': field,
+        'value': new_val,
+        'label': ALLOWED[field],
+        'message': f'{ALLOWED[field]} {"installed" if new_val else "removed"}'
+    })
+
+
+@login_required
 def api_delete_work_order(request, pk):
     """
-    Delete a Work Order only if nothing has been done on it.
-    Checks: status must be DRAFT/PLANNED/RELEASED, no started router steps,
-    no completed evaluations, no LPT/Thread reports.
+    Delete a Work Order with options for transaction reversal and planner status.
+
+    POST body (JSON):
+        force:              bool — admin force delete (bypasses checks)
+        reverse_transaction: bool — move bit back to pre-release location
+        return_to_planner:  bool — return plan entry to PLANNED (else mark CANCELLED)
+
+    The function:
+    1. Validates deletability (status, no started steps, no completed evals)
+    2. Deletes WO + related draft data
+    3. Optionally reverses the physical transaction (bit back to previous location)
+    4. Updates plan entry: PLANNED (re-plannable) or CANCELLED (production cancelled)
+    5. Creates audit trail: BitEvent, change_log, notification
     """
+    import json as _json
+    from django.utils import timezone as _tz
+    from apps.workorders.models import BitEvent
+
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
 
     try:
-        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+        data = _json.loads(request.body) if request.body else {}
+    except _json.JSONDecodeError:
+        data = {}
+
+    try:
+        wo = WorkOrder.objects.select_related('drill_bit', 'drill_bit__bit_location', 'account').get(pk=pk)
     except WorkOrder.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Work Order not found'})
 
-    # Admin force delete — bypasses all checks
-    force = request.GET.get('force') == '1' or request.POST.get('force') == '1'
+    force = data.get('force', False) or request.GET.get('force') == '1'
+    reverse_transaction = data.get('reverse_transaction', False)
+    return_to_planner = data.get('return_to_planner', False)
+
+    # ── ADMIN FORCE DELETE ──
     if force:
         if not request.user.is_superuser:
             return JsonResponse({'success': False, 'error': 'Force delete requires admin privileges.'})
         wo_number = wo.wo_number
         bit = wo.drill_bit
         bit_id = bit.pk if bit else None
-        account = wo.account
-        # Delete all related data
         wo.cutter_evaluations.all().delete()
         wo.router_entries.all().delete()
-        wo.standalone_lpt_reports.all().delete()
-        wo.standalone_thread_reports.all().delete()
+        try:
+            wo.standalone_lpt_reports.all().delete()
+            wo.standalone_thread_reports.all().delete()
+        except Exception:
+            pass
+        # Capture release event before deletion (SET_NULL clears FK)
+        force_release_event = None
+        if bit and reverse_transaction:
+            force_release_event = BitEvent.objects.filter(
+                bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD, work_order=wo
+            ).first() or BitEvent.objects.filter(
+                bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD
+            ).order_by('-event_date').first()
         wo.delete()
         if bit:
-            from apps.workorders.models import BitEvent
-            old_status = bit.get_status_display()
-            bit.log_change('Status', old_status, 'Received', request.user)
-            bit.status = DrillBit.Status.RECEIVED
-            bit.save(update_fields=['status', 'change_log', 'updated_at'])
-            from django.utils import timezone as _tz
-            if bit.current_location:
-                BitEvent.objects.create(
-                    bit=bit, event_type=BitEvent.EventType.TRANSFER,
-                    event_date=_tz.now(),
-                    notes=f'WO {wo_number} force-deleted by admin (was {old_status}).',
-                    performed_by=request.user, location=bit.current_location,
-                )
-            has_plan = ProductionPlanEntry.objects.filter(
-                drill_bit=bit, status=ProductionPlanEntry.Status.WO_CREATED
-            ).exists()
-        else:
-            has_plan = False
-        return JsonResponse({'success': True, 'wo_number': wo_number, 'bit_id': bit_id, 'has_plan_entry': has_plan, 'message': f'Work Order {wo_number} force-deleted.'})
+            _handle_bit_after_delete(bit, wo_number, 'force-deleted by admin', reverse_transaction, request.user, release_event=force_release_event)
+        plan_entry = _get_plan_entry_for_bit(bit)
+        if plan_entry:
+            _handle_plan_entry_after_delete(plan_entry, return_to_planner, wo_number, request.user)
+        return JsonResponse({
+            'success': True, 'wo_number': wo_number, 'bit_id': bit_id,
+            'message': f'Work Order {wo_number} force-deleted.'
+        })
 
-    # Check status — only deletable in early stages
-    deletable_statuses = [WorkOrder.Status.DRAFT, WorkOrder.Status.PLANNED, WorkOrder.Status.RELEASED]
+    # ── NORMAL DELETE — validation ──
+    deletable_statuses = [
+        WorkOrder.Status.DRAFT, WorkOrder.Status.PLANNED,
+        WorkOrder.Status.PENDING, WorkOrder.Status.RELEASED, WorkOrder.Status.ACTIVE
+    ]
     if wo.status not in deletable_statuses:
         return JsonResponse({
             'success': False,
-            'error': f'Cannot delete — WO status is "{wo.get_status_display()}". Only Draft, Planned, or Released WOs can be deleted.'
+            'error': f'Cannot delete — WO status is "{wo.get_status_display()}". Only Pending, Released, or Active WOs can be deleted.'
         })
 
-    # Check router steps — any started?
     started_steps = wo.router_entries.filter(qr_scan_start__isnull=False).count()
     if started_steps > 0:
-        return JsonResponse({
-            'success': False,
-            'error': f'Cannot delete — {started_steps} router step(s) have been started.'
-        })
+        return JsonResponse({'success': False, 'error': f'Cannot delete — {started_steps} router step(s) have been started.'})
 
-    # Check evaluations — any completed or approved?
     completed_evals = wo.cutter_evaluations.filter(is_complete=True).count()
     if completed_evals > 0:
-        return JsonResponse({
-            'success': False,
-            'error': f'Cannot delete — {completed_evals} evaluation(s) have been completed. Delete them first.'
-        })
+        return JsonResponse({'success': False, 'error': f'Cannot delete — {completed_evals} evaluation(s) completed. Delete them first.'})
 
-    # Check LPT reports
-    lpt_count = wo.standalone_lpt_reports.count()
-    if lpt_count > 0:
-        return JsonResponse({
-            'success': False,
-            'error': f'Cannot delete — {lpt_count} LPT report(s) exist. Delete them first.'
-        })
+    try:
+        if wo.standalone_lpt_reports.exists():
+            return JsonResponse({'success': False, 'error': 'Cannot delete — LPT report(s) exist. Delete them first.'})
+        if wo.standalone_thread_reports.exists():
+            return JsonResponse({'success': False, 'error': 'Cannot delete — Thread inspection(s) exist. Delete them first.'})
+    except Exception:
+        pass
 
-    # Check thread inspections
-    thread_count = wo.standalone_thread_reports.count()
-    if thread_count > 0:
-        return JsonResponse({
-            'success': False,
-            'error': f'Cannot delete — {thread_count} thread inspection(s) exist. Delete them first.'
-        })
-
-    # Safe to delete — clean up related data
+    # ── SAFE TO DELETE ──
     wo_number = wo.wo_number
+    wo_status_was = wo.get_status_display()
     bit = wo.drill_bit
+    bit_id = bit.pk if bit else None
 
-    # Delete draft/pending evaluations (not completed)
+    # Clean up related data
     wo.cutter_evaluations.filter(is_complete=False).delete()
-
-    # Delete empty router entries (not started)
     wo.router_entries.filter(qr_scan_start__isnull=True).delete()
 
-    # Remember info before deleting
-    account = wo.account
-    bit_id = bit.pk if bit else None
+    # Capture data BEFORE WO deletion (SET_NULL will clear work_order FKs)
+    release_event = None
+    if bit and reverse_transaction:
+        release_event = BitEvent.objects.filter(
+            bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD, work_order=wo
+        ).first()
+        if not release_event:
+            release_event = BitEvent.objects.filter(
+                bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD
+            ).order_by('-event_date').first()
+
+    # Capture plan entry linked to this WO BEFORE deletion
+    plan_entry = ProductionPlanEntry.objects.filter(work_order=wo).first() if bit else None
+    if not plan_entry and bit:
+        plan_entry = _get_plan_entry_for_bit(bit)
 
     # Delete the WO
     wo.delete()
 
-    # Restore drill bit + log event
+    # Handle bit status + location reversal
+    result_msg = f'Work Order {wo_number} deleted (was {wo_status_was}).'
+    reversed_to = None
     if bit:
-        from apps.workorders.models import BitEvent
-        old_status = bit.get_status_display()
-        old_location = bit.current_location
+        reversed_to = _handle_bit_after_delete(bit, wo_number, f'deleted (was {wo_status_was})', reverse_transaction, request.user, release_event=release_event)
+        if reversed_to:
+            result_msg += f' Bit moved back to {reversed_to}.'
 
-        # Restore status — don't force a specific location
-        if bit.status in ('IN_PRODUCTION', 'IN_REPAIR'):
-            bit.log_change('Status', old_status, 'Received', request.user)
-            bit.status = DrillBit.Status.RECEIVED
-            bit.save(update_fields=['status', 'change_log', 'updated_at'])
+    # Handle plan entry
+    plan_msg = ''
+    if plan_entry:
+        _handle_plan_entry_after_delete(plan_entry, return_to_planner, wo_number, request.user)
+        if return_to_planner:
+            plan_msg = ' Returned to planner as Planned.'
+        else:
+            plan_msg = ' Plan entry marked as Production Cancelled.'
+        result_msg += plan_msg
 
-        # Log the event with current location info
-        from django.utils import timezone as _tz
-        if old_location:
-            BitEvent.objects.create(
-                bit=bit,
-                event_type=BitEvent.EventType.TRANSFER,
-                event_date=_tz.now(),
-                notes=f'WO {wo_number} deleted (was {old_status}). Bit remains at current location.',
-                performed_by=request.user,
-                location=old_location,
-            )
+    # Notification with full details
+    try:
+        from apps.notifications.services import notify
+        serial = bit.serial_number if bit else '?'
+        notif_title = f"WO {wo_number} deleted for {serial}"
+        notif_lines = [f"Work Order {wo_number} (was {wo_status_was}) has been deleted."]
+        notif_lines.append(f"Serial: {serial}")
+        if reversed_to:
+            notif_lines.append(f"Transaction reversed — bit moved back to {reversed_to}.")
+        else:
+            cur = bit.bit_location.name if bit and bit.bit_location else 'unknown'
+            notif_lines.append(f"Bit remains at {cur}.")
+        if return_to_planner:
+            notif_lines.append("Returned to planner as Planned — can be re-released.")
+        else:
+            notif_lines.append("Plan entry marked as Production Cancelled.")
+        notif_message = '\n'.join(notif_lines)
 
-        # Check if plan entry exists — don't restore yet, let user decide
-        has_plan = ProductionPlanEntry.objects.filter(
-            drill_bit=bit, status=ProductionPlanEntry.Status.WO_CREATED
-        ).exists()
-    else:
-        has_plan = False
+        # Action URL: link to the most relevant page for the recipient
+        if return_to_planner:
+            notif_url = reverse('workorders:production_planner')
+        elif bit:
+            notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
+        else:
+            notif_url = reverse('workorders:workorder_list_enhanced')
+
+        notify(
+            actor=request.user,
+            title=notif_title,
+            message=notif_message,
+            priority="HIGH",
+            action_url=notif_url,
+            entity_type="DrillBit",
+            entity_id=bit.pk if bit else 0,
+            verb="",  # not used when title/message provided
+        )
+    except Exception:
+        pass
 
     return JsonResponse({
         'success': True,
         'wo_number': wo_number,
         'bit_id': bit_id,
-        'has_plan_entry': has_plan,
-        'message': f'Work Order {wo_number} deleted.'
+        'reversed_to': reversed_to,
+        'message': result_msg,
     })
 
 
-@login_required
+def _get_plan_entry_for_bit(bit):
+    """Find the plan entry linked to this bit that had a WO created."""
+    if not bit:
+        return None
+    return ProductionPlanEntry.objects.filter(
+        drill_bit=bit,
+        status__in=[ProductionPlanEntry.Status.WO_CREATED,
+                     ProductionPlanEntry.Status.RELEASED,
+                     ProductionPlanEntry.Status.PENDING_RELEASE]
+    ).first()
+
+
+def _handle_plan_entry_after_delete(entry, return_to_planner, wo_number, user):
+    """
+    After WO deletion, update the plan entry:
+    - return_to_planner=True  → status=PLANNED (re-plannable, bit goes back to planner)
+    - return_to_planner=False → status=CANCELLED (production cancelled, visible in audit)
+    """
+    from django.utils import timezone as _tz
+    if return_to_planner:
+        entry.status = ProductionPlanEntry.Status.PLANNED
+        entry.work_order = None
+        cancel_note = f'[{_tz.now():%Y-%m-%d %H:%M}] WO {wo_number} deleted, returned to planner by {user.get_full_name() or user.username}'
+    else:
+        entry.status = ProductionPlanEntry.Status.CANCELLED
+        cancel_note = f'[{_tz.now():%Y-%m-%d %H:%M}] WO {wo_number} deleted, production cancelled by {user.get_full_name() or user.username}'
+    entry.notes = ((entry.notes or '') + '\n' + cancel_note).strip()
+    entry.save(update_fields=['status', 'work_order', 'notes', 'updated_at'] if return_to_planner
+               else ['status', 'notes', 'updated_at'])
+
+
+def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, release_event=None):
+    """
+    After WO deletion:
+    - Restore bit status from plan entry [prev_status:X]
+    - If reverse_transaction: use the RELEASED_TO_PROD BitEvent's from_location
+      to move the bit back to its pre-release location
+    - Create WO_CANCELLED BitEvent for audit trail
+
+    Args:
+        release_event: Pre-fetched RELEASED_TO_PROD BitEvent (must be fetched BEFORE WO deletion
+                       because SET_NULL clears the work_order FK on delete)
+
+    Returns: name of location bit was moved to (or None)
+    """
+    import re
+    from django.utils import timezone as _tz
+    from apps.workorders.models import BitEvent
+
+    old_status_display = bit.get_status_display()
+
+    # Find plan entry for status restoration
+    plan_entry = ProductionPlanEntry.objects.filter(
+        drill_bit=bit,
+        status__in=[ProductionPlanEntry.Status.WO_CREATED,
+                     ProductionPlanEntry.Status.RELEASED,
+                     ProductionPlanEntry.Status.PENDING_RELEASE]
+    ).first()
+
+    # ── Restore status from plan entry notes ──
+    restored_status = None
+    if plan_entry and plan_entry.notes:
+        m = re.search(r'\[prev_status:(\w+)\]', plan_entry.notes)
+        if m:
+            valid = [s.value for s in DrillBit.Status]
+            if m.group(1) in valid:
+                restored_status = m.group(1)
+    if not restored_status:
+        if bit.status in ('IN_PRODUCTION', 'IN_REPAIR'):
+            restored_status = DrillBit.Status.IN_EVALUATION
+        else:
+            restored_status = bit.status
+
+    # ── Restore location from RELEASED_TO_PROD BitEvent ──
+    reversed_to = None
+    if reverse_transaction:
+        original_location = release_event.from_location if release_event else None
+
+        # Fallback: [prev_location:CODE] from plan entry notes (for releases before this fix)
+        if not original_location and plan_entry and plan_entry.notes:
+            m = re.search(r'\[prev_location:([\w-]+)\]', plan_entry.notes)
+            if m:
+                original_location = Location.objects.filter(code=m.group(1), is_active=True).first()
+
+        if original_location:
+            current_loc = bit.bit_location
+            if not current_loc or current_loc.pk != original_location.pk:
+                bit.bit_location = original_location
+                bit.log_change('Location',
+                               str(current_loc) if current_loc else '—',
+                               str(original_location), user)
+                reversed_to = original_location.name
+
+                BitEvent.objects.create(
+                    bit=bit,
+                    event_type=BitEvent.EventType.TRANSFER,
+                    event_date=_tz.now(),
+                    from_location=current_loc,
+                    to_location=original_location,
+                    location=original_location,
+                    notes=f'Transaction reversed: WO {wo_number} {reason}. Bit returned to {original_location.name}.',
+                    performed_by=user,
+                )
+
+    # ── Update status ──
+    if restored_status != bit.status:
+        bit.log_change('Status', old_status_display,
+                        dict(DrillBit.Status.choices).get(restored_status, restored_status), user)
+        bit.status = restored_status
+
+    # ── Audit event ──
+    event_notes = f'WO {wo_number} {reason}.'
+    if reversed_to:
+        event_notes += f' Transaction reversed, bit returned to {reversed_to}.'
+    else:
+        event_notes += f' Bit remains at {bit.bit_location.name if bit.bit_location else "unknown"}.'
+
+    BitEvent.objects.create(
+        bit=bit,
+        event_type=BitEvent.EventType.WO_CANCELLED,
+        event_date=_tz.now(),
+        location=bit.bit_location,
+        notes=event_notes,
+        performed_by=user,
+    )
+
+    bit.save(update_fields=['status', 'bit_location', 'change_log', 'updated_at'])
+    return reversed_to
+
+
 @login_required
 def api_restore_plan_entry(request, bit_pk):
     """Restore a WO_CREATED plan entry back to PLANNED status for a given bit."""
@@ -3691,6 +4075,14 @@ def api_bit_timeline(request, bit_pk):
                 'detail': '', 'status': 'Released',
                 'who': '', 'where': '',
                 'url': reverse('workorders:production_planner'),
+            })
+        elif pe.status == ProductionPlanEntry.Status.CANCELLED:
+            events.append({
+                'date': pe.updated_at.isoformat(),
+                'type': 'plan',
+                'action': 'Production Cancelled',
+                'detail': '', 'status': 'Cancelled',
+                'who': '', 'where': '', 'url': '',
             })
         elif pe.status == ProductionPlanEntry.Status.REMOVED:
             events.append({

@@ -1850,6 +1850,66 @@ Items noted for future enhancement. These are not bugs — they are improvements
 - **API: `api_assign_bit_bom`** (`apps/workorders/views_jobcard.py`): POST endpoint to assign BOM to drill bit. Supports `field` parameter: 'brazing', 'system', or 'bom'. Validates BOM belongs to the same design. Returns bom_code, system_mat, status.
 - **Key URLs Added**: `/workorders/api/assign-bit-bom/` (POST).
 
+### Recent Enhancements (Mar 23, 2026) — WO Lifecycle, Release Paper, Location Tracking Overhaul
+
+#### WO Lifecycle: Full PENDING → RELEASED → ACTIVE → IN_PROGRESS Flow
+- **6-Step Stepper** on WO detail page: Pending → Released → Active → Progress → QC → Complete. Replaces old 5-step stepper. Each step color-coded (done=green, active=blue, pending=gray, hold=amber, cancelled=red).
+- **PENDING Status**: WO created from planner, waiting for physical transaction. Shows "Mark as Released" (blue) and "Approve WO (skip to Active)" (indigo) buttons in Quick Actions.
+- **RELEASED Status**: Physical transaction confirmed. Shows "Approve WO" button. Approved_by + approved_at shown in Account & Dates card.
+- **ACTIVE Status**: Manager approved. Production can start. First router step start auto-transitions to IN_PROGRESS.
+- **`api_mark_wo_released`** (POST `/work-orders/api/mark-wo-released/<pk>/`): PENDING → RELEASED. Sends HIGH notification for manager approval.
+- **`api_approve_work_order`** updated: Now accepts both PENDING and RELEASED. PENDING → ACTIVE skips Released step. Saves `approved_by`, `approved_at`.
+- **Status badges**: PENDING=slate, ACTIVE=indigo added to badge color map.
+
+#### Release Paper Page
+- **`ReleasePaperView`** at `/work-orders/enhanced/<pk>/release-paper/`. Printable document with QR code, bit identification (serial, design, size, type, BOMs), route summary (all router steps with category/QC/status), BOM summary, component status, workflow notes, and signature boxes.
+- **Print layout**: A4 with ARDT header table, formal document format, signature areas for Released By / Received By.
+- **Indigo "Release" button** in WO detail header links to release paper.
+
+#### WO Deletion with Transaction Reversal
+- **3-step confirmation dialog**: (1) Confirm delete, (2) Reverse physical transaction? (Yes=move bit back, No=stays), (3) Return to planner? (Yes=Planned, No=Production Cancelled).
+- **`ProductionPlanEntry.Status.CANCELLED`**: New status "Production Cancelled" — visible in audit/timeline but not in active planner.
+- **`BitEvent.EventType.WO_CANCELLED`**: Audit event created on every WO deletion with full context.
+- **`BitEvent.EventType.RELEASED_TO_PROD`**: Created at release time, records `from_location` (pre-release) and `to_location` (destination). Linked to WO via `work_order` FK. Used for accurate transaction reversal.
+- **Transaction reversal**: Finds `RELEASED_TO_PROD` event linked to the specific WO (captured BEFORE deletion since `SET_NULL` clears FK), reads `from_location`, moves bit back. Fallback: `[prev_location:CODE]` from plan entry notes.
+- **Plan entry notes**: `[prev_status:STATUS]` and `[prev_location:CODE]` saved at add-to-plan time. `[pre_release_location:CODE]` saved at release time. Used as fallback for status/location restoration.
+- **Notification**: Full multi-line message with WO number, serial, reversal details, and action link (planner if returned, drill bit detail otherwise).
+
+#### Location Tracking Architecture
+- **Single source of truth**: `DrillBit.bit_location` (FK to `workorders.Location`). `DrillBit.current_location` (FK to `sales.Warehouse`) is legacy/unused.
+- **BitEvent audit trail**: Every location change creates a BitEvent with `from_location` and `to_location`. RELEASED_TO_PROD events additionally link to the WO for precise reversal.
+- **Location snapshots**: Pre-release location captured in both BitEvent (`RELEASED_TO_PROD.from_location`) and plan entry notes (`[pre_release_location:CODE]`). BitEvent is the primary source; notes are fallback.
+- **Transfer flow**: Location only changes in system when operator confirms transfer via Location Transfers page (`api_transfer_bit_location`). Release notification is a request — bit stays put until transfer is confirmed.
+- **Reversal priority**: (1) `RELEASED_TO_PROD` BitEvent linked to WO → `from_location`, (2) `[prev_location:CODE]` from plan entry notes, (3) Don't move (safe default).
+
+#### Drill Bit Component Tracking
+- **4 toggle buttons** on drill bit detail page: Cerebro, Nozzles, Erosion Sleeve, Painted. Green when installed, gray when not.
+- **`api_toggle_bit_component`** (POST `/work-orders/api/drill-bits/<pk>/toggle-component/`): Toggles boolean field, logs to `change_log`.
+
+#### Notification Bell Improvements
+- **Dropdown stays open during HTMX polling**: `htmx:beforeSwap` saves Alpine state (`bellOpen`, active tab), `htmx:afterSwap` restores it via `_x_dataStack`. New notifications appear live without closing dropdown.
+- **Full message display**: Removed `truncate` class. Shows `message` field below title when different from title (multi-line with `whitespace-pre-line`). "Open" link to action URL.
+- **Wider dropdown**: `w-[28rem]` (448px), taller scroll: `max-h-[28rem]`.
+
+#### Known Gaps (Documented for Future Fix)
+- **Gap: `current_location` (Warehouse FK) stale**: Never updated. Should be deprecated. All code uses `bit_location`.
+- **Gap: No location validation before step start**: Router step can start even if bit isn't physically at production location.
+- **Gap: WO status transitions missing BitEvents**: `mark_released` and `approve` update change_log but don't create BitEvents (only change_log). Consider adding WO_RELEASED / WO_APPROVED event types.
+- **Gap: Timeline missing mid-workflow events**: PENDING→RELEASED and RELEASED→ACTIVE transitions not shown in `api_bit_timeline`. Only creation and final status visible.
+
+#### Key Files Modified
+- `apps/workorders/models.py`: Added `RELEASED_TO_PROD`, `NOTE`, `WO_CANCELLED` to `BitEvent.EventType`. Added `CANCELLED` to `ProductionPlanEntry.Status`. Component fields already existed.
+- `apps/workorders/views_jobcard.py`: `ReleasePaperView`, `api_mark_wo_released`, `api_toggle_bit_component`, rewritten `api_delete_work_order` with `_handle_bit_after_delete`/`_handle_plan_entry_after_delete`/`_get_plan_entry_for_bit` helpers.
+- `apps/workorders/urls.py`: Added `release_paper`, `api_mark_wo_released`, `api_toggle_bit_component` URL patterns.
+- `templates/workorders/workorder_detail_enhanced.html`: 6-step stepper, approval/release buttons, approve JS.
+- `templates/workorders/release_paper.html`: NEW — printable release paper.
+- `templates/workorders/drillbit_detail_enhanced.html`: Component tracking section.
+- `templates/workorders/production_planner.html`: Clearer release confirm messages.
+- `templates/notifications/partials/bell_fragment.html`: Full message display, wider dropdown.
+- `templates/includes/topnav.html`: Unchanged (HTMX polling preserved).
+- `templates/base.html`: HTMX beforeSwap/afterSwap handlers for bell state persistence.
+- Migrations: `0059` (CANCELLED status + WO_CANCELLED event type), `0060` (RELEASED_TO_PROD event type).
+
 ## Need Help?
 
 1. **Check this file first** for patterns and conventions

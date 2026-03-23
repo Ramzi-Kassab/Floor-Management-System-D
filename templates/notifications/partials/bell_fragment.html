@@ -2,7 +2,9 @@
 {# HTMX-swapped bell fragment — self-contained Alpine.js component #}
 <div x-data="{ bellOpen: false, tab: 'unread' }" class="relative"
      data-unread-count="{{ unread_count }}"
-     data-latest-id="{{ latest_id|default:'' }}">
+     data-latest-id="{{ latest_id|default:'' }}"
+     x-effect="$el.closest('#notification-bell-container').setAttribute('data-bell-open', bellOpen)"
+>
 
     {# Bell button #}
     <button @click="bellOpen = !bellOpen"
@@ -26,7 +28,7 @@
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 translate-y-1"
          @click.outside="bellOpen = false"
-         class="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl
+         class="absolute right-0 mt-2 w-[28rem] bg-white dark:bg-gray-800 rounded-lg shadow-xl
                 border border-gray-200 dark:border-gray-700 z-[9999] overflow-hidden">
 
         {# Header with tabs #}
@@ -53,7 +55,7 @@
         </div>
 
         {# Unread tab #}
-        <div x-show="tab==='unread'" class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+        <div x-show="tab==='unread'" class="max-h-[28rem] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
             {% if recent_notifications %}
                 {% for n in recent_notifications %}
                 <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -76,15 +78,24 @@
                     <div class="flex-1 min-w-0">
                         {% if n.action_url %}
                         <a href="{% url 'notifications:notification_read' pk=n.pk %}"
-                           class="text-sm text-gray-900 dark:text-white font-medium hover:text-blue-600 dark:hover:text-blue-400 block truncate">
+                           class="text-sm text-gray-900 dark:text-white font-medium hover:text-blue-600 dark:hover:text-blue-400 block">
                             {{ n.title }}
                         </a>
                         {% else %}
-                        <p class="text-sm text-gray-900 dark:text-white font-medium truncate">{{ n.title }}</p>
+                        <p class="text-sm text-gray-900 dark:text-white font-medium">{{ n.title }}</p>
                         {% endif %}
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {% if n.message and n.message != n.title %}
+                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1 leading-relaxed whitespace-pre-line">{{ n.message }}</p>
+                        {% endif %}
+                        {% if n.action_url %}
+                        <a href="{% url 'notifications:notification_read' pk=n.pk %}"
+                           class="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium mt-1">
+                            <i data-lucide="external-link" class="w-3 h-3"></i>Open
+                        </a>
+                        {% endif %}
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
                             {{ n.created_at|timesince }} ago
-                            {% if n.actor %}<span class="text-gray-400">by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
+                            {% if n.actor %}<span>· {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
                         </p>
                     </div>
                     <a href="{% url 'notifications:notification_read' pk=n.pk %}" title="Mark as read"
@@ -102,7 +113,7 @@
         </div>
 
         {# Read tab #}
-        <div x-show="tab==='read'" x-cloak class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+        <div x-show="tab==='read'" x-cloak class="max-h-[28rem] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
             {% if read_notifications %}
                 {% for n in read_notifications %}
                 <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors opacity-70">
@@ -114,15 +125,18 @@
                     <div class="flex-1 min-w-0">
                         {% if n.action_url %}
                         <a href="{{ n.action_url }}"
-                           class="text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 block truncate">
+                           class="text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 block">
                             {{ n.title }}
                         </a>
                         {% else %}
-                        <p class="text-sm text-gray-600 dark:text-gray-300 truncate">{{ n.title }}</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">{{ n.title }}</p>
                         {% endif %}
-                        <p class="text-xs text-gray-400 mt-0.5">
+                        {% if n.message and n.message != n.title %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed whitespace-pre-line">{{ n.message }}</p>
+                        {% endif %}
+                        <p class="text-[11px] text-gray-400 mt-1">
                             {{ n.created_at|timesince }} ago
-                            {% if n.actor %}<span>by {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
+                            {% if n.actor %}<span>· {{ n.actor.get_short_name|default:n.actor.username }}</span>{% endif %}
                         </p>
                     </div>
                 </div>

@@ -72,8 +72,12 @@ urlpatterns = [
     path("api/holiday/<int:pk>/toggle/", views_jobcard.api_toggle_holiday, name="api_toggle_holiday"),
     path("api/preview-due-date/", views_jobcard.api_preview_due_date, name="api_preview_due_date"),
 
-    # WO Approval
+    # WO Status Transitions
+    path("api/mark-wo-released/<int:pk>/", views_jobcard.api_mark_wo_released, name="api_mark_wo_released"),
     path("api/approve-wo/<int:pk>/", views_jobcard.api_approve_work_order, name="api_approve_wo"),
+
+    # Drill Bit Component Toggle
+    path("api/drill-bits/<int:pk>/toggle-component/", views_jobcard.api_toggle_bit_component, name="api_toggle_bit_component"),
 
     # Route Preview
     path("route-preview/", views_master_process.RoutePreviewView.as_view(), name="route_preview"),
@@ -101,6 +105,7 @@ urlpatterns = [
     # Enhanced Work Order List & Detail
     path("enhanced/", views_jobcard.WorkOrderListEnhancedView.as_view(), name="workorder_list_enhanced"),
     path("enhanced/<int:pk>/", views_jobcard.WorkOrderDetailEnhancedView.as_view(), name="workorder_detail_enhanced"),
+    path("enhanced/<int:pk>/release-paper/", views_jobcard.ReleasePaperView.as_view(), name="release_paper"),
     path("export/excel/", views_jobcard.export_work_orders_excel, name="export_excel"),
 
     # Enhanced Drill Bit List & Detail

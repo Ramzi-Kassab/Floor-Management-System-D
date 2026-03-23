@@ -111,7 +111,7 @@
 .pp-v2-app .sm-toggle.on::after{transform:translateX(12px);background:var(--accent);}
 
 /* ── STATSBAR ── */
-.pp-v2-app .statsbar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;min-height:30px;flex-wrap:wrap;overflow:hidden;max-width:100%;position:relative;z-index:40;}
+.pp-v2-app .statsbar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;min-height:30px;flex-wrap:wrap;overflow:hidden;max-width:100%;position:relative;z-index:5;}
 .pp-v2-app .stat-chip{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub);}
 .pp-v2-app .stat-chip strong{color:var(--text);font-weight:600;}
 .pp-v2-app .stat-dot{width:6px;height:6px;border-radius:50%;}
@@ -1665,8 +1665,12 @@ async function ppRelease(entryId,serial,account){
     const j=await r.json();
     if(j.success){
       if(j.wo_created && j.redirect_url){
-        if(confirm(`${j.message}\n\nView the Work Order now?`)) window.location=j.redirect_url;
+        const go = confirm(`${j.message}\n\n→ OK = Open the Work Order page\n→ Cancel = Stay on the planner\n\n(The bit has been released in both cases)`);
+        if(go) window.location=j.redirect_url;
         else location.reload();
+      } else if(j.wo_number){
+        alert(`${j.message}\n\nWO ${j.wo_number} created. Print the Release Paper from the WO page.`);
+        location.reload();
       } else {
         alert(j.message);
         location.reload();
