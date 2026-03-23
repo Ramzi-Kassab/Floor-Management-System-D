@@ -263,6 +263,22 @@ def _auto_process_single_item(item, user, batch):
             performed_by=user,
         )
 
+        # Auto-notify if Cerebro is installed
+        if bit.has_cerebro_installed:
+            try:
+                from apps.notifications.services import notify
+                notify(
+                    actor=user,
+                    verb="backloaded bit with Cerebro device installed:",
+                    target=f"{bit.serial_number} — Technical team must remove before processing",
+                    priority="URGENT",
+                    action_url=f"/work-orders/drill-bits/enhanced/{bit.pk}/",
+                    entity_type="DrillBit",
+                    entity_id=bit.pk,
+                )
+            except Exception:
+                pass
+
         # Status/condition based on level:
         #   L5          → RECEIVING + FINISHED_GOOD
         #   L3/L4       → RECEIVING + COMPONENTS

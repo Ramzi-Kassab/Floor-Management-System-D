@@ -288,6 +288,12 @@ class DrillBit(models.Model):
     # Change log — [{field, old, new, who, when}, ...]
     change_log = models.JSONField(default=list, blank=True, help_text='Audit trail of field changes')
 
+    # Component tracking (set during production, checked during receiving)
+    has_cerebro_installed = models.BooleanField(default=False, help_text='Cerebro device currently installed')
+    has_nozzles_installed = models.BooleanField(default=False, help_text='Nozzles currently installed')
+    has_erosion_sleeve_installed = models.BooleanField(default=False, help_text='Erosion sleeve currently installed')
+    is_painted = models.BooleanField(default=False, help_text='Bit is currently painted')
+
     def log_change(self, field, old_value, new_value, user=None):
         """Record a field change in the audit log."""
         from django.utils import timezone
@@ -305,14 +311,10 @@ class DrillBit(models.Model):
         self.change_log.append(entry)
 
     def get_release_destination_code(self):
-        """Return the location code where this bit should go when released for production."""
-        level = self.level or (self.design.order_level if self.design else '')
-        if level in ('3', '5.5'):
-            return 'SUB-ARC'  # Sub Arc Welding Area
-        elif level == '4':
-            return 'PDC-EVAL'  # PDC Evaluation Area
-        else:
-            return 'WIP'  # General production floor (repair)
+        """Return the location code where this bit should go when released.
+        All bits go to Evaluation Area first as standard. After evaluation,
+        the route decides the next destination (Sub Arc, Production, etc.)."""
+        return 'EVAL-AREA'  # All levels → Evaluation Area first
 
     def get_release_destination(self):
         """Return the Location object for release destination."""
@@ -2271,6 +2273,10 @@ def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
         'bit.size': float(drill_bit.size) if drill_bit.size else 0,
         'bit.type': drill_bit.bit_type or '',
         'bit.account': drill_bit.account.code if drill_bit.account else '',
+        'bit.has_nozzles': drill_bit.has_nozzles_installed,
+        'bit.has_erosion_sleeve': drill_bit.has_erosion_sleeve_installed,
+        'bit.has_cerebro': drill_bit.has_cerebro_installed,
+        'bit.is_painted': drill_bit.is_painted,
     }
 
     if drill_bit.design:
