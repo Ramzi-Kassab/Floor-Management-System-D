@@ -1930,6 +1930,47 @@ class MasterProcess(models.Model):
     def __str__(self):
         return f"[{self.code}] {self.name}"
 
+    def get_checklist_for_bit(self, drill_bit):
+        """Return checklist items applicable to this specific bit (evaluates per-item conditions)."""
+        items = self.process_checklist_items.filter(is_active=True).order_by('sort_order')
+        context = build_route_context(drill_bit) if drill_bit else {}
+        result = []
+        for item in items:
+            if item.has_condition:
+                if not item.evaluate_condition(context):
+                    continue
+            result.append({
+                'text': item.text,
+                'required': item.is_required,
+                'pk': item.pk,
+            })
+        return result
+
+    def get_parameters_for_bit(self, drill_bit):
+        """Return parameter specs applicable to this specific bit (evaluates per-item conditions)."""
+        params = self.process_parameters.filter(is_active=True).order_by('sort_order')
+        context = build_route_context(drill_bit) if drill_bit else {}
+        result = []
+        for param in params:
+            if param.has_condition:
+                if not param.evaluate_condition(context):
+                    continue
+            spec = {
+                'name': param.name,
+                'type': param.param_type,
+                'unit': param.unit,
+                'required': param.is_required,
+                'pk': param.pk,
+            }
+            if param.min_value is not None:
+                spec['min'] = float(param.min_value)
+            if param.max_value is not None:
+                spec['max'] = float(param.max_value)
+            if param.choices_list:
+                spec['choices'] = param.choices_list
+            result.append(spec)
+        return result
+
     def estimate_minutes(self, drill_bit):
         """Calculate estimated time for a specific bit based on time_factors."""
         base = self.default_estimated_minutes
@@ -1969,6 +2010,125 @@ class MasterProcess(models.Model):
                 p['max'] = p.pop('default_max', None)
             resolved.append(p)
         return resolved
+
+
+class _ConditionalItemMixin:
+    """Shared condition evaluation for checklist items and parameters."""
+
+    @property
+    def has_condition(self):
+        return bool(self.condition_field)
+
+    def evaluate_condition(self, context):
+        """Evaluate the condition against a route context dict. Returns True if item should be shown."""
+        if not self.condition_field:
+            return True
+        val = context.get(self.condition_field)
+        target = self.condition_value
+        op = self.condition_operator or 'EQUALS'
+        if val is None:
+            return op == 'NOT_EQUALS'
+        val_str = str(val)
+        if op == 'EQUALS':
+            return val_str.lower() == target.lower()
+        elif op == 'NOT_EQUALS':
+            return val_str.lower() != target.lower()
+        elif op == 'IN_LIST':
+            return val_str in [v.strip() for v in target.split(',')]
+        elif op == 'CONTAINS':
+            return target.lower() in val_str.lower()
+        elif op == 'GT':
+            try:
+                return float(val_str) > float(target)
+            except (ValueError, TypeError):
+                return False
+        elif op == 'LT':
+            try:
+                return float(val_str) < float(target)
+            except (ValueError, TypeError):
+                return False
+        return True
+
+
+class ProcessChecklistItem(_ConditionalItemMixin, models.Model):
+    """
+    Checklist item for a MasterProcess — proper table replacing checklist_items JSONField.
+    Each item can have an optional condition (field/operator/value) so it only shows
+    for specific bit types (e.g., "Tungsten liner available" only for steel body new bits).
+    """
+    master_process = models.ForeignKey(
+        MasterProcess, on_delete=models.CASCADE, related_name='process_checklist_items'
+    )
+    text = models.CharField(max_length=200, help_text='Checklist item text shown to operator')
+    is_required = models.BooleanField(default=True, help_text='Must be checked before step completion')
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    # Optional condition — only show this item when condition is met
+    condition_field = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text='Route context field (e.g., design.body_material, bit.is_new, bit.level)'
+    )
+    condition_operator = models.CharField(
+        max_length=20, blank=True, default='EQUALS',
+        help_text='EQUALS, NOT_EQUALS, IN_LIST, CONTAINS, GT, LT'
+    )
+    condition_value = models.CharField(
+        max_length=100, blank=True, default='',
+        help_text='Value to compare against'
+    )
+
+    class Meta:
+        db_table = 'process_checklist_items'
+        ordering = ['master_process', 'sort_order']
+        verbose_name = 'Process Checklist Item'
+
+    def __str__(self):
+        cond = f' [{self.condition_field} {self.condition_operator} {self.condition_value}]' if self.condition_field else ''
+        return f'{self.master_process.code}: {self.text[:40]}{cond}'
+
+
+class ProcessParameter(_ConditionalItemMixin, models.Model):
+    """
+    Parameter specification for a MasterProcess — proper table replacing parameters_spec JSONField.
+    Each parameter can have an optional condition for conditional display.
+    """
+    class ParamType(models.TextChoices):
+        NUMBER = 'number', 'Number'
+        TEXT = 'text', 'Text'
+        CHOICE = 'choice', 'Choice (dropdown)'
+        BOOLEAN = 'boolean', 'Yes/No'
+
+    master_process = models.ForeignKey(
+        MasterProcess, on_delete=models.CASCADE, related_name='process_parameters'
+    )
+    name = models.CharField(max_length=100, help_text='Parameter name shown to operator')
+    param_type = models.CharField(max_length=10, choices=ParamType.choices, default=ParamType.TEXT)
+    unit = models.CharField(max_length=30, blank=True, default='', help_text='Unit of measurement')
+    is_required = models.BooleanField(default=False)
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    # Numeric range validation
+    min_value = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    max_value = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+
+    # Choice options (for CHOICE type)
+    choices_list = models.JSONField(default=list, blank=True, help_text='Options for choice type: ["Good","Fair","Poor"]')
+
+    # Optional condition
+    condition_field = models.CharField(max_length=50, blank=True, default='')
+    condition_operator = models.CharField(max_length=20, blank=True, default='EQUALS')
+    condition_value = models.CharField(max_length=100, blank=True, default='')
+
+    class Meta:
+        db_table = 'process_parameters'
+        ordering = ['master_process', 'sort_order']
+        verbose_name = 'Process Parameter'
+
+    def __str__(self):
+        cond = f' [{self.condition_field}]' if self.condition_field else ''
+        return f'{self.master_process.code}: {self.name}{cond}'
 
 
 class ProcessInclusionRule(models.Model):
@@ -2402,7 +2562,13 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
     all_special = SpecialInstruction.objects.filter(is_active=True).select_related('design', 'target_process')
 
     def _build_step(proc, label_override=None):
-        params = proc.get_parameter_ranges(drill_bit)
+        # Use table-based items if they exist, else fall back to JSONField
+        table_params = proc.get_parameters_for_bit(drill_bit)
+        table_checklist = proc.get_checklist_for_bit(drill_bit)
+        # Fallback to JSONField if table is empty (data migration not yet done for this process)
+        params = table_params if table_params else proc.get_parameter_ranges(drill_bit)
+        checklist = table_checklist if table_checklist else (proc.checklist_items or [])
+
         step_instructions = [
             si for si in all_special
             if (si.target_process_id is None or si.target_process_id == proc.pk)
@@ -2413,7 +2579,7 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
             'name_override': label_override,
             'estimated_minutes': proc.estimate_minutes(drill_bit),
             'parameters': params,
-            'checklist': proc.checklist_items or [],
+            'checklist': checklist,
             'special_instructions': step_instructions,
             'instructions': proc.instructions_general,
             'procedure_reference': proc.procedure_reference,
