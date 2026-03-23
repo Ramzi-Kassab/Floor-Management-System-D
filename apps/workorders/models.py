@@ -1788,19 +1788,9 @@ class MasterProcess(models.Model):
         help_text='Time adjustment factors: {per_cutter, per_blade, size_factor: {size: multiplier}}'
     )
 
-    # Parameter specifications — what the operator records
-    # [{name, type, unit, required, out_of_range_action,
-    #   ranges: {size_display: {min, max}, ...} OR default_min/default_max}]
-    parameters_spec = models.JSONField(
-        default=list, blank=True,
-        help_text='Parameter specs with size-dependent ranges'
-    )
-
-    # QC Checklist items
-    checklist_items = models.JSONField(
-        default=list, blank=True,
-        help_text='QC checklist: [{text, required}]'
-    )
+    # REMOVED: parameters_spec and checklist_items JSONFields
+    # Replaced by ProcessParameter and ProcessChecklistItem tables (migration 0061)
+    # Old fields kept in DB for data preservation but not used in code.
 
     # Flags
     requires_qc = models.BooleanField(default=False)
@@ -1934,8 +1924,6 @@ class MasterProcess(models.Model):
         """Return checklist items applicable to this specific bit.
         Pass pre-built context to avoid rebuilding it per-process."""
         items = self.process_checklist_items.filter(is_active=True).order_by('sort_order')
-        if not items.exists():
-            return []  # No table data — caller should fall back to JSONField
         if context is None:
             context = build_route_context(drill_bit) if drill_bit else {}
         result = []
@@ -1953,8 +1941,6 @@ class MasterProcess(models.Model):
         """Return parameter specs applicable to this specific bit.
         Pass pre-built context to avoid rebuilding it per-process."""
         params = self.process_parameters.filter(is_active=True).order_by('sort_order')
-        if not params.exists():
-            return []  # No table data — caller should fall back to JSONField
         if context is None:
             context = build_route_context(drill_bit) if drill_bit else {}
         result = []
@@ -1997,25 +1983,7 @@ class MasterProcess(models.Model):
 
         return int(base * multiplier)
 
-    def get_parameter_ranges(self, drill_bit):
-        """Return parameter specs with min/max resolved for the specific bit size."""
-        specs = self.parameters_spec or []
-        size_display = ''
-        if drill_bit.design and drill_bit.design.size:
-            size_display = str(drill_bit.design.size.size_display) if hasattr(drill_bit.design.size, 'size_display') else str(drill_bit.design.size)
-
-        resolved = []
-        for spec in specs:
-            p = dict(spec)  # copy
-            ranges = p.pop('ranges', {})
-            if size_display and size_display in ranges:
-                p['min'] = ranges[size_display].get('min')
-                p['max'] = ranges[size_display].get('max')
-            elif 'default_min' in p:
-                p['min'] = p.pop('default_min', None)
-                p['max'] = p.pop('default_max', None)
-            resolved.append(p)
-        return resolved
+    # get_parameter_ranges REMOVED — replaced by get_parameters_for_bit() using ProcessParameter table
 
 
 class _ConditionalItemMixin:
@@ -2568,13 +2536,9 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
     all_special = SpecialInstruction.objects.filter(is_active=True).select_related('design', 'target_process')
 
     def _build_step(proc, label_override=None):
-        # Use table-based items if they exist, else fall back to JSONField
-        # Pass pre-built ctx to avoid rebuilding per-process
-        table_params = proc.get_parameters_for_bit(drill_bit, context=ctx)
-        table_checklist = proc.get_checklist_for_bit(drill_bit, context=ctx)
-        # Fallback to JSONField if table is empty (not yet migrated for this process)
-        params = table_params if table_params else proc.get_parameter_ranges(drill_bit)
-        checklist = table_checklist if table_checklist else (proc.checklist_items or [])
+        # Tables are the single source of truth
+        params = proc.get_parameters_for_bit(drill_bit, context=context)
+        checklist = proc.get_checklist_for_bit(drill_bit, context=context)
 
         step_instructions = [
             si for si in all_special

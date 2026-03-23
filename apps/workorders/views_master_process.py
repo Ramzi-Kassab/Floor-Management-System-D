@@ -50,8 +50,18 @@ class MasterProcessListView(LoginRequiredMixin, TemplateView):
                 "safety_notes": p.safety_notes,
                 "default_estimated_minutes": p.default_estimated_minutes,
                 "time_factors": p.time_factors or {},
-                "parameters_spec": p.parameters_spec or [],
-                "checklist_items": p.checklist_items or [],
+                "parameters": [
+                    {'pk': pr.pk, 'name': pr.name, 'type': pr.param_type, 'unit': pr.unit,
+                     'required': pr.is_required, 'condition': pr.condition_field or '',
+                     'condition_op': pr.condition_operator, 'condition_val': pr.condition_value}
+                    for pr in p.process_parameters.filter(is_active=True).order_by('sort_order')
+                ],
+                "checklist": [
+                    {'pk': ci.pk, 'text': ci.text, 'required': ci.is_required,
+                     'condition': ci.condition_field or '',
+                     'condition_op': ci.condition_operator, 'condition_val': ci.condition_value}
+                    for ci in p.process_checklist_items.filter(is_active=True).order_by('sort_order')
+                ],
                 "requires_qc": p.requires_qc,
                 "is_default_included": p.is_default_included,
                 "sort_order": p.sort_order,
@@ -166,12 +176,46 @@ def api_master_process_save(request, pk):
         if field in data:
             setattr(p, field, bool(data[field]))
 
-    # JSON fields
-    for field in ["time_factors", "parameters_spec", "checklist_items", "applies_to_levels", "insertion_points", "rule_expression"]:
+    # JSON fields (parameters_spec and checklist_items removed — use tables now)
+    for field in ["time_factors", "applies_to_levels", "insertion_points", "rule_expression"]:
         if field in data:
             setattr(p, field, data[field])
 
     p.save()
+
+    # Handle table-based checklist and parameter updates
+    from apps.workorders.models import ProcessChecklistItem, ProcessParameter
+    if "checklist" in data and isinstance(data["checklist"], list):
+        p.process_checklist_items.all().delete()
+        for i, item in enumerate(data["checklist"]):
+            ProcessChecklistItem.objects.create(
+                master_process=p,
+                text=item.get('text', ''),
+                is_required=item.get('required', True),
+                sort_order=(i + 1) * 10,
+                condition_field=item.get('condition', ''),
+                condition_operator=item.get('condition_op', 'EQUALS'),
+                condition_value=item.get('condition_val', ''),
+            )
+
+    if "parameters" in data and isinstance(data["parameters"], list):
+        p.process_parameters.all().delete()
+        for i, param in enumerate(data["parameters"]):
+            ProcessParameter.objects.create(
+                master_process=p,
+                name=param.get('name', ''),
+                param_type=param.get('type', 'text'),
+                unit=param.get('unit', ''),
+                is_required=param.get('required', False),
+                sort_order=(i + 1) * 10,
+                min_value=param.get('min'),
+                max_value=param.get('max'),
+                choices_list=param.get('choices', []),
+                condition_field=param.get('condition', ''),
+                condition_operator=param.get('condition_op', 'EQUALS'),
+                condition_value=param.get('condition_val', ''),
+            )
+
     return JsonResponse({"ok": True})
 
 
@@ -491,8 +535,8 @@ def api_route_preview(request):
             'name': proc.name,
             'category': proc.category,
             'estimated_minutes': proc.default_estimated_minutes,
-            'params_count': len(proc.parameters_spec or []),
-            'checks_count': len(proc.checklist_items or []),
+            'params_count': proc.process_parameters.filter(is_active=True).count(),
+            'checks_count': proc.process_checklist_items.filter(is_active=True).count(),
             'requires_qc': proc.requires_qc,
             'step_mode': proc.step_mode,
             'is_conditional': not proc.is_default_included,
@@ -521,8 +565,8 @@ def api_route_preview(request):
                 'name': ip.get('label', proc.name),
                 'category': proc.category,
                 'estimated_minutes': proc.default_estimated_minutes,
-                'params_count': len(proc.parameters_spec or []),
-                'checks_count': len(proc.checklist_items or []),
+                'params_count': proc.process_parameters.filter(is_active=True).count(),
+                'checks_count': proc.process_checklist_items.filter(is_active=True).count(),
                 'requires_qc': proc.requires_qc,
                 'step_mode': proc.step_mode,
                 'is_conditional': True,
