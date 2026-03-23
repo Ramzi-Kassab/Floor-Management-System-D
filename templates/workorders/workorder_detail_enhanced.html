@@ -1286,6 +1286,12 @@ function woActions() {
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf},
                 body: JSON.stringify(body)
             });
+            const ct = r.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                if (r.status === 403) throw new Error('Permission denied — staff access required.');
+                if (r.redirected || r.status === 302) throw new Error('Session expired — please refresh and log in.');
+                throw new Error(`Server error (${r.status}). Please refresh the page.`);
+            }
             const d = await r.json();
             if (!d.success) throw new Error(d.error || 'Request failed');
             return d;

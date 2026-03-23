@@ -2861,21 +2861,14 @@ def api_remove_from_plan(request):
     import re
     bit = entry.drill_bit
     if bit and entry.notes:
-        # Restore status
+        # Restore status only — no silent location change (transfers go through Location Transfers page)
         m = re.search(r'\[prev_status:(\w+)\]', entry.notes)
         if m:
             valid_statuses = [s.value for s in DrillBit.Status]
             if m.group(1) in valid_statuses:
                 bit.status = m.group(1)
 
-        # Restore location
-        m = re.search(r'\[prev_location:([\w-]+)\]', entry.notes)
-        if m:
-            orig_loc = Location.objects.filter(code=m.group(1), is_active=True).first()
-            if orig_loc and (not bit.bit_location or bit.bit_location.pk != orig_loc.pk):
-                bit.bit_location = orig_loc
-
-        bit.save(update_fields=['status', 'bit_location', 'updated_at'])
+        bit.save(update_fields=['status', 'updated_at'])
 
     # Mark as removed (soft delete)
     entry.status = ProductionPlanEntry.Status.REMOVED
@@ -5339,40 +5332,35 @@ def _get_pocket_grid_context(drill_bit):
 
 def _apply_inspection_result_to_bit(bit, result, user=None):
     """
-    Set drill bit status + location based on inspection result.
-    Routes to different locations based on bit type:
-    - New bits (L3/L4/L5.5) → Components Warehouse (needs production)
-    - Ready bits (L5) → Finished Goods Warehouse (dispatch only)
-    - Repair bits (condition REPAIRED/USED/etc.) → Evaluation Area
-    - Rejected → stays in Receiving Area
+    Set drill bit status based on inspection result.
+    Does NOT move the bit — returns the suggested destination code
+    so the caller can notify the user to confirm the transfer.
+
+    Returns: (suggested_dest_code, dest_reason) tuple
     """
     if result == ReceivingInspection.InspectionResult.REJECTED:
         bit.log_change('Status', bit.get_status_display(), 'Rejected', user)
         bit.status = DrillBit.Status.REJECTED
         bit.save(update_fields=['status', 'change_log', 'updated_at'])
-        bit.move_to('RCV-AREA', 'Inspection result: Rejected — stays in Receiving', user)
+        return ('RCV-AREA', 'Rejected — stays in Receiving')
     else:
         # ACCEPTED or CONDITIONAL
         bit.log_change('Status', bit.get_status_display(), 'Received', user)
         bit.status = DrillBit.Status.RECEIVED
         bit.save(update_fields=['status', 'change_log', 'updated_at'])
 
-        # Route based on bit type
+        # Suggest destination based on bit type
         level = bit.level or (bit.design.order_level if bit.design else '')
         is_repair = bit.condition in ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
 
         if level == '5':
-            # L5 Ready bits → Finished Goods (dispatch only, no production)
-            bit.move_to('WH-FG', f'Inspection {result}: L5 ready bit → Finished Goods', user)
+            return ('WH-FG', f'L5 ready bit → Finished Goods')
         elif is_repair:
-            # Repair bits → Evaluation Area (needs evaluation before planning)
-            bit.move_to('EVALUATION', f'Inspection {result}: Repair bit → Evaluation', user)
+            return ('EVAL-AREA', f'Repair bit → Evaluation')
         elif level in ('3', '4', '5.5'):
-            # New manufacturing bits → Components Warehouse
-            bit.move_to('WH-COMP', f'Inspection {result}: L{level} new bit → Components Warehouse', user)
+            return ('WH-COMP', f'L{level} new bit → Components Warehouse')
         else:
-            # Fallback → Evaluation Area
-            bit.move_to('EVALUATION', f'Inspection {result}', user)
+            return ('EVAL-AREA', f'→ Evaluation')
 
 
 class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
@@ -5686,15 +5674,12 @@ class ReceivingInspectionEditView(LoginRequiredMixin, UpdateView):
         else:
             messages.success(self.request, "Receiving inspection saved.")
 
-        # Update drill bit status + location on completion/reopen
+        # Update drill bit status on completion/reopen (NO silent location move)
         if mark_complete == 'true' and form.instance.is_complete and bit:
             _apply_inspection_result_to_bit(bit, form.instance.result, self.request.user)
         elif mark_complete == 'false' and not form.instance.is_complete and bit:
             bit.status = DrillBit.Status.RECEIVING
-            rcv_loc = Location.objects.filter(code='RCV-AREA').first()
-            if rcv_loc:
-                bit.bit_location = rcv_loc
-            bit.save(update_fields=['status', 'bit_location', 'updated_at'])
+            bit.save(update_fields=['status', 'updated_at'])
 
         # Notify on completion
         if mark_complete == 'true' and form.instance.is_complete:
