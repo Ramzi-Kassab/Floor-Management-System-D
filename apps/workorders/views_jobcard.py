@@ -652,17 +652,57 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         # Status transitions — StatusTransitionLog removed (Feb 2026), was never written to
         context["status_history"] = []
 
-        # Locations for delete modal destination picker
-        context["all_locations"] = Location.objects.filter(is_active=True).order_by('location_type', 'name')
+        # Locations for delete modal destination picker — categorized by bit level
+        all_locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
+        bit_level = wo.drill_bit.level if wo.drill_bit else None
+
+        # Categorize: recommended, other warehouses, factory (unlikely after WO delete)
+        WAREHOUSE_TYPES = {'WAREHOUSE', 'RECEIVING'}
+        FACTORY_TYPES = {'WIP', 'EVALUATION', 'INSPECTION', 'QC', 'REPAIR_SHOP', 'FACTORY'}
+
+        # Level-based warehouse rules
+        # L3, L4, L5.5 = components → WH-COMP recommended, WH-FG blocked
+        # L5 = finished good → WH-FG recommended, WH-COMP blocked
+        if bit_level in ('3', '4', '5.5'):
+            blocked_code = 'WH-FG'
+            recommended_code = 'WH-COMP'
+        elif bit_level == '5':
+            blocked_code = 'WH-COMP'
+            recommended_code = 'WH-FG'
+        else:
+            blocked_code = None
+            recommended_code = None
+
+        recommended_locs = []
+        other_locs = []
+        factory_locs = []
+        for loc in all_locs:
+            if loc.code == blocked_code:
+                continue  # hide blocked warehouse entirely
+            entry = {'pk': loc.pk, 'name': loc.name, 'type_display': loc.get_location_type_display(), 'code': loc.code}
+            if loc.code == recommended_code:
+                recommended_locs.insert(0, entry)  # recommended first
+            elif loc.location_type in WAREHOUSE_TYPES or loc.location_type in ('DISPATCH', 'SCRAP', 'USA', 'TRANSIT', 'RIG'):
+                other_locs.append(entry)
+            elif loc.location_type in FACTORY_TYPES:
+                factory_locs.append(entry)
+            else:
+                other_locs.append(entry)
+
+        context["recommended_locs"] = recommended_locs
+        context["other_locs"] = other_locs
+        context["factory_locs"] = factory_locs
+        context["bit_level"] = bit_level
 
         # Pre-release location (for delete modal default)
+        pre_release_loc = None
         if wo.drill_bit:
             rel_event = BitEvent.objects.filter(
                 bit=wo.drill_bit, event_type=BitEvent.EventType.RELEASED_TO_PROD, work_order=wo
             ).first()
-            context["pre_release_location"] = rel_event.from_location if rel_event else None
-        else:
-            context["pre_release_location"] = None
+            pre_release_loc = rel_event.from_location if rel_event else None
+        context["pre_release_location"] = pre_release_loc
+        context["pre_release_loc_pk"] = pre_release_loc.pk if pre_release_loc else ''
 
         return context
 

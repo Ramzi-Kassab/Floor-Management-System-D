@@ -1146,14 +1146,37 @@
                                 </div>
                             </label>
                             <div x-show="modal.reverseTransaction" x-collapse class="ml-7">
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Destination</label>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Destination{% if bit_level %} <span class="text-blue-500">(L{{ bit_level }} bit)</span>{% endif %}</label>
                                 <select x-model="modal.destinationId"
                                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-                                    <option value="">Pre-release location (auto)</option>
-                                    {% for loc in all_locations %}
-                                    <option value="{{ loc.pk }}"{% if pre_release_location and loc.pk == pre_release_location.pk %} selected{% endif %}>{{ loc.name }} ({{ loc.get_location_type_display }})</option>
-                                    {% endfor %}
+                                    <option value="">{% if pre_release_location %}Pre-release: {{ pre_release_location.name }}{% else %}Auto-detect pre-release location{% endif %}</option>
+                                    {% if recommended_locs %}
+                                    <optgroup label="Recommended">
+                                        {% for loc in recommended_locs %}
+                                        <option value="{{ loc.pk }}">{{ loc.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endif %}
+                                    {% if other_locs %}
+                                    <optgroup label="Other Locations">
+                                        {% for loc in other_locs %}
+                                        <option value="{{ loc.pk }}">{{ loc.name }} ({{ loc.type_display }})</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endif %}
+                                    {% if factory_locs %}
+                                    <optgroup label="Factory / Production (unlikely)">
+                                        {% for loc in factory_locs %}
+                                        <option value="{{ loc.pk }}">{{ loc.name }} ({{ loc.type_display }})</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endif %}
                                 </select>
+                                {% if bit_level in '3,4,5.5' %}
+                                <p class="text-[11px] text-gray-400 mt-1">L{{ bit_level }} bits → Components Warehouse. Finished Goods is hidden.</p>
+                                {% elif bit_level == '5' %}
+                                <p class="text-[11px] text-gray-400 mt-1">L5 bits → Finished Goods Warehouse. Components is hidden.</p>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
