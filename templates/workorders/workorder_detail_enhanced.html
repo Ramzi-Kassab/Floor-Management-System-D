@@ -1105,6 +1105,92 @@
     </div>
 </div>
 {% csrf_token %}
+
+<!-- ═══════════════ ACTION MODAL ═══════════════ -->
+<div x-data="woActions()" x-cloak>
+    <!-- Backdrop + Modal -->
+    <div x-show="modal.open" class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="closeModal()">
+        <div x-show="modal.open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-black/40" @click="closeModal()"></div>
+        <div x-show="modal.open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700"
+                 :class="modal.color === 'red' ? 'bg-red-50 dark:bg-red-900/10' : modal.color === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-900/10' : modal.color === 'blue' ? 'bg-blue-50 dark:bg-blue-900/10' : modal.color === 'purple' ? 'bg-purple-50 dark:bg-purple-900/10' : modal.color === 'green' ? 'bg-green-50 dark:bg-green-900/10' : modal.color === 'amber' ? 'bg-amber-50 dark:bg-amber-900/10' : 'bg-gray-50 dark:bg-gray-700/30'">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white" x-text="modal.title"></h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5" x-show="modal.subtitle" x-text="modal.subtitle"></p>
+            </div>
+            <!-- Body -->
+            <div class="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed" x-html="modal.body"></p>
+
+                <!-- Delete options -->
+                <template x-if="modal.type === 'delete'">
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4 space-y-3">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input type="checkbox" x-model="modal.reverseTransaction" class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <div>
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">Move bit to a different location</span>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Transfer the bit to a specific warehouse or area</p>
+                                </div>
+                            </label>
+                            <div x-show="modal.reverseTransaction" x-collapse class="ml-7">
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Destination</label>
+                                <select x-model="modal.destinationId"
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Pre-release location (auto)</option>
+                                    {% for loc in all_locations %}
+                                    <option value="{{ loc.pk }}"{% if pre_release_location and loc.pk == pre_release_location.pk %} selected{% endif %}>{{ loc.name }} ({{ loc.get_location_type_display }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+                            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">After deletion</p>
+                            <label class="flex items-center gap-3 cursor-pointer mb-2">
+                                <input type="radio" name="planAction" value="planner" x-model="modal.planAction" class="text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Return bit to planner <span class="text-xs text-gray-400">(can be re-released)</span></span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="radio" name="planAction" value="cancel" x-model="modal.planAction" class="text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Cancel production <span class="text-xs text-gray-400">(mark as cancelled in history)</span></span>
+                            </label>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Hold reason -->
+                <template x-if="modal.type === 'hold'">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                        <textarea x-model="modal.notes" rows="2" placeholder="Enter hold reason..."
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                </template>
+
+                <!-- Error message -->
+                <div x-show="modal.error" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                    <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+                    <span x-text="modal.error"></span>
+                </div>
+            </div>
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                <button @click="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </button>
+                <button @click="executeAction()" :disabled="modal.loading"
+                        class="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+                        :class="modal.color === 'red' ? 'bg-red-600 hover:bg-red-700' : modal.color === 'indigo' ? 'bg-indigo-600 hover:bg-indigo-700' : modal.color === 'green' ? 'bg-green-600 hover:bg-green-700' : modal.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : modal.color === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'">
+                    <span x-show="!modal.loading" x-text="modal.confirmLabel"></span>
+                    <span x-show="modal.loading">Processing...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1114,149 +1200,157 @@ function woDetail() {
         tab: 'overview',
         init() {
             const hash = window.location.hash.replace('#', '');
-            if (['overview', 'timeline', 'photos'].includes(hash)) {
-                this.tab = hash;
-            }
-            this.$watch('tab', (val) => {
-                history.replaceState(null, '', '#' + val);
-            });
+            if (['overview', 'timeline', 'photos'].includes(hash)) this.tab = hash;
+            this.$watch('tab', v => history.replaceState(null, '', '#' + v));
         }
     };
 }
 
-const _csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-             || '{{ csrf_token }}';
+const _csrf = '{{ csrf_token }}';
 
-const STATUS_LABELS = {
-    'QC_PENDING': 'Send to QC? This marks production work as complete and sends the bit for quality check.',
-    'QC_PASSED': 'QC Passed? This approves the bit quality.',
-    'QC_FAILED': 'QC Failed? This sends the bit back for rework.',
-    'COMPLETED': 'Mark as Complete? This finalizes the Work Order.',
-    'IN_PROGRESS': 'Resume / Start rework? This puts the WO back to In Progress.',
-    'ON_HOLD': 'Put on Hold? Enter a reason:',
-};
+/* ═══════════ ACTION MODAL SYSTEM ═══════════ */
+function woActions() {
+    return {
+        modal: { open: false, type: '', title: '', subtitle: '', body: '', color: 'blue',
+                 confirmLabel: 'Confirm', loading: false, error: '',
+                 // delete-specific
+                 reverseTransaction: false, destinationId: '', planAction: 'planner',
+                 // hold-specific
+                 notes: '',
+                 // internal
+                 _action: null },
 
-async function transitionWO(target) {
-    const label = STATUS_LABELS[target] || `Change status to ${target}?`;
-    let notes = '';
-    if (target === 'ON_HOLD') {
-        notes = prompt(label);
-        if (notes === null) return;
-    } else {
-        if (!confirm(label)) return;
-    }
-    try {
-        const r = await fetch("{% url 'workorders:api_wo_status' work_order.pk %}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf},
-            body: JSON.stringify({target_status: target, notes: notes})
-        });
-        const d = await r.json();
-        if (d.success) { location.reload(); }
-        else { alert(d.error || 'Failed'); }
-    } catch (e) { alert('Error: ' + e.message); }
-}
+        closeModal() { this.modal.open = false; this.modal.error = ''; },
 
-async function markAsReleased() {
-    if (!confirm('Mark this Work Order as Released?\n\nThis confirms the physical transaction is done (bit is at the production area).')) return;
-    try {
-        const r = await fetch("{% url 'workorders:api_mark_wo_released' work_order.pk %}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf},
-            body: JSON.stringify({})
-        });
-        const d = await r.json();
-        if (d.success) { location.reload(); }
-        else { alert(d.error || 'Failed'); }
-    } catch (e) { alert('Network error: ' + e.message); }
-}
+        openModal(cfg) {
+            Object.assign(this.modal, {
+                open: true, loading: false, error: '',
+                reverseTransaction: false, destinationId: '', planAction: 'planner', notes: '',
+                ...cfg
+            });
+            this.$nextTick(() => { if(typeof lucide!=='undefined') lucide.createIcons(); });
+        },
 
-async function approveWorkOrder() {
-    const status = '{{ work_order.status }}';
-    const msg = status === 'PENDING'
-        ? 'Skip to Active?\n\nThis marks the transaction as done AND approves the WO in one step.\nProduction can start immediately.'
-        : 'Approve this Work Order?\n\nThis allows production to start.';
-    if (!confirm(msg)) return;
-    try {
-        const r = await fetch("{% url 'workorders:api_approve_wo' work_order.pk %}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf},
-            body: JSON.stringify({})
-        });
-        const d = await r.json();
-        if (d.success) { location.reload(); }
-        else { alert(d.error || 'Approval failed'); }
-    } catch (e) { alert('Network error: ' + e.message); }
-}
+        async executeAction() {
+            this.modal.loading = true;
+            this.modal.error = '';
+            try {
+                await this.modal._action(this);
+            } catch(e) {
+                this.modal.error = e.message || 'Something went wrong';
+            }
+            this.modal.loading = false;
+        },
 
-async function deleteWorkOrder(force) {
-    // ── FORCE DELETE (admin only) ──
-    if (force) {
-        const input = prompt('ADMIN FORCE DELETE: This will permanently delete this Work Order and ALL related data.\n\nType "DELETE" to confirm:');
-        if (input !== 'DELETE') return;
-
-        const reverseTransaction = confirm('Reverse the physical transaction?\n\n• Yes = Move bit back to its pre-release location\n• No = Bit stays where it is');
-        const returnToPlanner = confirm('Return bit to production planner?\n\n• Yes = Back to planner as "Planned" (can re-release later)\n• No = Mark as "Production Cancelled" in planner history');
-
-        try {
-            const r = await fetch('{% url "workorders:api_delete_wo" work_order.pk %}', {
+        async _apiPost(url, body) {
+            const r = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf },
-                body: JSON.stringify({ force: true, reverse_transaction: reverseTransaction, return_to_planner: returnToPlanner })
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf},
+                body: JSON.stringify(body)
             });
             const d = await r.json();
-            if (d.success) {
-                alert(d.message);
-                if (d.bit_id) window.location.href = '/work-orders/drill-bits/enhanced/' + d.bit_id + '/';
-                else window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
-            } else { alert(d.error); }
-        } catch (e) { alert('Error: ' + e.message); }
-        return;
+            if (!d.success) throw new Error(d.error || 'Request failed');
+            return d;
+        },
+    };
+}
+
+/* ═══════════ ACTION FUNCTIONS (called from buttons) ═══════════ */
+
+function markAsReleased() {
+    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    comp.openModal({
+        type: 'confirm', color: 'blue',
+        title: 'Mark as Released',
+        subtitle: 'Confirm physical transaction',
+        body: 'This confirms the bit has arrived at the production area.<br>WO status will change from <strong>Pending</strong> to <strong>Released</strong>.',
+        confirmLabel: 'Confirm Released',
+        _action: async (ctx) => {
+            await ctx._apiPost("{% url 'workorders:api_mark_wo_released' work_order.pk %}", {});
+            location.reload();
+        }
+    });
+}
+
+function approveWorkOrder() {
+    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const isPending = '{{ work_order.status }}' === 'PENDING';
+    comp.openModal({
+        type: 'confirm', color: 'indigo',
+        title: isPending ? 'Approve WO (Skip to Active)' : 'Approve Work Order',
+        subtitle: '{{ work_order.wo_number }}',
+        body: isPending
+            ? 'This marks the transaction as done <strong>and</strong> approves the WO in one step.<br>Production can start immediately.'
+            : 'This approves the WO for production.<br>Operators can start working on the router steps.',
+        confirmLabel: 'Approve',
+        _action: async (ctx) => {
+            const d = await ctx._apiPost("{% url 'workorders:api_approve_wo' work_order.pk %}", {});
+            if (d.warning) { /* show but don't block */ }
+            location.reload();
+        }
+    });
+}
+
+function transitionWO(target) {
+    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+    const cfg = {
+        'QC_PENDING':  { color: 'purple', title: 'Send to QC', body: 'Production work is complete. This sends the bit for quality inspection.', confirmLabel: 'Send to QC' },
+        'QC_PASSED':   { color: 'green',  title: 'QC Passed',  body: 'Quality check passed. The bit is approved.', confirmLabel: 'Confirm QC Pass' },
+        'QC_FAILED':   { color: 'red',    title: 'QC Failed — Rework Needed', body: 'Quality check failed. The WO will go back to <strong>In Progress</strong> for rework.', confirmLabel: 'Confirm QC Fail' },
+        'COMPLETED':   { color: 'green',  title: 'Mark as Complete', body: 'This finalizes the Work Order. No further changes can be made.', confirmLabel: 'Complete WO' },
+        'IN_PROGRESS': { color: 'blue',   title: 'Resume Work', body: 'The WO will go back to <strong>In Progress</strong>.', confirmLabel: 'Resume' },
+        'ON_HOLD':     { color: 'amber',  title: 'Put on Hold', body: 'Enter a reason for the hold.', confirmLabel: 'Put on Hold' },
+    }[target] || { color: 'blue', title: target, body: '', confirmLabel: 'Confirm' };
+
+    comp.openModal({
+        type: target === 'ON_HOLD' ? 'hold' : 'confirm',
+        ...cfg,
+        subtitle: '{{ work_order.wo_number }}',
+        _action: async (ctx) => {
+            await ctx._apiPost("{% url 'workorders:api_wo_status' work_order.pk %}", {
+                target_status: target, notes: ctx.modal.notes
+            });
+            location.reload();
+        }
+    });
+}
+
+function deleteWorkOrder(force) {
+    const comp = document.querySelector('[x-data*="woActions"]').__x.$data;
+
+    if (force) {
+        const input = prompt('Type "DELETE" to force-delete this Work Order and ALL related data:');
+        if (input !== 'DELETE') return;
     }
 
-    // ── NORMAL DELETE — Step 1: Confirm ──
-    if (!confirm('Delete this Work Order?\n\nThis can only be done if no production work has started.')) return;
-
-    // ── Step 2: Reverse transaction? ──
-    const reverseTransaction = confirm(
-        'Reverse the physical transaction?\n\n' +
-        '• YES = Move the bit back to its pre-release location\n' +
-        '• NO = Bit stays at its current location'
-    );
-
-    // ── Step 3: Return to planner or cancel? ──
-    const returnToPlanner = confirm(
-        'Return this bit to the Production Planner?\n\n' +
-        '• YES = Back to planner as "Planned" (can be re-released)\n' +
-        '• NO = Mark as "Production Cancelled" in planner history'
-    );
-
-    try {
-        const r = await fetch('{% url "workorders:api_delete_wo" work_order.pk %}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf },
-            body: JSON.stringify({
-                reverse_transaction: reverseTransaction,
-                return_to_planner: returnToPlanner
-            })
-        });
-        if (r.redirected || !r.ok) { alert('Request failed. Please refresh the page.'); return; }
-        const d = await r.json();
-        if (d.success) {
-            alert(d.message);
-            if (returnToPlanner) {
+    comp.openModal({
+        type: 'delete', color: 'red',
+        title: force ? 'Force Delete Work Order' : 'Delete Work Order',
+        subtitle: '{{ work_order.wo_number }}',
+        body: force
+            ? 'This permanently deletes the WO and all related data (evaluations, router steps, etc.).'
+            : 'This deletes the WO. Only possible if no production work has started.',
+        confirmLabel: force ? 'Force Delete' : 'Delete WO',
+        _action: async (ctx) => {
+            const d = await ctx._apiPost('{% url "workorders:api_delete_wo" work_order.pk %}', {
+                force: !!force,
+                reverse_transaction: ctx.modal.reverseTransaction,
+                destination_id: ctx.modal.destinationId ? parseInt(ctx.modal.destinationId) : null,
+                return_to_planner: ctx.modal.planAction === 'planner',
+            });
+            // Navigate to Location Transfers if bit was moved, else planner/bit detail
+            const bitId = d.bit_id;
+            if (ctx.modal.reverseTransaction && bitId) {
+                window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
+            } else if (ctx.modal.planAction === 'planner') {
                 window.location.href = '{% url "workorders:production_planner" %}';
-            } else if (d.bit_id) {
-                window.location.href = '/work-orders/drill-bits/enhanced/' + d.bit_id + '/';
+            } else if (bitId) {
+                window.location.href = '/work-orders/drill-bits/enhanced/' + bitId + '/';
             } else {
                 window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
             }
-        } else {
-            alert(d.error);
         }
-    } catch (e) {
-        alert('Error: ' + e.message);
-    }
+    });
 }
 
 async function deleteEvaluation(evalPk, typeName) {

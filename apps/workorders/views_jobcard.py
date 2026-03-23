@@ -652,6 +652,18 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         # Status transitions — StatusTransitionLog removed (Feb 2026), was never written to
         context["status_history"] = []
 
+        # Locations for delete modal destination picker
+        context["all_locations"] = Location.objects.filter(is_active=True).order_by('location_type', 'name')
+
+        # Pre-release location (for delete modal default)
+        if wo.drill_bit:
+            rel_event = BitEvent.objects.filter(
+                bit=wo.drill_bit, event_type=BitEvent.EventType.RELEASED_TO_PROD, work_order=wo
+            ).first()
+            context["pre_release_location"] = rel_event.from_location if rel_event else None
+        else:
+            context["pre_release_location"] = None
+
         return context
 
     def get_applicable_instructions(self, work_order):
@@ -3280,6 +3292,7 @@ def api_delete_work_order(request, pk):
     force = data.get('force', False) or request.GET.get('force') == '1'
     reverse_transaction = data.get('reverse_transaction', False)
     return_to_planner = data.get('return_to_planner', False)
+    destination_id = data.get('destination_id')  # Optional: specific location to move bit to
 
     # ── ADMIN FORCE DELETE ──
     if force:
@@ -3374,7 +3387,7 @@ def api_delete_work_order(request, pk):
     result_msg = f'Work Order {wo_number} deleted (was {wo_status_was}).'
     reversed_to = None
     if bit:
-        reversed_to = _handle_bit_after_delete(bit, wo_number, f'deleted (was {wo_status_was})', reverse_transaction, request.user, release_event=release_event)
+        reversed_to = _handle_bit_after_delete(bit, wo_number, f'deleted (was {wo_status_was})', reverse_transaction, request.user, release_event=release_event, destination_id=destination_id)
         if reversed_to:
             result_msg += f' Bit moved back to {reversed_to}.'
 
@@ -3467,17 +3480,17 @@ def _handle_plan_entry_after_delete(entry, return_to_planner, wo_number, user):
                else ['status', 'notes', 'updated_at'])
 
 
-def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, release_event=None):
+def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, release_event=None, destination_id=None):
     """
     After WO deletion:
     - Restore bit status from plan entry [prev_status:X]
-    - If reverse_transaction: use the RELEASED_TO_PROD BitEvent's from_location
-      to move the bit back to its pre-release location
+    - If reverse_transaction: move bit to destination_id (user-chosen) or
+      fall back to RELEASED_TO_PROD event's from_location
     - Create WO_CANCELLED BitEvent for audit trail
 
     Args:
-        release_event: Pre-fetched RELEASED_TO_PROD BitEvent (must be fetched BEFORE WO deletion
-                       because SET_NULL clears the work_order FK on delete)
+        release_event: Pre-fetched RELEASED_TO_PROD BitEvent (fetched BEFORE WO deletion)
+        destination_id: User-chosen destination Location pk (overrides auto-detection)
 
     Returns: name of location bit was moved to (or None)
     """
@@ -3509,12 +3522,19 @@ def _handle_bit_after_delete(bit, wo_number, reason, reverse_transaction, user, 
         else:
             restored_status = bit.status
 
-    # ── Restore location from RELEASED_TO_PROD BitEvent ──
+    # ── Restore location ──
     reversed_to = None
     if reverse_transaction:
-        original_location = release_event.from_location if release_event else None
+        # Priority 1: User-chosen destination
+        original_location = None
+        if destination_id:
+            original_location = Location.objects.filter(pk=destination_id, is_active=True).first()
 
-        # Fallback: [prev_location:CODE] from plan entry notes (for releases before this fix)
+        # Priority 2: RELEASED_TO_PROD event from_location
+        if not original_location:
+            original_location = release_event.from_location if release_event else None
+
+        # Priority 3: [prev_location:CODE] from plan entry notes
         if not original_location and plan_entry and plan_entry.notes:
             m = re.search(r'\[prev_location:([\w-]+)\]', plan_entry.notes)
             if m:
