@@ -1561,6 +1561,24 @@ def api_router_step_scan(request, wo_pk, step_number):
                 'success': False
             })
 
+        # Step order enforcement — block if prior steps are not complete
+        prior_incomplete = wo.router_entries.filter(
+            step_number__lt=entry.step_number,
+            is_complete=False,
+            step_status__in=['PENDING', 'IN_PROGRESS'],
+        ).exclude(
+            step_status__in=['SKIPPED', 'NOT_APPLICABLE'],
+        ).order_by('step_number')
+
+        skippable = True  # Allow starting if prior steps are all SKIPPED/NA/COMPLETED
+        blocking_steps = [s for s in prior_incomplete if s.step_status not in ('SKIPPED', 'NOT_APPLICABLE')]
+        if blocking_steps:
+            step_nums = ', '.join(str(s.step_number) for s in blocking_steps[:5])
+            return JsonResponse({
+                'error': f'Cannot start step {step_number} — prior steps not complete: {step_nums}. Complete or skip them first.',
+                'success': False
+            })
+
         # Location validation — warn if bit is not at a production-ready location
         location_warning = ''
         if wo.drill_bit and wo.drill_bit.bit_location:
@@ -2595,10 +2613,12 @@ def api_create_wo_from_plan(request):
 
 
 @login_required
+@transaction.non_atomic_requests
 def api_release_plan_entry(request):
     """
     Release a planned entry: marks as RELEASED and auto-creates the Work Order.
     POST body: { entry_id }
+    Uses explicit transaction.atomic() blocks so all DB changes succeed or rollback together.
     """
     import json
     if request.method != 'POST':
@@ -2644,10 +2664,11 @@ def api_release_plan_entry(request):
 
     if already_there:
         # Bit is already at destination — create WO and set it to RELEASED immediately
-        entry.status = ProductionPlanEntry.Status.RELEASED
-        entry.save(update_fields=['status', 'updated_at'])
-
         try:
+          with transaction.atomic():
+            entry.status = ProductionPlanEntry.Status.RELEASED
+            entry.save(update_fields=['status', 'updated_at'])
+
             wo, success, error_code, error_message = entry.create_work_order(user=request.user)
             if success:
                 # Force WO to RELEASED — bit is already at production area
@@ -2692,41 +2713,35 @@ def api_release_plan_entry(request):
                     'message': f'Bit already at {current_loc.name}.\nWO {wo.wo_number} created and released!'
                 })
             else:
-                entry.status = ProductionPlanEntry.Status.PLANNED
-                entry.save(update_fields=['status', 'updated_at'])
-                return JsonResponse({'success': False, 'error': f'WO creation failed: {error_message}'})
+                raise ValueError(f'WO creation failed: {error_message}')
         except Exception as e:
-            entry.status = ProductionPlanEntry.Status.PLANNED
-            entry.save(update_fields=['status', 'updated_at'])
             return JsonResponse({'success': False, 'error': str(e)})
 
     else:
         # Bit is NOT at destination — create WO in PENDING + set PENDING_RELEASE
-        entry.status = ProductionPlanEntry.Status.PENDING_RELEASE
-        entry.save(update_fields=['status', 'updated_at'])
-
-        # Create WO now in PENDING so release paper can be printed with WO data
-        try:
-            wo, wo_success, _, wo_error = entry.create_work_order(user=request.user)
-        except Exception as e:
-            wo, wo_success, wo_error = None, False, str(e)
-
-        # Create RELEASED_TO_PROD event — records pre-release location for reversal
         from django.utils import timezone as _tz
-        BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.RELEASED_TO_PROD,
-            event_date=_tz.now(),
-            from_location=pre_release_loc,
-            to_location=dest,
-            location=pre_release_loc or dest,
-            work_order=wo,
-            notes=f'Released to production. WO {wo.wo_number if wo else "?"} created (Pending). Bit needs transfer to {dest_name}.',
-            performed_by=request.user,
-        )
+        with transaction.atomic():
+            entry.status = ProductionPlanEntry.Status.PENDING_RELEASE
+            entry.save(update_fields=['status', 'updated_at'])
 
-        bit.log_change('Plan Status', 'Planned', 'Pending Release', request.user)
-        bit.save(update_fields=['change_log', 'updated_at'])
+            # Create WO now in PENDING so release paper can be printed with WO data
+            wo, wo_success, _, wo_error = entry.create_work_order(user=request.user)
+
+            # Create RELEASED_TO_PROD event — records pre-release location for reversal
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.RELEASED_TO_PROD,
+                event_date=_tz.now(),
+                from_location=pre_release_loc,
+                to_location=dest,
+                location=pre_release_loc or dest,
+                work_order=wo,
+                notes=f'Released to production. WO {wo.wo_number if wo else "?"} created (Pending). Bit needs transfer to {dest_name}.',
+                performed_by=request.user,
+            )
+
+            bit.log_change('Plan Status', 'Planned', 'Pending Release', request.user)
+            bit.save(update_fields=['change_log', 'updated_at'])
 
         try:
             from apps.notifications.services import notify
@@ -2982,12 +2997,18 @@ def api_approve_work_order(request, pk):
     """
     Manager approval: changes WO from RELEASED (or PENDING) to ACTIVE.
     PENDING → ACTIVE skips the Released step (manager confirms transaction + approves in one action).
+    Requires staff or superuser privilege.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
 
+    if not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({'success': False, 'error': 'Only managers (staff) can approve Work Orders.'}, status=403)
+
+    from django.utils import timezone as _tz
+
     try:
-        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+        wo = WorkOrder.objects.select_related('drill_bit', 'drill_bit__bit_location').get(pk=pk)
     except WorkOrder.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Work Order not found'})
 
@@ -2998,34 +3019,36 @@ def api_approve_work_order(request, pk):
         })
 
     old_status = wo.get_status_display()
-    from django.utils import timezone as _tz
-
-    # Location warning (non-blocking)
-    location_warning = ''
     bit = wo.drill_bit
-    if bit:
+    location_warning = ''
+    if bit and bit.bit_location:
         loc = bit.bit_location
-        if loc and loc.location_type in ('RECEIVING', 'WAREHOUSE', 'DISPATCH'):
+        if loc.location_type in ('RECEIVING', 'WAREHOUSE', 'DISPATCH'):
             location_warning = f'Warning: bit is at {loc.name} ({loc.get_location_type_display()}), not at a production area.'
 
-    wo.status = WorkOrder.Status.ACTIVE
-    wo.approved_by = request.user
-    wo.approved_at = _tz.now()
-    wo.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+    with transaction.atomic():
+        # Lock the WO row to prevent concurrent approve + delete
+        wo = WorkOrder.objects.select_for_update().get(pk=pk)
+        if wo.status not in (WorkOrder.Status.RELEASED, WorkOrder.Status.PENDING):
+            return JsonResponse({'success': False, 'error': f'WO status changed to "{wo.get_status_display()}" by another user.'})
 
-    # BitEvent for audit trail
-    if bit:
-        bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
-        bit.save(update_fields=['change_log', 'updated_at'])
-        BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.NOTE,
-            event_date=_tz.now(),
-            location=bit.bit_location,
-            work_order=wo,
-            notes=f'WO {wo.wo_number} approved by {request.user.get_full_name() or request.user.username}. Status: {old_status} → Active.',
-            performed_by=request.user,
-        )
+        wo.status = WorkOrder.Status.ACTIVE
+        wo.approved_by = request.user
+        wo.approved_at = _tz.now()
+        wo.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+
+        if bit:
+            bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
+            bit.save(update_fields=['change_log', 'updated_at'])
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.NOTE,
+                event_date=_tz.now(),
+                location=bit.bit_location,
+                work_order=wo,
+                notes=f'WO {wo.wo_number} approved by {request.user.get_full_name() or request.user.username}. Status: {old_status} → Active.',
+                performed_by=request.user,
+            )
 
     # Notify
     try:
@@ -3053,6 +3076,111 @@ def api_approve_work_order(request, pk):
         'wo_number': wo.wo_number,
         'warning': location_warning,
         'message': msg,
+    })
+
+
+@login_required
+def api_transition_wo_status(request, pk):
+    """
+    General WO status transition API for QC flow and completion.
+    POST body: { target_status, notes }
+
+    Allowed transitions:
+      IN_PROGRESS → QC_PENDING (send to QC)
+      QC_PENDING → QC_PASSED | QC_FAILED (QC decision)
+      QC_PASSED → COMPLETED (final sign-off)
+      QC_FAILED → IN_PROGRESS (rework)
+      Any → ON_HOLD (with reason)
+      ON_HOLD → previous status (resume)
+
+    Requires staff for QC_PASSED, COMPLETED, QC_FAILED.
+    """
+    import json as _j
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        data = _j.loads(request.body) if request.body else {}
+    except _j.JSONDecodeError:
+        data = {}
+
+    target = data.get('target_status', '')
+    notes = data.get('notes', '').strip()
+
+    ALLOWED_TRANSITIONS = {
+        'IN_PROGRESS': ['QC_PENDING', 'ON_HOLD'],
+        'QC_PENDING': ['QC_PASSED', 'QC_FAILED', 'ON_HOLD'],
+        'QC_PASSED': ['COMPLETED'],
+        'QC_FAILED': ['IN_PROGRESS', 'ON_HOLD'],
+        'ON_HOLD': ['IN_PROGRESS', 'QC_PENDING', 'RELEASED', 'ACTIVE'],
+        'ACTIVE': ['IN_PROGRESS', 'ON_HOLD'],
+    }
+
+    STAFF_ONLY = {'QC_PASSED', 'QC_FAILED', 'COMPLETED'}
+
+    try:
+        wo = WorkOrder.objects.select_related('drill_bit').get(pk=pk)
+    except WorkOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Work Order not found'})
+
+    valid_targets = ALLOWED_TRANSITIONS.get(wo.status, [])
+    if target not in valid_targets:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot transition from {wo.get_status_display()} to {target}. Allowed: {", ".join(valid_targets) or "none"}'
+        })
+
+    if target in STAFF_ONLY and not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({'success': False, 'error': f'Only managers (staff) can set status to {target}.'}, status=403)
+
+    from django.utils import timezone as _tz
+    old_status = wo.get_status_display()
+    wo.status = target
+    wo.save(update_fields=['status', 'updated_at'])
+
+    # Log on bit
+    bit = wo.drill_bit
+    if bit:
+        bit.log_change('WO Status', old_status, wo.get_status_display(), request.user)
+        bit.save(update_fields=['change_log', 'updated_at'])
+        BitEvent.objects.create(
+            bit=bit,
+            event_type=BitEvent.EventType.NOTE,
+            event_date=_tz.now(),
+            location=bit.bit_location,
+            work_order=wo,
+            notes=f'WO {wo.wo_number}: {old_status} → {wo.get_status_display()}.{(" " + notes) if notes else ""}',
+            performed_by=request.user,
+        )
+
+    # Notify on key transitions
+    try:
+        from apps.notifications.services import notify
+        serial = bit.serial_number if bit else '?'
+        if target == 'QC_PENDING':
+            notify(actor=request.user, verb=f"sent WO {wo.wo_number} to QC —", target=serial,
+                   priority="HIGH", action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                   entity_type="WorkOrder", entity_id=wo.pk)
+        elif target == 'QC_PASSED':
+            notify(actor=request.user, verb=f"QC passed WO {wo.wo_number} —", target=serial,
+                   priority="HIGH", action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                   entity_type="WorkOrder", entity_id=wo.pk)
+        elif target == 'QC_FAILED':
+            notify(actor=request.user, verb=f"QC failed WO {wo.wo_number} — rework needed for", target=serial,
+                   priority="URGENT", action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                   entity_type="WorkOrder", entity_id=wo.pk)
+        elif target == 'COMPLETED':
+            notify(actor=request.user, verb=f"completed WO {wo.wo_number} for", target=serial,
+                   priority="HIGH", action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
+                   entity_type="WorkOrder", entity_id=wo.pk)
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'success': True,
+        'wo_number': wo.wo_number,
+        'old_status': old_status,
+        'new_status': wo.get_status_display(),
+        'message': f'WO {wo.wo_number}: {old_status} → {wo.get_status_display()}'
     })
 
 
@@ -3101,6 +3229,7 @@ def api_toggle_bit_component(request, pk):
 def api_delete_work_order(request, pk):
     """
     Delete a Work Order with options for transaction reversal and planner status.
+    Requires staff or superuser privilege.
 
     POST body (JSON):
         force:              bool — admin force delete (bypasses checks)
@@ -3120,6 +3249,9 @@ def api_delete_work_order(request, pk):
 
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    if not (request.user.is_staff or request.user.is_superuser):
+        return JsonResponse({'success': False, 'error': 'Only managers (staff) can delete Work Orders.'}, status=403)
 
     try:
         data = _json.loads(request.body) if request.body else {}

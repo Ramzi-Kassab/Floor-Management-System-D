@@ -75,6 +75,7 @@ urlpatterns = [
     # WO Status Transitions
     path("api/mark-wo-released/<int:pk>/", views_jobcard.api_mark_wo_released, name="api_mark_wo_released"),
     path("api/approve-wo/<int:pk>/", views_jobcard.api_approve_work_order, name="api_approve_wo"),
+    path("api/wo-status/<int:pk>/", views_jobcard.api_transition_wo_status, name="api_wo_status"),
 
     # Drill Bit Component Toggle
     path("api/drill-bits/<int:pk>/toggle-component/", views_jobcard.api_toggle_bit_component, name="api_toggle_bit_component"),
