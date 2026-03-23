@@ -1930,15 +1930,18 @@ class MasterProcess(models.Model):
     def __str__(self):
         return f"[{self.code}] {self.name}"
 
-    def get_checklist_for_bit(self, drill_bit):
-        """Return checklist items applicable to this specific bit (evaluates per-item conditions)."""
+    def get_checklist_for_bit(self, drill_bit, context=None):
+        """Return checklist items applicable to this specific bit.
+        Pass pre-built context to avoid rebuilding it per-process."""
         items = self.process_checklist_items.filter(is_active=True).order_by('sort_order')
-        context = build_route_context(drill_bit) if drill_bit else {}
+        if not items.exists():
+            return []  # No table data — caller should fall back to JSONField
+        if context is None:
+            context = build_route_context(drill_bit) if drill_bit else {}
         result = []
         for item in items:
-            if item.has_condition:
-                if not item.evaluate_condition(context):
-                    continue
+            if item.has_condition and not item.evaluate_condition(context):
+                continue
             result.append({
                 'text': item.text,
                 'required': item.is_required,
@@ -1946,15 +1949,18 @@ class MasterProcess(models.Model):
             })
         return result
 
-    def get_parameters_for_bit(self, drill_bit):
-        """Return parameter specs applicable to this specific bit (evaluates per-item conditions)."""
+    def get_parameters_for_bit(self, drill_bit, context=None):
+        """Return parameter specs applicable to this specific bit.
+        Pass pre-built context to avoid rebuilding it per-process."""
         params = self.process_parameters.filter(is_active=True).order_by('sort_order')
-        context = build_route_context(drill_bit) if drill_bit else {}
+        if not params.exists():
+            return []  # No table data — caller should fall back to JSONField
+        if context is None:
+            context = build_route_context(drill_bit) if drill_bit else {}
         result = []
         for param in params:
-            if param.has_condition:
-                if not param.evaluate_condition(context):
-                    continue
+            if param.has_condition and not param.evaluate_condition(context):
+                continue
             spec = {
                 'name': param.name,
                 'type': param.param_type,
@@ -2563,9 +2569,10 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
 
     def _build_step(proc, label_override=None):
         # Use table-based items if they exist, else fall back to JSONField
-        table_params = proc.get_parameters_for_bit(drill_bit)
-        table_checklist = proc.get_checklist_for_bit(drill_bit)
-        # Fallback to JSONField if table is empty (data migration not yet done for this process)
+        # Pass pre-built ctx to avoid rebuilding per-process
+        table_params = proc.get_parameters_for_bit(drill_bit, context=ctx)
+        table_checklist = proc.get_checklist_for_bit(drill_bit, context=ctx)
+        # Fallback to JSONField if table is empty (not yet migrated for this process)
         params = table_params if table_params else proc.get_parameter_ranges(drill_bit)
         checklist = table_checklist if table_checklist else (proc.checklist_items or [])
 
