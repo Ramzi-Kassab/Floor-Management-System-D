@@ -611,6 +611,10 @@ class Design(models.Model):
         LEVEL_5_5 = "5.5", "Level 5.5 - Brazed head, unwelded upper (needs sub-arc welding + machining)"
         LEVEL_6 = "6", "Level 6 - Painted and ready for use"
 
+    class FCProductType(models.TextChoices):
+        DRILL_BIT = "DRILL_BIT", "Drill Bit"
+        CORE_HEAD = "CORE_HEAD", "Core Head"
+
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         ACTIVE = "ACTIVE", "Active"
@@ -658,6 +662,13 @@ class Design(models.Model):
         max_length=10,
         choices=Category.choices,
         default=Category.FC
+    )
+    fc_product_type = models.CharField(
+        max_length=15,
+        choices=FCProductType.choices,
+        default=FCProductType.DRILL_BIT,
+        verbose_name='FC Product Type',
+        help_text='Drill Bit or Core Head — affects route (core grinding, insool wrap)'
     )
     size = models.ForeignKey(
         'BitSize',

@@ -929,6 +929,18 @@ class WorkOrder(models.Model):
     )
     eng_review_at = models.DateTimeField(null=True, blank=True)
 
+    # Route configuration — position choices and flags set by planner/supervisor
+    # e.g., {"l3_pt_position": "early", "usr_pt_position": "late"}
+    route_config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Route position choices: {l3_pt_position, usr_pt_position, ...}'
+    )
+    # Track whether route has been rebuilt after evaluation
+    route_built_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the router sheet was last built/rebuilt from MasterProcess rules'
+    )
+
     # Notes
     description = models.TextField(blank=True)
     notes = models.TextField(blank=True)
@@ -1772,6 +1784,16 @@ class MasterProcess(models.Model):
     category = models.CharField(max_length=20, choices=Category.choices)
     description = models.TextField(blank=True)
 
+    # Parent-child: children inherit procedure details from parent
+    # Child owns: code, name, sort_order, rules, is_default_included, applies_to_*
+    # Child inherits (if own field is empty): instructions, safety_notes, procedure_ref,
+    #   parameters, checklist, estimated_minutes, requires_qc, dedicated_page, time_factors
+    parent_process = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='children',
+        help_text='Parent process — this instance inherits procedure details from parent'
+    )
+
     # Instructions (general — from procedure, applies to all bits)
     instructions_general = models.TextField(blank=True, help_text='General instructions from the procedure')
     procedure_reference = models.CharField(max_length=200, blank=True, help_text='e.g., QAS/1006 Rev L, Section 4.11')
@@ -1896,6 +1918,13 @@ class MasterProcess(models.Model):
             return icon_map.get(self.dedicated_page, 'external-link')
         return 'external-link'
 
+    # Display: merge with previous step in route view
+    attach_to_previous = models.BooleanField(
+        default=False,
+        help_text='Show as a sub-action of the previous step (not a separate row). '
+                  'The step still exists for KPI tracking.'
+    )
+
     # Ordering
     sort_order = models.IntegerField(default=100, help_text='Default sequence position')
 
@@ -1920,10 +1949,78 @@ class MasterProcess(models.Model):
     def __str__(self):
         return f"[{self.code}] {self.name}"
 
+    @property
+    def is_child(self):
+        return self.parent_process_id is not None
+
+    @property
+    def effective_instructions(self):
+        """Return own instructions, or parent's if empty."""
+        if self.instructions_general:
+            return self.instructions_general
+        if self.parent_process:
+            return self.parent_process.instructions_general
+        return ''
+
+    @property
+    def effective_safety_notes(self):
+        if self.safety_notes:
+            return self.safety_notes
+        if self.parent_process:
+            return self.parent_process.safety_notes
+        return ''
+
+    @property
+    def effective_procedure_reference(self):
+        if self.procedure_reference:
+            return self.procedure_reference
+        if self.parent_process:
+            return self.parent_process.procedure_reference
+        return ''
+
+    @property
+    def effective_estimated_minutes(self):
+        if self.default_estimated_minutes != 30 or not self.parent_process:
+            return self.default_estimated_minutes
+        return self.parent_process.default_estimated_minutes
+
+    @property
+    def effective_requires_qc(self):
+        if self.requires_qc:
+            return True
+        if self.parent_process:
+            return self.parent_process.requires_qc
+        return False
+
+    @property
+    def effective_dedicated_page(self):
+        if self.dedicated_page:
+            return self.dedicated_page
+        if self.parent_process:
+            return self.parent_process.dedicated_page
+        return ''
+
+    @property
+    def effective_time_factors(self):
+        if self.time_factors:
+            return self.time_factors
+        if self.parent_process:
+            return self.parent_process.time_factors or {}
+        return {}
+
+    def _get_own_or_parent(self, related_name):
+        """Get related items from self, fall back to parent if self has none."""
+        own = getattr(self, related_name).filter(is_active=True)
+        if own.exists():
+            return own.order_by('sort_order')
+        if self.parent_process:
+            return getattr(self.parent_process, related_name).filter(is_active=True).order_by('sort_order')
+        return own.none()
+
     def get_checklist_for_bit(self, drill_bit, context=None):
         """Return checklist items applicable to this specific bit.
-        Pass pre-built context to avoid rebuilding it per-process."""
-        items = self.process_checklist_items.filter(is_active=True).order_by('sort_order')
+        Falls back to parent process checklist if this instance has none."""
+        items = self._get_own_or_parent('process_checklist_items')
         if context is None:
             context = build_route_context(drill_bit) if drill_bit else {}
         result = []
@@ -1939,8 +2036,8 @@ class MasterProcess(models.Model):
 
     def get_parameters_for_bit(self, drill_bit, context=None):
         """Return parameter specs applicable to this specific bit.
-        Pass pre-built context to avoid rebuilding it per-process."""
-        params = self.process_parameters.filter(is_active=True).order_by('sort_order')
+        Falls back to parent process parameters if this instance has none."""
+        params = self._get_own_or_parent('process_parameters')
         if context is None:
             context = build_route_context(drill_bit) if drill_bit else {}
         result = []
@@ -2411,6 +2508,13 @@ def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
     """
     Build a context dict from a drill bit and its related data.
     Used by ProcessInclusionRule.evaluate() to determine which steps apply.
+
+    Context keys available for rules:
+      bit.*      — from DrillBit model
+      design.*   — from Design model
+      tech.*     — from Design.special_technologies M2M + technical_data
+      bom.*      — from BOM/BOMLine
+      eval.*     — from evaluation_data (evaluator decisions)
     """
     ctx = {
         'bit.level': drill_bit.level or '',
@@ -2438,19 +2542,57 @@ def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
             'design.erosion_sleeve': d.erosion_sleeve,
             'design.size_display': str(d.size.size_display) if d.size and hasattr(d.size, 'size_display') else '',
         })
-        # Special technologies
-        tech_names = list(d.special_technologies.values_list('name', flat=True))
+
+        # Product type: Core Head vs Drill Bit
+        is_core_head = False
+        if hasattr(d, 'fc_product_type'):
+            is_core_head = d.fc_product_type == 'CORE_HEAD'
+        ctx['bit.is_core_head'] = is_core_head
+
+        # Special technologies — detect by code (more reliable than name matching)
+        tech_entries = list(d.special_technologies.values_list('code', 'name'))
+        tech_codes = {code.upper() for code, _ in tech_entries}
+        tech_names = [name for _, name in tech_entries]
         ctx['design.special_technologies'] = ','.join(tech_names)
-        ctx['tech.has_cerebro'] = any('cerebro' in t.lower() for t in tech_names)
-        ctx['tech.has_crush_shear'] = any('crush' in t.lower() for t in tech_names)
-        ctx['tech.has_erosion_sleeve'] = any('erosion' in t.lower() for t in tech_names)
-        ctx['tech.has_shankless'] = any('shankless' in t.lower() for t in tech_names)
+
+        # Technology flags — by code
+        ctx['tech.has_cerebro'] = bool({'CF', 'CP'} & tech_codes)
+        ctx['tech.has_cerebro_force'] = 'CF' in tech_codes
+        ctx['tech.has_cerebro_puck'] = 'CP' in tech_codes
+        ctx['tech.has_torpedo'] = 'TP' in tech_codes
+        ctx['tech.has_crush_shear'] = 'CS' in tech_codes
+        ctx['tech.has_erosion_sleeve'] = 'ES' in tech_codes
+        ctx['tech.has_shankless'] = 'SL' in tech_codes
+        ctx['tech.has_cruser'] = 'CR' in tech_codes
+        # Weld-over-void: currently no dedicated flag — future: design field
+        ctx['tech.has_weld_over_void'] = False
+    else:
+        ctx['bit.is_core_head'] = False
 
     # BOM data
-    bom = drill_bit.brazing_bom or drill_bit.bom
+    bom = drill_bit.brazing_bom or getattr(drill_bit, 'bom', None)
     if bom:
         ctx['bom.code'] = bom.code or ''
         ctx['bom.has_lines'] = bom.lines.exists() if hasattr(bom, 'lines') else False
+        # Dynamic cutters detection: check BOM source_data or BOMLine types
+        has_dynamic = False
+        if hasattr(bom, 'source_data') and bom.source_data:
+            sd = bom.source_data
+            # Check blades for dynamic cutter indicators
+            for blade in (sd.get('blades') or []):
+                for row in (blade.get('rows') or []):
+                    for pos in (row.get('positions') or []):
+                        ctype = (pos.get('type') or '').lower()
+                        if 'dynamic' in ctype or 'stator' in ctype or 'rotor' in ctype:
+                            has_dynamic = True
+                            break
+                    if has_dynamic:
+                        break
+                if has_dynamic:
+                    break
+        ctx['bom.has_dynamic_cutters'] = has_dynamic
+    else:
+        ctx['bom.has_dynamic_cutters'] = False
 
     # New vs repair
     repair_conditions = ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
@@ -2458,10 +2600,14 @@ def build_route_context(drill_bit, evaluation_data=None, technical_data=None):
     ctx['bit.is_new'] = not ctx['bit.is_repair']
 
     # Evaluation data (from evaluator decisions)
+    # Expected keys: needs_brazing, needs_cutter_removal, needs_debraze,
+    # needs_buildup, needs_hardfacing, needs_tig, needs_grinding,
+    # needs_rework, needs_usr, needs_thread_repair, needs_shank_cleaning
     if evaluation_data:
         ctx.update({f'eval.{k}': v for k, v in evaluation_data.items()})
 
     # Technical instructions data
+    # Expected keys: instruction_debraze, undercut_gauge, etc.
     if technical_data:
         ctx.update({f'tech.{k}': v for k, v in technical_data.items()})
 
@@ -2597,6 +2743,170 @@ def assemble_route_for_bit(drill_bit, evaluation_data=None, technical_data=None)
             steps.insert(insert_idx, _build_step(proc, label_override=label))
 
     return steps
+
+
+def build_route_for_wo(work_order, rebuild_after_eval=False):
+    """
+    Build a real route for a work order from all connected data.
+
+    Reads automatically:
+      - DrillBit: size, level, condition, installed components, account
+      - Design: body_material, ports, erosion_sleeve, fc_product_type, special_technologies
+      - BOM: dynamic cutters
+      - SpecialInstruction: technical instructions for this design/serial/size
+      - CutterEvaluationMatrix: evaluation findings (if rebuild_after_eval=True)
+      - WorkOrder.route_config: position choices
+
+    Returns list of step dicts (same format as assemble_route_for_bit).
+    """
+    from django.utils import timezone
+
+    bit = work_order.drill_bit
+    if not bit:
+        return []
+
+    # ── Evaluation data (from completed evaluations on this WO) ──
+    eval_data = {}
+    if rebuild_after_eval:
+        evals = work_order.cutter_evaluations.filter(is_complete=True).order_by('-updated_at')
+        for ev in evals:
+            # Read the cutter grid for action counts
+            grid = ev.evaluation_data or {}
+            actions = set()
+            for blade_data in grid.values():
+                if isinstance(blade_data, dict):
+                    for row_data in blade_data.values():
+                        if isinstance(row_data, dict):
+                            for pos_data in row_data.values():
+                                if isinstance(pos_data, dict):
+                                    for cell in pos_data.values():
+                                        if isinstance(cell, dict):
+                                            a = cell.get('action', '')
+                                            actions.update(a)
+
+            has_replace = 'R' in actions or 'S' in actions  # Replace or Spin
+            has_buildup = 'P' in actions or 'V' in actions  # Pocket/Fin build up
+
+            # Merge into eval_data (any True wins across multiple evals)
+            eval_data.setdefault('needs_brazing', False)
+            eval_data.setdefault('needs_cutter_removal', False)
+            eval_data.setdefault('needs_buildup', False)
+
+            if has_replace:
+                eval_data['needs_brazing'] = True
+                eval_data['needs_cutter_removal'] = True
+            if has_buildup:
+                eval_data['needs_buildup'] = True
+                eval_data['needs_cutter_removal'] = True
+
+            # Read explicit decision fields from eval
+            if hasattr(ev, 'decision') and ev.decision:
+                d = ev.decision
+                if d in ('REPAIR', 'NEW_BUILD'):
+                    eval_data['needs_brazing'] = True
+                if d == 'DEBRAZE':
+                    eval_data['needs_debraze'] = True
+
+            # Read the section-specific data
+            if ev.thread_inspection_data:
+                for round_key in ('round_1', 'round_2'):
+                    rd = ev.thread_inspection_data.get(round_key, {})
+                    if rd.get('repair_decision') in ('REPAIR', 'REQUIRED'):
+                        eval_data['needs_thread_repair'] = True
+
+            # Check for hardfacing/TIG/grinding from eval notes or grid
+            # These are typically set by the evaluator explicitly
+            # For now, respect what's already in eval_data
+
+    # ── Technical instructions ──
+    tech_data = {}
+    matching_instructions = SpecialInstruction.objects.filter(is_active=True)
+    for si in matching_instructions:
+        if si.matches_bit(bit):
+            # Extract tech flags from instruction text patterns
+            txt = (si.instruction_text or '').lower()
+            if 'debraze' in txt or 'de-braze' in txt:
+                tech_data['instruction_debraze'] = True
+            if 'undercut' in txt and 'gauge' in txt:
+                tech_data['undercut_gauge'] = True
+
+    # ── Position choices from WO config ──
+    route_config = work_order.route_config or {}
+    tech_data.update({
+        k: v for k, v in route_config.items()
+        if k.startswith('l3_') or k.startswith('usr_')
+    })
+
+    # ── Assemble the route ──
+    steps = assemble_route_for_bit(bit, evaluation_data=eval_data, technical_data=tech_data)
+
+    return steps
+
+
+def populate_router_sheet(work_order, rebuild=False):
+    """
+    Create RouterSheetEntry records for a work order from the smart route engine.
+
+    If rebuild=True, deletes existing non-started entries and rebuilds.
+    Preserves entries that are already in-progress or completed.
+    """
+    from django.utils import timezone
+
+    # Determine if this is a post-evaluation rebuild
+    has_completed_eval = work_order.cutter_evaluations.filter(is_complete=True).exists()
+
+    # Get the assembled route
+    steps = build_route_for_wo(work_order, rebuild_after_eval=has_completed_eval)
+    if not steps:
+        return 0
+
+    existing_entries = {
+        e.master_process_id: e
+        for e in work_order.router_entries.all()
+        if e.master_process_id
+    }
+
+    if rebuild:
+        # Delete only PENDING entries (preserve in-progress/completed)
+        work_order.router_entries.filter(
+            step_status='PENDING', is_complete=False
+        ).delete()
+
+    created = 0
+    for idx, step_data in enumerate(steps):
+        proc = step_data['master_process']
+        step_num = (idx + 1) * 10
+
+        # Skip if already exists and has been started
+        if proc.pk in existing_entries:
+            entry = existing_entries[proc.pk]
+            if entry.qr_scan_start or entry.is_complete:
+                continue
+
+        entry, was_created = RouterSheetEntry.objects.update_or_create(
+            work_order=work_order,
+            master_process=proc,
+            defaults={
+                'step_number': step_num,
+                'step_description': step_data.get('name_override') or proc.name,
+                'instructions': step_data.get('instructions') or proc.effective_instructions,
+                'procedure_reference': step_data.get('procedure_reference') or proc.effective_procedure_reference,
+                'safety_notes': step_data.get('safety_notes') or proc.effective_safety_notes,
+                'parameters_template': step_data.get('parameters', []),
+                'checklist_template': step_data.get('checklist', []),
+                'parent_process_code': proc.parent_process.code if proc.parent_process else '',
+                'kpi_is_passive': proc.step_mode == 'PASSIVE',
+            }
+        )
+        if was_created:
+            entry.snapshot_kpi_context()
+            entry.save()
+            created += 1
+
+    work_order.route_built_at = timezone.now()
+    work_order.save(update_fields=['route_built_at', 'updated_at'])
+
+    return created
 
 
 # NOTE: OperationExecution model REMOVED (Feb 2026) — never written to in production.
@@ -3920,6 +4230,59 @@ class RouterSheetEntry(models.Model):
         help_text='The ProcessRouteOperation this step was created from'
     )
 
+    # ── KPI: Link to MasterProcess for family grouping & analysis ──
+    master_process = models.ForeignKey(
+        'MasterProcess', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='execution_entries',
+        help_text='The MasterProcess this step was created from'
+    )
+    parent_process_code = models.CharField(
+        max_length=30, blank=True, default='',
+        help_text='Parent process family code (e.g., _BASE_DIE_CHECK) for KPI grouping'
+    )
+
+    # ── KPI: Denormalized bit context snapshot (captured at step creation) ──
+    # These never change after creation — they record the state at execution time.
+    # Enables fast KPI queries without JOINing through WO -> DrillBit -> Design.
+    kpi_bit_size = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        help_text='Bit size at execution time (denormalized for KPI)'
+    )
+    kpi_body_material = models.CharField(
+        max_length=1, blank=True, default='',
+        help_text='S=Steel, M=Matrix (denormalized for KPI)'
+    )
+    kpi_design_mat = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='Design MAT number (denormalized for KPI — identifies the design)'
+    )
+    kpi_is_repair = models.BooleanField(
+        null=True, blank=True,
+        help_text='Was this a repair job? (denormalized for KPI)'
+    )
+    kpi_is_core_head = models.BooleanField(
+        null=True, blank=True,
+        help_text='Core head vs drill bit (denormalized for KPI)'
+    )
+    kpi_account = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='Business unit code (denormalized for KPI)'
+    )
+    kpi_is_passive = models.BooleanField(
+        default=False,
+        help_text='Passive step (not operator-dependent) — heating, cooling, soaking'
+    )
+
+    # ── KPI: Computed durations (seconds) for easy aggregation ──
+    duration_gross_seconds = models.IntegerField(
+        null=True, blank=True,
+        help_text='Total wall-clock seconds from start to end (includes pauses)'
+    )
+    duration_net_seconds = models.IntegerField(
+        null=True, blank=True,
+        help_text='Active seconds = gross - paused (operator work time for active steps)'
+    )
+
     # Pause tracking
     paused_at = models.DateTimeField(null=True, blank=True)
     total_paused_seconds = models.IntegerField(default=0)
@@ -3948,6 +4311,41 @@ class RouterSheetEntry(models.Model):
             delta = self.qr_scan_end - self.qr_scan_start
             return int(delta.total_seconds() / 60)
         return None
+
+    def snapshot_kpi_context(self):
+        """
+        Capture bit/WO context into denormalized KPI fields.
+        Call this when creating the router entry (step creation time).
+        """
+        wo = self.work_order
+        bit = wo.drill_bit if wo else None
+        design = bit.design if bit else None
+
+        # Link to MasterProcess if available
+        if self.master_process:
+            mp = self.master_process
+            self.parent_process_code = mp.parent_process.code if mp.parent_process else ''
+            self.kpi_is_passive = mp.step_mode == 'PASSIVE'
+
+        if bit:
+            self.kpi_bit_size = bit.size
+            self.kpi_account = bit.account.code if bit.account else ''
+            repair_conditions = ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
+            self.kpi_is_repair = bit.condition in repair_conditions
+        if design:
+            self.kpi_design_mat = design.mat_no or ''
+            self.kpi_body_material = design.body_material or ''
+            self.kpi_is_core_head = getattr(design, 'fc_product_type', '') == 'CORE_HEAD'
+
+    def compute_durations(self):
+        """
+        Compute gross/net duration from timestamps.
+        Call this when step is completed (end time recorded).
+        """
+        if self.qr_scan_start and self.qr_scan_end:
+            gross = int((self.qr_scan_end - self.qr_scan_start).total_seconds())
+            self.duration_gross_seconds = gross
+            self.duration_net_seconds = max(0, gross - (self.total_paused_seconds or 0))
 
 
 class EvaluationChecklist(models.Model):
@@ -4193,24 +4591,7 @@ class ProductionPlanEntry(models.Model):
 
         # Auto-populate router entries from Smart Route Engine
         try:
-            steps = assemble_route_for_bit(self.drill_bit)
-            for idx, step_data in enumerate(steps):
-                proc = step_data['master_process']
-                RouterSheetEntry.objects.create(
-                    work_order=work_order,
-                    step_number=(idx + 1) * 10,  # 10, 20, 30...
-                    step_description=step_data.get('name_override') or proc.name,
-                    instructions=step_data['instructions'] or '',
-                    procedure_reference=step_data['procedure_reference'] or '',
-                    safety_notes=step_data['safety_notes'] or '',
-                    parameters_template=step_data['parameters'],
-                    checklist_template=step_data['checklist'],
-                    source_operation=None,  # From master process, not from old route template
-                    step_type=(
-                        RouterSheetEntry.StepType.CONDITIONAL if not proc.is_default_included
-                        else RouterSheetEntry.StepType.STANDARD
-                    ),
-                )
+            populate_router_sheet(work_order)
         except Exception as e:
             import traceback
             traceback.print_exc()

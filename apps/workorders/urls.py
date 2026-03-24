@@ -222,6 +222,8 @@ urlpatterns = [
     path("api/master-processes/create/", views_master_process.api_master_process_create, name="api_master_process_create"),
     path("api/master-processes/<int:pk>/save/", views_master_process.api_master_process_save, name="api_master_process_save"),
     path("api/master-processes/<int:pk>/delete/", views_master_process.api_master_process_delete, name="api_master_process_delete"),
+    path("api/master-processes/<int:pk>/detail/", views_master_process.api_master_process_detail, name="api_master_process_detail"),
+    path("api/master-processes/reorder/", views_master_process.api_master_process_reorder, name="api_master_process_reorder"),
     path("api/master-processes/<int:process_pk>/rules/save/", views_master_process.api_inclusion_rule_save, name="api_inclusion_rule_save"),
     path("api/inclusion-rules/<int:pk>/delete/", views_master_process.api_inclusion_rule_delete, name="api_inclusion_rule_delete"),
 

@@ -235,6 +235,101 @@ def api_master_process_delete(request, pk):
 # ============================================================================
 
 @login_required
+def api_master_process_detail(request, pk):
+    """Return full details for a single MasterProcess (GET)."""
+    p = get_object_or_404(MasterProcess, pk=pk)
+    rules = []
+    for r in p.inclusion_rules.all().order_by('-priority', 'pk'):
+        rules.append({
+            "pk": r.pk,
+            "rule_type": r.rule_type,
+            "field_path": r.field_path,
+            "operator": r.operator,
+            "value": r.value,
+            "priority": r.priority,
+            "description": r.description,
+        })
+
+    # Use effective (inherited) values for display
+    params = [
+        {'pk': pr.pk, 'name': pr.name, 'type': pr.param_type, 'unit': pr.unit,
+         'required': pr.is_required, 'condition': pr.condition_field or '',
+         'condition_op': pr.condition_operator, 'condition_val': pr.condition_value}
+        for pr in p._get_own_or_parent('process_parameters')
+    ]
+    checks = [
+        {'pk': ci.pk, 'text': ci.text, 'required': ci.is_required,
+         'condition': ci.condition_field or '',
+         'condition_op': ci.condition_operator, 'condition_val': ci.condition_value}
+        for ci in p._get_own_or_parent('process_checklist_items')
+    ]
+
+    # Parent/sibling info
+    parent_info = None
+    siblings = []
+    if p.parent_process:
+        parent_info = {
+            "pk": p.parent_process.pk,
+            "code": p.parent_process.code,
+            "name": p.parent_process.name,
+        }
+        siblings = [
+            {"pk": s.pk, "code": s.code, "name": s.name}
+            for s in p.parent_process.children.filter(is_active=True).exclude(pk=p.pk).order_by('sort_order')
+        ]
+
+    return JsonResponse({
+        "pk": p.pk,
+        "code": p.code,
+        "name": p.name,
+        "category": p.category,
+        "description": p.description,
+        "instructions_general": p.effective_instructions,
+        "own_instructions": p.instructions_general,
+        "procedure_reference": p.effective_procedure_reference,
+        "safety_notes": p.effective_safety_notes,
+        "default_estimated_minutes": p.effective_estimated_minutes,
+        "requires_qc": p.effective_requires_qc,
+        "is_default_included": p.is_default_included,
+        "is_active": p.is_active,
+        "sort_order": p.sort_order,
+        "applies_to_new": p.applies_to_new,
+        "applies_to_repair": p.applies_to_repair,
+        "applies_to_levels": p.applies_to_levels or [],
+        "step_mode": p.step_mode or 'ACTIVE',
+        "dedicated_page": p.effective_dedicated_page,
+        "rule_expression": p.rule_expression or {},
+        "rules": rules,
+        "parameters": params,
+        "checklist": checks,
+        "parent": parent_info,
+        "siblings": siblings,
+        "is_child": p.is_child,
+        "inherited_from_parent": p.is_child and not p.instructions_general,
+    })
+
+
+@login_required
+def api_master_process_reorder(request):
+    """Bulk update sort_order for multiple processes. POST body: {order: [{pk, sort_order}, ...]}"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    data = _parse_json_body(request)
+    if not data or 'order' not in data:
+        return JsonResponse({"error": "Invalid JSON — need {order: [{pk, sort_order}, ...]}"}, status=400)
+
+    updated = 0
+    for item in data['order']:
+        pk = item.get('pk')
+        sort_order = item.get('sort_order')
+        if pk and sort_order is not None:
+            MasterProcess.objects.filter(pk=pk).update(sort_order=int(sort_order))
+            updated += 1
+
+    return JsonResponse({"ok": True, "updated": updated})
+
+
+@login_required
 def api_inclusion_rule_save(request, process_pk):
     """Create or update an inclusion rule for a master process."""
     if request.method != "POST":
@@ -445,7 +540,9 @@ class RoutePreviewView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.sales.models import Account
+        from apps.technology.models import BitSize
         context['accounts'] = Account.objects.filter(is_active=True).order_by('sort_order')
+        context['sizes'] = BitSize.objects.filter(is_active=True).order_by('size_decimal')
         return context
 
 
@@ -467,8 +564,17 @@ def api_route_preview(request):
     )
 
     # Build a synthetic context from the config
-    is_repair = str(data.get('is_repair', 'false')).lower() in ('true', '1')
+    def _bool(key, default=False):
+        v = data.get(key, default)
+        return str(v).lower() in ('true', '1') if isinstance(v, str) else bool(v)
+
+    is_repair = _bool('is_repair')
+    has_ports = _bool('has_ports')
+    has_cerebro_force = _bool('has_cerebro_force')
+    has_cerebro_puck = _bool('has_cerebro_puck')
+
     context = {
+        # Bit attributes
         'bit.level': data.get('level', '4'),
         'bit.size': float(data.get('size', 8.5)),
         'bit.type': 'FC',
@@ -476,21 +582,52 @@ def api_route_preview(request):
         'bit.is_repair': is_repair,
         'bit.is_new': not is_repair,
         'bit.condition': 'USED' if is_repair else 'COMPONENTS',
+        'bit.is_core_head': _bool('is_core_head'),
+        'bit.has_nozzles': _bool('has_nozzles'),
+        'bit.has_erosion_sleeve': _bool('has_erosion_sleeve_installed'),
+        'bit.has_cerebro': _bool('has_cerebro_installed'),
+        'bit.is_painted': _bool('is_painted'),
+        # Design attributes
         'design.body_material': data.get('body_material', 'S'),
-        'design.has_ports': str(data.get('has_ports', 'false')).lower() in ('true', '1'),
-        'design.port_count': 1 if str(data.get('has_ports', 'false')).lower() in ('true', '1') else 0,
+        'design.has_ports': has_ports,
+        'design.port_count': 1 if has_ports else 0,
         'design.no_of_blades': 6,
         'design.total_pockets_count': 50,
-        'tech.has_cerebro': bool(data.get('has_cerebro', False)),
-        'tech.has_crush_shear': False,
-        'bom.has_dynamic_cutters': bool(data.get('has_dynamic_cutters', False)),
-        'eval.needs_buildup': bool(data.get('needs_buildup', False)),
-        'eval.needs_grinding': bool(data.get('needs_grinding', False)),
-        'eval.needs_rework': bool(data.get('needs_rework', False)),
-        'eval.needs_debraze': bool(data.get('needs_debraze', False)),
-        'eval.needs_thread_repair': bool(data.get('needs_thread_repair', False)),
-        'eval.needs_usr': bool(data.get('needs_usr', False)),
-        'eval.needs_hardfacing': bool(data.get('needs_hardfacing', False)),
+        'design.erosion_sleeve': _bool('design_erosion_sleeve'),
+        # Special technologies (by code)
+        'tech.has_cerebro': has_cerebro_force or has_cerebro_puck,
+        'tech.has_cerebro_force': has_cerebro_force,
+        'tech.has_cerebro_puck': has_cerebro_puck,
+        'tech.has_torpedo': _bool('has_torpedo'),
+        'tech.has_crush_shear': _bool('has_crush_shear'),
+        'tech.has_erosion_sleeve': _bool('tech_erosion_sleeve'),
+        'tech.has_shankless': _bool('has_shankless'),
+        'tech.has_cruser': _bool('has_cruser'),
+        'tech.has_weld_over_void': _bool('has_weld_over_void'),
+        # BOM
+        'bom.has_dynamic_cutters': _bool('has_dynamic_cutters'),
+        'bom.has_lines': True,
+        # Evaluation findings
+        'eval.needs_brazing': _bool('needs_brazing'),
+        'eval.needs_cutter_removal': _bool('needs_cutter_removal'),
+        'eval.needs_debraze': _bool('needs_debraze'),
+        'eval.needs_buildup': _bool('needs_buildup'),
+        'eval.needs_tig': _bool('needs_tig'),
+        'eval.needs_hardfacing': _bool('needs_hardfacing'),
+        'eval.needs_grinding': _bool('needs_grinding'),
+        'eval.needs_rework': _bool('needs_rework'),
+        'eval.needs_usr': _bool('needs_usr'),
+        'eval.needs_thread_repair': _bool('needs_thread_repair'),
+        'eval.needs_shank_cleaning': _bool('needs_shank_cleaning'),
+        'eval.buildup_on_pocket': _bool('buildup_on_pocket'),
+        'eval.tig_on_pocket': _bool('tig_on_pocket'),
+        'eval.hardfacing_on_pocket': _bool('hardfacing_on_pocket'),
+        # Technical instructions
+        'tech.instruction_debraze': _bool('instruction_debraze'),
+        'tech.undercut_gauge': _bool('undercut_gauge'),
+        # Position choices
+        'config.l3_pt_position': data.get('l3_pt_position', 'early'),
+        'config.usr_pt_position': data.get('usr_pt_position', 'early'),
     }
 
     level = context['bit.level']
@@ -528,20 +665,24 @@ def api_route_preview(request):
     applicable.sort(key=lambda p: p.sort_order)
 
     # Build steps
-    steps = []
-    for proc in applicable:
-        steps.append({
+    def _step_dict(proc, name_override=None, conditional=None):
+        return {
+            'pk': proc.pk,
             'code': proc.code,
-            'name': proc.name,
+            'name': name_override or proc.name,
             'category': proc.category,
+            'description': proc.description or '',
             'estimated_minutes': proc.default_estimated_minutes,
             'params_count': proc.process_parameters.filter(is_active=True).count(),
             'checks_count': proc.process_checklist_items.filter(is_active=True).count(),
             'requires_qc': proc.requires_qc,
             'step_mode': proc.step_mode,
-            'is_conditional': not proc.is_default_included,
+            'is_conditional': conditional if conditional is not None else (not proc.is_default_included),
             'has_dedicated_page': bool(proc.dedicated_page),
-        })
+            'attach_to_previous': proc.attach_to_previous,
+        }
+
+    steps = [_step_dict(proc) for proc in applicable]
 
     # Pass 2: MULTI insertion points
     for proc in multi_processes:
@@ -560,23 +701,36 @@ def api_route_preview(request):
                     if s['code'] == after_code:
                         insert_idx = i + 1
                         break
-            steps.insert(insert_idx, {
-                'code': proc.code,
-                'name': ip.get('label', proc.name),
-                'category': proc.category,
-                'estimated_minutes': proc.default_estimated_minutes,
-                'params_count': proc.process_parameters.filter(is_active=True).count(),
-                'checks_count': proc.process_checklist_items.filter(is_active=True).count(),
-                'requires_qc': proc.requires_qc,
-                'step_mode': proc.step_mode,
-                'is_conditional': True,
-                'has_dedicated_page': bool(proc.dedicated_page),
-            })
+            steps.insert(insert_idx, _step_dict(proc, ip.get('label'), True))
 
     total_minutes = sum(s['estimated_minutes'] for s in steps)
+
+    # Warnings for conflicting selections
+    warnings = []
+    if _bool('needs_usr'):
+        blockers = []
+        if _bool('has_cerebro_puck'):
+            blockers.append('Cerebro Puck')
+        if _bool('has_cerebro_force'):
+            blockers.append('Cerebro Force')
+        if _bool('has_shankless'):
+            blockers.append('Shankless')
+        if _bool('has_weld_over_void'):
+            blockers.append('Weld Over Void')
+        if _bool('is_core_head'):
+            blockers.append('Core Head')
+        if blockers:
+            warnings.append(
+                'Upper Section Replacement (USR) cannot be performed in KSA '
+                'due to design feature: ' + ', '.join(blockers) + '. '
+                'Options: Accept as-is, Send to USA for repair, Hold, or Scrap. '
+                'Contact technical team for advice.'
+            )
+
     return JsonResponse({
         'success': True,
         'steps': steps,
         'total_minutes': total_minutes,
         'step_count': len(steps),
+        'warnings': warnings,
     })

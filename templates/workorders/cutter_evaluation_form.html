@@ -23,22 +23,62 @@
 
     <!-- Header Info -->
     <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
             <div>
-                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">WO Number</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
             </div>
             <div>
-                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
-                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Serial #</p>
+                <p class="font-semibold text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
             </div>
             <div>
-                <p class="text-gray-500 dark:text-gray-400">Design</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.design.mat_no|default:"--" }}</p>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Account</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.account.name|default:"--" }}</p>
             </div>
             <div>
-                <p class="text-gray-500 dark:text-gray-400">Date</p>
-                <p class="font-medium text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Design MAT</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.design.mat_no|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">HDBS Type</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.design.hdbs_type|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Size</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.design.size.size_display|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Body Material</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.design.get_body_material_display|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Level</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{% if work_order.drill_bit.level %}L{{ work_order.drill_bit.level }}{% else %}FG{% endif %}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Condition</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.drill_bit.get_condition_display|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">SMI Type</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.design.smi_type|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">System MAT</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{% firstof work_order.system_mat_no work_order.drill_bit.system_bom.system_mat_no "--" %}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Brazing MAT</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{% firstof work_order.brazing_mat_no work_order.drill_bit.brazing_bom.code "-" %}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Type</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ work_order.get_wo_type_display|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs">Date</p>
+                <p class="font-semibold text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
             </div>
         </div>
     </div>
@@ -97,7 +137,7 @@
                 <div class="flex items-center gap-2">
                     <input type="checkbox" name="include_pressure_test" id="id_include_pressure_test" value="true"
                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 section-toggle">
-                    <label for="id_include_pressure_test" class="text-sm text-gray-700 dark:text-gray-300">LPT (Pressure Test)</label>
+                    <label for="id_include_pressure_test" class="text-sm text-gray-700 dark:text-gray-300">Die Check (LPT)</label>
                 </div>
                 <div class="flex items-center gap-2">
                     <input type="checkbox" name="include_thread_inspection" id="id_include_thread_inspection" value="true"
@@ -110,16 +150,20 @@
                     <label for="id_include_pocket_eval" class="text-sm text-gray-700 dark:text-gray-300">Pocket Evaluation</label>
                 </div>
             </div>
-            <div class="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" name="ardt_matrix_buildup" id="id_ardt_matrix_buildup" value="true"
-                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    <label for="id_ardt_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">ARDT Matrix Build Up Required</label>
-                </div>
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" name="eng_matrix_buildup" id="id_eng_matrix_buildup" value="true"
-                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    <label for="id_eng_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">Engineering Matrix Build Up Required</label>
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-3">
+                <p class="text-xs text-gray-400 mb-2">Evaluation decisions (auto-populated from cutter grid on the edit page)</p>
+                <div class="space-y-2">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" name="ardt_matrix_buildup" id="id_ardt_matrix_buildup" value="true"
+                               class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <label for="id_ardt_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">Build Up Required (ARDT Evaluator)</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" name="eng_matrix_buildup" id="id_eng_matrix_buildup" value="true"
+                               class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <label for="id_eng_matrix_buildup" class="text-sm text-gray-700 dark:text-gray-300">Build Up Required (Engineer Review)</label>
+                        <span class="text-xs text-gray-400">Engineer agrees, modifies, or adds</span>
+                    </div>
                 </div>
             </div>
         </div>

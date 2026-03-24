@@ -1105,7 +1105,14 @@ class CutterEvaluationCreateView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        wo = get_object_or_404(WorkOrder, pk=self.kwargs['wo_pk'])
+        wo = get_object_or_404(
+            WorkOrder.objects.select_related(
+                'drill_bit', 'drill_bit__brazing_bom', 'drill_bit__system_bom',
+                'design', 'design__size', 'account',
+                'brazing_bom', 'system_bom',
+            ),
+            pk=self.kwargs['wo_pk']
+        )
         context['work_order'] = wo
         context['page_title'] = f"Cutter Evaluation - {wo.wo_number}"
 
@@ -1490,6 +1497,20 @@ def api_evaluation_mark_complete(request, wo_pk, pk):
             entity_type="CutterEvaluationMatrix",
             entity_id=matrix.pk,
         )
+        # Rebuild route with evaluation findings
+        try:
+            from apps.workorders.models import populate_router_sheet
+            added = populate_router_sheet(wo, rebuild=True)
+            if added:
+                notify(
+                    actor=request.user,
+                    verb=f"route updated ({added} steps added) after evaluation for",
+                    target=wo.wo_number,
+                    priority="NORMAL",
+                    action_url=f"/workorders/{wo.pk}/router-sheet/",
+                )
+        except Exception:
+            pass  # Don't fail eval completion if route rebuild fails
 
     return JsonResponse({
         'success': True,
@@ -1519,19 +1540,24 @@ class RouterSheetView(LoginRequiredMixin, TemplateView):
         # Get or create router entries from process route
         entries = list(wo.router_entries.order_by('step_number'))
 
-        # If no entries exist, create from the appropriate ProcessRoute
+        # If no entries exist, build from Smart Route Engine
         if not entries:
-            route = self._get_route_for_wo(wo)
-            if route:
-                for op in route.operations.order_by('sequence'):
-                    RouterSheetEntry.objects.get_or_create(
-                        work_order=wo,
-                        step_number=op.sequence,
-                        defaults={
-                            'step_description': op.operation_name,
-                        }
-                    )
-                entries = list(wo.router_entries.order_by('step_number'))
+            try:
+                from apps.workorders.models import populate_router_sheet
+                populate_router_sheet(wo)
+            except Exception:
+                # Fallback to old ProcessRoute system
+                route = self._get_route_for_wo(wo)
+                if route:
+                    for op in route.operations.order_by('sequence'):
+                        RouterSheetEntry.objects.get_or_create(
+                            work_order=wo,
+                            step_number=op.sequence,
+                            defaults={
+                                'step_description': op.operation_name,
+                            }
+                        )
+            entries = list(wo.router_entries.order_by('step_number'))
 
         context['entries'] = entries
 
@@ -1656,6 +1682,9 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.operator = request.user
         entry.station_qr = station_qr
         entry.step_status = RouterSheetEntry.StepStatus.IN_PROGRESS
+        # KPI: snapshot bit context on first start
+        if not entry.kpi_bit_size:
+            entry.snapshot_kpi_context()
         entry.save()
         # Auto-update WO status to IN_PROGRESS if it was ACTIVE
         if wo.status in (WorkOrder.Status.ACTIVE, WorkOrder.Status.RELEASED):
@@ -1679,6 +1708,8 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.is_complete = True
         entry.step_status = RouterSheetEntry.StepStatus.COMPLETED
         entry.hold_reason = ''
+        # KPI: compute durations on completion
+        entry.compute_durations()
         entry.save()
 
         # Notify only when ALL router steps are now complete
@@ -2487,6 +2518,23 @@ class ProductionPlannerCreateWOView(LoginRequiredMixin, TemplateView):
         wo_number = account.generate_wo_number()
 
         # Create work order
+        # Auto-fill dates from bit data
+        received_date = None
+        from_loc_text = ''
+        if drill_bit:
+            # Try to get received date from bit events
+            from apps.workorders.models import BitEvent
+            rcv_event = BitEvent.objects.filter(
+                bit=drill_bit, event_type__in=['RECEIVED', 'BACKLOADED']
+            ).order_by('-created_at').first()
+            if rcv_event:
+                received_date = rcv_event.event_date or (rcv_event.created_at.date() if rcv_event.created_at else None)
+            # From location from bit's current location
+            if drill_bit.bit_location:
+                from_loc_text = drill_bit.bit_location.name
+            elif account:
+                from_loc_text = account.name
+
         wo = WorkOrder.objects.create(
             wo_number=wo_number,
             wo_type=wo_type,
@@ -2495,7 +2543,16 @@ class ProductionPlannerCreateWOView(LoginRequiredMixin, TemplateView):
             account=account,
             status=WorkOrder.Status.DRAFT,
             created_by=request.user,
+            bit_received_date=received_date,
+            from_location_text=from_loc_text,
         )
+
+        # Auto-populate router sheet from Smart Route Engine
+        try:
+            from apps.workorders.models import populate_router_sheet
+            populate_router_sheet(wo)
+        except Exception:
+            pass  # Don't fail WO creation if route assembly fails
 
         messages.success(request, f'Work Order {wo_number} created successfully.')
         return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)

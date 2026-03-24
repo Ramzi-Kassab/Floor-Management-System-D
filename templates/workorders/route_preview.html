@@ -3,6 +3,14 @@
 
 {% block title %}Route Preview — ARDT FMS{% endblock %}
 
+{% block extra_css %}
+<style>
+    .drag-handle { cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
+    tr[draggable="true"] { user-select: none; }
+</style>
+{% endblock %}
+
 {% block page_header %}
 <div class="flex items-center justify-between">
     <div>
@@ -25,108 +33,257 @@
             Configuration
         </h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <!-- Option 1: Lookup by serial -->
-            <div class="lg:col-span-3">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lookup by Serial Number</label>
-                <div class="flex gap-2">
-                    <input type="text" x-model="serial" placeholder="Enter serial number..."
-                           @keydown.enter="lookupBit()"
-                           class="flex-1 max-w-xs border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    <button @click="lookupBit()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                        <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Lookup
-                    </button>
-                    <span class="text-xs text-gray-400 self-center">or configure manually below</span>
-                </div>
-                <p x-show="lookupResult" class="text-xs text-green-600 mt-1" x-text="lookupResult"></p>
-                <p x-show="lookupError" class="text-xs text-red-600 mt-1" x-text="lookupError"></p>
+        <!-- Lookup by serial -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lookup by Serial Number</label>
+            <div class="flex gap-2">
+                <input type="text" x-model="serial" placeholder="Enter serial number..."
+                       @keydown.enter="lookupBit()"
+                       class="flex-1 max-w-xs border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <button @click="lookupBit()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                    <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Lookup
+                </button>
+                <span class="text-xs text-gray-400 self-center">or configure manually below</span>
             </div>
+            <p x-show="lookupResult" class="text-xs text-green-600 mt-1" x-text="lookupResult"></p>
+            <p x-show="lookupError" class="text-xs text-red-600 mt-1" x-text="lookupError"></p>
+        </div>
 
-            <!-- Manual config -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Level</label>
-                <select x-model="config.level" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="3">L3</option>
-                    <option value="4">L4</option>
-                    <option value="5">L5</option>
-                    <option value="5.5">L5.5</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New / Repair</label>
-                <select x-model="config.is_repair" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="false">New</option>
-                    <option value="true">Repair</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Business Unit</label>
-                <select x-model="config.account" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="">— Any —</option>
-                    {% for acc in accounts %}
-                    <option value="{{ acc.code }}">{{ acc.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Size</label>
-                <select x-model="config.size" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="8.5">8 1/2</option>
-                    <option value="3.625">3 5/8</option>
-                    <option value="5.875">5 7/8</option>
-                    <option value="6.125">6 1/8</option>
-                    <option value="8.375">8 3/8</option>
-                    <option value="12.25">12 1/4</option>
-                    <option value="16">16</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Body Material</label>
-                <select x-model="config.body_material" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="S">Steel (S)</option>
-                    <option value="M">Matrix (M)</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Has Ports</label>
-                <select x-model="config.has_ports" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-                    <option value="false">No</option>
-                    <option value="true">Yes</option>
-                </select>
+        <!-- ── BASIC DESIGN CONFIG ── -->
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="settings-2" class="w-4 h-4 text-blue-500"></i> Design & Bit Configuration
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Level</label>
+                    <select x-model="config.level" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="">-- FG (no level) --</option>
+                        <option value="3">L3</option>
+                        <option value="4">L4</option>
+                        <option value="5">L5</option>
+                        <option value="5.5">L5.5</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">New / Repair</label>
+                    <select x-model="config.is_repair" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="false">New</option>
+                        <option value="true">Repair</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Product Type</label>
+                    <select x-model="config.is_core_head" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="false">Drill Bit</option>
+                        <option value="true">Core Head</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Business Unit</label>
+                    <select x-model="config.account" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="">-- Any --</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.code }}">{{ acc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size</label>
+                    <select x-model="config.size" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        {% for s in sizes %}
+                        <option value="{{ s.size_decimal }}"{% if s.size_decimal == 8.5 %} selected{% endif %}>{{ s.size_display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Body Material</label>
+                    <select x-model="config.body_material" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="S">Steel (S)</option>
+                        <option value="M">Matrix (M)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Has Ports</label>
+                    <select x-model="config.has_ports" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design has Erosion Sleeve</label>
+                    <select x-model="config.design_erosion_sleeve" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <!-- Evaluation options -->
+        <!-- ── SPECIAL TECHNOLOGIES ── -->
         <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Evaluation Findings (optional)</h3>
-            <div class="flex flex-wrap gap-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="cpu" class="w-4 h-4 text-purple-500"></i> Special Technologies
+            </h3>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_buildup" class="rounded text-blue-600"> Build Up
+                    <input type="checkbox" x-model="config.has_cerebro_force" class="rounded text-purple-600"> Cerebro Force (CF)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_grinding" class="rounded text-blue-600"> Grinding
+                    <input type="checkbox" x-model="config.has_cerebro_puck" class="rounded text-purple-600"> Cerebro Puck (CP)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_rework" class="rounded text-blue-600"> Rework
+                    <input type="checkbox" x-model="config.has_torpedo" class="rounded text-purple-600"> Torpedo (TP)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_debraze" class="rounded text-blue-600"> De-braze
+                    <input type="checkbox" x-model="config.has_crush_shear" class="rounded text-purple-600"> Crush & Shear (CS)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_thread_repair" class="rounded text-blue-600"> Thread Repair
+                    <input type="checkbox" x-model="config.tech_erosion_sleeve" class="rounded text-purple-600"> Erosion Sleeve (ES)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_usr" class="rounded text-blue-600"> USR
+                    <input type="checkbox" x-model="config.has_shankless" class="rounded text-purple-600"> Shankless (SL)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.needs_hardfacing" class="rounded text-blue-600"> Hardfacing
+                    <input type="checkbox" x-model="config.has_cruser" class="rounded text-purple-600"> Cruser (CR)
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.has_cerebro" class="rounded text-blue-600"> Cerebro
+                    <input type="checkbox" x-model="config.has_weld_over_void" class="rounded text-purple-600"> Weld Over Void
+                </label>
+            </div>
+        </div>
+
+        <!-- ── BIT STATE (installed components) ── -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="package" class="w-4 h-4 text-teal-500"></i> Bit State (installed components)
+            </h3>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.has_nozzles" class="rounded text-teal-600"> Nozzles Installed
                 </label>
                 <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <input type="checkbox" x-model="config.has_dynamic_cutters" class="rounded text-blue-600"> Dynamic Cutters
+                    <input type="checkbox" x-model="config.has_erosion_sleeve_installed" class="rounded text-teal-600"> Erosion Sleeve Installed
                 </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.has_cerebro_installed" class="rounded text-teal-600"> Cerebro Installed
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.is_painted" class="rounded text-teal-600"> Painted
+                </label>
+            </div>
+        </div>
+
+        <!-- ── EVALUATION FINDINGS ── -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="clipboard-check" class="w-4 h-4 text-amber-500"></i> Evaluation Findings
+            </h3>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_brazing" class="rounded text-amber-600"> Brazing Needed
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_cutter_removal" class="rounded text-amber-600"> Cutter Removal
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_debraze" class="rounded text-amber-600"> De-braze
+                </label>
+                <div class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_buildup" class="rounded text-amber-600"> Build Up
+                    <template x-if="config.needs_buildup">
+                        <select x-model="config.buildup_on_pocket" class="ml-1 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700">
+                            <option value="false">Body</option>
+                            <option value="true">Pocket</option>
+                            <option value="true">Both</option>
+                        </select>
+                    </template>
+                </div>
+                <div class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_tig" class="rounded text-amber-600"> TIG Welding
+                    <template x-if="config.needs_tig">
+                        <select x-model="config.tig_on_pocket" class="ml-1 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700">
+                            <option value="false">Body</option>
+                            <option value="true">Pocket</option>
+                            <option value="true">Both</option>
+                        </select>
+                    </template>
+                </div>
+                <div class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_hardfacing" class="rounded text-amber-600"> Hardfacing
+                    <template x-if="config.needs_hardfacing">
+                        <select x-model="config.hardfacing_on_pocket" class="ml-1 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700">
+                            <option value="false">Body</option>
+                            <option value="true">Pocket</option>
+                            <option value="true">Both</option>
+                        </select>
+                    </template>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_grinding" class="rounded text-amber-600"> Grinding
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_rework" class="rounded text-amber-600"> Rework
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_usr" class="rounded text-amber-600"> USR
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_thread_repair" class="rounded text-amber-600"> Thread Repair
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.needs_shank_cleaning" class="rounded text-amber-600"> Shank Cleaning
+                </label>
+            </div>
+        </div>
+
+        <!-- ── BOM FEATURES ── -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="layers" class="w-4 h-4 text-indigo-500"></i> BOM Features
+            </h3>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.has_dynamic_cutters" class="rounded text-indigo-600"> Dynamic Cutters
+                </label>
+            </div>
+        </div>
+
+        <!-- ── TECHNICAL INSTRUCTIONS ── -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="file-text" class="w-4 h-4 text-rose-500"></i> Technical Instructions
+            </h3>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.instruction_debraze" class="rounded text-rose-600"> Debraze Instruction
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <input type="checkbox" x-model="config.undercut_gauge" class="rounded text-rose-600"> Undercut Gauge
+                </label>
+            </div>
+        </div>
+
+        <!-- ── POSITION CHOICES ── -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                <i data-lucide="map-pin" class="w-4 h-4 text-cyan-500"></i> Position Choices
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">L3 Pressure Test Position</label>
+                    <select x-model="config.l3_pt_position" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="early">After Machining</option>
+                        <option value="late">Before Final Inspection</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">USR Pressure Test Position</label>
+                    <select x-model="config.usr_pt_position" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="early">After USR Machining</option>
+                        <option value="late">Before Final Inspection</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -144,43 +301,95 @@
         </div>
     </div>
 
+    <!-- Warnings -->
+    <template x-if="warnings.length > 0">
+        <div class="space-y-2">
+            <template x-for="(w, wi) in warnings" :key="wi">
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4 flex gap-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"></i>
+                    <p class="text-sm text-amber-800 dark:text-amber-200" x-text="w"></p>
+                </div>
+            </template>
+        </div>
+    </template>
+
     <!-- Results -->
     <template x-if="steps.length > 0">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <i data-lucide="list-ordered" class="w-5 h-5 text-blue-500"></i>
-                    Assembled Route
-                </h2>
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="list-ordered" class="w-5 h-5 text-blue-500"></i>
+                        Assembled Route
+                    </h2>
+                    <span class="text-xs text-gray-400">Use arrows to reorder</span>
+                    <button x-show="reorderDirty" @click="saveReorder()"
+                            class="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1">
+                        <i data-lucide="save" class="w-3 h-3"></i> Save Order
+                    </button>
+                    <span x-show="reorderMsg" class="text-xs text-green-600" x-text="reorderMsg"></span>
+                </div>
                 <div class="text-xs text-gray-400">
-                    Config: L<span x-text="config.level"></span> |
+                    L<span x-text="config.level"></span> |
                     <span x-text="config.is_repair === 'true' ? 'Repair' : 'New'"></span> |
-                    <span x-text="config.account || 'Any'"></span> |
-                    <span x-text="config.size + '\"'"></span>
+                    <span x-text="config.is_core_head === 'true' ? 'Core Head' : 'Drill Bit'"></span> |
+                    <span x-text="config.body_material === 'S' ? 'Steel' : 'Matrix'"></span> |
+                    <span x-text="config.size + '&quot;'"></span> |
+                    <span x-text="config.has_ports === 'true' ? 'Ports' : 'No Ports'"></span>
+                    <span x-show="config.account"> | <span x-text="config.account"></span></span>
                 </div>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+                <table class="w-full text-sm" id="routeTable">
                     <thead>
                         <tr class="text-left bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            <th class="px-4 py-3 font-medium w-12">#</th>
-                            <th class="px-4 py-3 font-medium">Step</th>
-                            <th class="px-4 py-3 font-medium">Category</th>
-                            <th class="px-4 py-3 font-medium">Code</th>
-                            <th class="px-4 py-3 font-medium text-center">Est. Min</th>
-                            <th class="px-4 py-3 font-medium text-center">Params</th>
-                            <th class="px-4 py-3 font-medium text-center">Checks</th>
-                            <th class="px-4 py-3 font-medium text-center">QC</th>
-                            <th class="px-4 py-3 font-medium">Mode</th>
-                            <th class="px-4 py-3 font-medium">Type</th>
+                            <th class="pl-2 pr-1 py-3 font-medium w-24">#</th>
+                            <th class="px-3 py-3 font-medium">Step</th>
+                            <th class="px-3 py-3 font-medium">Category</th>
+                            <th class="px-3 py-3 font-medium">Code</th>
+                            <th class="px-3 py-3 font-medium text-center">Min</th>
+                            <th class="px-3 py-3 font-medium text-center">QC</th>
+                            <th class="px-3 py-3 font-medium">Mode</th>
+                            <th class="px-3 py-3 font-medium">Type</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50">
-                        <template x-for="(step, idx) in steps" :key="idx">
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                <td class="px-4 py-3 font-mono text-gray-400" x-text="idx + 1"></td>
-                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white" x-text="step.name"></td>
-                                <td class="px-4 py-3">
+                    <tbody id="routeBody">
+                        <template x-for="(step, idx) in displaySteps" :key="step.pk + '-' + idx">
+                            <tr class="hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors border-b border-gray-100 dark:border-gray-700/50"
+                                :data-idx="step._rawIdx" draggable="true">
+                                <td class="pl-2 pr-1 py-1.5 w-24">
+                                    <div class="flex items-center gap-1">
+                                        <span class="cursor-grab drag-handle text-gray-300 hover:text-gray-500 flex-shrink-0" title="Drag to reorder">
+                                            <i data-lucide="grip-vertical" class="w-4 h-4"></i>
+                                        </span>
+                                        <span class="font-mono text-gray-400 text-xs w-5 text-center" x-text="idx + 1"></span>
+                                        <button @click.stop="moveStep(step._rawIdx, -1)" :disabled="step._rawIdx === 0"
+                                                class="text-gray-400 hover:text-blue-600 disabled:opacity-20 flex-shrink-0" title="Move up">
+                                            <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click.stop="moveStep(step._rawIdx, 1)" :disabled="step._rawIdx === steps.length - 1"
+                                                class="text-gray-400 hover:text-blue-600 disabled:opacity-20 flex-shrink-0" title="Move down">
+                                            <i data-lucide="arrow-down" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-1.5">
+                                    <div class="font-medium text-blue-700 dark:text-blue-400 underline decoration-dotted cursor-pointer"
+                                         @click="openProcessDetail(step.pk)" x-text="step.name"></div>
+                                    <!-- Attached sub-steps shown as badges under the name -->
+                                    <template x-if="step._attached && step._attached.length > 0">
+                                        <div class="flex flex-wrap gap-1 mt-1">
+                                            <template x-for="att in step._attached" :key="att.pk">
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300 cursor-pointer"
+                                                      @click.stop="openProcessDetail(att.pk)">
+                                                    <i data-lucide="arrow-right-circle" class="w-3 h-3"></i>
+                                                    <span x-text="att.name"></span>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </td>
+                                <td class="px-3 py-1.5">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
                                           :class="{
                                             'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': step.category === 'RECEIVING',
@@ -196,25 +405,232 @@
                                             'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': step.category === 'SPECIAL',
                                           }" x-text="step.category"></span>
                                 </td>
-                                <td class="px-4 py-3 font-mono text-xs text-gray-500" x-text="step.code"></td>
-                                <td class="px-4 py-3 text-center font-mono" x-text="step.estimated_minutes"></td>
-                                <td class="px-4 py-3 text-center" x-text="step.params_count || '—'"></td>
-                                <td class="px-4 py-3 text-center" x-text="step.checks_count || '—'"></td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-3 py-1.5 font-mono text-xs text-gray-500" x-text="step.code"></td>
+                                <td class="px-3 py-1.5 text-center font-mono" x-text="step.estimated_minutes"></td>
+                                <td class="px-3 py-1.5 text-center">
                                     <span x-show="step.requires_qc" class="text-purple-500"><i data-lucide="shield-check" class="w-4 h-4 inline"></i></span>
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-1.5">
                                     <span x-show="step.step_mode === 'PASSIVE'" class="text-xs text-amber-600 font-medium">Passive</span>
-                                    <span x-show="step.step_mode === 'MULTI'" class="text-xs text-indigo-600 font-medium">Multi</span>
                                 </td>
-                                <td class="px-4 py-3">
-                                    <span x-show="step.is_conditional" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Conditional</span>
-                                    <span x-show="step.has_dedicated_page" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Has Page</span>
+                                <td class="px-3 py-1.5">
+                                    <span x-show="step.is_conditional" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Cond</span>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </template>
+
+    <!-- ═══ PROCESS DETAIL MODAL ═══ -->
+    <template x-if="detailOpen">
+        <div class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4" @keydown.escape.window="detailOpen = false">
+            <div class="fixed inset-0 bg-black/40" @click="detailOpen = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto" @click.stop>
+                <!-- Header -->
+                <div class="sticky top-0 bg-white dark:bg-gray-800 z-10 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white" x-text="detail.name"></h3>
+                        <span class="text-xs font-mono text-gray-400" x-text="'[' + detail.code + '] pk=' + detail.pk"></span>
+                    </div>
+                    <button @click="detailOpen = false" class="text-gray-400 hover:text-gray-600 p-1">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-4 space-y-5">
+                    <!-- Basic fields -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 font-semibold mb-0.5">Category</label>
+                            <select x-model="detail.category" class="w-full border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600">
+                                <option value="RECEIVING">RECEIVING</option><option value="EVALUATION">EVALUATION</option>
+                                <option value="PREPARATION">PREPARATION</option><option value="BRAZING">BRAZING</option>
+                                <option value="GRINDING">GRINDING</option><option value="ASSEMBLY">ASSEMBLY</option>
+                                <option value="THREADING">THREADING</option><option value="QC">QC</option>
+                                <option value="FINISHING">FINISHING</option><option value="DISPATCH">DISPATCH</option>
+                                <option value="SPECIAL">SPECIAL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 font-semibold mb-0.5">Sort Order</label>
+                            <input type="number" x-model.number="detail.sort_order" class="w-full border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 font-semibold mb-0.5">Est. Minutes</label>
+                            <input type="number" x-model.number="detail.default_estimated_minutes" class="w-full border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 font-semibold mb-0.5">Step Mode</label>
+                            <select x-model="detail.step_mode" class="w-full border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600">
+                                <option value="ACTIVE">Active</option><option value="PASSIVE">Passive</option><option value="MULTI">Multi</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Flags -->
+                    <div class="flex flex-wrap gap-4">
+                        <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" x-model="detail.is_default_included" class="rounded text-blue-600"> Default Included</label>
+                        <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" x-model="detail.requires_qc" class="rounded text-purple-600"> Requires QC</label>
+                        <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" x-model="detail.applies_to_new" class="rounded text-green-600"> Applies to New</label>
+                        <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" x-model="detail.applies_to_repair" class="rounded text-amber-600"> Applies to Repair</label>
+                    </div>
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-400 font-semibold mb-0.5">Description / Instructions</label>
+                        <textarea x-model="detail.instructions_general" rows="3" class="w-full border rounded px-2 py-1.5 text-sm dark:bg-gray-700 dark:border-gray-600"></textarea>
+                    </div>
+
+                    <!-- ── PARENT / SIBLINGS ── -->
+                    <template x-if="detail.parent">
+                        <div class="border-t pt-4 border-gray-200 dark:border-gray-700">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 mb-2">
+                                <i data-lucide="git-branch" class="w-4 h-4 text-violet-500"></i> Process Family
+                            </h4>
+                            <div class="bg-violet-50 dark:bg-violet-900/20 rounded-lg px-3 py-2 text-sm">
+                                <div class="font-medium text-violet-800 dark:text-violet-300">
+                                    Parent: <span x-text="detail.parent.name"></span>
+                                    <span class="text-xs text-violet-500 ml-1" x-text="'(' + detail.parent.code + ')'"></span>
+                                </div>
+                                <div x-show="detail.inherited_from_parent" class="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
+                                    Instructions, parameters, checklist inherited from parent
+                                </div>
+                                <div x-show="detail.siblings && detail.siblings.length > 0" class="mt-1.5 text-xs text-violet-600 dark:text-violet-400">
+                                    Siblings:
+                                    <template x-for="sib in detail.siblings" :key="sib.pk">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-300 mr-1 mb-0.5" x-text="sib.name"></span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- ── INCLUSION RULES ── -->
+                    <div class="border-t pt-4 border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                <i data-lucide="filter" class="w-4 h-4 text-blue-500"></i> Inclusion Rules
+                            </h4>
+                            <button @click="addRule()" class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">+ Add Rule</button>
+                        </div>
+                        <template x-if="detail.rules && detail.rules.length > 0">
+                            <div class="space-y-2">
+                                <template x-for="(rule, ri) in detail.rules" :key="ri">
+                                    <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/30 rounded-lg px-3 py-2 text-sm">
+                                        <select x-model="rule.rule_type" class="border rounded px-1.5 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 w-24">
+                                            <option value="INCLUDE_IF">INCLUDE IF</option>
+                                            <option value="EXCLUDE_IF">EXCLUDE IF</option>
+                                        </select>
+                                        <input x-model="rule.field_path" placeholder="field (e.g. eval.needs_brazing)" class="border rounded px-1.5 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 flex-1 min-w-0">
+                                        <select x-model="rule.operator" class="border rounded px-1.5 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 w-24">
+                                            <option value="EQUALS">equals</option>
+                                            <option value="NOT_EQUALS">not equals</option>
+                                            <option value="GT">greater than</option>
+                                            <option value="LT">less than</option>
+                                            <option value="CONTAINS">contains</option>
+                                            <option value="EXISTS">exists</option>
+                                            <option value="NOT_EXISTS">not exists</option>
+                                            <option value="IN_LIST">in list</option>
+                                        </select>
+                                        <input x-model="rule.value" placeholder="value" class="border rounded px-1.5 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 w-24">
+                                        <input x-model.number="rule.priority" type="number" placeholder="pri" class="border rounded px-1.5 py-1 text-xs dark:bg-gray-700 dark:border-gray-600 w-12" title="Priority">
+                                        <button @click="deleteRule(ri)" class="text-red-500 hover:text-red-700 p-0.5" title="Delete rule">
+                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <p x-show="!detail.rules || detail.rules.length === 0" class="text-xs text-gray-400 italic mt-1">No inclusion rules. Process uses is_default_included flag only.</p>
+                        <div class="mt-2">
+                            <details class="text-xs text-gray-400">
+                                <summary class="cursor-pointer hover:text-gray-600">Common field paths</summary>
+                                <div class="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 pl-3 text-[11px] font-mono">
+                                    <span>bit.is_repair</span><span>bit.is_new</span>
+                                    <span>bit.level</span><span>bit.size</span>
+                                    <span>bit.account</span><span>bit.is_core_head</span>
+                                    <span>bit.has_nozzles</span><span>bit.has_erosion_sleeve</span>
+                                    <span>bit.has_cerebro</span><span>bit.is_painted</span>
+                                    <span>design.body_material</span><span>design.has_ports</span>
+                                    <span>design.erosion_sleeve</span><span>tech.has_cerebro</span>
+                                    <span>tech.has_cerebro_force</span><span>tech.has_cerebro_puck</span>
+                                    <span>tech.has_torpedo</span><span>tech.has_crush_shear</span>
+                                    <span>tech.has_shankless</span><span>tech.has_cruser</span>
+                                    <span>tech.has_weld_over_void</span><span>bom.has_dynamic_cutters</span>
+                                    <span>eval.needs_brazing</span><span>eval.needs_cutter_removal</span>
+                                    <span>eval.needs_debraze</span><span>eval.needs_buildup</span>
+                                    <span>eval.needs_tig</span><span>eval.needs_hardfacing</span>
+                                    <span>eval.needs_grinding</span><span>eval.needs_rework</span>
+                                    <span>eval.needs_usr</span><span>eval.needs_thread_repair</span>
+                                    <span>eval.needs_shank_cleaning</span><span>tech.instruction_debraze</span>
+                                    <span>tech.undercut_gauge</span>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+
+                    <!-- Rule Expression (JSON) -->
+                    <template x-if="detail.rule_expression && Object.keys(detail.rule_expression).length > 0">
+                        <div class="border-t pt-4 border-gray-200 dark:border-gray-700">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Rule Expression (JSON)</h4>
+                            <pre class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-xs overflow-x-auto" x-text="JSON.stringify(detail.rule_expression, null, 2)"></pre>
+                        </div>
+                    </template>
+
+                    <!-- Parameters -->
+                    <template x-if="detail.parameters && detail.parameters.length > 0">
+                        <div class="border-t pt-4 border-gray-200 dark:border-gray-700">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parameters (<span x-text="detail.parameters.length"></span>)</h4>
+                            <div class="space-y-1">
+                                <template x-for="p in detail.parameters" :key="p.pk">
+                                    <div class="text-xs bg-gray-50 dark:bg-gray-700/30 rounded px-2 py-1">
+                                        <span class="font-medium" x-text="p.name"></span>
+                                        <span class="text-gray-400 ml-1" x-text="'(' + p.type + (p.unit ? ' ' + p.unit : '') + ')'"></span>
+                                        <span x-show="p.required" class="text-red-500 text-[10px] ml-1">required</span>
+                                        <span x-show="p.condition" class="text-blue-500 text-[10px] ml-1" x-text="'if ' + p.condition + ' ' + p.condition_op + ' ' + p.condition_val"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Checklist -->
+                    <template x-if="detail.checklist && detail.checklist.length > 0">
+                        <div class="border-t pt-4 border-gray-200 dark:border-gray-700">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Checklist (<span x-text="detail.checklist.length"></span>)</h4>
+                            <div class="space-y-1">
+                                <template x-for="c in detail.checklist" :key="c.pk">
+                                    <div class="text-xs bg-gray-50 dark:bg-gray-700/30 rounded px-2 py-1">
+                                        <span x-text="c.text"></span>
+                                        <span x-show="c.required" class="text-red-500 text-[10px] ml-1">required</span>
+                                        <span x-show="c.condition" class="text-blue-500 text-[10px] ml-1" x-text="'if ' + c.condition + ' ' + c.condition_op + ' ' + c.condition_val"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Footer actions -->
+                <div class="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-400" x-text="detailSaveMsg"></span>
+                        <template x-if="detail.siblings && detail.siblings.length > 0">
+                            <label class="flex items-center gap-1.5 text-xs text-violet-600">
+                                <input type="checkbox" x-model="shareRulesToSiblings" class="rounded text-violet-600">
+                                Apply rule changes to siblings too
+                            </label>
+                        </template>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="detailOpen = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border rounded-lg">Cancel</button>
+                        <button @click="saveProcessDetail()" :disabled="detailSaving"
+                                class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                            <span x-text="detailSaving ? 'Saving...' : 'Save Changes'"></span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </template>
@@ -232,22 +648,66 @@ function routePreview() {
         generating: false,
         steps: [],
         totalMinutes: 0,
+        warnings: [],
+        // Reorder
+        reorderDirty: false,
+        reorderMsg: '',
+        // Process detail modal
+        detailOpen: false,
+        detailLoading: false,
+        detailSaving: false,
+        detailSaveMsg: '',
+        shareRulesToSiblings: false,
+        detail: {},
+        // Deleted rule PKs to send on save
+        _deletedRulePks: [],
         config: {
-            level: '4',
+            // Design & bit
+            level: '',
             is_repair: 'false',
+            is_core_head: 'false',
             account: '',
             size: '8.5',
             body_material: 'S',
             has_ports: 'false',
+            design_erosion_sleeve: 'false',
+            // Special technologies
+            has_cerebro_force: false,
+            has_cerebro_puck: false,
+            has_torpedo: false,
+            has_crush_shear: false,
+            tech_erosion_sleeve: false,
+            has_shankless: false,
+            has_cruser: false,
+            has_weld_over_void: false,
+            // Bit state
+            has_nozzles: false,
+            has_erosion_sleeve_installed: false,
+            has_cerebro_installed: false,
+            is_painted: false,
+            // Evaluation findings
+            needs_brazing: false,
+            needs_cutter_removal: false,
+            needs_debraze: false,
             needs_buildup: false,
+            needs_tig: false,
+            needs_hardfacing: false,
             needs_grinding: false,
             needs_rework: false,
-            needs_debraze: false,
-            needs_thread_repair: false,
             needs_usr: false,
-            needs_hardfacing: false,
-            has_cerebro: false,
+            needs_thread_repair: false,
+            needs_shank_cleaning: false,
+            buildup_on_pocket: 'false',
+            tig_on_pocket: 'false',
+            hardfacing_on_pocket: 'false',
+            // BOM
             has_dynamic_cutters: false,
+            // Technical instructions
+            instruction_debraze: false,
+            undercut_gauge: false,
+            // Position choices
+            l3_pt_position: 'early',
+            usr_pt_position: 'early',
         },
 
         init() {
@@ -294,6 +754,7 @@ function routePreview() {
                 if (d.success) {
                     this.steps = d.steps;
                     this.totalMinutes = d.total_minutes;
+                    this.warnings = d.warnings || [];
                 } else {
                     alert(d.error || 'Preview failed');
                 }
@@ -301,7 +762,269 @@ function routePreview() {
                 alert('Error: ' + e.message);
             }
             this.generating = false;
+            this.$nextTick(() => {
+                if (window.lucide) lucide.createIcons();
+                // Init drag-and-drop on the real DOM after Alpine renders
+                setTimeout(() => this.initDragDrop(), 100);
+            });
+        },
+
+        // ── Display: merge attached steps into previous row ──
+        get displaySteps() {
+            const result = [];
+            for (let i = 0; i < this.steps.length; i++) {
+                const s = this.steps[i];
+                if (s.attach_to_previous && result.length > 0) {
+                    // Attach to the last non-attached step
+                    const prev = result[result.length - 1];
+                    if (!prev._attached) prev._attached = [];
+                    prev._attached.push(s);
+                } else {
+                    result.push({...s, _rawIdx: i, _attached: []});
+                }
+            }
+            return result;
+        },
+
+        // ── Reorder ──
+        _dragFromIdx: null,
+
+        moveStep(idx, direction) {
+            const newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= this.steps.length) return;
+            const item = this.steps.splice(idx, 1)[0];
+            this.steps.splice(newIdx, 0, item);
+            this.reorderDirty = true;
             this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        initDragDrop() {
+            // Native drag-and-drop wired on the tbody element (not per-row via Alpine)
+            const tbody = document.getElementById('routeBody');
+            if (!tbody || tbody._dragInited) return;
+            tbody._dragInited = true;
+            const self = this;
+            let placeholder = null;
+
+            function getRowFromEvent(e) {
+                return e.target.closest('tr[data-idx]');
+            }
+
+            tbody.addEventListener('dragstart', (e) => {
+                const row = getRowFromEvent(e);
+                if (!row) return;
+                // Only allow drag from the grip handle
+                if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+                self._dragFromIdx = parseInt(row.dataset.idx);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', self._dragFromIdx);
+                row.style.opacity = '0.3';
+                // Create placeholder
+                placeholder = document.createElement('tr');
+                placeholder.className = 'bg-blue-100 dark:bg-blue-900/30';
+                placeholder.innerHTML = '<td colspan="8" class="py-1 text-center text-xs text-blue-500 font-medium border-2 border-dashed border-blue-400 rounded">Drop here</td>';
+            });
+
+            tbody.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const row = getRowFromEvent(e);
+                if (!row || parseInt(row.dataset.idx) === self._dragFromIdx) return;
+                // Insert placeholder
+                const rect = row.getBoundingClientRect();
+                const mid = rect.top + rect.height / 2;
+                if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+                if (e.clientY < mid) {
+                    row.parentNode.insertBefore(placeholder, row);
+                } else {
+                    row.parentNode.insertBefore(placeholder, row.nextSibling);
+                }
+            });
+
+            tbody.addEventListener('dragleave', (e) => {
+                // Remove placeholder if leaving the tbody entirely
+                if (!tbody.contains(e.relatedTarget) && placeholder && placeholder.parentNode) {
+                    placeholder.parentNode.removeChild(placeholder);
+                }
+            });
+
+            tbody.addEventListener('dragend', (e) => {
+                // Clean up
+                const row = getRowFromEvent(e);
+                if (row) row.style.opacity = '';
+                if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+                self._dragFromIdx = null;
+            });
+
+            tbody.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const fromIdx = self._dragFromIdx;
+                if (fromIdx === null) return;
+
+                // Determine target index from placeholder position
+                if (placeholder && placeholder.parentNode) {
+                    // Count real rows before the placeholder
+                    let toIdx = 0;
+                    let node = tbody.firstElementChild;
+                    while (node) {
+                        if (node === placeholder) break;
+                        // Skip template comments, only count real tr with data-idx
+                        if (node.tagName === 'TR' && node.dataset.idx !== undefined) toIdx++;
+                        node = node.nextElementSibling;
+                    }
+                    // Adjust if dragging down (removing from before shifts indices)
+                    if (fromIdx < toIdx) toIdx--;
+
+                    if (fromIdx !== toIdx && toIdx >= 0 && toIdx < self.steps.length) {
+                        const item = self.steps.splice(fromIdx, 1)[0];
+                        self.steps.splice(toIdx, 0, item);
+                        self.reorderDirty = true;
+                    }
+                    placeholder.parentNode.removeChild(placeholder);
+                }
+
+                // Clean up source row opacity
+                const rows = tbody.querySelectorAll('tr[data-idx]');
+                rows.forEach(r => r.style.opacity = '');
+                self._dragFromIdx = null;
+                self.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+            });
+        },
+        async saveReorder() {
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const order = this.steps.map((s, i) => ({ pk: s.pk, sort_order: (i + 1) * 10 }));
+            try {
+                const r = await fetch('{% url "workorders:api_master_process_reorder" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                    body: JSON.stringify({ order })
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    this.reorderDirty = false;
+                    this.reorderMsg = 'Order saved!';
+                    setTimeout(() => { this.reorderMsg = ''; }, 3000);
+                } else {
+                    alert(d.error || 'Save failed');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        },
+
+        // ── Process Detail Modal ──
+        async openProcessDetail(pk) {
+            if (!pk) return;
+            this.detailLoading = true;
+            this.detailSaveMsg = '';
+            this._deletedRulePks = [];
+            this.shareRulesToSiblings = false;
+            try {
+                const r = await fetch(`/work-orders/api/master-processes/${pk}/detail/`);
+                if (!r.ok) throw new Error('Failed to load');
+                this.detail = await r.json();
+                this.detailOpen = true;
+            } catch (e) {
+                alert('Could not load process details: ' + e.message);
+            }
+            this.detailLoading = false;
+            this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        addRule() {
+            if (!this.detail.rules) this.detail.rules = [];
+            this.detail.rules.push({
+                pk: null, rule_type: 'INCLUDE_IF', field_path: '', operator: 'EQUALS', value: 'True', priority: 10, description: ''
+            });
+        },
+
+        deleteRule(idx) {
+            const rule = this.detail.rules[idx];
+            if (rule.pk) this._deletedRulePks.push(rule.pk);
+            this.detail.rules.splice(idx, 1);
+        },
+
+        async saveProcessDetail() {
+            this.detailSaving = true;
+            this.detailSaveMsg = '';
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': csrf };
+            try {
+                // 1. Save process fields
+                const procData = {
+                    category: this.detail.category,
+                    sort_order: this.detail.sort_order,
+                    default_estimated_minutes: this.detail.default_estimated_minutes,
+                    step_mode: this.detail.step_mode,
+                    is_default_included: this.detail.is_default_included,
+                    requires_qc: this.detail.requires_qc,
+                    applies_to_new: this.detail.applies_to_new,
+                    applies_to_repair: this.detail.applies_to_repair,
+                    instructions_general: this.detail.instructions_general,
+                };
+                const r1 = await fetch(`/work-orders/api/master-processes/${this.detail.pk}/save/`, {
+                    method: 'POST', headers, body: JSON.stringify(procData)
+                });
+                if (!r1.ok) throw new Error('Failed to save process');
+
+                // 2. Delete removed rules
+                for (const rpk of this._deletedRulePks) {
+                    await fetch(`/work-orders/api/inclusion-rules/${rpk}/delete/`, { method: 'POST', headers });
+                }
+                this._deletedRulePks = [];
+
+                // 3. Save each rule (create or update)
+                for (const rule of (this.detail.rules || [])) {
+                    const ruleData = {
+                        pk: rule.pk || undefined,
+                        rule_type: rule.rule_type,
+                        field_path: rule.field_path,
+                        operator: rule.operator,
+                        value: rule.value,
+                        priority: rule.priority || 10,
+                        description: rule.description || '',
+                    };
+                    const r2 = await fetch(`/work-orders/api/master-processes/${this.detail.pk}/rules/save/`, {
+                        method: 'POST', headers, body: JSON.stringify(ruleData)
+                    });
+                    if (r2.ok) {
+                        const saved = await r2.json();
+                        if (!rule.pk) rule.pk = saved.pk;
+                    }
+                }
+
+                // 4. Share rules to siblings if requested
+                if (this.shareRulesToSiblings && this.detail.siblings && this.detail.siblings.length > 0) {
+                    for (const sib of this.detail.siblings) {
+                        // Delete existing rules on sibling
+                        const sibRulesR = await fetch(`/work-orders/api/master-processes/${sib.pk}/detail/`);
+                        if (sibRulesR.ok) {
+                            const sibData = await sibRulesR.json();
+                            for (const oldRule of (sibData.rules || [])) {
+                                await fetch(`/work-orders/api/inclusion-rules/${oldRule.pk}/delete/`, { method: 'POST', headers });
+                            }
+                        }
+                        // Copy current rules to sibling
+                        for (const rule of (this.detail.rules || [])) {
+                            await fetch(`/work-orders/api/master-processes/${sib.pk}/rules/save/`, {
+                                method: 'POST', headers,
+                                body: JSON.stringify({
+                                    rule_type: rule.rule_type, field_path: rule.field_path,
+                                    operator: rule.operator, value: rule.value,
+                                    priority: rule.priority || 10, description: rule.description || '',
+                                })
+                            });
+                        }
+                    }
+                    this.detailSaveMsg = 'Saved + shared to ' + this.detail.siblings.length + ' siblings';
+                } else {
+                    this.detailSaveMsg = 'Saved successfully';
+                }
+                setTimeout(() => { this.detailSaveMsg = ''; }, 4000);
+            } catch (e) {
+                this.detailSaveMsg = 'Error: ' + e.message;
+            }
+            this.detailSaving = false;
         },
     };
 }

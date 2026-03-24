@@ -1,50 +1,64 @@
 """
-Seed Special Technologies reference data.
+Seed special technologies -- keep only the 7 relevant ones,
+deactivate unknowns.
+
+Usage:
+    python manage.py seed_special_technologies --confirm
 """
-
 from django.core.management.base import BaseCommand
-
 from apps.technology.models import SpecialTechnology
 
 
+KEEP_TECHNOLOGIES = [
+    {'code': 'CF', 'name': 'Cerebro Force', 'description': 'Cerebro sensor installed from shank side. Remove/install or close cap steps.'},
+    {'code': 'CP', 'name': 'Cerebro Puck', 'description': 'Cerebro puck. USR NOT possible in KSA -- contact technical.'},
+    {'code': 'TP', 'name': 'Torpedo', 'description': 'Torpedo sensor from internal diameter side. USR IS possible for size >= 8 1/2 in. Thread protector if no torpedo.'},
+    {'code': 'CS', 'name': 'Crush & Shear', 'description': 'Crush & shear components. New: install. Repair: replace. Install, heat, TIG weld, cool.'},
+    {'code': 'ES', 'name': 'Erosion Sleeve', 'description': 'Erosion sleeve protection. Remove before work, install after.'},
+    {'code': 'SL', 'name': 'Shankless', 'description': 'Shankless design. USR NOT possible in KSA -- contact technical.'},
+    {'code': 'CR', 'name': 'Cruser', 'description': 'Special cutter type -- affects cutter preparation and BOM handling.'},
+]
+
+DEACTIVATE_CODES = ['AXIS', 'DS', 'FM', 'TCD', 'SST', 'RGD', 'VBS']
+
+
 class Command(BaseCommand):
-    help = "Seed Special Technologies reference data"
+    help = 'Seed special technologies and deactivate unused ones'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--confirm', action='store_true', help='Actually create/update')
 
     def handle(self, *args, **options):
-        technologies = [
-            # Erosion & Structural Technologies
-            {"code": "ES", "name": "Erosion Sleeve", "description": "Erosion sleeve protection for gage area"},
-            {"code": "CS", "name": "Crush & Shear", "description": "Crush & Shear cutter technology for enhanced formation breaking"},
-            {"code": "SL", "name": "Shankless", "description": "Shankless upper section design - cannot be replaced in KSA"},
-            # Cerebro Technologies
-            {"code": "CP", "name": "Cerebro Puck", "description": "Cerebro Puck technology for enhanced ROP feedback"},
-            {"code": "CF", "name": "Cerebro Force", "description": "Cerebro Force technology for weight-on-bit monitoring"},
-            # Cutter Technologies
-            {"code": "DS", "name": "DualString", "description": "DualString cutter technology"},
-            {"code": "TCD", "name": "TCD", "description": "Thermally Conductive Diamond technology"},
-            {"code": "FM", "name": "ForceMaster", "description": "ForceMaster cutter placement technology"},
-            # Hydraulics
-            {"code": "TP", "name": "Torpedo", "description": "Torpedo nozzle technology for improved hydraulics"},
-            # Stability & Steering
-            {"code": "AXIS", "name": "AXIS", "description": "AXIS stabilization technology"},
-            {"code": "SST", "name": "SteerStar", "description": "SteerStar directional technology"},
-            {"code": "RGD", "name": "RGD", "description": "Rolling Gauge Device"},
-            {"code": "VBS", "name": "VBS", "description": "Vibration Blocking System"},
-        ]
+        if not options['confirm']:
+            self.stdout.write('Dry run. Pass --confirm to apply.')
+            self.stdout.write('\nKEEP/CREATE:')
+            for t in KEEP_TECHNOLOGIES:
+                self.stdout.write(f'  {t["code"]:5s} {t["name"]}')
+            self.stdout.write(f'\nDEACTIVATE: {", ".join(DEACTIVATE_CODES)}')
+            return
 
         created = 0
-        for tech_data in technologies:
+        updated = 0
+        for data in KEEP_TECHNOLOGIES:
             obj, was_created = SpecialTechnology.objects.update_or_create(
-                code=tech_data["code"],
+                code=data['code'],
                 defaults={
-                    "name": tech_data["name"],
-                    "description": tech_data["description"],
-                    "is_active": True,
-                },
+                    'name': data['name'],
+                    'description': data['description'],
+                    'is_active': True,
+                }
             )
             if was_created:
                 created += 1
+                self.stdout.write(self.style.SUCCESS(f'  Created: {data["code"]} -- {data["name"]}'))
+            else:
+                updated += 1
+                self.stdout.write(f'  Updated: {data["code"]} -- {data["name"]}')
 
-        self.stdout.write(
-            self.style.SUCCESS(f"SpecialTechnology: {created} created, {len(technologies) - created} already exist")
-        )
+        deactivated = SpecialTechnology.objects.filter(
+            code__in=DEACTIVATE_CODES, is_active=True
+        ).update(is_active=False)
+
+        self.stdout.write(self.style.SUCCESS(
+            f'\nDone. {created} created, {updated} updated, {deactivated} deactivated.'
+        ))
