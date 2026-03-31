@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Bit Data Sheet — {{ drill_bit.serial_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.bds-wrapper { max-width: 860px; margin: 0 auto; }
+@media print {
+    body, html { margin:0!important; padding:0!important; background:#fff!important; }
+    .no-print, nav, aside, header, .topnav, .sidebar { display:none!important; }
+    main { margin:0!important; padding:0!important; }
+    .content-wrapper { margin-left:0!important; padding:0!important; }
+    .bds-wrapper { max-width:100%; padding:0.3in 0.4in; font-size:10.5px; }
+    @page { size: A4 portrait; margin:0; }
+    .bds-section { break-inside:avoid; }
+    .bds-page-break { page-break-before:always; }
+}
+.bds-header { width:100%; border-collapse:collapse; }
+.bds-header td, .bds-header th { border:1px solid #d1d5db; padding:5px 10px; }
+.bds-label { background:#f3f4f6; font-weight:600; font-size:11px; color:#374151; width:130px; white-space:nowrap; }
+.bds-value { font-size:12px; color:#111827; }
+.dark .bds-header td { border-color:#4b5563; }
+.dark .bds-label { background:#374151; color:#d1d5db; }
+.dark .bds-value { color:#f3f4f6; }
+
+.bds-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:14px; overflow:hidden; }
+.dark .bds-card { background:#1f2937; border-color:#374151; }
+.bds-card-hdr { background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:8px 14px; display:flex; align-items:center; gap:8px; }
+.dark .bds-card-hdr { background:#111827; border-bottom-color:#374151; }
+.bds-card-title { font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:0.05em; }
+.dark .bds-card-title { color:#d1d5db; }
+
+.hist-table { width:100%; border-collapse:collapse; }
+.hist-table th { background:#f3f4f6; padding:4px 8px; text-align:left; font-size:9.5px; font-weight:700; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #d1d5db; }
+.hist-table td { padding:4px 8px; border-bottom:1px solid #e5e7eb; font-size:10.5px; }
+.dark .hist-table th { background:#374151; color:#9ca3af; border-bottom-color:#4b5563; }
+.dark .hist-table td { border-bottom-color:#374151; }
+
+.cutter-grid { display:flex; flex-wrap:wrap; gap:4px; padding:10px 14px; }
+.cutter-cell { width:36px; height:36px; border-radius:6px; background:#f3f4f6; border:1px solid #e5e7eb; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:8px; color:#374151; text-align:center; }
+.dark .cutter-cell { background:#374151; border-color:#4b5563; color:#d1d5db; }
+
+.status-chip { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; }
+.chip-AVAILABLE { background:#d1fae5; color:#065f46; }
+.chip-ACTIVE    { background:#dbeafe; color:#1e40af; }
+.chip-SCRAPPED  { background:#fee2e2; color:#991b1b; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between no-print">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}"
+           class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Bit Data Sheet</h1>
+            <p class="text-sm text-gray-500 font-mono">{{ drill_bit.serial_number }}</p>
+        </div>
+    </div>
+    <button onclick="window.print()"
+            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+        <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bds-wrapper">
+
+    <!-- ── PRINT LETTERHEAD ── -->
+    <div class="hidden print:block mb-5">
+        <table class="bds-header">
+            <tr>
+                <td rowspan="4" style="width:100px;text-align:center;background:#f8fafc;border-right:2px solid #9ca3af;vertical-align:middle;">
+                    <div style="font-family:Georgia,serif;font-size:26px;font-weight:bold;color:#1e3a5f;letter-spacing:2px;">ARDT</div>
+                    <div style="font-size:7px;color:#6b7280;margin-top:2px;">Floor Management System</div>
+                </td>
+                <td colspan="4" style="text-align:center;font-size:15px;font-weight:bold;padding:7px;">
+                    DRILL BIT DATA SHEET
+                </td>
+                <td rowspan="4" style="width:78px;text-align:center;vertical-align:middle;">
+                    {% if qr_code %}
+                    <img src="data:image/png;base64,{{ qr_code }}" style="width:68px;height:68px;">
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="bds-label">Serial No.</td>
+                <td class="bds-value font-mono font-bold">{{ drill_bit.serial_number }}</td>
+                <td class="bds-label">Status</td>
+                <td class="bds-value">{{ drill_bit.get_status_display }}</td>
+            </tr>
+            <tr>
+                <td class="bds-label">Print Date</td>
+                <td class="bds-value">{% now "d M Y H:i" %}</td>
+                <td class="bds-label">Level</td>
+                <td class="bds-value">{% if drill_bit.level %}L{{ drill_bit.level }}{% else %}FG (Full Gauge){% endif %}</td>
+            </tr>
+            <tr>
+                <td class="bds-label">Account</td>
+                <td class="bds-value">{{ drill_bit.account.name|default:"—" }}</td>
+                <td class="bds-label">Customer</td>
+                <td class="bds-value">{{ drill_bit.customer.name|default:"—" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ══════════════════════════════════ SECTION 1: IDENTIFICATION ══ -->
+    <div class="bds-card bds-section">
+        <div class="bds-card-hdr">
+            <i data-lucide="fingerprint" class="w-4 h-4 text-blue-500 no-print"></i>
+            <span class="bds-card-title">Identification</span>
+        </div>
+        <div class="p-0">
+            <table class="bds-header">
+                <tr>
+                    <td class="bds-label">Serial Number</td>
+                    <td class="bds-value font-mono font-bold">{{ drill_bit.serial_number }}</td>
+                    <td class="bds-label">Status</td>
+                    <td class="bds-value">
+                        <span class="status-chip chip-{{ drill_bit.status }}">{{ drill_bit.get_status_display }}</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Condition</td>
+                    <td class="bds-value">{{ drill_bit.get_condition_display|default:"—" }}</td>
+                    <td class="bds-label">Body Material</td>
+                    <td class="bds-value">{{ drill_bit.design.get_body_material_display|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Account</td>
+                    <td class="bds-value">{{ drill_bit.account.name|default:"—" }}</td>
+                    <td class="bds-label">Customer</td>
+                    <td class="bds-value">{{ drill_bit.customer.name|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Current Location</td>
+                    <td class="bds-value" colspan="3">{{ drill_bit.current_location|default:"—" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════ SECTION 2: DESIGN SPECS ══ -->
+    {% if design %}
+    <div class="bds-card bds-section">
+        <div class="bds-card-hdr">
+            <i data-lucide="layers" class="w-4 h-4 text-violet-500 no-print"></i>
+            <span class="bds-card-title">Design Specifications</span>
+        </div>
+        <div class="p-0">
+            <table class="bds-header">
+                <tr>
+                    <td class="bds-label">Design MAT No.</td>
+                    <td class="bds-value font-mono">{{ design.mat_no|default:"—" }}</td>
+                    <td class="bds-label">HDBS Type</td>
+                    <td class="bds-value">{{ design.hdbs_type|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Size</td>
+                    <td class="bds-value font-bold">{{ design.size.size_display|default:"—" }}</td>
+                    <td class="bds-label">Blades</td>
+                    <td class="bds-value">{{ design.no_of_blades|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Connection</td>
+                    <td class="bds-value">{{ design.connection_type|default:"—" }}</td>
+                    <td class="bds-label">Nozzles</td>
+                    <td class="bds-value">{{ design.no_of_nozzles|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="bds-label">Junk Slot</td>
+                    <td class="bds-value">{{ design.junk_slot|default:"—" }}</td>
+                    <td class="bds-label">Gauge Length</td>
+                    <td class="bds-value">{{ design.gauge_length|default:"—" }}</td>
+                </tr>
+                {% if design.total_pockets_count %}
+                <tr>
+                    <td class="bds-label">Total Pockets</td>
+                    <td class="bds-value">{{ design.total_pockets_count }}</td>
+                    <td class="bds-label">Cutter Size</td>
+                    <td class="bds-value">{{ design.cutter_size|default:"—" }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════ SECTION 3: BOM / CUTTERS ══ -->
+    {% if has_bom_data and cutter_config_list %}
+    <div class="bds-card bds-section">
+        <div class="bds-card-hdr">
+            <i data-lucide="package" class="w-4 h-4 text-amber-500 no-print"></i>
+            <span class="bds-card-title">BOM — Cutter Configuration</span>
+        </div>
+        <div class="p-0">
+            <table class="hist-table">
+                <thead>
+                    <tr>
+                        <th>Blade</th>
+                        <th>Qty</th>
+                        <th>Size (mm)</th>
+                        <th>Type / SAP</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cfg in cutter_config_list %}
+                    <tr>
+                        <td>{{ cfg.blade|default:"—" }}</td>
+                        <td>{{ cfg.qty|default:"—" }}</td>
+                        <td>{{ cfg.size|default:"—" }}</td>
+                        <td class="font-mono text-xs">{{ cfg.type|default:"" }} {{ cfg.sap_no|default:"" }}</td>
+                        <td class="text-gray-500">{{ cfg.remark|default:"" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════ SECTION 4: REPAIR HISTORY ══ -->
+    {% if wo_history %}
+    <div class="bds-card bds-section">
+        <div class="bds-card-hdr">
+            <i data-lucide="history" class="w-4 h-4 text-emerald-500 no-print"></i>
+            <span class="bds-card-title">Work Order History (last {{ wo_history|length }})</span>
+        </div>
+        <div class="p-0">
+            <table class="hist-table">
+                <thead>
+                    <tr>
+                        <th>WO Number</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Account</th>
+                        <th>Started</th>
+                        <th>Completed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wo in wo_history %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ wo.wo_number }}</td>
+                        <td>{{ wo.get_wo_type_display }}</td>
+                        <td>{{ wo.get_status_display }}</td>
+                        <td>{{ wo.account.code|default:"—" }}</td>
+                        <td>{{ wo.actual_start|date:"d M Y"|default:"—" }}</td>
+                        <td>{{ wo.actual_end|date:"d M Y"|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════ SIGNATURE BLOCK (print) ══ -->
+    <div class="hidden print:block bds-section" style="margin-top:20px;">
+        <table style="width:100%;border-collapse:collapse;">
+            <tr>
+                <td style="border:1px solid #d1d5db;padding:8px 12px;text-align:center;vertical-align:bottom;height:60px;width:33%;">
+                    <div style="height:40px;"></div>
+                    <div style="font-size:9px;color:#9ca3af;border-top:1px solid #d1d5db;padding-top:4px;">PDC SUPERVISOR</div>
+                </td>
+                <td style="border:1px solid #d1d5db;padding:8px 12px;text-align:center;vertical-align:bottom;height:60px;width:33%;">
+                    <div style="height:40px;"></div>
+                    <div style="font-size:9px;color:#9ca3af;border-top:1px solid #d1d5db;padding-top:4px;">QC INSPECTOR</div>
+                </td>
+                <td style="border:1px solid #d1d5db;padding:8px 12px;text-align:center;vertical-align:bottom;height:60px;width:33%;">
+                    <div style="height:40px;"></div>
+                    <div style="font-size:9px;color:#9ca3af;border-top:1px solid #d1d5db;padding-top:4px;">CUSTOMER REP.</div>
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top:8px;padding:6px;background:#f9fafb;border-radius:6px;font-size:9px;color:#9ca3af;text-align:center;">
+            ARDT FMS — {{ drill_bit.serial_number }} — {% now "d M Y H:i" %}
+        </div>
+    </div>
+
+    <!-- Screen buttons -->
+    <div class="no-print flex gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}"
+           class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Bit
+        </a>
+        <button onclick="window.print()"
+                class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 ml-auto">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print Data Sheet
+        </button>
+    </div>
+
+</div>
+{% endblock %}

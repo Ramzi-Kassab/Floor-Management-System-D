@@ -675,6 +675,30 @@
                 <a href="{% url 'hr:shift-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="sun-moon" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Shifts</span>
                 </a>
+                <a href="{% url 'hr:overtime-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="timer" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Overtime</span>
+                </a>
+                <a href="{% url 'hr:competency_matrix' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Competency Matrix</span>
+                </a>
+                <a href="{% url 'hr:competency_matrix_gaps' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 mr-2 text-amber-400"></i><span class="truncate">Training Gaps</span>
+                </a>
+                <a href="{% url 'hr:payroll-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="banknote" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Payroll</span>
+                </a>
+                <a href="{% url 'hr:review-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="star" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Performance Reviews</span>
+                </a>
+                <a href="{% url 'hr:skill-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="award" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Skills</span>
+                </a>
+                <a href="{% url 'hr:leavetype-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="list" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Leave Types</span>
+                </a>
+                <a href="{% url 'hr:document-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="file-text" class="w-4 h-4 mr-2 text-pink-400"></i><span class="truncate">Documents</span>
+                </a>
             </div>
         </div>
 
@@ -807,6 +831,35 @@
                 </a>
                 <a href="{% url 'organization:setting-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="settings" class="w-4 h-4 mr-2 text-stone-400"></i><span class="truncate">Settings</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 my-3"></div>
+
+        <!-- Users & Access -->
+        <div class="space-y-0.5">
+            <button @click="toggle('access')"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700
+                           {% if request.resolver_match.app_name == 'accounts' %}bg-primary-50 dark:bg-primary-900/50 text-primary-700 dark:text-primary-200{% endif %}">
+                <div class="flex items-center min-w-0">
+                    <i data-lucide="shield-check" class="w-5 h-5 flex-shrink-0 text-indigo-500"></i>
+                    <span x-show="sidebarOpen" x-transition class="ml-3 truncate text-sm font-medium">Users & Access</span>
+                </div>
+                <i x-show="sidebarOpen" data-lucide="chevron-down" class="w-4 h-4 flex-shrink-0 transition-transform duration-200" :class="isOpen('access') ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="isOpen('access') && sidebarOpen" x-collapse class="ml-5 pl-3 border-l-2 border-gray-200 dark:border-gray-600 space-y-0.5">
+                <a href="{% url 'accounts:user-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="users" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Users</span>
+                </a>
+                <a href="{% url 'accounts:role-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="shield" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Roles</span>
+                </a>
+                <a href="{% url 'accounts:permission-list' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="key" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Permissions</span>
+                </a>
+                <a href="{% url 'hr:competency_matrix' %}" class="flex items-center px-3 py-1.5 rounded text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i data-lucide="grid-3x3" class="w-4 h-4 mr-2 text-indigo-400"></i><span class="truncate">Competency Matrix</span>
                 </a>
             </div>
         </div>

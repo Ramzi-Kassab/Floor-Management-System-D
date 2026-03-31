@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ matrix.get_evaluation_type_display }} Report — {{ work_order.wo_number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Screen wrapper ── */
+.ep-wrapper { max-width: 860px; margin: 0 auto; }
+
+/* ── Print layout ── */
+@media print {
+    body, html { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    .no-print, nav, aside, header, .topnav, .sidebar, .content-wrapper > *:not(.ep-wrapper) { display: none !important; }
+    main { margin: 0 !important; padding: 0 !important; }
+    .content-wrapper { margin-left: 0 !important; padding: 0 !important; }
+    .ep-wrapper { max-width: 100%; padding: 0.3in 0.4in; font-size: 10.5px; }
+    @page { size: A4 portrait; margin: 0; }
+    .ep-section { break-inside: avoid; }
+    .ep-page-break { page-break-before: always; }
+}
+
+/* ── Header table ── */
+.ep-header { width: 100%; border-collapse: collapse; }
+.ep-header td, .ep-header th {
+    border: 1px solid #d1d5db; padding: 5px 10px;
+}
+.ep-header .ep-label {
+    background: #f3f4f6; font-weight: 600; font-size: 11px;
+    color: #374151; width: 130px; white-space: nowrap;
+}
+.ep-header .ep-value { font-size: 12px; color: #111827; }
+.dark .ep-header td { border-color: #4b5563; }
+.dark .ep-header .ep-label { background: #374151; color: #d1d5db; }
+.dark .ep-header .ep-value { color: #f3f4f6; }
+
+/* ── Checklist table ── */
+.ep-cl { width: 100%; border-collapse: collapse; }
+.ep-cl th {
+    background: #f3f4f6; padding: 4px 8px; text-align: left;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    color: #6b7280; border-bottom: 2px solid #d1d5db;
+}
+.ep-cl td { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
+.dark .ep-cl th { background: #374151; color: #9ca3af; border-bottom-color: #4b5563; }
+.dark .ep-cl td { border-bottom-color: #374151; }
+
+.badge-pass { background: #d1fae5; color: #065f46; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.badge-fail { background: #fee2e2; color: #991b1b; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.badge-na   { background: #f3f4f6; color: #9ca3af; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.badge-blank{ background: #fef9c3; color: #713f12; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+/* ── Section card ── */
+.ep-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    margin-bottom: 16px; overflow: hidden;
+}
+.dark .ep-card { background: #1f2937; border-color: #374151; }
+.ep-card-header {
+    background: #f9fafb; border-bottom: 1px solid #e5e7eb;
+    padding: 8px 16px; display: flex; align-items: center; gap: 8px;
+}
+.dark .ep-card-header { background: #111827; border-bottom-color: #374151; }
+.ep-card-title { font-size: 12px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.05em; }
+.dark .ep-card-title { color: #d1d5db; }
+.ep-card-body { padding: 12px 16px; }
+
+/* ── Signature boxes ── */
+.sig-box { border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; text-align: center; min-height: 60px; }
+.sig-label { font-size: 9px; color: #9ca3af; margin-top: 4px; }
+
+/* ── Decision badge ── */
+.decision-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 14px; border-radius: 9999px; font-weight: 700; font-size: 13px;
+}
+.decision-REPAIR { background: #fef3c7; color: #92400e; }
+.decision-SCRAP  { background: #fee2e2; color: #991b1b; }
+.decision-PASS   { background: #d1fae5; color: #065f46; }
+.decision-REWORK { background: #ede9fe; color: #5b21b6; }
+.decision-ACCEPT { background: #d1fae5; color: #065f46; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between no-print">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">
+                {{ matrix.get_evaluation_type_display }} Report
+            </h1>
+            <p class="text-sm text-gray-500">{{ work_order.wo_number }} — {{ matrix.inspection_number }}</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-200">
+            <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>Job Card
+        </a>
+        <button onclick="window.print()"
+                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="ep-wrapper">
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- PRINT LETTERHEAD (hidden on screen)                               -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="hidden print:block mb-5">
+        <table class="ep-header">
+            <tr>
+                <td rowspan="4" style="width:110px;text-align:center;background:#f8fafc;border-right:2px solid #9ca3af;vertical-align:middle;">
+                    <div style="font-family:Georgia,serif;font-size:26px;font-weight:bold;color:#1e3a5f;letter-spacing:2px;">ARDT</div>
+                    <div style="font-size:7px;color:#6b7280;margin-top:2px;">FMS — Floor Management</div>
+                </td>
+                <td colspan="4" style="text-align:center;font-size:15px;font-weight:bold;padding:7px;letter-spacing:0.04em;">
+                    {{ matrix.get_evaluation_type_display|upper }} REPORT
+                </td>
+                <td rowspan="4" style="width:80px;text-align:center;vertical-align:middle;">
+                    {% if qr_code %}
+                    <img src="data:image/png;base64,{{ qr_code }}" style="width:70px;height:70px;">
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="ep-label">Insp. No.</td>
+                <td class="ep-value font-mono">{{ matrix.inspection_number|default:"—" }}</td>
+                <td class="ep-label">Date</td>
+                <td class="ep-value">{{ matrix.evaluated_at|date:"d M Y"|default:"—" }}</td>
+            </tr>
+            <tr>
+                <td class="ep-label">WO Number</td>
+                <td class="ep-value font-mono">{{ work_order.wo_number }}</td>
+                <td class="ep-label">WO Type</td>
+                <td class="ep-value">{{ work_order.get_wo_type_display }}</td>
+            </tr>
+            <tr>
+                <td class="ep-label">Doc Reference</td>
+                <td class="ep-value">QAS/1002</td>
+                <td class="ep-label">Revision</td>
+                <td class="ep-value">L</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: BIT DETAILS                                            -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="ep-card ep-section">
+        <div class="ep-card-header">
+            <i data-lucide="disc" class="w-4 h-4 text-blue-500 no-print"></i>
+            <span class="ep-card-title">Bit Information</span>
+        </div>
+        <div class="ep-card-body">
+            <table class="ep-header">
+                {% with bit=drill_bit %}
+                <tr>
+                    <td class="ep-label">Serial Number</td>
+                    <td class="ep-value font-mono font-bold">{{ bit.serial_number|default:"—" }}</td>
+                    <td class="ep-label">Account</td>
+                    <td class="ep-value">{{ work_order.account.name|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="ep-label">Size</td>
+                    <td class="ep-value">{{ bit.design.size.size_display|default:"—" }}</td>
+                    <td class="ep-label">HDBS Type</td>
+                    <td class="ep-value">{{ bit.design.hdbs_type|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="ep-label">Design MAT</td>
+                    <td class="ep-value font-mono">{{ bit.design.mat_no|default:"—" }}</td>
+                    <td class="ep-label">Body Material</td>
+                    <td class="ep-value">{{ bit.design.get_body_material_display|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="ep-label">Level / Condition</td>
+                    <td class="ep-value">{% if bit.level %}L{{ bit.level }}{% else %}FG{% endif %} / {{ bit.get_condition_display|default:"—" }}</td>
+                    <td class="ep-label">Customer</td>
+                    <td class="ep-value">{{ work_order.customer.name|default:"—" }}</td>
+                </tr>
+                {% endwith %}
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: CHECKLIST                                              -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    {% if checklist_rows %}
+    <div class="ep-card ep-section">
+        <div class="ep-card-header">
+            <i data-lucide="check-square" class="w-4 h-4 text-emerald-500 no-print"></i>
+            <span class="ep-card-title">Inspection Checklist</span>
+            <span class="ml-auto text-xs text-gray-400">QAS/1002</span>
+        </div>
+        <div class="ep-card-body p-0">
+            <table class="ep-cl">
+                <thead>
+                    <tr>
+                        <th style="width:32px">#</th>
+                        <th>Item</th>
+                        <th style="width:70px">Result</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in checklist_rows %}
+                    <tr>
+                        <td class="text-gray-400">{{ row.num }}</td>
+                        <td>{{ row.label }}</td>
+                        <td>
+                            {% if row.status == "OK" or row.status == "PASS" %}
+                            <span class="badge-pass">OK</span>
+                            {% elif row.status == "FAIL" or row.status == "NG" %}
+                            <span class="badge-fail">FAIL</span>
+                            {% elif row.status == "NA" %}
+                            <span class="badge-na">N/A</span>
+                            {% else %}
+                            <span class="badge-blank">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-gray-500">{{ row.remarks|default:"" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: DECISION & REMARKS                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="ep-card ep-section">
+        <div class="ep-card-header">
+            <i data-lucide="clipboard-check" class="w-4 h-4 text-amber-500 no-print"></i>
+            <span class="ep-card-title">Evaluation Decision</span>
+        </div>
+        <div class="ep-card-body">
+            <div class="flex items-center gap-4 mb-4">
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Decision:</span>
+                {% if matrix.decision %}
+                <span class="decision-badge decision-{{ matrix.decision }}">
+                    {{ matrix.get_decision_display }}
+                </span>
+                {% else %}
+                <span class="text-sm text-gray-400 italic">Pending</span>
+                {% endif %}
+            </div>
+            <table class="ep-header">
+                <tr>
+                    <td class="ep-label">ARDT Remark</td>
+                    <td class="ep-value" colspan="3">{{ matrix.ardt_remark|default:"—" }}</td>
+                </tr>
+                {% if matrix.eng_remark %}
+                <tr>
+                    <td class="ep-label">Engineer Remark</td>
+                    <td class="ep-value" colspan="3">{{ matrix.eng_remark }}</td>
+                </tr>
+                {% endif %}
+                {% if matrix.general_remark %}
+                <tr>
+                    <td class="ep-label">General Remarks</td>
+                    <td class="ep-value" colspan="3">{{ matrix.general_remark }}</td>
+                </tr>
+                {% endif %}
+                {% if matrix.ncr_ref_no %}
+                <tr>
+                    <td class="ep-label">NCR Reference</td>
+                    <td class="ep-value font-mono">{{ matrix.ncr_ref_no }}</td>
+                    <td class="ep-label">Is Complete</td>
+                    <td class="ep-value">{% if matrix.is_complete %}Yes — {{ matrix.completed_at|date:"d M Y H:i" }}{% else %}No{% endif %}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: LINKED TESTS                                           -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    {% if die_check_reports or lpt_reports or thread_reports %}
+    <div class="ep-card ep-section">
+        <div class="ep-card-header">
+            <i data-lucide="flask-conical" class="w-4 h-4 text-violet-500 no-print"></i>
+            <span class="ep-card-title">Linked Test Reports</span>
+        </div>
+        <div class="ep-card-body">
+            <table class="ep-cl">
+                <thead>
+                    <tr>
+                        <th>Test Type</th>
+                        <th>Report No.</th>
+                        <th>Stage / Type</th>
+                        <th>Result</th>
+                        <th>Performed</th>
+                        <th>By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dc in die_check_reports %}
+                    <tr>
+                        <td class="font-medium">Die Check</td>
+                        <td class="font-mono text-xs">{{ dc.report_number|default:"—" }}</td>
+                        <td>{{ dc.get_stage_display }}</td>
+                        <td>
+                            {% if dc.result == "PASS" %}<span class="badge-pass">PASS</span>
+                            {% elif dc.result == "FAIL" %}<span class="badge-fail">FAIL</span>
+                            {% else %}<span class="badge-blank">{{ dc.result|default:"—" }}</span>{% endif %}
+                        </td>
+                        <td>{{ dc.performed_at|date:"d M Y H:i"|default:"—" }}</td>
+                        <td>{{ dc.performed_by.get_full_name|default:dc.performed_by.username|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for lpt in lpt_reports %}
+                    <tr>
+                        <td class="font-medium">LPT</td>
+                        <td class="font-mono text-xs">{{ lpt.report_number|default:"—" }}</td>
+                        <td>Liquid Penetrant</td>
+                        <td>
+                            {% if lpt.result == "PASS" %}<span class="badge-pass">PASS</span>
+                            {% elif lpt.result == "FAIL" %}<span class="badge-fail">FAIL</span>
+                            {% else %}<span class="badge-blank">{{ lpt.result|default:"—" }}</span>{% endif %}
+                        </td>
+                        <td>{{ lpt.performed_at|date:"d M Y H:i"|default:"—" }}</td>
+                        <td>{{ lpt.performed_by.get_full_name|default:lpt.performed_by.username|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for tr in thread_reports %}
+                    <tr>
+                        <td class="font-medium">Thread Insp.</td>
+                        <td class="font-mono text-xs">{{ tr.report_number|default:"—" }}</td>
+                        <td>API Connection</td>
+                        <td>
+                            {% if tr.result == "PASS" %}<span class="badge-pass">PASS</span>
+                            {% elif tr.result == "FAIL" %}<span class="badge-fail">FAIL</span>
+                            {% else %}<span class="badge-blank">{{ tr.result|default:"—" }}</span>{% endif %}
+                        </td>
+                        <td>{{ tr.performed_at|date:"d M Y H:i"|default:"—" }}</td>
+                        <td>{{ tr.performed_by.get_full_name|default:tr.performed_by.username|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: SIGNATURES (print only)                                -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="hidden print:block ep-section ep-page-break" style="display:none !important; page-break-before:auto;">
+        <div style="margin-top:24px; border:1px solid #d1d5db; border-radius:8px; padding:16px;">
+            <p style="font-size:11px;font-weight:700;text-transform:uppercase;color:#374151;margin-bottom:12px;">Authorizations</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div class="sig-box">
+                    <div style="height:40px;"></div>
+                    <div class="sig-label">EVALUATOR<br>{{ matrix.evaluated_by.get_full_name|default:matrix.evaluated_by.username|default:"" }}</div>
+                </div>
+                <div class="sig-box">
+                    <div style="height:40px;"></div>
+                    <div class="sig-label">QC SUPERVISOR</div>
+                </div>
+                <div class="sig-box">
+                    <div style="height:40px;"></div>
+                    <div class="sig-label">PDC SUPERVISOR</div>
+                </div>
+            </div>
+            <div style="margin-top:10px;padding:8px;background:#f9fafb;border-radius:6px;font-size:9px;color:#9ca3af;text-align:center;">
+                Generated by ARDT Floor Management System — {{ matrix.inspection_number }} — {{ matrix.evaluated_at|date:"d M Y" }}
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- SCREEN-ONLY ACTIONS                                               -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <div class="no-print flex items-center gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
+        </a>
+        {% if matrix.evaluation_type == 'PDC_EVAL' %}
+        <a href="{% url 'workorders:pre_repair_eval_edit' work_order.pk matrix.pk %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <i data-lucide="edit-2" class="w-4 h-4 mr-2"></i>Edit Evaluation
+        </a>
+        {% else %}
+        <a href="{% url 'workorders:cutter_evaluation_edit' work_order.pk matrix.pk %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <i data-lucide="edit-2" class="w-4 h-4 mr-2"></i>Edit Evaluation
+        </a>
+        {% endif %}
+        <button onclick="window.print()"
+                class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 ml-auto">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>Print
+        </button>
+    </div>
+
+</div>
+{% endblock %}

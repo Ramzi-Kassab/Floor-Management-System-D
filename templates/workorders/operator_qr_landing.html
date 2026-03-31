@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Job QR — ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+.qr-wrapper { max-width: 480px; margin: 0 auto; text-align: center; }
+
+/* Camera viewfinder */
+.viewfinder {
+    position: relative; width: 100%; border-radius: 20px;
+    overflow: hidden; background: #000; aspect-ratio: 1/1;
+    max-height: 320px;
+}
+#qr-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Scanning crosshair overlay */
+.scan-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+}
+.scan-frame {
+    width: 65%; height: 65%; position: relative;
+}
+.scan-corner {
+    position: absolute; width: 24px; height: 24px;
+    border-color: white; border-style: solid;
+    border-width: 0;
+}
+.scan-corner.tl { top:0; left:0; border-top-width:3px; border-left-width:3px; border-radius: 4px 0 0 0; }
+.scan-corner.tr { top:0; right:0; border-top-width:3px; border-right-width:3px; border-radius: 0 4px 0 0; }
+.scan-corner.bl { bottom:0; left:0; border-bottom-width:3px; border-left-width:3px; border-radius: 0 0 0 4px; }
+.scan-corner.br { bottom:0; right:0; border-bottom-width:3px; border-right-width:3px; border-radius: 0 0 4px 0; }
+.scan-line {
+    position: absolute; left: 10%; right: 10%;
+    height: 2px; background: rgba(59,130,246,0.9);
+    animation: scan-anim 2.5s ease-in-out infinite;
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(59,130,246,0.8);
+}
+@keyframes scan-anim {
+    0%   { top: 10%; }
+    50%  { top: 85%; }
+    100% { top: 10%; }
+}
+
+/* Status ring */
+.status-ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px; font-size: 28px;
+}
+.ring-scanning { background: #dbeafe; border: 3px solid #3b82f6; animation: ring-pulse 1.5s ease-in-out infinite; }
+.ring-success  { background: #d1fae5; border: 3px solid #22c55e; }
+.ring-error    { background: #fee2e2; border: 3px solid #ef4444; }
+@keyframes ring-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.3); }
+    50%      { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
+}
+
+/* Manual input */
+.manual-input {
+    width: 100%; border-radius: 12px; border: 1.5px solid #d1d5db;
+    padding: 13px 16px; font-size: 15px; text-align: center;
+    font-family: ui-monospace, monospace; letter-spacing: 0.05em;
+    background: white; color: #111827; transition: border-color 0.12s;
+}
+.dark .manual-input { background: #1f2937; border-color: #374151; color: #f3f4f6; }
+.manual-input:focus { outline: none; border-color: #2563eb; }
+
+.btn-primary {
+    width: 100%; min-height: 52px; border-radius: 12px; border: none;
+    background: #2563eb; color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: background 0.12s;
+}
+.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-3">
+    <a href="{% url 'workorders:operator_home' %}"
+       class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Scan Job QR</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="qr-wrapper" x-data="qrScanner()" x-init="init()">
+
+    <!-- ── CAMERA VIEWFINDER ── -->
+    <div class="viewfinder mb-6" x-show="cameraActive">
+        <video id="qr-video" autoplay playsinline muted></video>
+        <div class="scan-overlay">
+            <div class="scan-frame">
+                <div class="scan-corner tl"></div>
+                <div class="scan-corner tr"></div>
+                <div class="scan-corner bl"></div>
+                <div class="scan-corner br"></div>
+                <div class="scan-line"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── STATUS ── -->
+    <template x-if="state === 'scanning'">
+        <div class="mb-6">
+            <div class="status-ring ring-scanning">
+                <i data-lucide="scan-qr-code" class="w-8 h-8 text-blue-500"></i>
+            </div>
+            <p class="text-base font-semibold text-gray-700 dark:text-gray-300">Scanning…</p>
+            <p class="text-sm text-gray-400">Point camera at the QR code on the work order</p>
+        </div>
+    </template>
+
+    <template x-if="state === 'success'">
+        <div class="mb-6">
+            <div class="status-ring ring-success">
+                <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-500"></i>
+            </div>
+            <p class="text-base font-semibold text-emerald-700 dark:text-emerald-400">QR Detected!</p>
+            <p class="text-sm text-gray-400 mb-3" x-text="scannedData"></p>
+            <p class="text-sm text-gray-500">Redirecting…</p>
+        </div>
+    </template>
+
+    <template x-if="state === 'error'">
+        <div class="mb-6">
+            <div class="status-ring ring-error">
+                <i data-lucide="x-circle" class="w-8 h-8 text-red-500"></i>
+            </div>
+            <p class="text-base font-semibold text-red-700 dark:text-red-400">Not Found</p>
+            <p class="text-sm text-gray-400" x-text="errorMsg"></p>
+        </div>
+    </template>
+
+    <template x-if="state === 'no-camera'">
+        <div class="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-300">
+            <i data-lucide="camera-off" class="w-4 h-4 inline mr-1"></i>
+            Camera not available. Use manual entry below.
+        </div>
+    </template>
+
+    <!-- ── START CAMERA BUTTON (initial state) ── -->
+    <template x-if="state === 'idle'">
+        <button @click="startCamera()" class="btn-primary mb-4">
+            <i data-lucide="camera" class="w-5 h-5 inline mr-2"></i>
+            Start Camera
+        </button>
+    </template>
+
+    <template x-if="state === 'scanning'">
+        <button @click="stopCamera()" class="btn-primary mb-4" style="background:#6b7280;">
+            <i data-lucide="x" class="w-5 h-5 inline mr-2"></i>
+            Stop Camera
+        </button>
+    </template>
+
+    <!-- ── DIVIDER ── -->
+    <div class="flex items-center gap-3 my-4">
+        <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+        <span class="text-xs text-gray-400">or enter manually</span>
+        <div class="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
+    </div>
+
+    <!-- ── MANUAL ENTRY ── -->
+    <div class="space-y-3 mb-6">
+        <input type="text" class="manual-input"
+               x-model="manualCode"
+               @keydown.enter="submitManual()"
+               placeholder="WO-2026-0042  or  BIT:SN1234"
+               autocomplete="off" autocorrect="off" spellcheck="false">
+        <button @click="submitManual()" class="btn-primary" :disabled="!manualCode.trim()">
+            Go to Step
+        </button>
+    </div>
+
+    <!-- ── FORMAT HELP ── -->
+    <div class="text-left bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-xs text-gray-500">
+        <p class="font-semibold text-gray-600 dark:text-gray-400 mb-2">Accepted formats:</p>
+        <p class="font-mono mb-1"><span class="text-blue-600">WO:WO-2026-0042:STEP:3</span> → goes to step 3</p>
+        <p class="font-mono mb-1"><span class="text-blue-600">WO:WO-2026-0042</span> → goes to next pending step</p>
+        <p class="font-mono"><span class="text-blue-600">BIT:SN1234</span> → finds active WO for this bit</p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- jsQR CDN for QR code reading from camera frames -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"
+        integrity="sha512-07vjSuCiGQQMcPdI/pJSBSGPnxIHSp3OfSn19kXmFljcPc8yT1KRaKxnlGBQ9mJIBqpGX+tSMPYXs0qDNUPg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script>
+function qrScanner() {
+    return {
+        state: 'idle',          // idle | scanning | success | error | no-camera
+        cameraActive: false,
+        scannedData: '',
+        errorMsg: '',
+        manualCode: '',
+        _stream: null,
+        _rafId: null,
+        CSRF: '{{ csrf_token }}',
+        SCAN_API: '{% url "workorders:api_operator_qr_scan" %}',
+
+        init() {},
+
+        async startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                this._stream = stream;
+                this.cameraActive = true;
+                this.state = 'scanning';
+                await this.$nextTick();
+                const video = document.getElementById('qr-video');
+                video.srcObject = stream;
+                video.play();
+                this._scanLoop(video);
+            } catch (e) {
+                this.state = 'no-camera';
+                console.warn('Camera error:', e);
+            }
+        },
+
+        _scanLoop(video) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const tick = () => {
+                if (this.state !== 'scanning') return;
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(img.data, img.width, img.height, {
+                        inversionAttempts: 'dontInvert',
+                    });
+                    if (code && code.data) {
+                        this.stopCamera();
+                        this.handleQRData(code.data);
+                        return;
+                    }
+                }
+                this._rafId = requestAnimationFrame(tick);
+            };
+            this._rafId = requestAnimationFrame(tick);
+        },
+
+        stopCamera() {
+            cancelAnimationFrame(this._rafId);
+            if (this._stream) {
+                this._stream.getTracks().forEach(t => t.stop());
+                this._stream = null;
+            }
+            this.cameraActive = false;
+            if (this.state === 'scanning') this.state = 'idle';
+        },
+
+        async handleQRData(data) {
+            this.scannedData = data;
+            this.state = 'success';
+            try {
+                const res = await fetch(this.SCAN_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.CSRF },
+                    body: JSON.stringify({ qr_data: data }),
+                });
+                const json = await res.json();
+                if (json.redirect_url) {
+                    setTimeout(() => { window.location.href = json.redirect_url; }, 800);
+                } else {
+                    this.state = 'error';
+                    this.errorMsg = json.error || 'QR code not recognized';
+                }
+            } catch (e) {
+                this.state = 'error';
+                this.errorMsg = 'Network error. Try manual entry.';
+            }
+        },
+
+        async submitManual() {
+            const code = this.manualCode.trim();
+            if (!code) return;
+            // Auto-prefix if user just typed a WO number without prefix
+            let qrData = code;
+            if (!code.startsWith('WO:') && !code.startsWith('BIT:') && !code.startsWith('STATION:')) {
+                qrData = `WO:${code}`;
+            }
+            await this.handleQRData(qrData);
+        },
+    };
+}
+</script>
+{% endblock %}

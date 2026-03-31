@@ -168,6 +168,7 @@ urlpatterns = [
 
     # Standalone Test Pages (Die Check, LPT, API Thread)
     path("<int:wo_pk>/die-check/create/<int:eval_pk>/", views_jobcard.DieCheckReportView.as_view(), name="die_check_create"),
+    path("<int:wo_pk>/die-check/create/", views_jobcard.DieCheckReportView.as_view(), name="die_check_create_direct"),
     path("<int:wo_pk>/die-check/<int:pk>/edit/<int:eval_pk>/", views_jobcard.DieCheckReportView.as_view(), name="die_check_edit"),
     path("<int:wo_pk>/lpt/create/<int:eval_pk>/", views_jobcard.StandaloneLPTReportView.as_view(), name="lpt_report_standalone_create"),
     path("<int:wo_pk>/lpt/<int:pk>/edit/<int:eval_pk>/", views_jobcard.StandaloneLPTReportView.as_view(), name="lpt_report_standalone_edit"),
@@ -231,6 +232,26 @@ urlpatterns = [
     path("special-instructions/", views_master_process.SpecialInstructionListView.as_view(), name="special_instruction_list"),
     path("api/special-instructions/save/", views_master_process.api_special_instruction_save, name="api_special_instruction_save"),
     path("api/special-instructions/<int:pk>/delete/", views_master_process.api_special_instruction_delete, name="api_special_instruction_delete"),
+
+    # ========================================================================
+    # PRINT VIEWS
+    # ========================================================================
+    path("<int:pk>/evaluation/<int:eval_pk>/print/",
+         views_jobcard.EvaluationPrintView.as_view(), name="evaluation_print"),
+    path("drill-bits/<int:bit_pk>/data-sheet/",
+         views_jobcard.BitDataSheetView.as_view(), name="bit_data_sheet"),
+
+    # ========================================================================
+    # OPERATOR PORTAL
+    # ========================================================================
+    path("operator/",
+         views_jobcard.OperatorHomeView.as_view(), name="operator_home"),
+    path("operator/step/<int:wo_pk>/<int:step_number>/",
+         views_jobcard.OperatorStepView.as_view(), name="operator_step"),
+    path("operator/qr/",
+         views_jobcard.OperatorQRLandingView.as_view(), name="operator_qr_landing"),
+    path("operator/api/qr-scan/",
+         views_jobcard.api_operator_qr_scan, name="api_operator_qr_scan"),
 
     # ========================================================================
     # WORK ORDER VIEWS (Consolidated)
