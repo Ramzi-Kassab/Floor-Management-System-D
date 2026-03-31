@@ -1,99 +1,180 @@
 {% extends "base.html" %}
-
-{% block title %}{{ department.name }} - ARDT FMS{% endblock %}
+{% block title %}{{ department.name }} — ARDT FMS{% endblock %}
 
 {% block breadcrumbs %}
-<nav class="mb-4" aria-label="Breadcrumb">
-    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-        <li><a href="{% url 'dashboard:index' %}" class="hover:text-gray-700">Dashboard</a></li>
-        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
-        <li><a href="{% url 'organization:department-list' %}" class="hover:text-gray-700">Departments</a></li>
-        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
-        <li class="text-gray-900 dark:text-white font-medium">{{ department.code }}</li>
+<nav class="flex mb-4">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400"><i data-lucide="home" class="w-4 h-4"></i></a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'organization:department-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Departments</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ department.name }}</li>
     </ol>
 </nav>
 {% endblock %}
 
 {% block page_header %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ department.name }}</h1>
-        <p class="text-gray-600 dark:text-gray-400 font-mono">{{ department.code }}</p>
+<div class="flex items-start justify-between mb-6">
+    <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
+             style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);">
+            <i data-lucide="building-2" class="w-7 h-7 text-white"></i>
+        </div>
+        <div>
+            <div class="flex items-center gap-2 mb-0.5">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ department.name }}</h1>
+                {% if not department.is_active %}
+                <span class="px-2.5 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-full">Inactive</span>
+                {% endif %}
+            </div>
+            <p class="text-sm font-mono text-gray-500">{{ department.code }}{% if department.location %} · {{ department.location }}{% endif %}</p>
+        </div>
     </div>
-    <a href="{% url 'organization:department-update' department.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-        <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
-        Edit
-    </a>
+    <div class="flex gap-2">
+        <a href="{% url 'organization:department-update' department.pk %}" class="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm font-medium shadow-sm">
+            <i data-lucide="edit-2" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'organization:department-delete' department.pk %}" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-6">
-        <!-- Details -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
-            <dl class="grid grid-cols-2 gap-4">
-                <div>
-                    <dt class="text-sm text-gray-500 dark:text-gray-400">Location</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ department.location|default:'-' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500 dark:text-gray-400">Manager</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ department.manager.get_full_name|default:'-' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500 dark:text-gray-400">Parent Department</dt>
-                    <dd class="text-gray-900 dark:text-white">{{ department.parent.name|default:'-' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
-                    <dd>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if department.is_active %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {% if department.is_active %}Active{% else %}Inactive{% endif %}
-                        </span>
-                    </dd>
-                </div>
-            </dl>
-        </div>
 
-        <!-- Positions -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Positions ({{ department.positions.count }})</h2>
-            {% if department.positions.all %}
-            <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                {% for pos in department.positions.all %}
-                <li class="py-3 flex items-center justify-between">
+    <!-- Main info -->
+    <div class="lg:col-span-2 space-y-5">
+
+        <!-- Details card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60">
+                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department Details</h3>
+            </div>
+            <div class="p-6">
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ pos.title }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Level {{ pos.level }}</p>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Code</dt>
+                        <dd class="font-mono font-semibold text-gray-900 dark:text-white text-lg">{{ department.code }}</dd>
                     </div>
-                    <a href="{% url 'organization:position-detail' pos.pk %}" class="text-blue-600 hover:underline text-sm">View</a>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-gray-500 dark:text-gray-400">No positions in this department.</p>
-            {% endif %}
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Full Path</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">{{ department.full_path }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Parent Department</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">
+                            {% if department.parent %}
+                            <a href="{% url 'organization:department-detail' department.parent.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">{{ department.parent.name }}</a>
+                            {% else %}<span class="text-gray-400">Top level</span>{% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Manager</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">
+                            {% if department.manager %}
+                            <a href="{% url 'accounts:user-detail' department.manager.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">{{ department.manager.get_full_name|default:department.manager.username }}</a>
+                            {% else %}<span class="text-gray-400">Not assigned</span>{% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Location</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">{{ department.location|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Arabic Name</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm" dir="rtl">{{ department.name_ar|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Created</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">{{ department.created_at|date:"d M Y" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Last Updated</dt>
+                        <dd class="text-gray-700 dark:text-gray-300 text-sm">{{ department.updated_at|date:"d M Y H:i" }}</dd>
+                    </div>
+                </dl>
+            </div>
         </div>
+
+        <!-- Positions in this department -->
+        {% if department.positions.exists %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Positions ({{ department.positions.count }})</h3>
+                <a href="{% url 'organization:position-create' %}?department={{ department.pk }}" class="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Position
+                </a>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-700/60">
+                {% for pos in department.positions.all %}
+                <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                            <i data-lucide="briefcase" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ pos.title }}</p>
+                            <p class="text-xs text-gray-500 font-mono">{{ pos.code }} · Level {{ pos.level }}</p>
+                        </div>
+                    </div>
+                    <a href="{% url 'organization:position-detail' pos.pk %}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Sub-departments -->
+        {% if department.children.exists %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60">
+                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sub-Departments ({{ department.children.count }})</h3>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-700/60">
+                {% for child in department.children.all %}
+                <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <div>
+                        <span class="font-mono text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-2">{{ child.code }}</span>
+                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ child.name }}</span>
+                    </div>
+                    <a href="{% url 'organization:department-detail' child.pk %}" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">View →</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    <div class="space-y-6">
-        <!-- Sub-departments -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sub-departments</h2>
-            {% if department.children.all %}
-            <ul class="space-y-2">
-                {% for child in department.children.all %}
-                <li>
-                    <a href="{% url 'organization:department-detail' child.pk %}" class="text-blue-600 hover:underline">{{ child.name }}</a>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-gray-500 dark:text-gray-400">No sub-departments.</p>
-            {% endif %}
+    <!-- Right sidebar stats -->
+    <div class="space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Quick Stats</h3>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700/60">
+                    <span class="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4 text-emerald-500"></i>Positions</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ department.positions.count }}</span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700/60">
+                    <span class="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2"><i data-lucide="git-branch" class="w-4 h-4 text-blue-500"></i>Sub-departments</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ department.children.count }}</span>
+                </div>
+                <div class="flex items-center justify-between py-2">
+                    <span class="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-violet-500"></i>Users</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ department.users.count }}</span>
+                </div>
+            </div>
         </div>
+        <a href="{% url 'organization:department-update' department.pk %}" class="block w-full text-center px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm font-medium shadow-sm transition-colors">
+            <i data-lucide="edit-2" class="w-4 h-4 inline mr-1.5"></i>Edit Department
+        </a>
+        <a href="{% url 'organization:department-list' %}" class="block w-full text-center px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors">
+            ← Back to List
+        </a>
     </div>
+
 </div>
 {% endblock %}

@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Process Competency Matrix — ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Matrix grid ── */
+.matrix-wrapper { overflow-x: auto; }
+.matrix-table { border-collapse: collapse; min-width: 100%; font-size: 12px; }
+.matrix-table th, .matrix-table td { border: 1px solid #e5e7eb; padding: 0; }
+.dark .matrix-table th, .dark .matrix-table td { border-color: #374151; }
+
+/* Sticky first column */
+.matrix-table .col-emp {
+    position: sticky; left: 0; z-index: 2;
+    background: white; min-width: 180px; padding: 6px 10px;
+    font-weight: 600; font-size: 11px;
+}
+.dark .matrix-table .col-emp { background: #1f2937; }
+
+/* Header rows */
+.matrix-table .hdr-cat {
+    background: #1e3a5f; color: white;
+    text-align: center; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 4px 6px; white-space: nowrap;
+}
+.matrix-table .hdr-proc {
+    background: #f3f4f6; color: #374151;
+    text-align: center; font-size: 9px; padding: 4px 4px;
+    max-width: 72px; min-width: 60px;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    height: 80px; vertical-align: bottom;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dark .matrix-table .hdr-proc { background: #374151; color: #d1d5db; }
+
+/* Competency cells */
+.comp-cell {
+    text-align: center; cursor: pointer;
+    min-width: 60px; height: 32px;
+    transition: all 0.1s;
+    position: relative;
+}
+.comp-cell:hover { opacity: 0.8; transform: scale(1.05); z-index: 1; }
+.comp-cell.level-NONE     { background: #f9fafb; }
+.comp-cell.level-TRAINEE  { background: #fef9c3; }
+.comp-cell.level-CERTIFIED{ background: #d1fae5; }
+.comp-cell.level-TRAINER  { background: #dbeafe; }
+.dark .comp-cell.level-NONE     { background: #1f2937; }
+.dark .comp-cell.level-TRAINEE  { background: #422006; }
+.dark .comp-cell.level-CERTIFIED{ background: #052e16; }
+.dark .comp-cell.level-TRAINER  { background: #172554; }
+
+.comp-icon { font-size: 14px; line-height: 32px; display: block; }
+
+/* ── Legend ── */
+.legend-item { display:flex; align-items:center; gap:6px; font-size:11px; }
+.legend-dot { width:14px; height:14px; border-radius:3px; flex-shrink:0; }
+
+/* ── Filter bar ── */
+.filter-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+.filter-bar select, .filter-bar input {
+    border:1px solid #d1d5db; border-radius:8px; padding:6px 10px;
+    font-size:12px; background:white; color:#111827;
+}
+.dark .filter-bar select, .dark .filter-bar input {
+    background:#1f2937; border-color:#374151; color:#f3f4f6;
+}
+
+/* ── Edit modal ── */
+.modal-backdrop {
+    position:fixed; inset:0; background:rgba(0,0,0,0.5);
+    z-index:50; display:flex; align-items:center; justify-content:center;
+}
+.modal-card {
+    background:white; border-radius:16px; width:100%; max-width:420px;
+    padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.2);
+}
+.dark .modal-card { background:#1f2937; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Process Competency Matrix</h1>
+        <p class="text-sm text-gray-500">Employee × Process authorization levels</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'hr:competency_matrix_export' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm">
+            <i data-lucide="download" class="w-4 h-4 mr-1.5"></i> Export
+        </a>
+        <a href="{% url 'hr:competency_matrix_gaps' %}"
+           class="inline-flex items-center px-3 py-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-lg text-sm font-medium">
+            <i data-lucide="alert-triangle" class="w-4 h-4 mr-1.5"></i> Gap Report
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="competencyMatrix()" x-init="init()">
+
+    <!-- ── LEGEND ── -->
+    <div class="flex flex-wrap gap-4 mb-4 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div class="legend-item">
+            <div class="legend-dot" style="background:#f9fafb;border:1px solid #e5e7eb;"></div>
+            <span class="text-gray-500">— Not Authorized</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:#fef9c3;"></div>
+            <span>🟡 Trainee (supervised)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:#d1fae5;"></div>
+            <span>✅ Certified (independent)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:#dbeafe;"></div>
+            <span>🏆 Trainer (can certify others)</span>
+        </div>
+        <div class="legend-item ml-auto text-xs text-gray-400">
+            <i data-lucide="mouse-pointer-click" class="w-3 h-3 mr-1"></i>
+            Click any cell to edit
+        </div>
+    </div>
+
+    <!-- ── FILTER BAR ── -->
+    <div class="filter-bar">
+        <select x-model="filterDept" @change="applyFilters()">
+            <option value="">All Departments</option>
+            {% for dept in departments %}
+            <option value="{{ dept.code }}">{{ dept.name }}</option>
+            {% endfor %}
+        </select>
+        <select x-model="filterCategory" @change="applyFilters()">
+            <option value="">All Process Categories</option>
+            {% for cat_code, cat_label in process_categories %}
+            <option value="{{ cat_code }}">{{ cat_label }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" x-model="filterEmp" @input="applyFilters()"
+               placeholder="Search employee…" style="min-width:180px;">
+        <span class="text-xs text-gray-400 ml-auto" x-text="visibleCount + ' employees shown'"></span>
+    </div>
+
+    <!-- ── MATRIX TABLE ── -->
+    <div class="matrix-wrapper bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table class="matrix-table">
+            <!-- Category header row -->
+            <thead>
+                <tr>
+                    <th class="col-emp" style="background:#1e3a5f;color:white;font-size:10px;">Employee</th>
+                    {% for cat_code, cat_label, process_list in grouped_processes %}
+                    <th class="hdr-cat" colspan="{{ process_list|length }}">{{ cat_label }}</th>
+                    {% endfor %}
+                </tr>
+                <!-- Process name header row -->
+                <tr>
+                    <th class="col-emp" style="background:#f9fafb;font-size:10px;color:#6b7280;padding:6px 10px;">
+                        Position / Name
+                    </th>
+                    {% for cat_code, cat_label, process_list in grouped_processes %}
+                    {% for proc in process_list %}
+                    <th class="hdr-proc" title="{{ proc.name }}">{{ proc.name }}</th>
+                    {% endfor %}
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp_row in employee_rows %}
+                <tr x-show="isVisible('{{ emp_row.employee.employee_number }}', '{{ emp_row.dept_code }}')"
+                    class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+
+                    <!-- Employee name -->
+                    <td class="col-emp">
+                        <div class="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            {{ emp_row.employee.user.get_full_name }}
+                        </div>
+                        <div class="text-xs text-gray-400 truncate">
+                            {{ emp_row.employee.position_title }}
+                        </div>
+                    </td>
+
+                    <!-- Competency cells -->
+                    {% for cell in emp_row.cells %}
+                    <td class="comp-cell level-{{ cell.level }}"
+                        title="{{ cell.process_name }}: {{ cell.level_display }}{% if cell.expiry %} (expires {{ cell.expiry }}){% endif %}"
+                        @click="openEdit({{ emp_row.employee.pk }}, {{ cell.process_pk }}, '{{ cell.level }}', '{{ cell.expiry|default:'' }}', '{{ cell.cert_ref|default:'' }}')">
+                        <span class="comp-icon">
+                            {% if cell.level == 'TRAINER' %}🏆
+                            {% elif cell.level == 'CERTIFIED' %}✅
+                            {% elif cell.level == 'TRAINEE' %}🟡
+                            {% else %}·{% endif %}
+                        </span>
+                        {% if cell.is_expired %}
+                        <span style="position:absolute;top:0;right:0;font-size:8px;background:#ef4444;color:white;border-radius:2px;padding:0 2px;">EXP</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ── EDIT MODAL ── -->
+    <div class="modal-backdrop" x-show="showModal" x-transition @click.self="showModal=false">
+        <div class="modal-card">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-gray-900 dark:text-white" x-text="modalTitle">Edit Competency</h3>
+                <button @click="showModal=false" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Authorization Level</label>
+                    <div class="grid grid-cols-2 gap-2 mt-1.5">
+                        <template x-for="opt in levelOptions" :key="opt.value">
+                            <button @click="editLevel = opt.value"
+                                    :class="editLevel === opt.value ? 'ring-2 ring-blue-500 ' + opt.bg : 'bg-gray-50 dark:bg-gray-700'"
+                                    class="p-3 rounded-xl text-sm font-medium text-left border border-gray-200 dark:border-gray-600 transition-all">
+                                <span x-text="opt.icon + ' ' + opt.label"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Certified Date</label>
+                    <input type="date" x-model="editCertDate"
+                           class="mt-1 w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Expiry Date (optional)</label>
+                    <input type="date" x-model="editExpiry"
+                           class="mt-1 w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Certificate / Training Ref.</label>
+                    <input type="text" x-model="editCertRef" placeholder="e.g. CERT-2024-0042"
+                           class="mt-1 w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-5">
+                <button @click="showModal=false"
+                        class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-600 dark:text-gray-300">
+                    Cancel
+                </button>
+                <button @click="saveCompetency()"
+                        class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition
+         :class="toast.ok ? 'bg-emerald-600' : 'bg-red-600'"
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg z-50"
+         x-text="toast.msg"></div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function competencyMatrix() {
+    return {
+        filterDept: '', filterCategory: '', filterEmp: '',
+        visibleCount: {{ employee_rows|length }},
+        showModal: false,
+        modalTitle: '',
+        editEmployeePk: null,
+        editProcessPk: null,
+        editLevel: 'NONE',
+        editExpiry: '',
+        editCertDate: '',
+        editCertRef: '',
+        toast: { show: false, msg: '', ok: true },
+        CSRF: '{{ csrf_token }}',
+        SAVE_URL: '{% url "hr:competency_matrix_save" %}',
+
+        levelOptions: [
+            { value: 'NONE',      label: 'Not Authorized', icon: '—',  bg: 'bg-gray-50 dark:bg-gray-800' },
+            { value: 'TRAINEE',   label: 'Trainee',         icon: '🟡', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+            { value: 'CERTIFIED', label: 'Certified',       icon: '✅', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+            { value: 'TRAINER',   label: 'Trainer',         icon: '🏆', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+        ],
+
+        init() {
+            this.applyFilters();
+        },
+
+        isVisible(empNum, deptCode) {
+            if (this.filterDept && deptCode !== this.filterDept) return false;
+            if (this.filterEmp) {
+                const q = this.filterEmp.toLowerCase();
+                if (!empNum.toLowerCase().includes(q)) return false;
+            }
+            return true;
+        },
+
+        applyFilters() {
+            this.$nextTick(() => {
+                const rows = document.querySelectorAll('[x-show]');
+                let count = 0;
+                rows.forEach(r => { if (r.style.display !== 'none') count++; });
+                this.visibleCount = count;
+            });
+        },
+
+        openEdit(empPk, procPk, level, expiry, certRef) {
+            this.editEmployeePk = empPk;
+            this.editProcessPk = procPk;
+            this.editLevel = level || 'NONE';
+            this.editExpiry = expiry || '';
+            this.editCertRef = certRef || '';
+            this.editCertDate = '';
+            this.modalTitle = 'Edit Competency';
+            this.showModal = true;
+        },
+
+        async saveCompetency() {
+            try {
+                const res = await fetch(this.SAVE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.CSRF,
+                    },
+                    body: JSON.stringify({
+                        employee_pk: this.editEmployeePk,
+                        process_pk: this.editProcessPk,
+                        level: this.editLevel,
+                        expiry_date: this.editExpiry || null,
+                        certified_date: this.editCertDate || null,
+                        certificate_reference: this.editCertRef,
+                    }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.showModal = false;
+                    this._toast('Competency saved ✓', true);
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    this._toast(data.error || 'Error saving', false);
+                }
+            } catch (e) {
+                this._toast('Network error', false);
+            }
+        },
+
+        _toast(msg, ok) {
+            this.toast = { show: true, msg, ok };
+            setTimeout(() => this.toast.show = false, 3000);
+        },
+    };
+}
+</script>
+{% endblock %}

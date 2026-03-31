@@ -77,6 +77,7 @@ class Employee(models.Model):
         ACTIVE = "ACTIVE", "Active"
         ON_LEAVE = "ON_LEAVE", "On Leave"
         SUSPENDED = "SUSPENDED", "Suspended"
+        RESIGNED = "RESIGNED", "Resigned"
         TERMINATED = "TERMINATED", "Terminated"
         RETIRED = "RETIRED", "Retired"
 
@@ -248,15 +249,30 @@ class Employee(models.Model):
 
     # ===== ORGANIZATIONAL STRUCTURE =====
 
-    department = models.CharField(
-        max_length=100,
-        db_index=True,
-        help_text="Department"
+    department = models.ForeignKey(
+        'organization.Department',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='employees',
+        help_text='Department (FK to organization.Department)'
+    )
+    department_legacy = models.CharField(
+        max_length=100, blank=True, default='',
+        help_text='Legacy free-text department name (kept for data migration)'
     )
 
     job_title = models.CharField(
         max_length=200,
-        help_text="Job title"
+        blank=True,
+        help_text="Job title display name (legacy — use position FK for logic)"
+    )
+
+    position = models.ForeignKey(
+        'organization.Position',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='employees',
+        help_text='Formal position — drives competency matrix and permissions'
     )
 
     job_description = models.TextField(
@@ -519,6 +535,22 @@ class Employee(models.Model):
         if not self.work_permit_expiry:
             return None
         return timezone.now().date() > self.work_permit_expiry
+
+    @property
+    def position_title(self):
+        """Display position name from FK or fallback to job_title."""
+        if self.position:
+            return self.position.title
+        return self.job_title or '—'
+
+    @property
+    def authorized_process_codes(self):
+        """Return list of MasterProcess codes this employee is certified or trainer-level for."""
+        return list(
+            self.competencies.filter(
+                level__in=['CERTIFIED', 'TRAINER']
+            ).values_list('master_process__code', flat=True)
+        )
 
     # ===== METHODS =====
 
@@ -2758,3 +2790,211 @@ class OvertimeRequest(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.date} ({self.hours}h)"
+
+# =============================================================================
+# PROCESS COMPETENCY MATRIX  (NEW — Sprint 9)
+# =============================================================================
+
+class ProcessCompetencyMatrix(models.Model):
+    """
+    Employee × MasterProcess competency matrix.
+
+    Records each employee's authorization level for each production process.
+    This is the source of truth for:
+      - Who can perform which steps on the router sheet
+      - Approval authority on evaluations and QC sign-offs
+      - Training gap identification (NONE / TRAINEE rows)
+      - KPI grouping by operator × process family
+
+    ISO 9001 Reference:
+      - Clause 7.2: Competence
+      - Clause 7.1.2: People (qualified resources)
+    """
+
+    class CompetencyLevel(models.TextChoices):
+        NOT_AUTHORIZED = "NONE",      "Not Authorized"
+        TRAINEE        = "TRAINEE",   "Trainee (supervised only)"
+        CERTIFIED      = "CERTIFIED", "Certified (independent)"
+        TRAINER        = "TRAINER",   "Trainer (can certify others)"
+
+    # ── Core relationship ────────────────────────────────────────────
+    employee = models.ForeignKey(
+        'Employee',
+        on_delete=models.CASCADE,
+        related_name='competencies',
+        help_text='Employee this competency belongs to'
+    )
+
+    master_process = models.ForeignKey(
+        'workorders.MasterProcess',
+        on_delete=models.CASCADE,
+        related_name='competency_records',
+        help_text='The production process this competency covers'
+    )
+
+    # ── Level ────────────────────────────────────────────────────────
+    level = models.CharField(
+        max_length=10,
+        choices=CompetencyLevel.choices,
+        default=CompetencyLevel.NOT_AUTHORIZED,
+        db_index=True,
+        help_text='Authorization level for this process'
+    )
+
+    # ── Certification details ────────────────────────────────────────
+    certified_date = models.DateField(
+        null=True, blank=True,
+        help_text='Date employee was certified for this process'
+    )
+
+    certified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='certifications_issued',
+        help_text='Supervisor/trainer who certified this employee'
+    )
+
+    expiry_date = models.DateField(
+        null=True, blank=True,
+        help_text='Certification expiry date (leave blank = no expiry)'
+    )
+
+    certificate_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text='Training record or certificate reference number'
+    )
+
+    # ── Notes ────────────────────────────────────────────────────────
+    notes = models.TextField(
+        blank=True,
+        help_text='Additional notes (limitations, conditions, etc.)'
+    )
+
+    # ── Audit ────────────────────────────────────────────────────────
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='competencies_created',
+    )
+
+    class Meta:
+        db_table = 'process_competency_matrix'
+        unique_together = [['employee', 'master_process']]
+        ordering = ['employee', 'master_process__category', 'master_process__sort_order']
+        verbose_name = 'Process Competency'
+        verbose_name_plural = 'Process Competency Matrix'
+        indexes = [
+            models.Index(fields=['employee', 'level']),
+            models.Index(fields=['master_process', 'level']),
+            models.Index(fields=['expiry_date']),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.employee.employee_number} — "
+            f"{self.master_process.code} — "
+            f"{self.get_level_display()}"
+        )
+
+    # ── Properties ───────────────────────────────────────────────────
+
+    @property
+    def is_expired(self):
+        if not self.expiry_date:
+            return False
+        from django.utils import timezone
+        return timezone.now().date() > self.expiry_date
+
+    @property
+    def is_authorized(self):
+        """True if employee can independently perform this process."""
+        if self.is_expired:
+            return False
+        return self.level in (
+            self.CompetencyLevel.CERTIFIED,
+            self.CompetencyLevel.TRAINER,
+        )
+
+    @property
+    def needs_supervision(self):
+        """True if employee can do this process but needs supervision."""
+        return self.level == self.CompetencyLevel.TRAINEE and not self.is_expired
+
+    # ── Class methods ────────────────────────────────────────────────
+
+    @classmethod
+    def get_qualified_users_for_process(cls, master_process, include_trainees=False):
+        """
+        Return queryset of User objects who are qualified to perform
+        a given MasterProcess. Used when assigning router steps.
+        """
+        from apps.accounts.models import User
+        levels = [cls.CompetencyLevel.CERTIFIED, cls.CompetencyLevel.TRAINER]
+        if include_trainees:
+            levels.append(cls.CompetencyLevel.TRAINEE)
+
+        employee_ids = cls.objects.filter(
+            master_process=master_process,
+            level__in=levels,
+        ).filter(
+            models.Q(expiry_date__isnull=True) |
+            models.Q(expiry_date__gte=models.functions.Now())
+        ).values_list('employee_id', flat=True)
+
+        return User.objects.filter(
+            employee_profile__id__in=employee_ids,
+            is_active=True,
+        ).select_related('employee_profile')
+
+    @classmethod
+    def can_user_perform(cls, user, master_process, allow_trainee=False):
+        """
+        Quick check: can this user perform this process?
+        Used in view logic before allowing step start.
+        """
+        if user.is_superuser:
+            return True
+        try:
+            competency = cls.objects.get(
+                employee=user.employee_profile,
+                master_process=master_process,
+            )
+            if competency.is_expired:
+                return False
+            if allow_trainee:
+                return competency.level != cls.CompetencyLevel.NOT_AUTHORIZED
+            return competency.is_authorized
+        except (cls.DoesNotExist, AttributeError):
+            return False
+
+    @classmethod
+    def get_gap_report_for_position(cls, position):
+        """
+        Return all processes required by this position that employees
+        in this position are not yet certified for. Used for training
+        gap analysis on position dashboard.
+        """
+        from apps.accounts.models import User
+        users_in_position = User.objects.filter(
+            position=position, is_active=True
+        ).select_related('employee_profile')
+
+        gaps = []
+        for user in users_in_position:
+            if not hasattr(user, 'employee_profile'):
+                continue
+            not_certified = cls.objects.filter(
+                employee=user.employee_profile,
+                level__in=[cls.CompetencyLevel.NOT_AUTHORIZED, cls.CompetencyLevel.TRAINEE],
+            ).select_related('master_process')
+            for c in not_certified:
+                gaps.append({
+                    'employee': user.employee_profile,
+                    'process': c.master_process,
+                    'current_level': c.get_level_display(),
+                })
+        return gaps

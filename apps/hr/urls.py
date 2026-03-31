@@ -4,6 +4,7 @@ ARDT FMS - HR URLs
 
 from django.urls import path
 from . import views
+from . import views_competency
 
 app_name = "hr"
 
@@ -103,4 +104,10 @@ urlpatterns = [
     path('overtime/', views.OvertimeListView.as_view(), name='overtime-list'),
     path('overtime/create/', views.OvertimeCreateView.as_view(), name='overtime-create'),
     path('overtime/<int:pk>/approve/', views.OvertimeApproveView.as_view(), name='overtime-approve'),
+
+    # Competency Matrix
+    path('competency/', views_competency.CompetencyMatrixView.as_view(), name='competency_matrix'),
+    path('competency/save/', views_competency.api_competency_save, name='competency_matrix_save'),
+    path('competency/gaps/', views_competency.CompetencyGapReportView.as_view(), name='competency_matrix_gaps'),
+    path('competency/export/', views_competency.competency_matrix_export, name='competency_matrix_export'),
 ]

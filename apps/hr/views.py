@@ -89,10 +89,21 @@ class EmployeeListView(LoginRequiredMixin, ListView):
     model = Employee
     template_name = 'hr/employee_list.html'
     context_object_name = 'employees'
-    paginate_by = 20
+    paginate_by = 25
+
+    def get_paginate_by(self, queryset):
+        per_page = self.request.GET.get('per_page', '25')
+        if per_page == 'all':
+            return None
+        try:
+            return int(per_page)
+        except (ValueError, TypeError):
+            return 25
 
     def get_queryset(self):
-        queryset = Employee.objects.select_related('user', 'manager__user').order_by('-created_at')
+        queryset = Employee.objects.select_related(
+            'user', 'manager__user', 'department', 'position'
+        ).order_by('employee_number')
 
         # Search
         q = self.request.GET.get('q')
@@ -102,8 +113,9 @@ class EmployeeListView(LoginRequiredMixin, ListView):
                 Q(user__first_name__icontains=q) |
                 Q(user__last_name__icontains=q) |
                 Q(user__email__icontains=q) |
-                Q(department__icontains=q) |
-                Q(job_title__icontains=q)
+                Q(job_title__icontains=q) |
+                Q(department_legacy__icontains=q) |
+                Q(department__name__icontains=q)
             )
 
         # Filters
@@ -117,16 +129,27 @@ class EmployeeListView(LoginRequiredMixin, ListView):
 
         department = self.request.GET.get('department')
         if department:
-            queryset = queryset.filter(department__icontains=department)
+            queryset = queryset.filter(department_id=department)
+
+        position = self.request.GET.get('position')
+        if position:
+            queryset = queryset.filter(position_id=position)
 
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['page_title'] = 'Employees'
-        context['search_query'] = self.request.GET.get('q', '')
+        from apps.organization.models import Department, Position
+        context['departments'] = Department.objects.filter(is_active=True).order_by('name')
+        context['positions'] = Position.objects.filter(is_active=True).order_by('department__code', 'title')
+        context['total_count'] = self.get_queryset().count()
+        context['current_department'] = self.request.GET.get('department', '')
+        context['current_position'] = self.request.GET.get('position', '')
         context['current_status'] = self.request.GET.get('status', '')
         context['current_type'] = self.request.GET.get('type', '')
+        context['search_query'] = self.request.GET.get('q', '')
+        context['per_page'] = self.request.GET.get('per_page', '25')
         context['statuses'] = Employee.EmploymentStatus.choices
         context['types'] = Employee.EmploymentType.choices
         return context

@@ -1,74 +1,101 @@
 {% extends "base.html" %}
+{% block title %}{{ page_title }} — ARDT FMS{% endblock %}
 
-{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block breadcrumbs %}
+<nav class="flex mb-4">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400"><i data-lucide="home" class="w-4 h-4"></i></a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'organization:department-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Departments</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ page_title }}</li>
+    </ol>
+</nav>
+{% endblock %}
 
 {% block page_header %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
-    </div>
-    <a href="{% url 'organization:department-list' %}" class="text-gray-600 dark:text-gray-400 hover:text-gray-800">
-        <i data-lucide="x" class="w-5 h-5"></i>
-    </a>
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
 </div>
 {% endblock %}
 
 {% block content %}
-<form method="post" class="max-w-2xl">
-    {% csrf_token %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-6">
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
-                <input type="text" name="code" value="{{ form.code.value|default:'' }}" required
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+<div class="max-w-2xl">
+    <form method="post" class="space-y-5">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-700/30">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <i data-lucide="building-2" class="w-4 h-4 text-blue-500"></i>Department Information
+                </h3>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
-                <input type="text" name="name" value="{{ form.name.value|default:'' }}" required
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <div class="p-6 space-y-5">
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Code <span class="text-red-500">*</span></label>
+                        {{ form.code }}
+                        {% if form.code.errors %}<p class="text-xs text-red-500 mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                        <p class="text-xs text-gray-400 mt-1">Short unique identifier, e.g. MFG, QC, HR</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Name <span class="text-red-500">*</span></label>
+                        {{ form.name }}
+                        {% if form.name.errors %}<p class="text-xs text-red-500 mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Arabic Name <span class="text-gray-400 font-normal">(optional)</span></label>
+                    {{ form.name_ar }}
+                    <p class="text-xs text-gray-400 mt-1">Used in Arabic language documents</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Parent Department</label>
+                        {{ form.parent }}
+                        <p class="text-xs text-gray-400 mt-1">Leave empty for top-level</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Location</label>
+                        {{ form.location }}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Manager</label>
+                    {{ form.manager }}
+                </div>
+
+                <div class="flex items-center gap-3 pt-1">
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                        {{ form.is_active }}
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Active Department</span>
+                    </label>
+                </div>
             </div>
         </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Arabic Name</label>
-            <input type="text" name="name_ar" value="{{ form.name_ar.value|default:'' }}" dir="rtl"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Department</label>
-                <select name="parent" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">None</option>
-                    {% for dept in form.fields.parent.queryset %}
-                    <option value="{{ dept.pk }}" {% if form.parent.value == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Manager</label>
-                <select name="manager" class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="">None</option>
-                    {% for user in form.fields.manager.queryset %}
-                    <option value="{{ user.pk }}" {% if form.manager.value == user.pk|stringformat:"s" %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
-            <input type="text" name="location" value="{{ form.location.value|default:'' }}"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        </div>
-        <div class="flex items-center">
-            <input type="checkbox" name="is_active" id="is_active" {% if form.is_active.value %}checked{% endif %}
-                   class="w-4 h-4 text-blue-600 border-gray-300 rounded">
-            <label for="is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
-        </div>
-        <div class="pt-4 border-t">
-            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                {% if object %}Update{% else %}Create{% endif %} Department
+
+        <div class="flex items-center gap-3">
+            <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium text-sm shadow-sm transition-colors">
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i>Save Department
             </button>
+            <a href="{% url 'organization:department-list' %}" class="px-5 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 font-medium text-sm transition-colors">
+                Cancel
+            </a>
         </div>
-    </div>
-</form>
+    </form>
+</div>
+
+<script>
+document.querySelectorAll('input[type=text], select').forEach(el => {
+    if (el.type !== 'checkbox') {
+        el.classList.add('w-full','px-3','py-2','border','border-gray-300','dark:border-gray-600',
+            'rounded-lg','bg-white','dark:bg-gray-700','text-gray-900','dark:text-white',
+            'text-sm','focus:ring-2','focus:ring-blue-500','focus:border-transparent','transition-colors');
+    }
+});
+</script>
 {% endblock %}
