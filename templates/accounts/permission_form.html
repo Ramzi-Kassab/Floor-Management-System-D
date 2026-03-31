@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — ARDT FMS{% endblock %}
+{% block page_header %}<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">{{ page_title }}</h1>{% endblock %}
+{% block content %}
+<form method="post" class="max-w-xl">
+    {% csrf_token %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-5">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+            {{ form.code }}
+            <p class="text-xs text-gray-400 mt-1">Format: module.action (e.g. workorders.approve)</p>
+            {% if form.code.errors %}<p class="text-xs text-red-500 mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+            {{ form.name }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Module *</label>
+            {{ form.module }}
+            <p class="text-xs text-gray-400 mt-1">Existing modules: {% for mod in modules %}{{ mod }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            {{ form.description }}
+        </div>
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium text-sm"><i data-lucide="save" class="w-4 h-4 inline mr-1.5"></i>Save</button>
+            <a href="{% url 'accounts:permission-list' %}" class="px-6 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium text-sm">Cancel</a>
+        </div>
+    </div>
+</form>
+<script>
+document.querySelectorAll('input[type=text], select, textarea').forEach(el => {
+    el.classList.add('w-full','px-3','py-2','border','border-gray-300','dark:border-gray-600','rounded-lg','bg-white','dark:bg-gray-700','text-gray-900','dark:text-white','text-sm','focus:ring-2','focus:ring-amber-400');
+});
+</script>
+{% endblock %}

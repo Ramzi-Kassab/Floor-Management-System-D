@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load role_tags %}
+{% block title %}User Management — ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400"><i data-lucide="home" class="w-4 h-4"></i></a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">Users</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-500 dark:text-gray-400">{{ total_count }} user{{ total_count|pluralize }} in the system</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'accounts:role-list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
+            <i data-lucide="shield" class="w-4 h-4 mr-2"></i>Roles
+        </a>
+        <a href="{% url 'accounts:user-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>New User
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-5">
+    <form method="get" id="filterForm" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <input type="hidden" name="per_page" value="{{ per_page }}">
+        <div class="md:col-span-2">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search name, username, email…"
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+        <select name="department" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <option value="">All Departments</option>
+            {% for dept in departments %}<option value="{{ dept.pk }}" {% if current_department == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>{% endfor %}
+        </select>
+        <select name="role" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            <option value="">All Roles</option>
+            {% for role in roles %}<option value="{{ role.code }}" {% if current_role == role.code %}selected{% endif %}>{{ role.name }}</option>{% endfor %}
+        </select>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition">
+                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+            <a href="{% url 'accounts:user-list' %}" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Pagination size + Show All -->
+<div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+        <span>Show</span>
+        <select id="perPageSelect" class="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-700">
+            <option value="25" {% if per_page == '25' %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page == '50' %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == '100' %}selected{% endif %}>100</option>
+            <option value="all" {% if per_page == 'all' %}selected{% endif %}>All</option>
+        </select>
+        <span>per page</span>
+    </div>
+    <span class="text-sm text-gray-400">{{ total_count }} total</span>
+</div>
+
+<!-- Table -->
+{% if users %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden" x-data="userTable()">
+    <table class="w-full text-sm" id="userTable">
+        <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                <th class="px-4 py-3 font-medium cursor-pointer select-none" @click="sort('name')">
+                    User <i data-lucide="arrow-up-down" class="w-3 h-3 inline ml-0.5 opacity-40"></i>
+                </th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none" @click="sort('emp')">
+                    Emp # <i data-lucide="arrow-up-down" class="w-3 h-3 inline ml-0.5 opacity-40"></i>
+                </th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none" @click="sort('dept')">
+                    Department <i data-lucide="arrow-up-down" class="w-3 h-3 inline ml-0.5 opacity-40"></i>
+                </th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none" @click="sort('position')">
+                    Position <i data-lucide="arrow-up-down" class="w-3 h-3 inline ml-0.5 opacity-40"></i>
+                </th>
+                <th class="px-4 py-3 font-medium">Roles</th>
+                <th class="px-4 py-3 font-medium cursor-pointer select-none" @click="sort('status')">
+                    Status <i data-lucide="arrow-up-down" class="w-3 h-3 inline ml-0.5 opacity-40"></i>
+                </th>
+                <th class="px-4 py-3 font-medium text-right">Actions</th>
+            </tr>
+            <!-- Header filter row -->
+            <tr class="bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700">
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('name', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('emp', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('dept', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('position', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('roles', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"><input type="text" placeholder="Filter..." @input="filter('status', $event.target.value)" class="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 dark:border-gray-600"></th>
+                <th class="px-4 py-1"></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for u in users %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors data-row"
+                data-name="{{ u.get_full_name|default:u.username }}" data-emp="{{ u.employee_id|default:'' }}"
+                data-dept="{{ u.department.name|default:'' }}" data-position="{{ u.position.title|default:'' }}"
+                data-roles="{% for r in u.roles.all %}{{ r.code }} {% endfor %}" data-status="{% if u.is_active %}Active{% else %}Inactive{% endif %}">
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-300 font-semibold text-xs flex-shrink-0">
+                            {{ u.first_name|first|default:u.username|first|upper }}
+                        </div>
+                        <div>
+                            <a href="{% url 'accounts:user-detail' u.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-xs">
+                                {{ u.get_full_name|default:u.username }}
+                            </a>
+                            <p class="text-[10px] text-gray-400">@{{ u.username }}</p>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{ u.employee_id|default:"—" }}</td>
+                <td class="px-4 py-3 text-xs text-gray-700 dark:text-gray-300">{{ u.department.name|default:"—" }}</td>
+                <td class="px-4 py-3 text-xs text-gray-700 dark:text-gray-300">{{ u.position.title|default:"—" }}</td>
+                <td class="px-4 py-3">
+                    <div class="flex flex-wrap gap-0.5">
+                        {% for role in u.roles.all %}
+                        <span class="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">{{ role.code }}</span>
+                        {% empty %}
+                        <span class="text-[10px] text-gray-400">—</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    {% if u.is_active %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full">Active</span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-full">Inactive</span>
+                    {% endif %}
+                    {% if u.is_superuser %}<span class="text-[10px] text-amber-500 ml-1">SU</span>{% endif %}
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <div class="flex items-center justify-end gap-1">
+                        <a href="{% url 'accounts:user-detail' u.pk %}" class="p-1 text-gray-400 hover:text-blue-600 rounded" title="View"><i data-lucide="eye" class="w-3.5 h-3.5"></i></a>
+                        <a href="{% url 'accounts:user-update' u.pk %}" class="p-1 text-gray-400 hover:text-amber-600 rounded" title="Edit"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400">
+        <span x-text="visibleCount + ' of ' + totalCount + ' shown'"></span>
+    </div>
+    {% if is_paginated %}
+    <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-sm text-gray-500">
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div class="flex gap-2">
+            {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}&q={{ search_query }}&department={{ current_department }}&role={{ current_role }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Prev</a>{% endif %}
+            {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}&q={{ search_query }}&department={{ current_department }}&role={{ current_role }}" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Next</a>{% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
+    <i data-lucide="users" class="w-12 h-12 text-gray-300 mx-auto mb-3"></i>
+    <p class="text-gray-500">No users found matching your filters.</p>
+</div>
+{% endif %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var sel = document.getElementById('perPageSelect');
+    if (sel) {
+        sel.addEventListener('change', function() {
+            var form = document.getElementById('filterForm');
+            var hidden = form.querySelector('input[name="per_page"]');
+            hidden.value = sel.value;
+            form.submit();
+        });
+    }
+});
+function userTable() {
+    return {
+        filters: {},
+        sortKey: '', sortAsc: true,
+        get totalCount() { return document.querySelectorAll('.data-row').length; },
+        get visibleCount() { return document.querySelectorAll('.data-row:not([style*="display: none"])').length; },
+        filter(col, val) {
+            this.filters[col] = val.toLowerCase();
+            document.querySelectorAll('.data-row').forEach(row => {
+                let show = true;
+                for (const [k, v] of Object.entries(this.filters)) {
+                    if (v && !(row.dataset[k] || '').toLowerCase().includes(v)) { show = false; break; }
+                }
+                row.style.display = show ? '' : 'none';
+            });
+        },
+        sort(col) {
+            if (this.sortKey === col) this.sortAsc = !this.sortAsc; else { this.sortKey = col; this.sortAsc = true; }
+            const tbody = document.querySelector('#userTable tbody');
+            const rows = Array.from(tbody.querySelectorAll('.data-row'));
+            rows.sort((a, b) => {
+                const va = (a.dataset[col] || '').toLowerCase();
+                const vb = (b.dataset[col] || '').toLowerCase();
+                return this.sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            });
+            rows.forEach(r => tbody.appendChild(r));
+        }
+    };
+}
+</script>
+{% endblock %}
+{% endblock %}

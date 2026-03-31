@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}{{ user_obj.display_name }} — ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400"><i data-lucide="home" class="w-4 h-4"></i></a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'accounts:user-list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Users</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">{{ user_obj.display_name }}</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-300 font-bold text-xl">
+            {{ user_obj.first_name|first|default:user_obj.username|first|upper }}
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ user_obj.get_full_name|default:user_obj.username }}</h1>
+            <p class="text-gray-500">@{{ user_obj.username }}{% if user_obj.employee_id %} · {{ user_obj.employee_id }}{% endif %}</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'accounts:user-update' user_obj.pk %}" class="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">
+            <i data-lucide="edit-2" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'accounts:user-delete' user_obj.pk %}" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left column: Info -->
+    <div class="lg:col-span-2 space-y-5">
+
+        <!-- Basic Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Account Information</h3>
+            <dl class="grid grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-xs text-gray-500">Full Name</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white mt-0.5">{{ user_obj.get_full_name|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Username</dt>
+                    <dd class="font-mono text-gray-900 dark:text-white mt-0.5">{{ user_obj.username }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Email</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.email|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Employee ID</dt>
+                    <dd class="font-mono text-gray-900 dark:text-white mt-0.5">{{ user_obj.employee_id|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Department</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.department.name|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Position</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.position.title|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Phone</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.phone|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Mobile</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.mobile|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Status</dt>
+                    <dd class="mt-0.5">
+                        {% if user_obj.is_active %}
+                        <span class="px-2 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-full">Active</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-500 rounded-full">Inactive</span>
+                        {% endif %}
+                        {% if user_obj.is_superuser %}<span class="ml-1 px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">Superuser</span>{% endif %}
+                        {% if user_obj.is_staff %}<span class="ml-1 px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">Staff</span>{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-gray-500">Last Activity</dt>
+                    <dd class="text-gray-900 dark:text-white mt-0.5">{{ user_obj.last_activity|date:"d M Y H:i"|default:"Never" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Roles -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Assigned Roles</h3>
+            </div>
+
+            {% if user_roles %}
+            <div class="space-y-2 mb-4">
+                {% for ur in user_roles %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                            <i data-lucide="shield" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ ur.role.name }}</p>
+                            <p class="text-xs text-gray-500">Level {{ ur.role.level }} · Assigned {{ ur.assigned_at|date:"d M Y" }}</p>
+                        </div>
+                    </div>
+                    <form method="post" action="{% url 'accounts:user-roles' user_obj.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove">
+                        <input type="hidden" name="role_id" value="{{ ur.role.pk }}">
+                        <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition" title="Remove role">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-400 mb-4">No roles assigned yet.</p>
+            {% endif %}
+
+            <!-- Add role -->
+            {% if available_roles %}
+            <form method="post" action="{% url 'accounts:user-roles' user_obj.pk %}" class="flex gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add">
+                <select name="role_id" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white">
+                    <option value="">Select role to add…</option>
+                    {% for role in available_roles %}
+                    <option value="{{ role.pk }}">{{ role.name }} (Level {{ role.level }})</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Add
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Password Reset -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 border border-amber-200 dark:border-amber-800">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">Reset Password</p>
+                    <p class="text-xs text-gray-500">Sets password to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">ChangeMe@123</code></p>
+                </div>
+                <form method="post" action="{% url 'accounts:user-reset-password' user_obj.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium"
+                            onclick="return confirm('Reset password for {{ user_obj.username }}?')">
+                        <i data-lucide="key" class="w-4 h-4 inline mr-1"></i>Reset
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column: Competency summary -->
+    <div class="space-y-5">
+        {% if competency_summary %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Process Competencies</h3>
+            <div class="space-y-1.5">
+                {% for comp in competency_summary %}
+                <div class="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <span class="text-xs text-gray-700 dark:text-gray-300 truncate pr-2">{{ comp.master_process.name }}</span>
+                    <span class="text-xs font-medium flex-shrink-0
+                        {% if comp.level == 'TRAINER' %}text-blue-600 dark:text-blue-400
+                        {% elif comp.level == 'CERTIFIED' %}text-emerald-600 dark:text-emerald-400
+                        {% elif comp.level == 'TRAINEE' %}text-amber-600 dark:text-amber-400
+                        {% else %}text-gray-400{% endif %}">
+                        {% if comp.level == 'TRAINER' %}🏆{% elif comp.level == 'CERTIFIED' %}✅{% elif comp.level == 'TRAINEE' %}🟡{% else %}—{% endif %}
+                        {{ comp.get_level_display }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{% url 'hr:competency_matrix' %}" class="mt-3 block text-center text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                Edit Competency Matrix →
+            </a>
+        </div>
+        {% else %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Process Competencies</h3>
+            <p class="text-xs text-gray-400">No competency records yet.</p>
+            <a href="{% url 'hr:competency_matrix' %}" class="mt-2 block text-xs text-blue-600 hover:underline">Set competencies →</a>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

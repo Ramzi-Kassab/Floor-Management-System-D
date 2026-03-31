@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Delete Role — ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
+        <div class="flex items-center justify-center w-14 h-14 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+            <i data-lucide="shield-off" class="w-7 h-7 text-red-600"></i>
+        </div>
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete Role?</h2>
+        <p class="font-semibold text-gray-900 dark:text-white text-lg mb-1">{{ role.name }}</p>
+        <p class="text-sm text-gray-500 font-mono mb-4">{{ role.code }}</p>
+        {% if user_count %}
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-5 text-sm text-red-700 dark:text-red-300">
+            <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1"></i>
+            <strong>{{ user_count }}</strong> user{{ user_count|pluralize }} will lose this role.
+        </div>
+        {% endif %}
+        <p class="text-sm text-red-600 dark:text-red-400 mb-6">This action cannot be undone.</p>
+        <form method="post" class="flex justify-center gap-3">
+            {% csrf_token %}
+            <a href="{% url 'accounts:role-detail' role.pk %}" class="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium text-sm">Cancel</a>
+            <button type="submit" class="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium text-sm hover:bg-red-700">Delete Role</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
