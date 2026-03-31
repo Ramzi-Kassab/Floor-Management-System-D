@@ -859,23 +859,68 @@
             </div>
             {% endif %}
 
-            <!-- ── Linked Evaluations (contextual, based on step code) ── -->
-            {% if "DIE_CHECK" in entry.step_description|upper or "INSPECTION" in entry.step_description|upper or "EVALUATION" in entry.step_description|upper or "QC" in entry.step_description|upper or "PHOTOS" in entry.step_description|upper %}
+            <!-- ── Linked Quality Actions ── -->
+            {% with mp=entry.master_process %}
+            {% with dp=mp.dedicated_page|default:"" %}
+            {% with desc_up=entry.step_description|upper %}
+            {% if dp == "release_paper" or dp == "die_check" or dp == "cutter_eval" or dp == "lpt_report" or dp == "thread_insp" or dp == "e_checklist" or "DIE CHECK" in desc_up or "FPI" in desc_up or "EVALUATION" in desc_up or "QC" in desc_up or "LPT" in desc_up or "THREAD" in desc_up or "INSPECTION" in desc_up or "PRESSURE TEST" in desc_up or "RELEASE" in desc_up %}
+
+            {% if entry.linked_evaluation %}
+            <div class="mb-2 mx-1">
+              {% if entry.linked_evaluation.is_complete %}
+              <div class="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-1.5">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                <span class="font-medium">{{ entry.linked_evaluation.get_evaluation_type_display }} complete</span>
+                <a href="{% url 'workorders:evaluation_print' work_order.pk entry.linked_evaluation.pk %}"
+                   class="ml-auto hover:text-emerald-900 dark:hover:text-emerald-200" title="Print report" target="_blank">
+                  <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                </a>
+              </div>
+              {% else %}
+              <div class="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
+                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                <span class="font-medium">{{ entry.linked_evaluation.get_evaluation_type_display }} in progress</span>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
             <div class="step-card mb-4 border-violet-200 dark:border-violet-900/50">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
                     <p class="section-label">Linked Quality Actions</p>
-                    <span class="badge badge-qc">
-                        <i data-lucide="shield-check" class="w-3 h-3"></i> QC Step
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'workorders:operator_step' work_order.pk entry.step_number %}"
+                           class="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1" title="Open operator view">
+                          <i data-lucide="smartphone" class="w-3 h-3"></i> Operator
+                        </a>
+                        <span class="badge badge-qc">
+                            <i data-lucide="shield-check" class="w-3 h-3"></i> QC Step
+                        </span>
+                    </div>
                 </div>
                 <div class="px-5 py-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
-                        {% if "DIE_CHECK" in entry.step_description|upper %}
-                        {% with work_order.die_check_reports.last as dc %}
-                        <a href="{% url 'workorders:die_check_create' work_order.pk %}?step={{ entry.step_number }}"
+                        <!-- RELEASE PAPER -->
+                        {% if dp == "release_paper" or "RELEASE" in desc_up %}
+                        <a href="{% url 'workorders:release_paper' work_order.pk %}" target="_blank"
+                           onclick="setTimeout(function(){ fetch('{% url 'workorders:api_router_step_scan' wo_pk=work_order.pk step_number=entry.step_number %}', {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'}, body:JSON.stringify({action:'start'})}); }, 100)"
+                           class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="printer" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Print Release Document</p>
+                                <p class="text-xs text-gray-400">Opens print view — auto-starts step</p>
+                            </div>
+                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                        </a>
+                        {% endif %}
+
+                        {% if dp == "die_check" or "DIE CHECK" in desc_up or "FPI" in desc_up %}
+                        <a href="{% url 'workorders:die_check_create_direct' work_order.pk %}?eval={{ entry.linked_evaluation.pk|default:'' }}&step={{ entry.step_number }}"
                            class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors group">
-                            <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-200 dark:group-hover:bg-violet-800/30 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
                                 <i data-lucide="grid-2x2-check" class="w-4 h-4 text-violet-600 dark:text-violet-400"></i>
                             </div>
                             <div>
@@ -884,27 +929,30 @@
                             </div>
                             <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
                         </a>
-                        {% endwith %}
                         {% endif %}
 
-                        {% if "EVALUATION" in entry.step_description|upper or "PHOTOS" in entry.step_description|upper %}
-                        <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
+                        {% if dp == "cutter_eval" or "EVALUATION" in desc_up or "PDC EVAL" in desc_up %}
+                        {% if entry.linked_evaluation %}
+                        <a href="{% if entry.linked_evaluation.evaluation_type == 'PDC_EVAL' %}{% url 'workorders:pre_repair_eval_edit' work_order.pk entry.linked_evaluation.pk %}{% else %}{% url 'workorders:cutter_evaluation_edit' work_order.pk entry.linked_evaluation.pk %}{% endif %}"
+                        {% else %}
+                        <a href="{% url 'workorders:evaluation_auto' work_order.pk 'PDC_EVAL' %}?step={{ entry.step_number }}"
+                        {% endif %}
                            class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
-                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                                 <i data-lucide="clipboard-list" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Cutter Evaluation</p>
-                                <p class="text-xs text-gray-400">Matrix / grid assessment</p>
+                                <p class="text-xs text-gray-400">{% if entry.linked_evaluation %}Edit existing{% else %}Create new{% endif %}</p>
                             </div>
                             <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
                         </a>
                         {% endif %}
 
-                        {% if "QC" in entry.step_description|upper or "INSPECTION" in entry.step_description|upper %}
+                        {% if dp == "e_checklist" or "QC" in desc_up or "CHECKLIST" in desc_up or "INSPECTION" in desc_up %}
                         <a href="{% url 'workorders:e_checklist' work_order.pk %}"
                            class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/30 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
                                 <i data-lucide="check-square" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
                             </div>
                             <div>
@@ -919,6 +967,7 @@
                 </div>
             </div>
             {% endif %}
+            {% endwith %}{% endwith %}{% endwith %}
 
             <!-- ── Step metadata (collapsed info) ── -->
             <div class="step-card">

@@ -680,7 +680,8 @@
     {% endif %}
 
     <!-- ══════════════════════════════════════════════════════════════ -->
-    <!-- SECTION 10: Linked Actions                                    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 10: Linked Actions (FIXED — uses dedicated_page)     -->
     <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="section-card no-print">
         <div class="section-header" style="cursor: default;">
@@ -688,39 +689,131 @@
                 <i data-lucide="link" class="w-4 h-4 text-gray-500"></i>
                 <span class="section-label mb-0">Actions</span>
             </div>
+            <div class="flex items-center gap-2 ml-auto">
+                {% if step.linked_evaluation %}
+                  {% if step.linked_evaluation.is_complete %}
+                  <span class="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-full px-2.5 py-0.5">
+                    <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                    {{ step.linked_evaluation.get_evaluation_type_display }} completed
+                  </span>
+                  {% else %}
+                  <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-full px-2.5 py-0.5">
+                    <i data-lucide="clock" class="w-3 h-3"></i>
+                    Eval in progress
+                  </span>
+                  {% endif %}
+                {% endif %}
+                <a href="{% url 'workorders:operator_step' work_order.pk step.step_number %}"
+                   class="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
+                   title="Open operator view (mobile-friendly)">
+                    <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> Operator
+                </a>
+            </div>
         </div>
         <div class="section-body">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
-                {% if 'die check' in step.step_description|lower or 'die_check' in step.step_description|lower %}
-                <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}?type=DIE_CHECK"
-                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors group">
+                {% with dp=step.master_process.dedicated_page|default:"" %}
+                {% with desc_low=step.step_description|lower %}
+
+                <!-- RELEASE PAPER -->
+                {% if dp == "release_paper" or 'release' in desc_low %}
+                <a href="{% url 'workorders:release_paper' work_order.pk %}" target="_blank"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="printer" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Print Release Document</p>
+                        <p class="text-xs text-gray-400">Opens print view in new tab</p>
+                    </div>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                </a>
+                {% endif %}
+
+                {% if dp == "die_check" or 'die check' in desc_low or 'fpi' in desc_low or 'die_check' in desc_low %}
+                {% with step.linked_evaluation as le %}
+                {% if le and le.die_check_reports.exists %}
+                <a href="{% url 'workorders:die_check_edit' work_order.pk le.die_check_reports.last.pk le.pk %}"
+                {% else %}
+                <a href="{% url 'workorders:die_check_create_direct' work_order.pk %}?step={{ step.step_number }}{% if step.linked_evaluation %}&eval={{ step.linked_evaluation.pk }}{% endif %}"
+                {% endif %}
+                   class="flex items-center gap-2.5 p-3 rounded-lg border {% if le and le.die_check_reports.exists %}border-emerald-300 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-800{% else %}border-gray-200 dark:border-gray-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10{% endif %} transition-colors group">
                     <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
                         <i data-lucide="grid-2x2-check" class="w-4 h-4 text-violet-600 dark:text-violet-400"></i>
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Die Check Report</p>
-                        <p class="text-xs text-gray-400">FPI / Fluorescent Penetrant</p>
+                        <p class="text-xs text-gray-400">{% if le and le.die_check_reports.exists %}Edit existing{% else %}Create new{% endif %}</p>
                     </div>
                     <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
                 </a>
+                {% endwith %}
                 {% endif %}
 
-                {% if 'evaluation' in step.step_description|lower or 'qc' in step.step_description|lower %}
-                <a href="{% url 'workorders:cutter_evaluation_create' work_order.pk %}"
-                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
+                {% if dp == "cutter_eval" or 'evaluation' in desc_low or 'pdc eval' in desc_low %}
+                {% if step.linked_evaluation %}
+                <a href="{% if step.linked_evaluation.evaluation_type == 'PDC_EVAL' %}{% url 'workorders:pre_repair_eval_edit' work_order.pk step.linked_evaluation.pk %}{% else %}{% url 'workorders:cutter_evaluation_edit' work_order.pk step.linked_evaluation.pk %}{% endif %}"
+                {% else %}
+                <a href="{% url 'workorders:evaluation_auto' work_order.pk 'PDC_EVAL' %}?step={{ step.step_number }}"
+                {% endif %}
+                   class="flex items-center gap-2.5 p-3 rounded-lg border {% if step.linked_evaluation.is_complete|default:False %}border-emerald-300 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-800{% else %}border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10{% endif %} transition-colors group">
                     <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Cutter Evaluation</p>
-                        <p class="text-xs text-gray-400">Matrix / grid assessment</p>
+                        <p class="text-xs text-gray-400">{% if step.linked_evaluation %}Edit existing{% else %}Create new{% endif %}</p>
+                    </div>
+                    <i data-lucide="{% if step.linked_evaluation.is_complete|default:False %}check-circle-2{% else %}external-link{% endif %}"
+                       class="w-3.5 h-3.5 {% if step.linked_evaluation.is_complete|default:False %}text-emerald-500{% else %}text-gray-400{% endif %} ml-auto"></i>
+                </a>
+                {% endif %}
+
+                {% if dp == "lpt_report" or 'lpt' in desc_low or 'pressure test' in desc_low %}
+                <a href="{% url 'workorders:lpt_report_standalone_create' work_order.pk step.linked_evaluation.pk|default:0 %}?step={{ step.step_number }}"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="droplets" class="w-4 h-4 text-cyan-600 dark:text-cyan-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">LPT Report</p>
+                        <p class="text-xs text-gray-400">Liquid Penetrant Test</p>
                     </div>
                     <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
                 </a>
                 {% endif %}
 
-                <!-- Report Issue (NCR) -->
+                {% if dp == "thread_insp" or 'thread' in desc_low or 'api insp' in desc_low %}
+                <a href="{% url 'workorders:thread_report_create' work_order.pk step.linked_evaluation.pk|default:0 %}?step={{ step.step_number }}"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="scan-line" class="w-4 h-4 text-orange-600 dark:text-orange-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Thread Inspection</p>
+                        <p class="text-xs text-gray-400">API connection check</p>
+                    </div>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                </a>
+                {% endif %}
+
+                {% if dp == "e_checklist" or 'qc' in desc_low or 'checklist' in desc_low %}
+                <a href="{% url 'workorders:e_checklist' work_order.pk %}"
+                   class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="check-square" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">QC Checklist</p>
+                        <p class="text-xs text-gray-400">15-point inspection</p>
+                    </div>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-gray-400 ml-auto"></i>
+                </a>
+                {% endif %}
+
+                {% endwith %}{% endwith %}
+
                 <button type="button" disabled
                         class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 opacity-50 cursor-not-allowed">
                     <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
@@ -732,7 +825,6 @@
                     </div>
                 </button>
 
-                <!-- Add Step -->
                 <button type="button" @click="showAddStepModal = true"
                         class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer">
                     <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
@@ -743,6 +835,7 @@
                         <p class="text-xs text-gray-400">Add a step after this one</p>
                     </div>
                 </button>
+
             </div>
         </div>
     </div>

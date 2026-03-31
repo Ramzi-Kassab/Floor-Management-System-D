@@ -1816,6 +1816,28 @@ class MasterProcess(models.Model):
 
     # Flags
     requires_qc = models.BooleanField(default=False)
+    requires_photos = models.BooleanField(
+        default=False,
+        help_text='Requires photo upload before step can be completed'
+    )
+    photo_requirement = models.CharField(
+        max_length=20, blank=True, default='',
+        choices=[
+            ('', 'No photos required'),
+            ('ADG', 'ADG sequence (3 per blade + top + side = blades*3 + 2)'),
+            ('BEFORE_AFTER', 'Before & After (blades*3 + 2, x2 = before + after)'),
+            ('FIXED', 'Fixed count (use min_required_photos)'),
+        ],
+        help_text='How to calculate minimum photos. ADG = 3 per blade + 2. BEFORE_AFTER = ADG x2.'
+    )
+    min_required_photos = models.IntegerField(
+        default=0,
+        help_text='Fixed minimum photos (only used when photo_requirement=FIXED)'
+    )
+    requires_evaluation = models.BooleanField(
+        default=False,
+        help_text='Requires linked evaluation to be completed before step can be completed'
+    )
     is_default_included = models.BooleanField(
         default=True,
         help_text='Included in all routes by default (unless excluded by a rule)'
@@ -1889,6 +1911,7 @@ class MasterProcess(models.Model):
             'thread_insp': 'workorders:api_thread_create',
             'e_checklist': 'workorders:e_checklist',
             'receiving_insp': 'workorders:receiving_inspection_list',
+            'release_paper': 'workorders:release_paper',
         }
         if self.dedicated_page:
             return url_map.get(self.dedicated_page, '')
@@ -3241,6 +3264,12 @@ class CutterEvaluationMatrix(models.Model):
     # Keep is_complete for backward compatibility (derived from status)
     is_complete = models.BooleanField(default=False)
 
+    # ── Back-link to router step that triggered this evaluation ────
+    router_step_number = models.IntegerField(
+        null=True, blank=True,
+        help_text='Router sheet step number that triggered this evaluation'
+    )
+
     # Approval (separate from QC sign-off)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
@@ -4290,6 +4319,14 @@ class RouterSheetEntry(models.Model):
     # QC result for this step (if requires_qc)
     qc_passed = models.BooleanField(null=True, blank=True)
     qc_remarks = models.TextField(blank=True)
+
+    # ── Step → Evaluation linkage ──────────────────────────────────
+    linked_evaluation = models.ForeignKey(
+        'CutterEvaluationMatrix',
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='source_router_steps',
+        help_text='Evaluation record created/linked for this step'
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

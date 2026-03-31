@@ -443,7 +443,11 @@ class WorkOrderListEnhancedView(LoginRequiredMixin, ListView):
                 else:
                     url = reverse('workorders:die_check_create', args=[wo.pk, ev.pk])
             else:
-                url = reverse('workorders:cutter_evaluation_edit', args=[wo.pk, ev.pk])
+                # PDC_EVAL uses the pre-repair evaluation page
+                if ev.evaluation_type == 'PDC_EVAL':
+                    url = reverse('workorders:pre_repair_eval_edit', args=[wo.pk, ev.pk])
+                else:
+                    url = reverse('workorders:cutter_evaluation_edit', args=[wo.pk, ev.pk])
         else:
             # Auto-create URL
             url = reverse('workorders:evaluation_auto', args=[wo.pk, eval_type])
@@ -745,8 +749,7 @@ class ReleasePaperView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return WorkOrder.objects.select_related(
-            "drill_bit__design__size", "drill_bit__design__hdbs_type_ref",
-            "drill_bit__design__smi_type_ref",
+            "drill_bit__design__size",
             "drill_bit__brazing_bom", "drill_bit__system_bom",
             "drill_bit__bit_location", "drill_bit__account",
             "account", "design", "bom", "created_by", "approved_by",
@@ -782,7 +785,7 @@ class ReleasePaperView(LoginRequiredMixin, DetailView):
         if bit:
             active_bom = bit.brazing_bom or bit.system_bom or bit.bom
             if active_bom and hasattr(active_bom, 'lines'):
-                context["bom_lines"] = active_bom.lines.select_related('item').order_by('id')[:20]
+                context["bom_lines"] = active_bom.lines.select_related('inventory_item').order_by('id')[:20]
             else:
                 context["bom_lines"] = []
         else:
@@ -1704,6 +1707,83 @@ def api_router_step_scan(request, wo_pk, step_number):
             return JsonResponse({'error': 'Step not started yet', 'success': False})
         if entry.is_complete:
             return JsonResponse({'error': 'Step already completed', 'success': False})
+
+        # Validate: checklist must be filled if step has checklist items
+        checklist_template = entry.checklist_template or []
+        if checklist_template:
+            checklist_data = entry.checklist_data or {}
+            required_items = [item for item in checklist_template if item.get('required', True)]
+            if required_items:
+                filled = 0
+                for item in required_items:
+                    key = item.get('text', item.get('pk', ''))
+                    val = checklist_data.get(str(key)) or checklist_data.get(key)
+                    if val and str(val).strip():
+                        filled += 1
+                if filled < len(required_items):
+                    return JsonResponse({
+                        'error': f'Checklist not complete — {filled}/{len(required_items)} required items filled. Open the step detail to complete the checklist.',
+                        'success': False
+                    })
+
+        # Validate: parameters must be filled if step has required parameters
+        params_template = entry.parameters_template or []
+        if params_template:
+            params_data = entry.parameters_data or {}
+            required_params = [p for p in params_template if p.get('required', False)]
+            if required_params:
+                filled = 0
+                for p in required_params:
+                    key = p.get('name', p.get('pk', ''))
+                    val = params_data.get(str(key)) or params_data.get(key)
+                    if val is not None and str(val).strip():
+                        filled += 1
+                if filled < len(required_params):
+                    return JsonResponse({
+                        'error': f'Required parameters not filled — {filled}/{len(required_params)}. Open the step detail to fill parameters.',
+                        'success': False
+                    })
+
+        # Validate: photos required
+        mp = entry.master_process
+        if mp and mp.requires_photos:
+            from apps.workorders.models import DrillBitPhoto
+            bit = wo.drill_bit
+            if bit:
+                # Calculate minimum based on photo_requirement type
+                min_photos = 0
+                blade_count = 6  # default
+                if bit.design and bit.design.no_of_blades:
+                    blade_count = bit.design.no_of_blades
+
+                if mp.photo_requirement == 'ADG':
+                    min_photos = blade_count * 3 + 2  # 3 per blade + top + side
+                elif mp.photo_requirement == 'BEFORE_AFTER':
+                    min_photos = (blade_count * 3 + 2) * 2  # ADG x2
+                elif mp.photo_requirement == 'FIXED':
+                    min_photos = mp.min_required_photos
+                else:
+                    min_photos = 1  # At least one photo if requires_photos is True
+
+                if min_photos > 0:
+                    photo_count = DrillBitPhoto.objects.filter(
+                        drill_bit=bit, context_type='WO', context_id=wo.pk
+                    ).count()
+                    if photo_count < min_photos:
+                        return JsonResponse({
+                            'error': f'Photos required — {photo_count}/{min_photos} uploaded ({mp.get_photo_requirement_display()}). Upload photos before completing.',
+                            'success': False
+                        })
+
+        # Validate: linked evaluation must be complete
+        if mp and mp.requires_evaluation:
+            linked_eval = entry.linked_evaluation
+            if not linked_eval or not linked_eval.is_complete:
+                return JsonResponse({
+                    'error': 'Linked evaluation must be completed before this step can be completed.',
+                    'success': False
+                })
+
         entry.qr_scan_end = timezone.now()
         entry.is_complete = True
         entry.step_status = RouterSheetEntry.StepStatus.COMPLETED
@@ -3529,9 +3609,9 @@ def api_delete_work_order(request, pk):
             notif_lines.append("Plan entry marked as Production Cancelled.")
         notif_message = '\n'.join(notif_lines)
 
-        # Action URL
+        # Action URL — direct the deleter to relevant pages (not location transfers)
+        # Notification link goes to Location Transfers (for floor operator to do physical move)
         if bit and reverse_transaction and suggested_dest:
-            # User wants to move the bit — link to Location Transfers with destination pre-filled
             notif_url = reverse('workorders:location_transfers') + f'?serial={bit.serial_number}&dest={suggested_dest}'
         elif bit:
             notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
@@ -3548,10 +3628,18 @@ def api_delete_work_order(request, pk):
             action_url=notif_url,
             entity_type="DrillBit",
             entity_id=bit.pk if bit else 0,
-            verb="",  # not used when title/message provided
+            verb="",
         )
     except Exception:
         pass
+
+    # Build redirect URLs for the deleter
+    redirect_options = {
+        'wo_list': reverse('workorders:workorder_list_enhanced'),
+        'planner': reverse('workorders:production_planner'),
+    }
+    if bit_id:
+        redirect_options['drill_bit'] = reverse('workorders:drillbit_detail_enhanced', args=[bit_id])
 
     return JsonResponse({
         'success': True,
@@ -3559,6 +3647,8 @@ def api_delete_work_order(request, pk):
         'bit_id': bit_id,
         'suggested_dest': suggested_dest,
         'message': result_msg,
+        'redirect_options': redirect_options,
+        'redirect_url': redirect_options.get('wo_list'),
     })
 
 
@@ -5908,6 +5998,11 @@ class EvaluationAutoCreateView(LoginRequiredMixin, View):
         )
         if created:
             messages.info(request, f"Created new {matrix.get_evaluation_type_display()}")
+
+        # Link the step ↔ evaluation if called from a router step
+        step_num = request.GET.get('step')
+        _link_step_to_evaluation(wo, step_num, matrix)
+
         # PDC_EVAL uses the new pre-repair evaluation page
         if type_code == 'PDC_EVAL':
             return redirect('workorders:pre_repair_eval_edit', wo_pk=wo.pk, pk=matrix.pk)
@@ -6746,6 +6841,10 @@ def api_step_save_data(request, wo_pk, step_number):
     wo = get_object_or_404(WorkOrder, pk=wo_pk)
     entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
 
+    # Block edits on completed steps
+    if entry.is_complete:
+        return JsonResponse({'error': 'Step is completed — cannot modify data.', 'success': False}, status=403)
+
     try:
         data = _json.loads(request.body)
     except (ValueError, TypeError):
@@ -7270,3 +7369,398 @@ def api_route_delete(request, pk):
     route = get_object_or_404(ProcessRoute, pk=pk)
     route.delete()
     return JsonResponse({'success': True})
+"""
+views_jobcard.py — ADDITIONS
+=============================
+APPEND this entire block to the END of apps/workorders/views_jobcard.py
+(after the last class/function in the file).
+
+No existing code needs to be removed. The only other change needed in
+views_jobcard.py is to update EvaluationAutoCreateView.get() to call
+_link_step_to_evaluation() — see the comment inside that method.
+"""
+
+# ============================================================================
+# HELPER: Link an evaluation back to the router step that spawned it
+# ============================================================================
+
+def _link_step_to_evaluation(work_order, step_number, evaluation):
+    """
+    When an evaluation is opened from a router step, record the linkage on
+    both objects so the router sheet can show completion badges.
+
+    Call this from EvaluationAutoCreateView.get() and from any view that
+    creates/opens an evaluation via a step URL.
+    """
+    if not step_number:
+        return
+    try:
+        step_number = int(step_number)
+    except (ValueError, TypeError):
+        return
+
+    # Update the router entry → evaluation FK
+    RouterSheetEntry.objects.filter(
+        work_order=work_order,
+        step_number=step_number
+    ).update(linked_evaluation=evaluation)
+
+    # Record step number on the evaluation (denormalized for reverse lookup)
+    if evaluation.router_step_number is None:
+        evaluation.router_step_number = step_number
+        evaluation.save(update_fields=['router_step_number'])
+
+
+# ============================================================================
+# EVALUATION PRINT VIEW  (/workorders/<pk>/evaluation/<eval_pk>/print/)
+# ============================================================================
+
+class EvaluationPrintView(LoginRequiredMixin, DetailView):
+    """
+    Print-ready evaluation summary: checklist + cutter grid + test results +
+    signature blocks.  Covers PDC_EVAL, QC, FINAL_INSPECTION, FINAL_QC.
+    URL: workorders:<int:pk>/evaluation/<int:eval_pk>/print/
+    Name: evaluation_print
+    """
+    model = WorkOrder
+    template_name = 'workorders/evaluation_print_report.html'
+    pk_url_kwarg = 'pk'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = self.object
+        eval_pk = self.kwargs.get('eval_pk')
+        matrix = get_object_or_404(CutterEvaluationMatrix, pk=eval_pk, work_order=wo)
+
+        context['work_order'] = wo
+        context['matrix'] = matrix
+        context['drill_bit'] = wo.drill_bit
+
+        # All linked standalone tests
+        context['die_check_reports'] = DieCheckReport.objects.filter(
+            evaluation=matrix).order_by('created_at')
+        context['lpt_reports'] = StandaloneLPTReport.objects.filter(
+            evaluation=matrix).order_by('created_at')
+        context['thread_reports'] = StandaloneThreadReport.objects.filter(
+            evaluation=matrix).order_by('created_at')
+
+        # Checklist items with saved state
+        checklist_labels = CutterEvaluationMatrix.CHECKLIST_ITEMS.get(
+            matrix.evaluation_type, [])
+        saved_checklist = matrix.checklist_data or []
+        saved_map = {item.get('item', ''): item for item in saved_checklist}
+        checklist_rows = []
+        for idx, label in enumerate(checklist_labels, 1):
+            saved = saved_map.get(label, {})
+            checklist_rows.append({
+                'num': idx,
+                'label': label,
+                'status': saved.get('status', ''),
+                'remarks': saved.get('remarks', ''),
+            })
+        context['checklist_rows'] = checklist_rows
+
+        # QR code for this WO
+        try:
+            import qrcode, io, base64
+            qr = qrcode.QRCode(box_size=4, border=2)
+            qr.add_data(f"WO:{wo.wo_number}")
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            context['qr_code'] = base64.b64encode(buf.getvalue()).decode()
+        except Exception:
+            context['qr_code'] = None
+
+        return context
+
+
+# ============================================================================
+# BIT DATA SHEET VIEW  (/workorders/drill-bits/<bit_pk>/data-sheet/)
+# ============================================================================
+
+class BitDataSheetView(LoginRequiredMixin, DetailView):
+    """
+    Print-ready bit specification sheet showing design specs, BOM, and
+    repair history.  Triggered from the drill bit detail page or release paper.
+    URL: workorders:drill-bits/<int:bit_pk>/data-sheet/
+    Name: bit_data_sheet
+    """
+    model = DrillBit
+    template_name = 'workorders/bit_data_sheet.html'
+    pk_url_kwarg = 'bit_pk'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bit = self.object
+
+        context['drill_bit'] = bit
+        context['design'] = bit.design
+        context['bom'] = getattr(bit, 'brazing_bom', None) or getattr(bit, 'system_bom', None)
+
+        # Work order history (last 10)
+        context['wo_history'] = bit.work_orders.select_related(
+            'account', 'customer'
+        ).order_by('-created_at')[:10]
+
+        # Receiving inspection
+        context['receiving'] = bit.receiving_inspections.order_by('-created_at').first() \
+            if hasattr(bit, 'receiving_inspections') else None
+
+        # BOM blade/cutter data
+        try:
+            blade_data, bom_summary, cutter_config_list, has_bom, cutter_grid_ctx = \
+                _get_bom_blade_data(bit)
+            context['cutter_config_list'] = cutter_config_list
+            context['has_bom_data'] = has_bom
+            context['bom_summary'] = bom_summary
+        except Exception:
+            context['has_bom_data'] = False
+
+        # QR code
+        try:
+            import qrcode, io, base64
+            qr = qrcode.QRCode(box_size=4, border=2)
+            qr.add_data(f"BIT:{bit.serial_number}")
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            context['qr_code'] = base64.b64encode(buf.getvalue()).decode()
+        except Exception:
+            context['qr_code'] = None
+
+        return context
+
+
+# ============================================================================
+# OPERATOR PORTAL — HOME  (/workorders/operator/)
+# ============================================================================
+
+class OperatorHomeView(LoginRequiredMixin, TemplateView):
+    """
+    Mobile-first operator landing page.
+    Shows:
+      - Active WOs assigned to the logged-in operator
+      - A QR scanner button to jump directly to a step
+      - A list of all in-progress WOs (if operator has floor access)
+    URL: workorders:operator/
+    Name: operator_home
+    """
+    template_name = 'workorders/operator_home.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Steps currently in progress for this operator
+        my_steps = RouterSheetEntry.objects.filter(
+            operator=user,
+            step_status__in=['IN_PROGRESS', 'PAUSED'],
+        ).select_related('work_order', 'work_order__drill_bit').order_by('-updated_at')[:5]
+        context['my_steps'] = my_steps
+
+        # My assigned WOs
+        my_wos = WorkOrder.objects.filter(
+            assigned_to=user,
+            status__in=['ACTIVE', 'IN_PROGRESS', 'QC_PENDING'],
+        ).select_related('drill_bit', 'account').order_by('-updated_at')[:10]
+        context['my_wos'] = my_wos
+
+        # All active WOs on the floor (any status = active work)
+        all_active_wos = WorkOrder.objects.filter(
+            status__in=['ACTIVE', 'IN_PROGRESS'],
+        ).select_related('drill_bit', 'account', 'assigned_to').order_by(
+            '-priority', 'due_date')[:20]
+        context['all_active_wos'] = all_active_wos
+
+        return context
+
+
+# ============================================================================
+# OPERATOR PORTAL — STEP VIEW  (/workorders/operator/step/<wo_pk>/<step_number>/)
+# ============================================================================
+
+class OperatorStepView(LoginRequiredMixin, TemplateView):
+    """
+    Ultra-simplified step page for operators on phone / tablet / floor PC.
+    Shows only what is needed:
+      - WO # and serial number (big, readable from distance)
+      - Step name
+      - Giant START / PAUSE / COMPLETE buttons
+      - Any required forms as large icon buttons (Die Check, Cutter Eval, etc.)
+      - Remarks field
+
+    URL: workorders:operator/step/<int:wo_pk>/<int:step_number>/
+    Name: operator_step
+    """
+    template_name = 'workorders/operator_step_view.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        wo = get_object_or_404(
+            WorkOrder.objects.select_related(
+                'drill_bit', 'drill_bit__design', 'account', 'assigned_to'),
+            pk=self.kwargs['wo_pk'],
+        )
+        step_number = self.kwargs['step_number']
+        step = get_object_or_404(
+            RouterSheetEntry.objects.select_related('master_process', 'linked_evaluation'),
+            work_order=wo,
+            step_number=step_number,
+        )
+
+        # Adjacent steps for navigation
+        all_steps = list(
+            RouterSheetEntry.objects.filter(work_order=wo)
+            .values('step_number', 'step_description', 'step_status')
+            .order_by('step_number')
+        )
+        step_index = next((i for i, s in enumerate(all_steps)
+                           if s['step_number'] == step_number), None)
+        context['prev_step'] = all_steps[step_index - 1] if step_index and step_index > 0 else None
+        context['next_step'] = all_steps[step_index + 1] if step_index is not None and step_index < len(all_steps) - 1 else None
+
+        # Dedicated page detection — prefer master_process.dedicated_page,
+        # fall back to keyword matching for legacy entries
+        dedicated = ''
+        if step.master_process:
+            dedicated = step.master_process.dedicated_page or ''
+        if not dedicated:
+            desc_upper = step.step_description.upper()
+            if 'DIE CHECK' in desc_upper or 'FPI' in desc_upper or 'LPT' in desc_upper:
+                dedicated = 'die_check'
+            elif 'EVALUATION' in desc_upper or 'PDC EVAL' in desc_upper:
+                dedicated = 'cutter_eval'
+            elif 'THREAD' in desc_upper or 'API' in desc_upper:
+                dedicated = 'thread_insp'
+            elif 'PRESSURE' in desc_upper:
+                dedicated = 'lpt_report'
+
+        context['dedicated'] = dedicated
+        context['work_order'] = wo
+        context['step'] = step
+        context['all_steps'] = all_steps
+
+        # Evaluation status badges
+        linked_eval = step.linked_evaluation
+        context['linked_eval'] = linked_eval
+        context['eval_complete'] = linked_eval.is_complete if linked_eval else False
+
+        # API URLs for JS
+        context['scan_url'] = reverse(
+            'workorders:api_router_step_scan',
+            kwargs={'wo_pk': wo.pk, 'step_number': step_number}
+        )
+        context['save_url'] = reverse(
+            'workorders:api_step_save_data',
+            kwargs={'wo_pk': wo.pk, 'step_number': step_number}
+        )
+        context['skip_url'] = reverse(
+            'workorders:api_step_skip',
+            kwargs={'wo_pk': wo.pk, 'step_number': step_number}
+        )
+        context['pause_url'] = reverse(
+            'workorders:api_step_pause',
+            kwargs={'wo_pk': wo.pk, 'step_number': step_number}
+        )
+        return context
+
+
+# ============================================================================
+# OPERATOR PORTAL — QR LANDING  (/workorders/operator/qr/)
+# ============================================================================
+
+class OperatorQRLandingView(LoginRequiredMixin, TemplateView):
+    """
+    Camera-based QR scan landing page.  The operator opens this on their phone,
+    scans the station QR, and the page redirects to the correct step.
+
+    The QR code encodes:  "WO:<wo_number>:STEP:<step_number>"
+    or just a station code that maps to a current WO step.
+
+    URL: workorders:operator/qr/
+    Name: operator_qr_landing
+    """
+    template_name = 'workorders/operator_qr_landing.html'
+
+
+@login_required
+def api_operator_qr_scan(request):
+    """
+    POST: { "qr_data": "WO:WO-2026-0042:STEP:3" }
+    Returns: { "redirect_url": "/work-orders/operator/step/7/3/" }
+
+    Also handles station codes: "STATION:BRAZE-1" → finds the active step
+    at that station.
+    """
+    import json as _json_local
+    try:
+        body = _json_local.loads(request.body)
+        qr_data = body.get('qr_data', '').strip()
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if not qr_data:
+        return JsonResponse({'error': 'No QR data'}, status=400)
+
+    # Format 1: WO:<wo_number>:STEP:<step_number>
+    if qr_data.startswith('WO:') and ':STEP:' in qr_data:
+        parts = qr_data.split(':')
+        try:
+            wo_number = parts[1]
+            step_number = int(parts[3])
+            wo = WorkOrder.objects.get(wo_number=wo_number)
+            return JsonResponse({
+                'redirect_url': reverse(
+                    'workorders:operator_step',
+                    kwargs={'wo_pk': wo.pk, 'step_number': step_number}
+                )
+            })
+        except (WorkOrder.DoesNotExist, IndexError, ValueError):
+            return JsonResponse({'error': f'Work order not found: {qr_data}'}, status=404)
+
+    # Format 2: WO:<wo_number>  → go to next pending step
+    if qr_data.startswith('WO:'):
+        wo_number = qr_data[3:]
+        try:
+            wo = WorkOrder.objects.get(wo_number=wo_number)
+            next_step = RouterSheetEntry.objects.filter(
+                work_order=wo,
+                step_status__in=['PENDING', 'IN_PROGRESS', 'PAUSED']
+            ).order_by('step_number').first()
+            if next_step:
+                return JsonResponse({
+                    'redirect_url': reverse(
+                        'workorders:operator_step',
+                        kwargs={'wo_pk': wo.pk, 'step_number': next_step.step_number}
+                    )
+                })
+            return JsonResponse({'error': 'No active steps found for this WO'}, status=404)
+        except WorkOrder.DoesNotExist:
+            return JsonResponse({'error': f'Work order not found: {wo_number}'}, status=404)
+
+    # Format 3: BIT:<serial_number> → find active WO for this bit
+    if qr_data.startswith('BIT:'):
+        serial = qr_data[4:]
+        try:
+            bit = DrillBit.objects.get(serial_number=serial)
+            wo = bit.active_work_order
+            if wo:
+                next_step = RouterSheetEntry.objects.filter(
+                    work_order=wo,
+                    step_status__in=['PENDING', 'IN_PROGRESS', 'PAUSED']
+                ).order_by('step_number').first()
+                if next_step:
+                    return JsonResponse({
+                        'redirect_url': reverse(
+                            'workorders:operator_step',
+                            kwargs={'wo_pk': wo.pk, 'step_number': next_step.step_number}
+                        )
+                    })
+            return JsonResponse({'error': 'No active work order for this bit'}, status=404)
+        except DrillBit.DoesNotExist:
+            return JsonResponse({'error': f'Bit not found: {serial}'}, status=404)
+
+    return JsonResponse({'error': f'Unrecognized QR format: {qr_data}'}, status=400)

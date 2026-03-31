@@ -278,9 +278,9 @@
                 {% for line in bom_lines %}
                 <tr>
                     <td class="text-gray-500">{{ forloop.counter }}</td>
-                    <td class="font-mono font-medium text-gray-900 dark:text-white">{{ line.item.mat_number|default:line.item.code }}</td>
+                    <td class="font-mono font-medium text-gray-900 dark:text-white">{{ line.inventory_item.mat_number|default:line.inventory_item.code|default:line.hdbs_code }}</td>
                     <td class="font-medium">{{ line.quantity }}</td>
-                    <td class="text-gray-600 dark:text-gray-400">{{ line.item.name|truncatechars:50 }}</td>
+                    <td class="text-gray-600 dark:text-gray-400">{{ line.inventory_item.name|default:line.cutter_type|truncatechars:50 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

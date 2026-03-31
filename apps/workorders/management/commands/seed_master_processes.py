@@ -15,11 +15,8 @@ from apps.workorders.models import MasterProcess, ProcessInclusionRule
 
 PROCESSES = [
     # ─── RECEIVING ─────────────────────────────────────────────────────────
-    {
-        'code': 'PRINT-RELEASE', 'name': 'Print Release Document', 'category': 'RECEIVING',
-        'sort_order': 8, 'default_estimated_minutes': 5,
-        'instructions_general': 'Print release document for the work order.',
-    },
+    # NOTE: Print Release Document removed — it's printed from Location Transfers page
+    # before the physical transfer, not a production step.
     {
         'code': 'RCV-SETUP', 'name': 'Receiving & Preparation', 'category': 'RECEIVING',
         'sort_order': 10, 'default_estimated_minutes': 15,
@@ -714,7 +711,7 @@ class Command(BaseCommand):
                          'CLEAN-SURF', 'NOZZLE', 'FINAL-ASSY', 'DOC-REVIEW',
                          'BURNOUT', 'CUTTER-PREP', 'LAYOUT', 'POCKET-PREP',
                          'CORE-INSP', 'FINAL-DIE', 'QC-INSP', 'MACHINING',
-                         'GAUGE-MEAS']
+                         'GAUGE-MEAS', 'PRINT-RELEASE']
         deleted_count, _ = MasterProcess.objects.filter(code__in=removed_codes).delete()
         if deleted_count:
             self.stdout.write(self.style.WARNING(f'  Deleted {deleted_count} old processes'))

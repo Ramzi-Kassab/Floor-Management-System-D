@@ -1189,6 +1189,11 @@ def api_drillbit_lookup(request):
         inspection_url = reverse("workorders:receiving_inspection_edit",
                                  kwargs={"bit_pk": bit.pk, "pk": latest_insp.pk})
 
+    # Active WO info for release paper
+    active_wo = bit.work_orders.filter(
+        status__in=['PENDING', 'RELEASED', 'ACTIVE', 'IN_PROGRESS']
+    ).order_by('-created_at').first()
+
     return JsonResponse({
         "found": True,
         "pk": bit.pk,
@@ -1224,6 +1229,10 @@ def api_drillbit_lookup(request):
         "bit_state": bit_state,
         "has_inspection": has_inspection,
         "inspection_url": inspection_url,
+        "condition": bit.condition or "",
+        "active_wo_pk": active_wo.pk if active_wo else None,
+        "active_wo_number": active_wo.wo_number if active_wo else "",
+        "release_paper_url": reverse("workorders:release_paper", kwargs={"pk": active_wo.pk}) if active_wo else "",
     })
 
 
