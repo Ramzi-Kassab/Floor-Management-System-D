@@ -1417,6 +1417,15 @@ Then restart the server (kill + start fresh).
 | Notification context processor | `apps/notifications/context_processors.py` |
 | Notification views | `apps/notifications/views.py` (NotificationBellView, ApiMarkReadView) |
 | Notification URLs | `apps/notifications/urls.py` |
+| Competency matrix view | `apps/hr/views_competency.py` (CompetencyMatrixView, CompetencyGapReportView) |
+| Competency matrix template | `templates/hr/competency_matrix.html` |
+| User management views | `apps/accounts/views_users.py` (User/Role/Permission CRUD) |
+| Operator home | `templates/workorders/operator_home.html` |
+| Operator step view | `templates/workorders/operator_step_view.html` |
+| Operator QR landing | `templates/workorders/operator_qr_landing.html` |
+| Evaluation print report | `templates/workorders/evaluation_print_report.html` |
+| Bit data sheet | `templates/workorders/bit_data_sheet.html` |
+| Seed roles/permissions | `apps/hr/management/commands/seed_roles_permissions.py` |
 
 ### Key View Classes
 
@@ -1460,6 +1469,21 @@ Then restart the server (kill + start fresh).
 | NotificationBellView | `apps/notifications/views.py` | `/notifications/api/bell/` |
 | ApiMarkReadView | `apps/notifications/views.py` | `/notifications/api/<pk>/mark-read/` |
 | NotificationListView | `apps/notifications/views.py` | `/notifications/` |
+| CompetencyMatrixView | `apps/hr/views_competency.py` | `/hr/competency/` |
+| CompetencyGapReportView | `apps/hr/views_competency.py` | `/hr/competency/gaps/` |
+| competency_matrix_export | `apps/hr/views_competency.py` | `/hr/competency/export/` |
+| UserListView | `apps/accounts/views_users.py` | `/accounts/users/` |
+| UserCreateView | `apps/accounts/views_users.py` | `/accounts/users/create/` |
+| UserDetailView | `apps/accounts/views_users.py` | `/accounts/users/<pk>/` |
+| RoleListView | `apps/accounts/views_users.py` | `/accounts/roles/` |
+| RoleDetailView | `apps/accounts/views_users.py` | `/accounts/roles/<pk>/` |
+| PermissionListView | `apps/accounts/views_users.py` | `/accounts/permissions/` |
+| EvaluationPrintView | `apps/workorders/views_jobcard.py` | `/work-orders/<pk>/evaluation/<eval_pk>/print/` |
+| BitDataSheetView | `apps/workorders/views_jobcard.py` | `/work-orders/drill-bits/<bit_pk>/data-sheet/` |
+| OperatorHomeView | `apps/workorders/views_jobcard.py` | `/work-orders/operator/` |
+| OperatorStepView | `apps/workorders/views_jobcard.py` | `/work-orders/operator/step/<wo_pk>/<step>/` |
+| OperatorQRLandingView | `apps/workorders/views_jobcard.py` | `/work-orders/operator/qr/` |
+| api_operator_qr_scan | `apps/workorders/views_jobcard.py` | `/work-orders/operator/api/qr-scan/` |
 
 ### Database Queries
 ```python
@@ -1943,6 +1967,7 @@ DrillBit (serial_number, design, BOMs, bit_location, status, components)
             │       ├── parameters_template (JSONField — from MasterProcess)
             │       ├── checklist_template (JSONField — from MasterProcess)
             │       ├── source_operation → MasterProcess (nullable)
+            │       ├── linked_evaluation → CutterEvaluationMatrix (nullable, step↔eval linkage)
             │       ├── step_status: PENDING → IN_PROGRESS → COMPLETED / ON_HOLD / SKIPPED
             │       └── qr_scan_start / qr_scan_end / operator
             │
@@ -2048,6 +2073,61 @@ Special events:
 Location types: RECEIVING, WIP, EVALUATION, INSPECTION, QC, REPAIR_SHOP,
                 WAREHOUSE, DISPATCH, RIG, SCRAP, USA, FACTORY, TRANSIT
 ```
+
+### Recent Enhancements (Mar 27-28, 2026) — HR Competency, Users & Access, Router Step Requirements, Operator Portal
+
+#### HR & Organization Enhancements
+- **Employee Model: Position FK**: `Employee.department` changed from CharField to FK to `organization.Department`. New `department_legacy` CharField preserves old free-text values. New `Employee.position` FK to `organization.Position` — drives competency matrix and formal org structure.
+- **RESIGNED Status**: Added `Employee.Status.RESIGNED` choice between SUSPENDED and TERMINATED.
+- **ProcessCompetencyMatrix Model** (`apps/hr/models.py`): Employee × MasterProcess authorization matrix. Fields: `employee` FK, `master_process` FK, `level` (NOT_AUTHORIZED/TRAINEE/CERTIFIED/TRAINER), `certified_date`, `certified_by` FK, `expiry_date`, `certificate_reference`, `training_hours`, `assessment_score`, `notes`, `is_active`, `created_at`, `updated_at`. Unique together on `(employee, master_process)`. ISO 9001 Clause 7.2 compliance.
+- **`Employee.position_title` Property**: Returns position name from FK or falls back to `job_title`.
+- **`Employee.authorized_process_codes` Property**: Returns list of MasterProcess codes where employee is CERTIFIED or TRAINER level.
+- **Competency Matrix View** (`apps/hr/views_competency.py`): `CompetencyMatrixView` — full grid of employees × processes with inline level editing via AJAX. `CompetencyGapReportView` — identifies processes with insufficient CERTIFIED/TRAINER coverage. `competency_matrix_export` — Excel export. `api_competency_save` — POST endpoint to update individual competency levels.
+- **Organization Templates Redesigned**: All 8 department/position templates (`department_list.html`, `department_detail.html`, `department_form.html`, `department_confirm_delete.html`, `position_list.html`, `position_detail.html`, `position_form.html`, `position_confirm_delete.html`) redesigned with modern Tailwind UI, consistent with the rest of the app.
+- **Sidebar HR Links Expanded**: Added Overtime, Competency Matrix, Training Gaps, Payroll, Performance Reviews, Skills, Leave Types, Documents links to HR section.
+- **Migrations**: `hr/0003_add_position_fk_competency_matrix.py`, `hr/0004_add_resigned_status.py`.
+
+#### Users & Access Management
+- **Full User/Role/Permission CRUD** (`apps/accounts/views_users.py`): Complete admin-free management of users, roles, and permissions. No Django admin dependency.
+- **User Management**: `UserListView` (paginated, searchable), `UserCreateView`, `UserDetailView` (activity, roles, permissions), `UserUpdateView`, `UserDeleteView`, `UserRoleManageView` (assign/remove roles), `UserResetPasswordView`.
+- **Role Management**: `RoleListView`, `RoleCreateView`, `RoleDetailView` (assigned users, permissions), `RoleUpdateView`, `RoleDeleteView`.
+- **Permission Management**: `PermissionListView`, `PermissionCreateView`, `PermissionUpdateView`, `PermissionDeleteView`.
+- **13 Templates**: `user_list.html`, `user_form.html`, `user_detail.html`, `user_confirm_delete.html`, `role_list.html`, `role_form.html`, `role_detail.html`, `role_confirm_delete.html`, `permission_list.html`, `permission_form.html`, `permission_confirm_delete.html`.
+- **Sidebar**: New "Users & Access" section with indigo theme (`shield-check` icon). Links: Users, Roles, Permissions, Competency Matrix.
+- **Key URLs**: `/accounts/users/`, `/accounts/users/create/`, `/accounts/users/<pk>/`, `/accounts/roles/`, `/accounts/roles/<pk>/`, `/accounts/permissions/`.
+
+#### Router Step Completion Requirements
+- **MasterProcess New Fields** (`apps/workorders/models.py`):
+  - `requires_photos` (BooleanField) — step cannot be completed without photos uploaded
+  - `photo_requirement` (CharField choices: ADG, BEFORE_AFTER, FIXED) — how to calculate minimum photos. ADG = 3 per blade + top + side. BEFORE_AFTER = ADG × 2. FIXED = use `min_required_photos`.
+  - `min_required_photos` (IntegerField) — fixed count when photo_requirement=FIXED
+  - `requires_evaluation` (BooleanField) — step cannot be completed without linked evaluation being complete
+- **RouterSheetEntry.linked_evaluation**: FK to `CutterEvaluationMatrix` — connects a router step to its associated evaluation record. Set when evaluation is created from a step's action link.
+- **CutterEvaluationMatrix.router_step_number**: IntegerField back-link recording which router step triggered the evaluation.
+- **Step Completion Validations** (`api_router_step_scan` action='end'): 4 validation gates before step can be marked complete:
+  1. **Checklist**: All required checklist items must be filled
+  2. **Parameters**: All required parameters must have values
+  3. **Photos**: If `requires_photos`, minimum photo count must be met (calculated from photo_requirement type + blade count)
+  4. **Evaluation**: If `requires_evaluation`, linked evaluation must exist and be complete
+- **Step ↔ Evaluation Linkage**: `_link_step_to_evaluation()` helper called from `EvaluationAutoCreateView` — links RouterSheetEntry to CutterEvaluationMatrix and records step number on evaluation. Passing `?step=N` URL param from router sheet action links.
+- **Completed Step Edit Block**: `api_step_save_data` now returns 403 if step is already completed.
+- **Router Sheet UI**: Linked evaluation status badges (emerald=complete, amber=in-progress) on step cards. Quality action links now use `dedicated_page` from MasterProcess for routing instead of keyword matching. Evaluation print link on completed evaluations.
+- **Router Step Detail UI**: Evaluation completion indicators in Actions section header. Operator view link. Die check / cutter evaluation action links show existing vs create state with color-coded borders.
+- **Migrations**: `workorders/0067_router_step_eval_link.py`, `workorders/0068_add_step_requirements.py`, `workorders/0069_update_photo_requirement.py`.
+
+#### Operator Portal
+- **OperatorHomeView** (`/work-orders/operator/`): Mobile-first landing page for floor operators. Shows: active steps in progress for logged-in operator, assigned WOs, all active WOs on the floor. QR scanner button to jump to any step.
+- **OperatorStepView** (`/work-orders/operator/step/<wo_pk>/<step_number>/`): Simplified step page for phones/tablets. Large WO#/serial display, giant START/PAUSE/COMPLETE buttons, required form links (die check, evaluation, etc.), remarks field, step navigation (prev/next).
+- **OperatorQRLandingView** (`/work-orders/operator/qr/`): Camera-based QR scan page. Supports 3 QR formats:
+  - `WO:<wo_number>:STEP:<step_number>` → direct to specific step
+  - `WO:<wo_number>` → next pending step for that WO
+  - `BIT:<serial_number>` → active WO's next step for that bit
+
+#### Print Views
+- **EvaluationPrintView** (`/work-orders/<pk>/evaluation/<eval_pk>/print/`): Print-ready evaluation summary with checklist, cutter grid, linked test results (die check, LPT, thread), signature blocks, QR code.
+- **BitDataSheetView** (`/work-orders/drill-bits/<bit_pk>/data-sheet/`): Print-ready bit specification sheet with design specs, BOM summary, cutter config, work order history, QR code.
+
+---
 
 ## Need Help?
 
