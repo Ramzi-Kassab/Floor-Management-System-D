@@ -106,14 +106,42 @@ def get_unread_count(user):
 
 
 def get_recent_unread(user, limit=5):
-    """Return the N most recent unread notifications."""
+    """Return the N most recent unread notifications, respecting user mute preferences."""
     if not user or not user.is_authenticated:
         return Notification.objects.none()
-    return (
-        Notification.objects.filter(recipient=user, is_read=False)
-        .select_related("actor")
-        .order_by("-created_at")[:limit]
-    )
+    qs = Notification.objects.filter(recipient=user, is_read=False).select_related("actor")
+
+    # Apply muted preferences from UserPreference
+    try:
+        prefs = user.preferences.dashboard_widgets or {}
+        muted_actions = prefs.get('muted_action_types', [])
+        muted_entities = prefs.get('muted_entity_types', [])
+        if muted_actions:
+            qs = qs.exclude(action_type__in=muted_actions)
+        if muted_entities:
+            qs = qs.exclude(entity_type__in=muted_entities)
+    except Exception:
+        pass  # No preferences record — show all
+
+    return qs.order_by("-created_at")[:limit]
+
+
+def get_unread_count_filtered(user):
+    """Unread count respecting mute preferences."""
+    if not user or not user.is_authenticated:
+        return 0
+    qs = Notification.objects.filter(recipient=user, is_read=False)
+    try:
+        prefs = user.preferences.dashboard_widgets or {}
+        muted_actions = prefs.get('muted_action_types', [])
+        muted_entities = prefs.get('muted_entity_types', [])
+        if muted_actions:
+            qs = qs.exclude(action_type__in=muted_actions)
+        if muted_entities:
+            qs = qs.exclude(entity_type__in=muted_entities)
+    except Exception:
+        pass
+    return qs.count()
 
 
 def create_form_revision(entity_type, entity_id, document_code, snapshot_new,

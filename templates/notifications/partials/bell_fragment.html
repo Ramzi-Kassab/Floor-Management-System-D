@@ -1,6 +1,6 @@
 {% load humanize %}
 {# HTMX-swapped bell fragment — self-contained Alpine.js component #}
-<div x-data="{ bellOpen: false, tab: 'unread' }" class="relative"
+<div x-data="{ bellOpen: false, tab: 'unread', showFilter: false, activeAction: '', activeItem: '' }" class="relative"
      data-unread-count="{{ unread_count }}"
      data-latest-id="{{ latest_id|default:'' }}"
      x-effect="$el.closest('#notification-bell-container').setAttribute('data-bell-open', bellOpen)"
@@ -37,12 +37,42 @@
         <div class="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
             <div class="flex items-center justify-between px-4 pt-3 pb-0">
                 <h3 class="font-semibold text-gray-900 dark:text-white text-sm">Notifications</h3>
-                {% if unread_count > 0 %}
-                <form method="post" action="{% url 'notifications:notification_mark_all_read' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Mark all read</button>
-                </form>
-                {% endif %}
+                <div class="flex items-center gap-1">
+                    {% if unread_count > 0 %}
+                    <form method="post" action="{% url 'notifications:notification_mark_all_read' %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium px-1">Mark all read</button>
+                    </form>
+                    {% endif %}
+                    <button @click="showFilter = !showFilter" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600" title="Filter">
+                        <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button @click="if(confirm('Clear all read notifications?')) fetch('{% url 'notifications:clear_read' %}', {method:'POST',headers:{'X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]')?.value||document.cookie.match(/csrftoken=([^;]+)/)?.[1]}}).then(()=>location.reload())"
+                            class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-red-500" title="Clear read">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <a href="{% url 'notifications:notification_settings' %}" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-gray-600" title="Settings">
+                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filter Panel -->
+            <div x-show="showFilter" x-collapse class="px-4 py-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-750/50" style="display:none;">
+                <div class="flex flex-wrap gap-1 mb-1.5">
+                    <span class="text-[10px] text-gray-400 w-full">By action:</span>
+                    <button @click="activeAction = activeAction === '' ? '' : ''" :class="activeAction === '' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">All</button>
+                    <button @click="activeAction = activeAction === 'action' ? '' : 'action'" :class="activeAction === 'action' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">Has Action</button>
+                    <button @click="activeAction = activeAction === 'URGENT' ? '' : 'URGENT'" :class="activeAction === 'URGENT' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">Urgent</button>
+                    <button @click="activeAction = activeAction === 'HIGH' ? '' : 'HIGH'" :class="activeAction === 'HIGH' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">High</button>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                    <span class="text-[10px] text-gray-400 w-full">By item:</span>
+                    <button @click="activeItem = activeItem === 'WorkOrder' ? '' : 'WorkOrder'" :class="activeItem === 'WorkOrder' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">WOs</button>
+                    <button @click="activeItem = activeItem === 'DrillBit' ? '' : 'DrillBit'" :class="activeItem === 'DrillBit' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">Bits</button>
+                    <button @click="activeItem = activeItem === 'RouterSheetEntry' ? '' : 'RouterSheetEntry'" :class="activeItem === 'RouterSheetEntry' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">Steps</button>
+                    <button @click="activeItem = activeItem === 'ReceivingInspection' ? '' : 'ReceivingInspection'" :class="activeItem === 'ReceivingInspection' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'" class="text-[10px] px-2 py-0.5 rounded-full font-medium">Receiving</button>
+                </div>
             </div>
             <div class="flex px-4 mt-2 gap-4">
                 <button @click="tab='unread'" class="text-xs pb-2 font-medium border-b-2 transition-colors"
@@ -65,6 +95,8 @@
             {% if recent_notifications %}
                 {% for n in recent_notifications %}
                 <div class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                     data-priority="{{ n.priority }}" data-entity="{{ n.entity_type }}" data-action-type="{{ n.action_type }}"
+                     x-show="(activeAction === '' || activeAction === '{{ n.priority }}' || (activeAction === 'action' && '{{ n.action_type }}')) && (activeItem === '' || activeItem === '{{ n.entity_type }}')"
                      style="border-left: 3px solid {% if n.priority == 'URGENT' %}#ef4444{% elif n.priority == 'HIGH' %}#f59e0b{% else %}#3b82f6{% endif %};">
                     <div class="flex-shrink-0 mt-0.5">
                         {% if n.priority == 'URGENT' %}

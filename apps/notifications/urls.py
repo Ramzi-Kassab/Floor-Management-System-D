@@ -14,6 +14,8 @@ urlpatterns = [
     path("api/bell/", views.NotificationBellView.as_view(), name="bell_fragment"),
     path("api/<int:pk>/mark-read/", views.ApiMarkReadView.as_view(), name="api_mark_read"),
     path("api/mark-all-read/", views.ApiMarkAllReadView.as_view(), name="api_mark_all_read"),
+    path("api/clear-read/", views.ClearReadNotificationsView.as_view(), name="clear_read"),
+    path("settings/", views.NotificationSettingsView.as_view(), name="notification_settings"),
     # Tasks
     path("tasks/", views.TaskListView.as_view(), name="task_list"),
     path("tasks/<int:pk>/", views.TaskDetailView.as_view(), name="task_detail"),

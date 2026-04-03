@@ -193,6 +193,86 @@ class ApiMarkAllReadView(LoginRequiredMixin, View):
         return HttpResponse(status=204)
 
 
+class ClearReadNotificationsView(LoginRequiredMixin, View):
+    """Delete all read notifications for the current user."""
+
+    def post(self, request):
+        deleted = Notification.objects.filter(
+            recipient=request.user, is_read=True
+        ).delete()
+        return JsonResponse({'success': True, 'deleted': deleted[0]})
+
+
+class NotificationSettingsView(LoginRequiredMixin, View):
+    """Notification preferences page — delivery, muted action/entity types."""
+
+    def get(self, request):
+        from django.template.loader import render_to_string
+        from django.http import HttpResponse
+        from .models import ActionType
+
+        prefs = self._get_prefs(request.user)
+
+        # All action types and entity types for toggles
+        action_types = ActionType.choices
+        entity_types = [
+            ('WorkOrder', 'Work Orders'),
+            ('DrillBit', 'Drill Bits'),
+            ('RouterSheetEntry', 'Router Steps'),
+            ('CutterEvaluationMatrix', 'Evaluations'),
+            ('ReceivingInspection', 'Receiving Inspections'),
+            ('DieCheckReport', 'Die Check Reports'),
+            ('StandaloneLPTReport', 'LPT Reports'),
+        ]
+
+        from django.shortcuts import render
+        return render(request, 'notifications/notification_settings.html', {
+            'page_title': 'Notification Settings',
+            'prefs': prefs,
+            'action_types': action_types,
+            'entity_types': entity_types,
+            'muted_actions': prefs.get('muted_action_types', []),
+            'muted_entities': prefs.get('muted_entity_types', []),
+            'sound_prefs': prefs.get('sound', {}),
+            'auto_mark_read': prefs.get('auto_mark_read', 'never'),
+        })
+
+    def post(self, request):
+        import json as _j
+        section = request.POST.get('section', '')
+        prefs = self._get_prefs(request.user)
+
+        if section == 'muted_actions':
+            muted = request.POST.getlist('muted_actions')
+            prefs['muted_action_types'] = muted
+        elif section == 'muted_entities':
+            muted = request.POST.getlist('muted_entities')
+            prefs['muted_entity_types'] = muted
+        elif section == 'sound':
+            for level in ('LOW', 'NORMAL', 'HIGH', 'URGENT'):
+                prefs.setdefault('sound', {})[level] = request.POST.get(f'sound_{level}') == 'on'
+        elif section == 'auto_mark_read':
+            prefs['auto_mark_read'] = request.POST.get('auto_mark_read', 'never')
+
+        self._save_prefs(request.user, prefs)
+        return JsonResponse({'success': True, 'saved': section})
+
+    def _get_prefs(self, user):
+        try:
+            wp = user.preferences
+            return (wp.dashboard_widgets or {}).get('notification_prefs', {})
+        except Exception:
+            return {}
+
+    def _save_prefs(self, user, prefs):
+        from apps.accounts.models import UserPreference
+        wp, _ = UserPreference.objects.get_or_create(user=user)
+        widgets = wp.dashboard_widgets or {}
+        widgets['notification_prefs'] = prefs
+        wp.dashboard_widgets = widgets
+        wp.save(update_fields=['dashboard_widgets'])
+
+
 # =============================================================================
 # Task Views
 # =============================================================================

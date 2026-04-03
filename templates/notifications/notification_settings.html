@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Notification Settings — ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-3">
+    {% include "components/back_nav.html" with parent_url="/notifications/" parent_label="Notifications" %}
+    <div>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Notification Settings</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Control what notifications you receive</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div x-data="notifSettings()" class="max-w-3xl space-y-6">
+
+    <!-- Section 1: Sound & Auto-Mark-Read -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-4 flex items-center gap-2">
+            <i data-lucide="volume-2" class="w-4 h-4 text-blue-500"></i> Delivery Preferences
+        </h3>
+        <div class="space-y-3">
+            <div class="flex items-center justify-between py-2">
+                <span class="text-sm text-gray-700 dark:text-gray-300">Auto-mark-read delay</span>
+                <select @change="saveSection('auto_mark_read', {auto_mark_read: $event.target.value})"
+                        class="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700">
+                    <option value="never" {% if auto_mark_read == 'never' %}selected{% endif %}>Never</option>
+                    <option value="5" {% if auto_mark_read == '5' %}selected{% endif %}>After 5 seconds</option>
+                    <option value="30" {% if auto_mark_read == '30' %}selected{% endif %}>After 30 seconds</option>
+                    <option value="60" {% if auto_mark_read == '60' %}selected{% endif %}>After 1 minute</option>
+                </select>
+            </div>
+            <p class="text-xs text-gray-400">Sound alerts are controlled by your browser. The bell icon plays a beep for new notifications.</p>
+        </div>
+    </div>
+
+    <!-- Section 2: Muted Action Types -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1 flex items-center gap-2">
+            <i data-lucide="bell-off" class="w-4 h-4 text-amber-500"></i> Mute by Action Type
+        </h3>
+        <p class="text-xs text-gray-400 mb-4">Muted types will not appear in your bell. Unmuted = active.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {% for code, label in action_types %}
+            <label class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-all
+                {% if code in muted_actions %}border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30 opacity-50
+                {% else %}border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10{% endif %}">
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ label }}</span>
+                <input type="checkbox" value="{{ code }}"
+                       {% if code not in muted_actions %}checked{% endif %}
+                       @change="toggleAction('{{ code }}', $event.target.checked)"
+                       class="rounded text-green-600 focus:ring-green-500">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Section 3: Muted Entity Types -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1 flex items-center gap-2">
+            <i data-lucide="filter" class="w-4 h-4 text-purple-500"></i> Mute by Item Type
+        </h3>
+        <p class="text-xs text-gray-400 mb-4">Muted item types will not appear in your bell.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {% for code, label in entity_types %}
+            <label class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-all
+                {% if code in muted_entities %}border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30 opacity-50
+                {% else %}border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10{% endif %}">
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ label }}</span>
+                <input type="checkbox" value="{{ code }}"
+                       {% if code not in muted_entities %}checked{% endif %}
+                       @change="toggleEntity('{{ code }}', $event.target.checked)"
+                       class="rounded text-green-600 focus:ring-green-500">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="saved" x-transition class="fixed bottom-6 right-6 px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium" x-text="savedMsg" style="display:none;"></div>
+</div>
+
+<script>
+function notifSettings() {
+    return {
+        saved: false, savedMsg: '',
+        _csrf() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        },
+        async saveSection(section, extraData) {
+            const form = new FormData();
+            form.append('section', section);
+            for (const [k, v] of Object.entries(extraData || {})) {
+                if (Array.isArray(v)) v.forEach(val => form.append(k, val));
+                else form.append(k, v);
+            }
+            const r = await fetch('{% url "notifications:notification_settings" %}', {
+                method: 'POST', headers: {'X-CSRFToken': this._csrf()}, body: form
+            });
+            const d = await r.json();
+            if (d.success) { this.savedMsg = 'Saved'; this.saved = true; setTimeout(() => this.saved = false, 2000); }
+        },
+        toggleAction(code, checked) {
+            // Collect all currently-unchecked (muted) action types
+            const muted = [];
+            document.querySelectorAll('input[type=checkbox][value]').forEach(cb => {
+                // Only action type checkboxes (in section 2)
+                if (cb.closest('[data-section="actions"]') || cb.closest('.grid').previousElementSibling?.textContent?.includes('Action Type')) {
+                    if (!cb.checked) muted.push(cb.value);
+                }
+            });
+            this.saveSection('muted_actions', {muted_actions: muted});
+        },
+        toggleEntity(code, checked) {
+            const muted = [];
+            document.querySelectorAll('input[type=checkbox][value]').forEach(cb => {
+                if (cb.closest('.grid')?.previousElementSibling?.textContent?.includes('Item Type')) {
+                    if (!cb.checked) muted.push(cb.value);
+                }
+            });
+            this.saveSection('muted_entities', {muted_entities: muted});
+        },
+    };
+}
+</script>
+{% endblock %}
