@@ -102,6 +102,8 @@
 {% block content %}
 <div class="max-w-xl mx-auto px-0 sm:px-0">
 
+    {% include "notifications/partials/action_widget.html" with pending_actions=pending_actions %}
+
     <!-- ── HERO ── -->
     <div class="op-hero">
         <div class="flex items-center justify-between mb-4">

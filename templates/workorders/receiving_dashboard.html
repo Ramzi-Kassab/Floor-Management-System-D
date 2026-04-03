@@ -13,6 +13,7 @@
 </div>
 {% endblock %}
 {% block content %}
+{% include "notifications/partials/action_widget.html" with pending_actions=pending_actions %}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
     {# ── Panel 1: Incoming Batches ── #}

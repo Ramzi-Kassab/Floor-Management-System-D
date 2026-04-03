@@ -135,10 +135,19 @@ class NotificationBellView(LoginRequiredMixin, View):
         unread_count = get_unread_count(request.user)
         recent = get_recent_unread(request.user, limit=5)
         latest_id = recent[0].pk if recent else ""
-        # Recent read notifications
         read_recent = Notification.objects.filter(
             recipient=request.user, is_read=True
         ).order_by('-created_at')[:5]
+
+        # Pending workflow actions for this user
+        pending_actions = []
+        pending_action_count = 0
+        try:
+            from apps.notifications.workflow_engine import get_pending_actions_for_user
+            pending_actions = list(get_pending_actions_for_user(request.user)[:5])
+            pending_action_count = get_pending_actions_for_user(request.user).count()
+        except Exception:
+            pass
 
         html = render_to_string(
             "notifications/partials/bell_fragment.html",
@@ -147,6 +156,8 @@ class NotificationBellView(LoginRequiredMixin, View):
                 "recent_notifications": recent,
                 "read_notifications": read_recent,
                 "latest_id": latest_id,
+                "pending_actions": pending_actions,
+                "pending_action_count": pending_action_count,
             },
             request=request,
         )

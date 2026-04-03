@@ -438,6 +438,13 @@ class ReceivingDockDashboardView(LoginRequiredMixin, TemplateView):
                 ],
             ).count(),
         })
+
+        try:
+            from apps.notifications.workflow_engine import get_pending_actions_for_user
+            ctx['pending_actions'] = list(get_pending_actions_for_user(self.request.user)[:10])
+        except Exception:
+            ctx['pending_actions'] = []
+
         return ctx
 
 

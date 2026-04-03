@@ -42,6 +42,7 @@ from .models import (
     EvaluationRoute, EvaluationRouteStep
 )
 from apps.notifications.services import notify, create_form_revision
+from apps.notifications.dispatch import fire_event
 from .utils import generate_work_order_qr, generate_drill_bit_qr
 
 
@@ -1858,6 +1859,10 @@ def api_router_step_scan(request, wo_pk, step_number):
                 entity_id=wo.pk,
                 verb="",
             )
+            fire_event('ALL_STEPS_DONE', request.user, {
+                'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+                'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+            })
 
         return JsonResponse({
             'success': True,
@@ -2960,6 +2965,10 @@ def api_release_plan_entry(request):
                         entity_type="WorkOrder",
                         entity_id=wo.pk,
                     )
+                    fire_event('WO_RELEASED', request.user, {
+                        'wo_id': wo.pk, 'wo_number': wo.wo_number,
+                        'serial': bit.serial_number, 'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+                    })
                 except Exception:
                     pass
                 return JsonResponse({
@@ -3317,6 +3326,10 @@ def api_approve_work_order(request, pk):
             entity_type="WorkOrder", entity_id=wo.pk,
             verb="",
         )
+        fire_event('WO_APPROVED', request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+            'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+        })
     except Exception:
         pass
 
@@ -3427,6 +3440,18 @@ def api_transition_wo_status(request, pk):
             notify(actor=request.user, verb=f"completed WO {wo.wo_number} for", target=serial,
                    priority="HIGH", action_url=reverse('workorders:workorder_detail_enhanced', args=[wo.pk]),
                    entity_type="WorkOrder", entity_id=wo.pk)
+
+        # Fire workflow events
+        event_map = {
+            'QC_PENDING': 'WO_SENT_TO_QC', 'QC_PASSED': 'QC_PASSED',
+            'QC_FAILED': 'QC_FAILED', 'COMPLETED': 'WO_COMPLETED',
+        }
+        wf_event = event_map.get(target)
+        if wf_event:
+            fire_event(wf_event, request.user, {
+                'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+                'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+            })
     except Exception:
         pass
 
@@ -3687,6 +3712,11 @@ def api_delete_work_order(request, pk):
         )
     except Exception:
         pass
+
+    fire_event('WO_DELETED', request.user, {
+        'wo_number': wo_number, 'serial': bit.serial_number if bit else '?',
+        'entity_type': 'DrillBit', 'entity_id': bit.pk if bit else 0,
+    })
 
     # Build redirect URLs for the deleter
     redirect_options = {
@@ -7289,6 +7319,13 @@ def api_step_pause(request, wo_pk, step_number):
             )
         except Exception:
             pass
+        fire_event('STEP_ON_HOLD', request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number,
+            'serial': wo.drill_bit.serial_number if wo.drill_bit else '?',
+            'step_name': entry.step_description, 'hold_reason': hold_reason,
+            'step_number': step_number,
+            'entity_type': 'RouterSheetEntry', 'entity_id': entry.pk,
+        })
 
         return JsonResponse({
             'success': True, 'action': 'on_hold',
@@ -7327,6 +7364,14 @@ def api_step_pause(request, wo_pk, step_number):
             )
         except Exception:
             pass
+
+        wf_event_map = {'waiting_qc': 'STEP_WAITING_QC', 'waiting_approval': 'STEP_WAITING_APPROVAL', 'waiting_tech': 'STEP_WAITING_TECH'}
+        fire_event(wf_event_map.get(action, ''), request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number,
+            'serial': wo.drill_bit.serial_number if wo.drill_bit else '?',
+            'step_name': entry.step_description, 'step_number': step_number,
+            'entity_type': 'RouterSheetEntry', 'entity_id': entry.pk,
+        })
 
         return JsonResponse({'success': True, 'action': action})
 
@@ -7862,6 +7907,13 @@ class OperatorHomeView(LoginRequiredMixin, TemplateView):
             '-priority', 'due_date')[:20]
         context['all_active_wos'] = all_active_wos
 
+        # Pending workflow actions
+        try:
+            from apps.notifications.workflow_engine import get_pending_actions_for_user
+            context['pending_actions'] = list(get_pending_actions_for_user(user)[:10])
+        except Exception:
+            context['pending_actions'] = []
+
         return context
 
 
@@ -8108,6 +8160,13 @@ class ProductionFloorBoardView(LoginRequiredMixin, TemplateView):
         board_data.sort(key=lambda x: (not x['has_hold'], -x['progress']))
         context['board_data'] = board_data
         context['active_count'] = len(board_data)
+
+        try:
+            from apps.notifications.workflow_engine import get_pending_actions_for_user
+            context['pending_actions'] = list(get_pending_actions_for_user(self.request.user)[:10])
+        except Exception:
+            context['pending_actions'] = []
+
         return context
 
 
