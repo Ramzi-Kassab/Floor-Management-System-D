@@ -160,6 +160,15 @@ class Role(models.Model):
     # Permissions
     permissions = models.ManyToManyField("Permission", through="RolePermission", related_name="roles")
 
+    # Workflow routing
+    has_full_visibility = models.BooleanField(default=False,
+        help_text='GM/Director level — sees all workflow actions in overview')
+    is_workflow_admin = models.BooleanField(default=False,
+        help_text='Can configure workflow rules and capabilities')
+    positions = models.ManyToManyField(
+        'organization.Position', blank=True, related_name='default_roles',
+        help_text='Users assigned to these positions auto-receive this role')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -227,6 +236,17 @@ class UserRole(models.Model):
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_user_roles")
     expires_at = models.DateTimeField(null=True, blank=True, help_text="Temporary role assignment")
     is_primary = models.BooleanField(default=False, help_text="Primary role for display purposes")
+
+    # Workflow fields
+    is_position_derived = models.BooleanField(default=False,
+        help_text='True = auto-assigned from position. False = manually granted.')
+    is_available = models.BooleanField(default=True,
+        help_text='Uncheck to pause workflow routing (leave, Ramadan hours)')
+    account_scope = models.ManyToManyField(
+        'sales.Account', blank=True, related_name='scoped_user_roles',
+        help_text='Restrict workflow routing to specific accounts. Empty = all.')
+    notes = models.CharField(max_length=200, blank=True,
+        help_text='e.g. "Acting Operations Manager — temporary"')
 
     class Meta:
         db_table = "user_roles"

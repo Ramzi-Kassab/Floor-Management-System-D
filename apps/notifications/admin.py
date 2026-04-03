@@ -1,6 +1,9 @@
 from django.contrib import admin
 
-from .models import AuditLog, Comment, FormRevision, Notification, NotificationTemplate, Task
+from .models import (
+    AuditLog, Comment, FormRevision, Notification, NotificationTemplate, Task,
+    WorkflowRule, WorkflowAction,
+)
 
 
 @admin.register(NotificationTemplate)
@@ -39,3 +42,21 @@ class FormRevisionAdmin(admin.ModelAdmin):
     list_display = ["entity_type", "entity_id", "revision_number", "document_code", "revised_by", "revised_at"]
     list_filter = ["entity_type", "document_code"]
     readonly_fields = ["snapshot", "changes"]
+
+
+@admin.register(WorkflowRule)
+class WorkflowRuleAdmin(admin.ModelAdmin):
+    list_display = ["name", "trigger_event", "rule_type", "action_type", "assign_to_role", "notif_priority", "is_active", "order"]
+    list_filter = ["trigger_event", "rule_type", "is_active", "assign_to_role"]
+    search_fields = ["name", "description"]
+    list_editable = ["is_active", "order"]
+
+
+@admin.register(WorkflowAction)
+class WorkflowActionAdmin(admin.ModelAdmin):
+    list_display = ["title", "action_type", "assigned_to", "assigned_role", "status", "priority", "is_blocked", "due_date", "created_at"]
+    list_filter = ["status", "action_type", "assigned_role", "priority", "is_blocked"]
+    search_fields = ["title", "description"]
+    readonly_fields = ["created_at", "updated_at"]
+
+

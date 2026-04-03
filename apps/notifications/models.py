@@ -14,6 +14,7 @@ Tables:
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class NotificationTemplate(models.Model):
@@ -73,6 +74,8 @@ class Notification(models.Model):
     entity_type = models.CharField(max_length=50, blank=True)
     entity_id = models.BigIntegerField(null=True, blank=True)
     action_url = models.CharField(max_length=500, blank=True)
+    action_type = models.CharField(max_length=50, blank=True,
+        help_text='ActionType enum value for smart button rendering')
 
     # Status
     is_read = models.BooleanField(default=False)
@@ -314,3 +317,246 @@ class FormRevision(models.Model):
 
     def __str__(self):
         return f"{self.entity_type} #{self.entity_id} Rev {self.revision_number}"
+
+
+# =============================================================================
+# WORKFLOW ENGINE MODELS
+# =============================================================================
+
+class WorkflowEvent(models.TextChoices):
+    """All workflow transitions that can trigger actions/notifications."""
+    # Receiving
+    BIT_RECEIVED           = "BIT_RECEIVED",          "Bit Received / Backloaded"
+    INSPECTION_ACCEPTED    = "INSPECTION_ACCEPTED",    "Receiving Inspection: Accepted"
+    INSPECTION_REJECTED    = "INSPECTION_REJECTED",    "Receiving Inspection: Rejected"
+    INSPECTION_CONDITIONAL = "INSPECTION_CONDITIONAL", "Receiving Inspection: Conditional"
+    CEREBRO_DETECTED       = "CEREBRO_DETECTED",       "Cerebro Device Detected"
+    # Planning
+    ADDED_TO_PLAN          = "ADDED_TO_PLAN",          "Bit Added to Production Plan"
+    WO_RELEASED            = "WO_RELEASED",            "Work Order Released"
+    TRANSFER_CONFIRMED     = "TRANSFER_CONFIRMED",     "Bit Transfer Confirmed"
+    # Approval
+    WO_APPROVED            = "WO_APPROVED",            "Work Order Approved"
+    WO_REJECTED            = "WO_REJECTED",            "Work Order Rejected"
+    WO_DELETED             = "WO_DELETED",             "Work Order Deleted"
+    # Production
+    WO_STARTED             = "WO_STARTED",             "Work Started on WO"
+    STEP_COMPLETED         = "STEP_COMPLETED",         "Router Step Completed"
+    STEP_ON_HOLD           = "STEP_ON_HOLD",           "Step Put On Hold"
+    STEP_WAITING_QC        = "STEP_WAITING_QC",        "Step Waiting for QC"
+    STEP_WAITING_APPROVAL  = "STEP_WAITING_APPROVAL",  "Step Waiting for Approval"
+    STEP_WAITING_TECH      = "STEP_WAITING_TECH",      "Step Waiting for Tech Review"
+    STEP_RESUMED           = "STEP_RESUMED",           "Step Resumed"
+    ALL_STEPS_DONE         = "ALL_STEPS_DONE",         "All Router Steps Completed"
+    DIE_CHECK_DECISION     = "DIE_CHECK_DECISION",     "Die Check Needs Quality Decision"
+    SPECIAL_INSTRUCTION    = "SPECIAL_INSTRUCTION",    "Critical Special Instruction Active"
+    # QC & Completion
+    WO_SENT_TO_QC          = "WO_SENT_TO_QC",         "WO Sent to QC"
+    QC_PASSED              = "QC_PASSED",              "QC Passed"
+    QC_FAILED              = "QC_FAILED",              "QC Failed — Rework Needed"
+    WO_COMPLETED           = "WO_COMPLETED",           "Work Order Completed"
+    # Inventory
+    GRN_POSTED             = "GRN_POSTED",             "GRN Posted"
+    EVALUATION_COMPLETED   = "EVALUATION_COMPLETED",   "Bit Evaluation Completed"
+    ROUTE_UPDATED          = "ROUTE_UPDATED",          "Router Route Auto-Updated"
+
+
+class ActionType(models.TextChoices):
+    """Types of actions that can be assigned to users."""
+    INSPECT_BIT      = "INSPECT_BIT",      "Start Receiving Inspection"
+    ADD_TO_PLAN      = "ADD_TO_PLAN",      "Add Bit to Production Plan"
+    TRANSFER_BIT     = "TRANSFER_BIT",     "Transfer Bit (Physical Move)"
+    APPROVE_WO       = "APPROVE_WO",       "Review & Approve Work Order"
+    PRINT_RELEASE    = "PRINT_RELEASE",    "Print Release Paper"
+    START_STEP       = "START_STEP",       "Start First Router Step"
+    REVIEW_HOLD      = "REVIEW_HOLD",      "Review Hold & Decide Next Action"
+    QC_CHECK         = "QC_CHECK",         "Perform QC Check"
+    TECH_REVIEW      = "TECH_REVIEW",      "Technical Review Required"
+    QUALITY_DECISION = "QUALITY_DECISION", "Quality Decision on Cutters"
+    CONFIRM_TRANSFER = "CONFIRM_TRANSFER", "Confirm Bit Transfer to Destination"
+    PREPARE_DISPATCH = "PREPARE_DISPATCH", "Prepare Bit for Shipping"
+    MAKE_DECISION    = "MAKE_DECISION",    "Decision Required"
+    ACKNOWLEDGE      = "ACKNOWLEDGE",      "Acknowledge / Information Only"
+    REWORK           = "REWORK",           "Plan & Start Rework"
+    ASSIGN_OPERATOR  = "ASSIGN_OPERATOR",  "Assign Operator to WO"
+    REPLAN           = "REPLAN",           "Re-plan Bit in Production Planner"
+    REMOVE_DEVICE    = "REMOVE_DEVICE",    "Remove Cerebro Device Before Processing"
+
+
+
+class WorkflowRule(models.Model):
+    """
+    Admin-configurable rules that define what happens for each workflow event.
+    Replaces hardcoded notify() calls with DB-driven configuration.
+    """
+    class RuleType(models.TextChoices):
+        ACTION       = "ACTION",       "Create Action Task Only"
+        NOTIFICATION = "NOTIFICATION", "Send Notification Only"
+        BOTH         = "BOTH",         "Create Action + Send Notification"
+
+    # Identity
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+
+    # Trigger
+    trigger_event = models.CharField(max_length=50, choices=WorkflowEvent.choices)
+    trigger_filter = models.JSONField(default=dict, blank=True,
+        help_text='Optional filter e.g. {"account_code": "ARAMCO"}')
+
+    # Rule type
+    rule_type = models.CharField(max_length=20, choices=RuleType.choices, default=RuleType.BOTH)
+
+    # Action fields
+    action_type = models.CharField(max_length=50, choices=ActionType.choices, blank=True)
+    assign_to_role = models.ForeignKey(
+        'accounts.Role', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_rules_assigned',
+        help_text='Role that determines who receives this action')
+    assign_to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_rule_assignments',
+        help_text='Override: assign to specific user instead of capability')
+    action_url_pattern = models.CharField(max_length=500, blank=True,
+        help_text='URL pattern with placeholders e.g. /work-orders/{wo_id}/')
+    action_description_template = models.CharField(max_length=500, blank=True,
+        help_text='e.g. "Transfer {serial} from {from_loc} to {to_loc}"')
+    deadline_hours = models.IntegerField(null=True, blank=True,
+        help_text='Hours until action is overdue')
+    is_queue_action = models.BooleanField(default=False,
+        help_text='If True, any available user with the capability can claim it')
+
+    # Escalation
+    escalate_after_hours = models.IntegerField(null=True, blank=True)
+    escalate_to_role = models.ForeignKey(
+        'accounts.Role', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_rules_escalation')
+    escalate_to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_escalation_rules')
+
+    # Notification fields
+    notif_title_template = models.CharField(max_length=200, blank=True,
+        help_text='e.g. "WO {wo_number} needs approval"')
+    notif_message_template = models.TextField(blank=True,
+        help_text='Supports {wo_number}, {serial}, {actor_name}, etc.')
+    notif_recipients_role = models.ForeignKey(
+        'accounts.Role', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_rules_notification',
+        help_text='Role that determines who receives this notification')
+    notif_priority = models.CharField(max_length=20, choices=Notification.Priority.choices, default='NORMAL')
+
+    # Dependencies
+    depends_on_rule_ids = models.JSONField(default=list, blank=True,
+        help_text='PKs of sibling rules whose actions must complete first')
+
+    # Control
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0, help_text='Execution order for same event')
+
+    class Meta:
+        db_table = 'workflow_rules'
+        ordering = ['trigger_event', 'order']
+        indexes = [
+            models.Index(fields=['trigger_event', 'is_active', 'order'],
+                         name='idx_wr_event_active_order'),
+        ]
+
+    def __str__(self):
+        return f"[{self.trigger_event}] {self.name}"
+
+
+class WorkflowAction(models.Model):
+    """
+    A concrete action that a specific user (or role queue) must take.
+    Created by the workflow engine when dispatch_event() fires.
+    """
+    class Status(models.TextChoices):
+        PENDING     = "PENDING",      "Pending"
+        CLAIMED     = "CLAIMED",      "Claimed"
+        IN_PROGRESS = "IN_PROGRESS",  "In Progress"
+        COMPLETED   = "COMPLETED",    "Completed"
+        ESCALATED   = "ESCALATED",    "Escalated"
+        CANCELLED   = "CANCELLED",    "Cancelled"
+        EXPIRED     = "EXPIRED",      "Expired"
+
+    # What to do
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    action_type = models.CharField(max_length=50, choices=ActionType.choices, blank=True)
+    action_url = models.CharField(max_length=500, blank=True)
+    trigger_event = models.CharField(max_length=50, choices=WorkflowEvent.choices, blank=True)
+
+    # Assignment
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_actions')
+    assigned_role = models.ForeignKey(
+        'accounts.Role', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_actions')
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_workflow_actions')
+    is_queue_action = models.BooleanField(default=False)
+    claimed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='claimed_workflow_actions')
+    claimed_at = models.DateTimeField(null=True, blank=True)
+
+    # Status & priority
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    priority = models.CharField(max_length=20, choices=Notification.Priority.choices, default='NORMAL')
+
+    # Entity link
+    entity_type = models.CharField(max_length=50, blank=True)
+    entity_id = models.BigIntegerField(null=True, blank=True)
+
+    # Source
+    source_rule = models.ForeignKey(
+        WorkflowRule, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='actions')
+
+    # Dependencies
+    depends_on_ids = models.JSONField(default=list, blank=True,
+        help_text='PKs of WorkflowAction records that must complete first')
+    is_blocked = models.BooleanField(default=False)
+
+    # Deadlines & escalation
+    due_date = models.DateTimeField(null=True, blank=True)
+    escalate_after_hours = models.IntegerField(null=True, blank=True)
+    escalate_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='escalation_targets')
+    escalated_at = models.DateTimeField(null=True, blank=True)
+
+    # Completion
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='completed_workflow_actions')
+    result_data = models.JSONField(default=dict, blank=True)
+
+    # Linked notification
+    notification = models.ForeignKey(
+        Notification, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='workflow_actions')
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'workflow_actions'
+        ordering = ['is_blocked', 'due_date', '-priority']
+        indexes = [
+            models.Index(fields=['assigned_to', 'status', 'is_blocked'],
+                         name='idx_wa_user_status'),
+            models.Index(fields=['assigned_role', 'status', 'is_blocked'],
+                         name='idx_wa_role_status'),
+            models.Index(fields=['entity_type', 'entity_id'],
+                         name='idx_wa_entity'),
+            models.Index(fields=['trigger_event', 'status'],
+                         name='idx_wa_event_status'),
+        ]
+
+    def __str__(self):
+        return f"[{self.get_action_type_display()}] {self.title}"

@@ -1,0 +1,33 @@
+{% load humanize %}
+{# Reusable "My Actions" widget — include in any dashboard page.
+   Usage: {% include "notifications/partials/action_widget.html" with pending_actions=actions %}
+   The view must pass pending_actions from get_pending_actions_for_user(). #}
+
+{% if pending_actions %}
+<div class="bg-white dark:bg-gray-800 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden mb-4">
+    <div class="px-4 py-3 bg-blue-50 dark:bg-blue-900/10 border-b border-blue-200 dark:border-blue-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <i data-lucide="zap" class="w-4 h-4 text-blue-500"></i>
+            <span class="text-sm font-semibold text-blue-700 dark:text-blue-300">You have {{ pending_actions|length }} pending action{{ pending_actions|length|pluralize }}</span>
+        </div>
+        <a href="{% url 'notifications:action_center' %}" class="text-xs text-blue-600 hover:underline">View all</a>
+    </div>
+    <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
+        {% for action in pending_actions|slice:":5" %}
+        <div class="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/20">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded
+                    {% if action.action_type == 'TRANSFER_BIT' %}bg-teal-100 text-teal-700
+                    {% elif action.action_type == 'APPROVE_WO' %}bg-indigo-100 text-indigo-700
+                    {% elif action.action_type == 'QC_CHECK' %}bg-purple-100 text-purple-700
+                    {% else %}bg-blue-100 text-blue-700{% endif %}">{{ action.get_action_type_display|truncatewords:2 }}</span>
+                <span class="text-sm text-gray-900 dark:text-white truncate">{{ action.title }}</span>
+            </div>
+            {% if action.action_url %}
+            <a href="{{ action.action_url }}" class="text-xs text-blue-600 hover:underline flex-shrink-0 ml-2">Go</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

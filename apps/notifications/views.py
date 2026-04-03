@@ -125,6 +125,13 @@ class NotificationBellView(LoginRequiredMixin, View):
     def get(self, request):
         from django.template.loader import render_to_string
 
+        # Passive escalation check on each poll
+        try:
+            from apps.notifications.workflow_engine import check_and_escalate_overdue_actions
+            check_and_escalate_overdue_actions()
+        except Exception:
+            pass
+
         unread_count = get_unread_count(request.user)
         recent = get_recent_unread(request.user, limit=5)
         latest_id = recent[0].pk if recent else ""
@@ -485,3 +492,255 @@ class CommentDeleteView(LoginRequiredMixin, View):
 
         comment.delete()
         return JsonResponse({"status": "ok"})
+
+
+# =============================================================================
+# WORKFLOW ENGINE VIEWS
+# =============================================================================
+
+class ActionCenterView(LoginRequiredMixin, ListView):
+    """Action Center — My Actions, Team Actions, History."""
+    template_name = "notifications/action_center.html"
+    context_object_name = "actions"
+    paginate_by = 30
+
+    def get_queryset(self):
+        from .models import WorkflowAction
+        from apps.accounts.models import UserRole
+        from django.db.models import Q
+
+        tab = self.request.GET.get('tab', 'my')
+        user = self.request.user
+
+        user_role_ids = list(
+            UserRole.objects.filter(
+                user=user, is_available=True,
+            ).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+            ).values_list('role_id', flat=True)
+        )
+
+        if tab == 'history':
+            return WorkflowAction.objects.filter(
+                Q(assigned_to=user) | Q(completed_by=user) | Q(claimed_by=user)
+            ).filter(
+                status__in=['COMPLETED', 'CANCELLED', 'EXPIRED']
+            ).select_related('assigned_to', 'completed_by', 'source_rule').order_by('-completed_at')
+
+        elif tab == 'team':
+            if not user_role_ids:
+                return WorkflowAction.objects.none()
+            return WorkflowAction.objects.filter(
+                assigned_role_id__in=user_role_ids,
+                status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
+            ).select_related('assigned_to', 'claimed_by', 'source_rule').order_by('is_blocked', 'due_date', '-priority')
+
+        else:  # 'my'
+            return WorkflowAction.objects.filter(
+                Q(assigned_to=user) |
+                Q(assigned_role_id__in=user_role_ids, is_queue_action=True,
+                  claimed_by__isnull=True, assigned_to__isnull=True)
+            ).filter(
+                status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
+                is_blocked=False,
+            ).select_related('assigned_to', 'claimed_by', 'source_rule').order_by('due_date', '-priority')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from .models import WorkflowAction, ActionType
+
+        user = self.request.user
+        user_role_ids = list(
+            UserRole.objects.filter(
+                user=user, is_available=True,
+            ).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+            ).values_list('role_id', flat=True)
+        )
+
+        ctx['current_tab'] = self.request.GET.get('tab', 'my')
+        ctx['page_title'] = 'Action Center'
+
+        my_q = Q(assigned_to=user) | Q(
+            assigned_role_id__in=user_role_ids, is_queue_action=True,
+            claimed_by__isnull=True, assigned_to__isnull=True
+        )
+        ctx['my_count'] = WorkflowAction.objects.filter(my_q).filter(
+            status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
+            is_blocked=False,
+        ).count()
+        ctx['team_count'] = WorkflowAction.objects.filter(
+            assigned_role_id__in=user_role_ids,
+            status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
+        ).count() if user_role_ids else 0
+
+        ctx['action_types'] = ActionType.choices
+        return ctx
+
+
+class WorkflowSettingsIndexView(LoginRequiredMixin, ListView):
+    """Workflow Settings index — entry point for admin configuration."""
+    template_name = "notifications/workflow_settings.html"
+    context_object_name = "rules"
+
+    def get_queryset(self):
+        from .models import WorkflowRule
+        return WorkflowRule.objects.all().order_by('trigger_event', 'order')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from .models import WorkflowRule, WorkflowAction, WorkflowEvent
+        from django.conf import settings as django_settings
+
+        ctx['page_title'] = 'Workflow Settings'
+        ctx['engine_active'] = getattr(django_settings, 'WORKFLOW_ENGINE_ACTIVE', False)
+        ctx['total_rules'] = WorkflowRule.objects.count()
+        ctx['active_rules'] = WorkflowRule.objects.filter(is_active=True).count()
+        ctx['total_actions'] = WorkflowAction.objects.count()
+        ctx['pending_actions'] = WorkflowAction.objects.filter(status='PENDING').count()
+        from apps.accounts.models import UserRole as _UR, Role as _Role
+        ctx['total_cap_assignments'] = _UR.objects.filter(is_available=True).count()
+        ctx['events'] = WorkflowEvent.choices
+
+        # Group rules by event
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for rule in ctx['rules']:
+            grouped[rule.trigger_event].append(rule)
+        ctx['rules_by_event'] = dict(grouped)
+
+        # Role coverage for workflow
+        cap_counts = {}
+        for role in _Role.objects.filter(is_active=True).order_by('-level'):
+            cnt = _UR.objects.filter(role=role, is_available=True).count()
+            cap_counts[role.code] = {'label': role.name, 'count': cnt}
+        ctx['cap_counts'] = cap_counts
+
+        return ctx
+
+
+class WorkflowCapabilityView(LoginRequiredMixin, ListView):
+    """Workflow role management — assign roles to users for action routing."""
+    template_name = "notifications/workflow_capabilities.html"
+    context_object_name = "capabilities"
+
+    def get_queryset(self):
+        from apps.accounts.models import Role
+        return Role.objects.filter(is_active=True).prefetch_related(
+            'user_roles', 'user_roles__user', 'positions'
+        ).order_by('-level', 'name')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from django.contrib.auth import get_user_model
+        ctx['page_title'] = 'Workflow Role Assignments'
+        ctx['users'] = get_user_model().objects.filter(is_active=True).order_by('first_name', 'username')
+        return ctx
+
+
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+import json as _json
+
+
+@login_required
+@require_POST
+def api_capability_grant(request):
+    """Grant a Role to a user (manual assignment via workflow page)."""
+    from apps.accounts.models import Role, UserRole
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+
+    data = _json.loads(request.body)
+    user_id = data.get('user_id')
+    capability_id = data.get('capability_id')  # actually role_id
+
+    if not user_id or not capability_id:
+        return JsonResponse({'error': 'user_id and capability_id required', 'success': False})
+
+    from django.contrib.auth import get_user_model
+    try:
+        user = get_user_model().objects.get(pk=user_id)
+    except get_user_model().DoesNotExist:
+        return JsonResponse({'error': 'User not found', 'success': False})
+
+    try:
+        role = Role.objects.get(pk=capability_id)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': 'Role not found', 'success': False})
+
+    obj, created = UserRole.objects.get_or_create(
+        user=user, role=role,
+        defaults={
+            'assigned_by': request.user, 'is_available': True,
+            'notes': data.get('notes', ''),
+        }
+    )
+    if not created:
+        obj.is_available = True
+        obj.save(update_fields=['is_available'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'{user.get_full_name() or user.username} granted {role.name}',
+    })
+
+
+@login_required
+@require_POST
+def api_capability_revoke(request, pk):
+    """Revoke a role assignment."""
+    from apps.accounts.models import UserRole
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+
+    try:
+        obj = UserRole.objects.get(pk=pk)
+    except UserRole.DoesNotExist:
+        return JsonResponse({'error': 'Not found', 'success': False})
+
+    if obj.is_position_derived:
+        return JsonResponse({'error': 'Cannot revoke position-derived role. Change the position instead.', 'success': False})
+
+    obj.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_capability_toggle_available(request, pk):
+    """Toggle is_available on a UserRole."""
+    from apps.accounts.models import UserRole
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+
+    try:
+        obj = UserRole.objects.get(pk=pk)
+    except UserRole.DoesNotExist:
+        return JsonResponse({'error': 'Not found', 'success': False})
+
+    obj.is_available = not obj.is_available
+    obj.save(update_fields=['is_available'])
+    return JsonResponse({'success': True, 'is_available': obj.is_available})
+
+
+@login_required
+@require_POST
+def api_workflow_action_claim(request, pk):
+    """Claim a queue action."""
+    from .models import WorkflowAction
+
+    try:
+        action = WorkflowAction.objects.get(pk=pk)
+    except WorkflowAction.DoesNotExist:
+        return JsonResponse({'error': 'Action not found', 'success': False})
+
+    if action.claimed_by and action.claimed_by != request.user:
+        return JsonResponse({'error': f'Already claimed by {action.claimed_by.get_full_name()}', 'success': False})
+
+    action.claimed_by = request.user
+    action.claimed_at = timezone.now()
+    action.status = WorkflowAction.Status.CLAIMED
+    action.save(update_fields=['claimed_by', 'claimed_at', 'status', 'updated_at'])
+
+    return JsonResponse({'success': True, 'message': 'Action claimed'})

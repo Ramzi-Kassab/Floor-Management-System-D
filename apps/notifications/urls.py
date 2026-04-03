@@ -32,4 +32,13 @@ urlpatterns = [
     path("comments/<str:entity_type>/<int:entity_id>/", views.CommentListView.as_view(), name="comment_list"),
     path("comments/<str:entity_type>/<int:entity_id>/create/", views.CommentCreateView.as_view(), name="comment_create"),
     path("comments/<int:pk>/delete/", views.CommentDeleteView.as_view(), name="comment_delete"),
+    # Workflow Engine
+    path("actions/", views.ActionCenterView.as_view(), name="action_center"),
+    path("api/actions/<int:pk>/claim/", views.api_workflow_action_claim, name="api_action_claim"),
+    # Workflow Settings
+    path("settings/workflow/", views.WorkflowSettingsIndexView.as_view(), name="workflow_settings"),
+    path("settings/workflow/capabilities/", views.WorkflowCapabilityView.as_view(), name="workflow_capabilities"),
+    path("api/workflow/capabilities/grant/", views.api_capability_grant, name="api_capability_grant"),
+    path("api/workflow/capabilities/<int:pk>/revoke/", views.api_capability_revoke, name="api_capability_revoke"),
+    path("api/workflow/capabilities/<int:pk>/toggle/", views.api_capability_toggle_available, name="api_capability_toggle"),
 ]
