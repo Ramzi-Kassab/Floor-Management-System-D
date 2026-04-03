@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}Workflow Capabilities — ARDT FMS{% endblock %}
+{% block title %}Workflow Roles — ARDT FMS{% endblock %}
 
 {% block page_header %}
 <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
         {% include "components/back_nav.html" with parent_url="/notifications/settings/workflow/" parent_label="Workflow Settings" %}
         <div>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Workflow Capabilities</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Assign workflow capabilities to users for action routing</p>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Workflow Roles</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Roles drive workflow action routing. Each position maps 1:1 to a role.</p>
         </div>
     </div>
 </div>
@@ -19,10 +19,10 @@
 {% csrf_token %}
 <div x-data="capManager()">
 
-    <!-- Grant Capability Form -->
+    <!-- Grant Additional Role Form -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
         <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <i data-lucide="user-plus" class="w-4 h-4 text-green-500"></i> Grant Capability
+            <i data-lucide="user-plus" class="w-4 h-4 text-green-500"></i> Grant Additional Role
         </h3>
         <div class="flex flex-col sm:flex-row gap-3">
             <select x-model="grantUserId" class="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
@@ -30,7 +30,7 @@
                 {% for u in users %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }} ({{ u.username }})</option>{% endfor %}
             </select>
             <select x-model="grantCapId" class="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                <option value="">-- Select Capability --</option>
+                <option value="">-- Select Role --</option>
                 {% for cap in capabilities %}<option value="{{ cap.pk }}">{{ cap.name }} ({{ cap.code }})</option>{% endfor %}
             </select>
             <input type="text" x-model="grantNotes" placeholder="Notes (optional, e.g. Acting Ops Manager)"
@@ -65,8 +65,9 @@
             {% endif %}
             {% if cap.positions.count %}
             <div class="px-4 py-2 text-xs text-indigo-600 dark:text-indigo-400 border-b border-gray-100 dark:border-gray-700/50 flex items-center gap-1">
-                <i data-lucide="briefcase" class="w-3 h-3"></i> Auto-linked positions:
-                {% for pos in cap.positions.all %}{{ pos.title }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                <i data-lucide="briefcase" class="w-3 h-3"></i> Position:
+                {% for pos in cap.positions.all %}{{ pos.title }} ({{ pos.department.name|default:"--" }}){% if not forloop.last %}, {% endif %}{% endfor %}
+                <span class="text-gray-400 ml-1">— users with this position auto-receive this role</span>
             </div>
             {% endif %}
             <div class="divide-y divide-gray-100 dark:divide-gray-700/50">

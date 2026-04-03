@@ -7,5 +7,4 @@ class AccountsConfig(AppConfig):
     verbose_name = "Accounts"
 
     def ready(self):
-        # Import signal handlers
-        pass
+        import apps.accounts.signals  # noqa: F401 — register position sync signal
