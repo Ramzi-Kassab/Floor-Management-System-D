@@ -72,7 +72,7 @@
         <div class="flex items-center gap-3 min-w-0">
             {% if qr_code %}
             <div class="hidden sm:block bg-white p-1 rounded border border-gray-200 dark:border-gray-600 flex-shrink-0">
-                <img src="data:image/png;base64,{{ qr_code }}" alt="QR" class="w-10 h-10">
+                <img src="{{ qr_code }}" alt="QR" class="w-10 h-10">
             </div>
             {% endif %}
             <div class="min-w-0">
@@ -624,8 +624,8 @@
                         {% endif %}
                     </div>
 
-                    <!-- Router Sheet Preview -->
-                    {% if router_entries %}
+                    <!-- Router Sheet Preview — only after evaluation is done -->
+                    {% if router_entries and has_completed_eval %}
                     <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700">
                             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide flex items-center gap-2">
@@ -1372,16 +1372,17 @@ function deleteWorkOrder(force) {
         _force: !!force,
         forceConfirmText: '',
         _action: async (ctx) => {
-            const d = await ctx._apiPost('{% url "workorders:api_delete_wo" work_order.pk %}', {
-                force: !!force,
-                reverse_transaction: ctx.modal.reverseTransaction,
-                destination_id: ctx.modal.destinationId ? parseInt(ctx.modal.destinationId) : null,
-                return_to_planner: ctx.modal.planAction === 'planner',
-            });
-            // Navigate to WO list by default — transfer is another user's job
-            if (d.redirect_url) {
-                window.location.href = d.redirect_url;
-            } else {
+            try {
+                const d = await ctx._apiPost('{% url "workorders:api_delete_wo" work_order.pk %}', {
+                    force: !!force,
+                    reverse_transaction: ctx.modal.reverseTransaction,
+                    destination_id: ctx.modal.destinationId ? parseInt(ctx.modal.destinationId) : null,
+                    return_to_planner: ctx.modal.planAction === 'planner',
+                });
+                window.location.href = d.redirect_url || '{% url "workorders:workorder_list_enhanced" %}';
+            } catch (e) {
+                // WO may already be deleted — redirect instead of showing error on dead page
+                alert(e.message + '\nRedirecting to Work Orders list.');
                 window.location.href = '{% url "workorders:workorder_list_enhanced" %}';
             }
         }

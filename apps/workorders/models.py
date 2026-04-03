@@ -4195,6 +4195,18 @@ class RouterSheetEntry(models.Model):
         WAITING_PARTS = "PARTS", "Waiting for Parts"
         OTHER = "OTHER", "Other (see remarks)"
 
+    class SkipReason(models.TextChoices):
+        NONE = "", "—"
+        NOT_APPLICABLE = "N/A", "Not Applicable (N/A)"
+        WITHIN_SPEC = "IN_SPEC", "Within specification — no action needed"
+        ACCEPTED_AS_IS = "ACCEPTED", "Accepted as-is"
+        APPROVED_BY = "APPROVED_BY", "Approved to skip by supervisor"
+        NOT_REQUIRED = "NOT_REQ", "Not required for this bit type"
+        DONE_ELSEWHERE = "DONE_EXT", "Done externally / previously completed"
+        DEFERRED = "DEFERRED", "Deferred to next cycle"
+        REORDERED = "REORDERED", "Reordered — will execute later"
+        OTHER = "OTHER", "Other (see remarks)"
+
     step_status = models.CharField(
         max_length=20, choices=StepStatus.choices, default=StepStatus.PENDING
     )
@@ -4207,6 +4219,16 @@ class RouterSheetEntry(models.Model):
         help_text='When the step was put on hold'
     )
     hold_notes = models.TextField(blank=True, help_text='Additional details about the hold')
+
+    # Skip tracking
+    skip_reason = models.CharField(
+        max_length=15, choices=SkipReason.choices, blank=True, default='',
+        help_text='Why this step was skipped'
+    )
+    skipped_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='steps_skipped',
+    )
 
     is_complete = models.BooleanField(default=False)
 
@@ -5516,4 +5538,162 @@ class StandaloneThreadReport(models.Model):
         ref = self.work_order.wo_number if self.work_order else (
             self.drill_bit.serial_number if self.drill_bit else "?")
         return f"Thread Inspection {self.report_number} — {ref}"
+
+
+# =============================================================================
+# STEP DURATION RECORD — Denormalized table for KPI queries
+# =============================================================================
+
+class StepDurationRecord(models.Model):
+    """
+    One record per completed router step — flat table optimized for analytics.
+    Created on step completion from RouterSheetEntry data.
+    All fields are plain DB columns (no JSON) for SQL GROUP BY / AVG / etc.
+    """
+    # ── Source link ──
+    router_entry = models.OneToOneField(
+        RouterSheetEntry, on_delete=models.CASCADE, related_name='duration_record',
+        help_text='Source RouterSheetEntry'
+    )
+    work_order = models.ForeignKey(
+        'WorkOrder', on_delete=models.CASCADE, related_name='duration_records'
+    )
+
+    # ── Process identification ──
+    process_code = models.CharField(max_length=50, db_index=True,
+        help_text='MasterProcess.code or step description slug')
+    process_name = models.CharField(max_length=200)
+    process_category = models.CharField(max_length=30, blank=True, db_index=True)
+    parent_process_code = models.CharField(max_length=50, blank=True, db_index=True,
+        help_text='Parent process family for grouping')
+
+    # ── Time data (seconds for precision, minutes for display) ──
+    duration_gross_seconds = models.IntegerField(default=0,
+        help_text='Total wall-clock time from start to end')
+    duration_net_seconds = models.IntegerField(default=0,
+        help_text='Active time (gross minus pauses)')
+    paused_seconds = models.IntegerField(default=0)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField()
+
+    # ── Bit context (denormalized for fast queries) ──
+    serial_number = models.CharField(max_length=20, db_index=True)
+    design_mat = models.CharField(max_length=50, blank=True, db_index=True)
+    bit_size = models.DecimalField(max_digits=6, decimal_places=3, null=True, db_index=True)
+    body_material = models.CharField(max_length=10, blank=True, db_index=True,
+        help_text='M=Matrix, S=Steel')
+    is_repair = models.BooleanField(default=True, db_index=True)
+    is_core_head = models.BooleanField(default=False)
+    account_code = models.CharField(max_length=30, blank=True, db_index=True)
+
+    # ── Operator(s) ──
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='step_durations'
+    )
+    operator_name = models.CharField(max_length=100, blank=True,
+        help_text='Denormalized name for queries after user deletion')
+
+    # ── Step metadata ──
+    step_number = models.IntegerField()
+    was_skipped = models.BooleanField(default=False)
+    is_passive = models.BooleanField(default=False,
+        help_text='PASSIVE mode steps (heating, cooldown) — waiting time, not work time')
+    requires_qc = models.BooleanField(default=False)
+    qc_passed = models.BooleanField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'step_duration_records'
+        ordering = ['-completed_at']
+        indexes = [
+            models.Index(fields=['process_code', 'bit_size', 'body_material'], name='idx_sdr_process_size_mat'),
+            models.Index(fields=['design_mat', 'process_code'], name='idx_sdr_design_process'),
+            models.Index(fields=['operator', 'process_code'], name='idx_sdr_operator_process'),
+            models.Index(fields=['account_code', 'process_code'], name='idx_sdr_account_process'),
+            models.Index(fields=['completed_at'], name='idx_sdr_completed'),
+        ]
+
+    def __str__(self):
+        return f"{self.process_code} | {self.serial_number} | {self.duration_net_seconds}s"
+
+    @classmethod
+    def create_from_entry(cls, entry):
+        """Create a StepDurationRecord from a completed RouterSheetEntry."""
+        if not entry.is_complete or not entry.qr_scan_start or not entry.qr_scan_end:
+            return None
+        wo = entry.work_order
+        bit = wo.drill_bit if wo else None
+
+        # Determine process code
+        process_code = entry.parent_process_code or ''
+        process_name = entry.step_description
+        process_category = ''
+        is_passive = False
+        if entry.master_process:
+            process_code = process_code or entry.master_process.code
+            process_category = entry.master_process.category or ''
+            is_passive = entry.master_process.step_mode == 'PASSIVE'
+
+        # Bit context
+        serial = bit.serial_number if bit else ''
+        design_mat = ''
+        bit_size = None
+        body_material = ''
+        is_repair = True
+        is_core_head = False
+        account_code = ''
+
+        if bit:
+            if bit.design:
+                design_mat = bit.design.mat_number or ''
+                body_material = bit.design.body_material or ''
+                is_core_head = getattr(bit.design, 'is_core_head', False)
+                if bit.design.size:
+                    bit_size = bit.design.size.size_decimal
+            is_repair = bit.condition in ('REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED')
+            account_code = bit.account.code if bit.account else ''
+
+        # Operator
+        op = entry.operator
+        op_name = ''
+        if op:
+            op_name = op.get_full_name() or op.username
+
+        # Duration
+        gross = entry.duration_gross_seconds or int((entry.qr_scan_end - entry.qr_scan_start).total_seconds())
+        net = entry.duration_net_seconds or (gross - (entry.total_paused_seconds or 0))
+        paused = entry.total_paused_seconds or 0
+
+        record, created = cls.objects.update_or_create(
+            router_entry=entry,
+            defaults={
+                'work_order': wo,
+                'process_code': process_code,
+                'process_name': process_name,
+                'process_category': process_category,
+                'parent_process_code': entry.parent_process_code or '',
+                'duration_gross_seconds': gross,
+                'duration_net_seconds': net,
+                'paused_seconds': paused,
+                'started_at': entry.qr_scan_start,
+                'completed_at': entry.qr_scan_end,
+                'serial_number': serial,
+                'design_mat': design_mat,
+                'bit_size': bit_size,
+                'body_material': body_material,
+                'is_repair': is_repair,
+                'is_core_head': is_core_head,
+                'account_code': account_code,
+                'operator': op,
+                'operator_name': op_name,
+                'step_number': entry.step_number,
+                'was_skipped': entry.step_status == 'SKIPPED',
+                'is_passive': is_passive,
+                'requires_qc': entry.source_operation.requires_qc if entry.source_operation else False,
+                'qc_passed': entry.qc_passed,
+            }
+        )
+        return record
 

@@ -47,6 +47,8 @@ urlpatterns = [
     path("production-planner/create-wo/", views_jobcard.ProductionPlannerCreateWOView.as_view(), name="production_planner_create_wo"),
     path("production-planner/settings/", views_jobcard.PlannerSettingsView.as_view(), name="planner_settings"),
     path("api/production-wip-status/", views_jobcard.api_production_wip_status, name="api_production_wip_status"),
+    path("floor-board/", views_jobcard.ProductionFloorBoardView.as_view(), name="floor_board"),
+    path("api/kpi/step-durations/", views_jobcard.api_kpi_step_durations, name="api_kpi_step_durations"),
     # Production Plan API
     path("api/add-to-plan/", views_jobcard.api_add_to_plan, name="api_add_to_plan"),
     path("api/create-wo-from-plan/", views_jobcard.api_create_wo_from_plan, name="api_create_wo_from_plan"),
@@ -62,6 +64,7 @@ urlpatterns = [
     path("api/update-bit-account/", views_jobcard.api_update_bit_account, name="api_update_bit_account"),
     path("api/assign-bit-bom/", views_jobcard.api_assign_bit_bom, name="api_assign_bit_bom"),
     path("api/transfer-bit-location/", views_jobcard.api_transfer_bit_location, name="api_transfer_bit_location"),
+    path("api/confirm-release/", views_jobcard.api_confirm_release, name="api_confirm_release"),
     path("api/delete-transfer/<int:pk>/", views_jobcard.api_delete_transfer, name="api_delete_transfer"),
     path("api/edit-transfer/<int:pk>/", views_jobcard.api_edit_transfer, name="api_edit_transfer"),
     path("api/locations/", views_jobcard.api_locations_list, name="api_locations_list"),
@@ -205,6 +208,8 @@ urlpatterns = [
     path("<int:wo_pk>/router/api/save-data/<int:step_number>/", views_jobcard.api_step_save_data, name="api_step_save_data"),
     path("<int:wo_pk>/router/api/add-step/", views_jobcard.api_step_add, name="api_step_add"),
     path("<int:wo_pk>/router/api/skip/<int:step_number>/", views_jobcard.api_step_skip, name="api_step_skip"),
+    path("<int:wo_pk>/router/api/unskip/<int:step_number>/", views_jobcard.api_step_unskip, name="api_step_unskip"),
+    path("<int:wo_pk>/router/api/reorder/", views_jobcard.api_step_reorder, name="api_step_reorder"),
     path("<int:wo_pk>/router/api/pause/<int:step_number>/", views_jobcard.api_step_pause, name="api_step_pause"),
 
     # QC Forms

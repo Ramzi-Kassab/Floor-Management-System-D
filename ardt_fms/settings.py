@@ -200,6 +200,9 @@ LOGOUT_REDIRECT_URL = 'accounts:login'
 SESSION_COOKIE_AGE = 86400
 SESSION_SAVE_EVERY_REQUEST = True
 
+# Workflow Engine — set True to activate dispatch_event() (Phase 3)
+WORKFLOW_ENGINE_ACTIVE = False
+
 # =============================================================================
 # INTERNATIONALIZATION
 # =============================================================================

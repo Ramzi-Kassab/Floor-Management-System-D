@@ -638,7 +638,8 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         else:
             context['receiving_inspection'] = None
 
-        # Router sheet entries
+        # Router sheet entries — only show after at least one evaluation is complete
+        context["has_completed_eval"] = complete_evals > 0
         context["router_entries"] = wo.router_entries.order_by('step_number')
 
         # LPT Reports
@@ -761,6 +762,11 @@ class ReleasePaperView(LoginRequiredMixin, DetailView):
         bit = wo.drill_bit
 
         context["page_title"] = f"Release Paper - {wo.wo_number}"
+        context["parent_url"] = reverse('workorders:workorder_detail_enhanced', kwargs={'pk': wo.pk})
+        # Return URL from query param (e.g., from location transfers page)
+        return_url = self.request.GET.get('return', '')
+        if return_url and return_url.startswith('/'):
+            context["return_url"] = return_url
 
         # QR codes
         from apps.workorders.utils import generate_work_order_qr, generate_drill_bit_qr
@@ -810,6 +816,16 @@ class ReleasePaperView(LoginRequiredMixin, DetailView):
             context["size_display"] = bit.design.size.size_display
         else:
             context["size_display"] = "--"
+
+        # Special instructions for this bit
+        if bit:
+            from apps.workorders.models import SpecialInstruction
+            all_instructions = SpecialInstruction.objects.filter(
+                is_active=True
+            ).select_related('target_process')
+            context["special_instructions"] = [si for si in all_instructions if si.matches_bit(bit)]
+        else:
+            context["special_instructions"] = []
 
         return context
 
@@ -1089,6 +1105,10 @@ class DrillBitDetailEnhancedView(LoginRequiredMixin, DetailView):
             status__in=['PENDING', 'RELEASED', 'ACTIVE', 'IN_PROGRESS', 'QC_PENDING', 'QC_PASSED', 'QC_FAILED', 'ON_HOLD']
         ).order_by('-created_at').first()
         context["active_wo"] = active_wo
+
+        # ── Accounts for BU assignment modal ──
+        from apps.sales.models import Account
+        context["accounts"] = Account.objects.filter(is_active=True).order_by('sort_order')
 
         return context
 
@@ -1649,37 +1669,51 @@ def api_router_step_scan(request, wo_pk, step_number):
         if entry.qr_scan_start:
             return JsonResponse({'error': 'Step already started', 'success': False})
         # Check WO status — must be ACTIVE or IN_PROGRESS to start work
-        if wo.status not in (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
-                             WorkOrder.Status.RELEASED):  # RELEASED allowed for legacy
+        if wo.status not in (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS):
             return JsonResponse({
                 'error': f'Cannot start — WO status is "{wo.get_status_display()}". WO must be approved (Active) before starting work.',
                 'success': False
             })
 
-        # Step order enforcement — block if prior steps are not complete
-        prior_incomplete = wo.router_entries.filter(
-            step_number__lt=entry.step_number,
-            is_complete=False,
-            step_status__in=['PENDING', 'IN_PROGRESS'],
-        ).exclude(
-            step_status__in=['SKIPPED', 'NOT_APPLICABLE'],
-        ).order_by('step_number')
-
-        skippable = True  # Allow starting if prior steps are all SKIPPED/NA/COMPLETED
-        blocking_steps = [s for s in prior_incomplete if s.step_status not in ('SKIPPED', 'NOT_APPLICABLE')]
+        # Step order enforcement — all prior steps must be complete or skipped
+        blocking_steps = list(
+            wo.router_entries.filter(
+                step_number__lt=entry.step_number,
+                is_complete=False,
+            ).exclude(
+                step_status='SKIPPED',
+            ).order_by('step_number')[:5]
+        )
         if blocking_steps:
-            step_nums = ', '.join(str(s.step_number) for s in blocking_steps[:5])
+            step_nums = ', '.join(str(s.step_number) for s in blocking_steps)
             return JsonResponse({
                 'error': f'Cannot start step {step_number} — prior steps not complete: {step_nums}. Complete or skip them first.',
                 'success': False
             })
 
-        # Location validation — warn if bit is not at a production-ready location
-        location_warning = ''
+        # Location validation — block if bit is not at a production-ready location
         if wo.drill_bit and wo.drill_bit.bit_location:
             loc = wo.drill_bit.bit_location
             if loc.location_type in ('RECEIVING', 'WAREHOUSE', 'DISPATCH', 'TRANSIT'):
-                location_warning = f'Note: bit is at {loc.name} — not a production area.'
+                return JsonResponse({
+                    'error': f'Cannot start — bit is at "{loc.name}" ({loc.location_type}). Transfer the bit to a production area first.',
+                    'success': False
+                })
+
+        # Special instruction gate — CRITICAL instructions block step start
+        if wo.drill_bit:
+            from apps.workorders.models import SpecialInstruction
+            for si in SpecialInstruction.objects.filter(is_active=True).select_related('target_process'):
+                if si.priority == 'CRITICAL' and si.matches_bit(wo.drill_bit):
+                    step_match = (si.target_process is None) or (
+                        si.target_process.name.lower() in entry.step_description.lower() or
+                        entry.step_description.lower() in si.target_process.name.lower()
+                    )
+                    if step_match:
+                        return JsonResponse({
+                            'error': f'Blocked by instruction: {si.instruction_text[:120]}. Contact supervisor to resolve.',
+                            'success': False
+                        })
 
         entry.qr_scan_start = timezone.now()
         entry.operator = request.user
@@ -1690,7 +1724,7 @@ def api_router_step_scan(request, wo_pk, step_number):
             entry.snapshot_kpi_context()
         entry.save()
         # Auto-update WO status to IN_PROGRESS if it was ACTIVE
-        if wo.status in (WorkOrder.Status.ACTIVE, WorkOrder.Status.RELEASED):
+        if wo.status == WorkOrder.Status.ACTIVE:
             wo.status = WorkOrder.Status.IN_PROGRESS
             wo.save(update_fields=['status', 'updated_at'])
 
@@ -1792,6 +1826,13 @@ def api_router_step_scan(request, wo_pk, step_number):
         entry.compute_durations()
         entry.save()
 
+        # Create StepDurationRecord for analytics
+        try:
+            from apps.workorders.models import StepDurationRecord
+            StepDurationRecord.create_from_entry(entry)
+        except Exception:
+            pass  # Don't block step completion if analytics record fails
+
         # Notify only when ALL router steps are now complete
         total = RouterSheetEntry.objects.filter(work_order=wo).count()
         done = RouterSheetEntry.objects.filter(work_order=wo, is_complete=True).count()
@@ -1826,7 +1867,11 @@ def api_router_step_scan(request, wo_pk, step_number):
             'duration_minutes': entry.duration_minutes,
         })
     elif action == 'skip':
+        skip_reason = request.POST.get('skip_reason', 'N/A')
         entry.is_complete = True
+        entry.step_status = RouterSheetEntry.StepStatus.SKIPPED
+        entry.skip_reason = skip_reason
+        entry.skipped_by = request.user
         entry.save()
         return JsonResponse({
             'success': True,
@@ -3246,15 +3291,17 @@ def api_approve_work_order(request, pk):
         if bit:
             bit.log_change('WO Status', old_status, 'Active (approved)', request.user)
             bit.save(update_fields=['change_log', 'updated_at'])
-            BitEvent.objects.create(
-                bit=bit,
-                event_type=BitEvent.EventType.NOTE,
-                event_date=_tz.now(),
-                location=bit.bit_location,
-                work_order=wo,
-                notes=f'WO {wo.wo_number} approved by {request.user.get_full_name() or request.user.username}. Status: {old_status} → Active.',
-                performed_by=request.user,
-            )
+            _evt_loc = bit.bit_location or Location.objects.filter(is_active=True).first()
+            if _evt_loc:
+                BitEvent.objects.create(
+                    bit=bit,
+                    event_type=BitEvent.EventType.NOTE,
+                    event_date=_tz.now(),
+                    location=_evt_loc,
+                    work_order=wo,
+                    notes=f'WO {wo.wo_number} approved by {request.user.get_full_name() or request.user.username}. Status: {old_status} → Active.',
+                    performed_by=request.user,
+                )
 
     # Notify
     try:
@@ -3348,15 +3395,17 @@ def api_transition_wo_status(request, pk):
     if bit:
         bit.log_change('WO Status', old_status, wo.get_status_display(), request.user)
         bit.save(update_fields=['change_log', 'updated_at'])
-        BitEvent.objects.create(
-            bit=bit,
-            event_type=BitEvent.EventType.NOTE,
-            event_date=_tz.now(),
-            location=bit.bit_location,
-            work_order=wo,
-            notes=f'WO {wo.wo_number}: {old_status} → {wo.get_status_display()}.{(" " + notes) if notes else ""}',
-            performed_by=request.user,
-        )
+        _evt_loc = bit.bit_location or Location.objects.filter(is_active=True).first()
+        if _evt_loc:
+            BitEvent.objects.create(
+                bit=bit,
+                event_type=BitEvent.EventType.NOTE,
+                event_date=_tz.now(),
+                location=_evt_loc,
+                work_order=wo,
+                notes=f'WO {wo.wo_number}: {old_status} → {wo.get_status_display()}.{(" " + notes) if notes else ""}',
+                performed_by=request.user,
+            )
 
     # Notify on key transitions
     try:
@@ -3557,13 +3606,20 @@ def api_delete_work_order(request, pk):
                 bit=bit, event_type=BitEvent.EventType.RELEASED_TO_PROD
             ).order_by('-event_date').first()
 
-    # Capture plan entry linked to this WO BEFORE deletion
-    plan_entry = ProductionPlanEntry.objects.filter(work_order=wo).first() if bit else None
-    if not plan_entry and bit:
-        plan_entry = _get_plan_entry_for_bit(bit)
+    # Capture plan entry PK linked to this WO BEFORE deletion (SET_NULL clears FK on delete)
+    plan_entry_pk = None
+    if bit:
+        pe = ProductionPlanEntry.objects.filter(work_order=wo).first()
+        if not pe:
+            pe = _get_plan_entry_for_bit(bit)
+        if pe:
+            plan_entry_pk = pe.pk
 
     # Delete the WO
     wo.delete()
+
+    # Re-fetch plan entry AFTER deletion (FK is now NULL but we have the PK)
+    plan_entry = ProductionPlanEntry.objects.filter(pk=plan_entry_pk).first() if plan_entry_pk else None
 
     # Handle bit status (no location change — user confirms transfer on Location Transfers page)
     result_msg = f'Work Order {wo_number} deleted (was {wo_status_was}).'
@@ -3609,14 +3665,13 @@ def api_delete_work_order(request, pk):
             notif_lines.append("Plan entry marked as Production Cancelled.")
         notif_message = '\n'.join(notif_lines)
 
-        # Action URL — direct the deleter to relevant pages (not location transfers)
-        # Notification link goes to Location Transfers (for floor operator to do physical move)
+        # Action URL — most relevant page based on the options chosen
         if bit and reverse_transaction and suggested_dest:
             notif_url = reverse('workorders:location_transfers') + f'?serial={bit.serial_number}&dest={suggested_dest}'
-        elif bit:
-            notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
         elif return_to_planner:
             notif_url = reverse('workorders:production_planner')
+        elif bit:
+            notif_url = reverse('workorders:drillbit_detail_enhanced', args=[bit.pk])
         else:
             notif_url = reverse('workorders:workorder_list_enhanced')
 
@@ -3727,14 +3782,16 @@ def _handle_bit_after_delete(bit, wo_number, reason, user, release_event=None):
         bit.status = restored_status
 
     # ── Audit event ──
-    BitEvent.objects.create(
-        bit=bit,
-        event_type=BitEvent.EventType.WO_CANCELLED,
-        event_date=_tz.now(),
-        location=bit.bit_location,
-        notes=f'WO {wo_number} {reason}. Bit at {bit.bit_location.name if bit.bit_location else "unknown"}. Transfer pending confirmation.',
-        performed_by=user,
-    )
+    event_loc = bit.bit_location or Location.objects.filter(is_active=True).first()
+    if event_loc:
+        BitEvent.objects.create(
+            bit=bit,
+            event_type=BitEvent.EventType.WO_CANCELLED,
+            event_date=_tz.now(),
+            location=event_loc,
+            notes=f'WO {wo_number} {reason}. Bit at {event_loc.name}. Transfer pending confirmation.',
+            performed_by=user,
+        )
 
     bit.save(update_fields=['status', 'change_log', 'updated_at'])
 
@@ -3890,6 +3947,91 @@ def api_locations_list(request):
     locs = Location.objects.filter(is_active=True).order_by('location_type', 'name')
     return JsonResponse({
         'locations': [{'id': l.pk, 'name': l.name, 'code': l.code, 'type': l.get_location_type_display()} for l in locs]
+    })
+
+
+@login_required
+def api_confirm_release(request):
+    """
+    Confirm release when bit is already at the correct destination.
+    No physical transfer needed — just release the WO if one is pending.
+    POST body: { bit_id, reason }
+    """
+    import json as _jn
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+    try:
+        data = _jn.loads(request.body)
+    except _jn.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    bit_id = data.get('bit_id')
+    reason = data.get('reason', '').strip()
+    if not bit_id:
+        return JsonResponse({'success': False, 'error': 'bit_id required'})
+
+    try:
+        bit = DrillBit.objects.select_related('bit_location').get(pk=bit_id)
+    except DrillBit.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Drill bit not found'})
+
+    # Create a NOTE event for the release confirmation
+    loc = bit.bit_location or Location.objects.filter(is_active=True).first()
+    if not loc:
+        return JsonResponse({'success': False, 'error': 'No location configured'})
+    BitEvent.objects.create(
+        bit=bit,
+        event_type=BitEvent.EventType.NOTE,
+        event_date=timezone.now(),
+        location=loc,
+        notes=f'Release confirmed (bit already at destination). {reason}'.strip(),
+        performed_by=request.user,
+    )
+
+    # Check for pending WO release
+    msg = ''
+    plan_entry = ProductionPlanEntry.objects.filter(
+        drill_bit=bit,
+        status=ProductionPlanEntry.Status.PENDING_RELEASE,
+    ).select_related('work_order').first()
+
+    if plan_entry and plan_entry.work_order:
+        wo = plan_entry.work_order
+        if wo.status == WorkOrder.Status.PENDING:
+            wo.status = WorkOrder.Status.RELEASED
+            wo.save(update_fields=['status', 'updated_at'])
+            plan_entry.status = ProductionPlanEntry.Status.WO_CREATED
+            plan_entry.save(update_fields=['status'])
+            msg = f' WO {wo.wo_number} released.'
+
+            try:
+                from apps.notifications.services import notify
+                serial = bit.serial_number
+                notify(
+                    actor=request.user,
+                    verb="confirmed release:",
+                    target=f"WO {wo.wo_number} (S/N {serial}) — ready for approval",
+                    priority="HIGH",
+                    action_url=reverse('workorders:workorder_detail_enhanced', kwargs={'pk': wo.pk}),
+                    entity_type="WorkOrder",
+                    entity_id=wo.pk,
+                )
+            except Exception:
+                pass
+    else:
+        # Check for orphaned PENDING WOs
+        pending_wo = WorkOrder.objects.filter(
+            drill_bit=bit,
+            status=WorkOrder.Status.PENDING,
+        ).first()
+        if pending_wo:
+            pending_wo.status = WorkOrder.Status.RELEASED
+            pending_wo.save(update_fields=['status', 'updated_at'])
+            msg = f' WO {pending_wo.wo_number} released.'
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Release confirmed for S/N {bit.serial_number}.{msg}',
     })
 
 
@@ -6951,7 +7093,7 @@ def api_step_add(request, wo_pk):
 
 @login_required
 def api_step_skip(request, wo_pk, step_number):
-    """Skip a step with optional reason."""
+    """Skip a step with structured reason."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
 
@@ -6966,19 +7108,126 @@ def api_step_skip(request, wo_pk, step_number):
     except (ValueError, TypeError):
         data = {}
 
-    reason = (data.get('reason') or '').strip()
-    if reason and not entry.remarks:
-        entry.remarks = f"[SKIPPED] {reason}"
-    elif reason:
-        entry.remarks = entry.remarks + f"\n[SKIPPED] {reason}"
+    skip_reason = (data.get('skip_reason') or '').strip()
+    notes = (data.get('notes') or '').strip()
+    approved_by_name = (data.get('approved_by') or '').strip()
+
+    if not skip_reason:
+        return JsonResponse({'error': 'Please select a skip reason.', 'success': False})
+
+    # Build remark text
+    reason_display = dict(RouterSheetEntry.SkipReason.choices).get(skip_reason, skip_reason)
+    remark = f"[SKIPPED: {reason_display}]"
+    if approved_by_name:
+        remark += f" Approved by: {approved_by_name}"
+    if notes:
+        remark += f" — {notes}"
+
+    if entry.remarks:
+        entry.remarks = entry.remarks + "\n" + remark
     else:
-        if not entry.remarks:
-            entry.remarks = "[SKIPPED]"
+        entry.remarks = remark
 
     entry.is_complete = True
+    entry.step_status = RouterSheetEntry.StepStatus.SKIPPED
+    entry.skip_reason = skip_reason
+    entry.skipped_by = request.user
     entry.save()
 
     return JsonResponse({'success': True, 'step_number': step_number, 'action': 'skipped'})
+
+
+@login_required
+def api_step_unskip(request, wo_pk, step_number):
+    """Unskip a previously skipped step — supervisor only."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Supervisor access required', 'success': False}, status=403)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+    entry = get_object_or_404(RouterSheetEntry, work_order=wo, step_number=step_number)
+
+    if entry.step_status != 'SKIPPED':
+        return JsonResponse({'error': 'Step is not skipped', 'success': False})
+
+    entry.is_complete = False
+    entry.step_status = RouterSheetEntry.StepStatus.PENDING
+    entry.skip_reason = ''
+    entry.skipped_by = None
+    entry.qr_scan_start = None
+    entry.qr_scan_end = None
+    old_remarks = entry.remarks or ''
+    entry.remarks = old_remarks + f"\n[UNSKIPPED by {request.user.get_full_name() or request.user.username}]"
+    entry.save()
+
+    return JsonResponse({'success': True, 'step_number': step_number, 'action': 'unskipped'})
+
+
+@login_required
+def api_step_reorder(request, wo_pk):
+    """
+    Reorder pending steps in the router sheet — supervisor only.
+    POST body: { "order": [step_number_1, step_number_2, ...] }
+    The new sequence assigns step_number 10, 20, 30... in the given order.
+    Only PENDING (not started, not completed) steps can be reordered.
+    Completed/in-progress steps keep their position.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Supervisor access required', 'success': False}, status=403)
+
+    wo = get_object_or_404(WorkOrder, pk=wo_pk)
+
+    try:
+        data = _json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Invalid JSON', 'success': False}, status=400)
+
+    new_order = data.get('order', [])
+    if not new_order:
+        return JsonResponse({'error': 'No order provided', 'success': False})
+
+    entries = list(wo.router_entries.order_by('step_number'))
+
+    # Separate fixed (completed/in-progress) from movable (pending) entries
+    fixed = [e for e in entries if e.is_complete or e.qr_scan_start]
+    movable_pks = {e.pk for e in entries if not e.is_complete and not e.qr_scan_start}
+
+    # Validate: new_order must contain exactly the movable PKs
+    if set(new_order) != movable_pks:
+        return JsonResponse({'error': 'Order must contain exactly the pending step PKs', 'success': False})
+
+    # Determine numbering: start after the last fixed step
+    if fixed:
+        start_num = max(e.step_number for e in fixed) + 10
+    else:
+        start_num = 10
+
+    # Use a high temporary range to avoid UNIQUE constraint collisions
+    from django.db import transaction
+    with transaction.atomic():
+        # Phase 1: move all movable to temp numbers (9000+)
+        for i, pk in enumerate(new_order):
+            RouterSheetEntry.objects.filter(pk=pk).update(step_number=9000 + i)
+
+        # Phase 2: assign final numbers
+        for i, pk in enumerate(new_order):
+            final_num = start_num + (i * 10)
+            RouterSheetEntry.objects.filter(pk=pk).update(step_number=final_num)
+
+    # Log the action
+    entry_first = RouterSheetEntry.objects.filter(pk=new_order[0]).first()
+    if entry_first:
+        entry_first.remarks = (entry_first.remarks or '') + f"\n[REORDERED by {request.user.get_full_name() or request.user.username}]"
+        entry_first.save(update_fields=['remarks'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Reordered {len(new_order)} steps',
+        'action': 'reordered',
+    })
 
 
 @login_required
@@ -7047,25 +7296,45 @@ def api_step_pause(request, wo_pk, step_number):
             'hold_since': entry.hold_since.isoformat(),
         })
 
-    elif action == 'waiting_qc':
-        entry.step_status = RouterSheetEntry.StepStatus.WAITING_QC
-        entry.save(update_fields=['step_status'])
-        return JsonResponse({'success': True, 'action': 'waiting_qc'})
+    elif action in ('waiting_qc', 'waiting_approval', 'waiting_tech'):
+        status_map = {
+            'waiting_qc': RouterSheetEntry.StepStatus.WAITING_QC,
+            'waiting_approval': RouterSheetEntry.StepStatus.WAITING_APPROVAL,
+            'waiting_tech': RouterSheetEntry.StepStatus.WAITING_TECH,
+        }
+        label_map = {
+            'waiting_qc': 'QC review',
+            'waiting_approval': 'approval',
+            'waiting_tech': 'technical review',
+        }
+        entry.step_status = status_map[action]
+        entry.hold_since = entry.hold_since or timezone.now()
+        if not entry.paused_at and entry.qr_scan_start:
+            entry.paused_at = timezone.now()
+        entry.save(update_fields=['step_status', 'hold_since', 'paused_at'])
 
-    elif action == 'waiting_approval':
-        entry.step_status = RouterSheetEntry.StepStatus.WAITING_APPROVAL
-        entry.save(update_fields=['step_status'])
-        return JsonResponse({'success': True, 'action': 'waiting_approval'})
+        try:
+            from apps.notifications.services import notify
+            serial = wo.drill_bit.serial_number if wo.drill_bit else '?'
+            notify(
+                actor=request.user,
+                verb=f"requested {label_map[action]}:",
+                target=f"{entry.step_description} — WO {wo.wo_number} (S/N {serial})",
+                priority="HIGH",
+                action_url=reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step_number}),
+                entity_type="RouterSheetEntry",
+                entity_id=entry.pk,
+            )
+        except Exception:
+            pass
 
-    elif action == 'waiting_tech':
-        entry.step_status = RouterSheetEntry.StepStatus.WAITING_TECH
-        entry.save(update_fields=['step_status'])
-        return JsonResponse({'success': True, 'action': 'waiting_tech'})
+        return JsonResponse({'success': True, 'action': action})
 
     elif action == 'resume':
         if not entry.paused_at and entry.step_status not in ('ON_HOLD', 'PAUSED', 'WAITING_QC', 'WAITING_APPROVAL', 'WAITING_TECH'):
             return JsonResponse({'error': 'Not paused or on hold', 'success': False})
 
+        prev_status = entry.step_status
         if entry.paused_at:
             pause_duration = int((timezone.now() - entry.paused_at).total_seconds())
             entry.total_paused_seconds = (entry.total_paused_seconds or 0) + pause_duration
@@ -7075,6 +7344,24 @@ def api_step_pause(request, wo_pk, step_number):
         entry.hold_notes = ''
         entry.hold_since = None
         entry.save(update_fields=['paused_at', 'total_paused_seconds', 'step_status', 'hold_reason', 'hold_notes', 'hold_since'])
+
+        # Notify the original operator that step is resumed
+        if entry.operator and entry.operator != request.user:
+            try:
+                from apps.notifications.services import notify
+                notify(
+                    actor=request.user,
+                    verb="resumed step:",
+                    target=f"{entry.step_description} — WO {wo.wo_number}",
+                    priority="NORMAL",
+                    recipients=entry.operator,
+                    action_url=reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': step_number}),
+                    entity_type="RouterSheetEntry",
+                    entity_id=entry.pk,
+                )
+            except Exception:
+                pass
+
         return JsonResponse({
             'success': True,
             'action': 'resumed',
@@ -7764,3 +8051,141 @@ def api_operator_qr_scan(request):
             return JsonResponse({'error': f'Bit not found: {serial}'}, status=404)
 
     return JsonResponse({'error': f'Unrecognized QR format: {qr_data}'}, status=400)
+
+
+# =============================================================================
+# PRODUCTION FLOOR BOARD (Real-time WO status across the floor)
+# =============================================================================
+
+class ProductionFloorBoardView(LoginRequiredMixin, TemplateView):
+    """
+    Real-time floor status display — shows all active WOs with their current step,
+    operator, elapsed time, and status. Auto-refreshes via HTMX polling.
+    """
+    template_name = "workorders/floor_board.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Production Floor Board'
+
+        active_statuses = [
+            WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+            WorkOrder.Status.RELEASED, WorkOrder.Status.QC_PENDING,
+        ]
+        work_orders = WorkOrder.objects.filter(
+            status__in=active_statuses
+        ).select_related(
+            'drill_bit', 'drill_bit__design', 'drill_bit__design__size',
+            'drill_bit__bit_location', 'account',
+        ).prefetch_related('router_entries', 'router_entries__operator')
+
+        board_data = []
+        for wo in work_orders:
+            entries = list(wo.router_entries.order_by('step_number'))
+            total = len(entries)
+            done = sum(1 for e in entries if e.is_complete)
+            current = next((e for e in entries if e.qr_scan_start and not e.is_complete), None)
+            next_pending = next((e for e in entries if not e.is_complete and not e.qr_scan_start), None)
+
+            bit = wo.drill_bit
+            board_data.append({
+                'wo': wo,
+                'serial': bit.serial_number if bit else '?',
+                'size': bit.design.size.size_display if bit and bit.design and bit.design.size else '--',
+                'account': wo.account.code if wo.account else '--',
+                'location': bit.bit_location.name if bit and bit.bit_location else '--',
+                'total_steps': total,
+                'done_steps': done,
+                'progress': round(done / total * 100) if total > 0 else 0,
+                'current_step': current,
+                'next_step': next_pending,
+                'operator': current.operator if current else None,
+                'status': wo.status,
+                'has_hold': any(e.step_status in ('ON_HOLD', 'WAITING_QC', 'WAITING_APPROVAL', 'WAITING_TECH') for e in entries),
+            })
+
+        # Sort: held items first, then by progress descending
+        board_data.sort(key=lambda x: (not x['has_hold'], -x['progress']))
+        context['board_data'] = board_data
+        context['active_count'] = len(board_data)
+        return context
+
+
+# =============================================================================
+# KPI API — Step duration analytics
+# =============================================================================
+
+@login_required
+def api_kpi_step_durations(request):
+    """
+    API for step duration KPIs.
+    Query params:
+      - group_by: process_code | design_mat | bit_size | operator | account_code
+      - process_code: filter by specific process
+      - size: filter by bit size
+      - material: filter by body material (M/S)
+      - operator_id: filter by operator
+      - days: time window (default 90)
+    Returns: aggregated average/min/max durations.
+    """
+    from apps.workorders.models import StepDurationRecord
+    from django.db.models import Avg, Min, Max, Count, Q
+
+    qs = StepDurationRecord.objects.filter(was_skipped=False, is_passive=False)
+
+    # Time window
+    days = int(request.GET.get('days', 90))
+    if days > 0:
+        cutoff = timezone.now() - timedelta(days=days)
+        qs = qs.filter(completed_at__gte=cutoff)
+
+    # Filters
+    process_code = request.GET.get('process_code')
+    if process_code:
+        qs = qs.filter(process_code=process_code)
+
+    size = request.GET.get('size')
+    if size:
+        qs = qs.filter(bit_size=size)
+
+    material = request.GET.get('material')
+    if material:
+        qs = qs.filter(body_material=material)
+
+    operator_id = request.GET.get('operator_id')
+    if operator_id:
+        qs = qs.filter(operator_id=operator_id)
+
+    account = request.GET.get('account')
+    if account:
+        qs = qs.filter(account_code=account)
+
+    design_mat = request.GET.get('design_mat')
+    if design_mat:
+        qs = qs.filter(design_mat=design_mat)
+
+    # Group by
+    group_by = request.GET.get('group_by', 'process_code')
+    valid_groups = ['process_code', 'design_mat', 'bit_size', 'operator_name', 'account_code', 'body_material']
+    if group_by not in valid_groups:
+        group_by = 'process_code'
+
+    results = qs.values(group_by).annotate(
+        avg_seconds=Avg('duration_net_seconds'),
+        min_seconds=Min('duration_net_seconds'),
+        max_seconds=Max('duration_net_seconds'),
+        count=Count('id'),
+    ).order_by('-count')[:50]
+
+    data = []
+    for r in results:
+        avg = r['avg_seconds'] or 0
+        data.append({
+            'group': str(r[group_by] or '--'),
+            'avg_minutes': round(avg / 60, 1),
+            'min_minutes': round((r['min_seconds'] or 0) / 60, 1),
+            'max_minutes': round((r['max_seconds'] or 0) / 60, 1),
+            'count': r['count'],
+        })
+
+    return JsonResponse({'results': data, 'group_by': group_by, 'total_records': qs.count()})

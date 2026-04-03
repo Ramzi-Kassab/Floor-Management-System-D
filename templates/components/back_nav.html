@@ -1,0 +1,13 @@
+{% comment %}
+Reusable "Back to Parent" text link component.
+The topnav already has a global back arrow (history.back).
+This component provides the "Back to [Parent Page]" text link only.
+
+Usage: {% include "components/back_nav.html" with parent_url="/some/url/" parent_label="Work Order" %}
+{% endcomment %}
+{% if parent_label %}
+<a href="{{ parent_url }}" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-xs flex items-center gap-1">
+    <i data-lucide="corner-up-left" class="w-3 h-3"></i>
+    Back to {{ parent_label }}
+</a>
+{% endif %}

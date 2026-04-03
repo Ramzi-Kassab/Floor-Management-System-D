@@ -1348,10 +1348,10 @@
                 {% endif %}
 
                 {% if drill_bit.status in 'RECEIVED,IN_STOCK,IN_COMPONENTS,BACKLOADED,IN_EVALUATION' and not active_wo %}
-                <a href="{% url 'workorders:production_planner' %}"
-                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-sm">
+                <button onclick="openBUModal()"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-sm w-full text-left">
                     <i data-lucide="calendar-range" class="w-4 h-4 text-orange-500 mr-2"></i>Add to Planner
-                </a>
+                </button>
                 {% endif %}
 
                 {# ── Dispatch ── #}
@@ -1605,5 +1605,136 @@ async function saveAuditEdit(eventId) {
     } catch (e) { errEl.textContent = 'Error: ' + e.message; errEl.classList.remove('hidden'); }
 }
 {% endif %}
+
+// ─── Business Unit Assignment Modal ─────────────────────────────────────────
+const _buMeta = {
+    {% for acc in accounts %}'{{ acc.code }}': { wf: '{{ acc.workflow_type }}', name: '{{ acc.name }}' },{% endfor %}
+};
+let _buWork = '';
+
+function openBUModal() {
+    document.getElementById('buModal').classList.remove('hidden');
+    document.getElementById('buSelect').value = '{{ drill_bit.account.code|default:"" }}';
+    document.getElementById('buError').classList.add('hidden');
+    _buWork = '';
+    _resetBUBtns();
+    if ('{{ drill_bit.account.code|default:"" }}') _onBUSelect('{{ drill_bit.account.code|default:"" }}');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeBUModal() { document.getElementById('buModal').classList.add('hidden'); }
+
+function _onBUSelect(code) {
+    const meta = _buMeta[code];
+    const row = document.getElementById('buWTRow');
+    if (!meta) { row.classList.add('hidden'); return; }
+    row.classList.remove('hidden');
+    const cond = '{{ drill_bit.condition|default:"" }}';
+    const repConds = ['REPAIRED', 'RERUN', 'USED', 'NOT_USED', 'RETROFITTED'];
+    if (meta.wf === 'REPAIR') _selectBUWT(repConds.includes(cond) || !cond ? 'REPAIR' : 'NEW');
+    else if (meta.wf === 'MANUFACTURE') _selectBUWT(repConds.includes(cond) ? 'REPAIR' : 'NEW');
+    else _selectBUWT(repConds.includes(cond) ? 'REPAIR' : 'NEW');
+}
+
+function _selectBUWT(wt) {
+    _buWork = wt;
+    _resetBUBtns();
+    const base = 'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all';
+    if (wt === 'NEW') document.getElementById('buBtnNew').className = base + ' border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    else document.getElementById('buBtnRepair').className = base + ' border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+}
+
+function _resetBUBtns() {
+    const base = 'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all border-gray-200 dark:border-gray-600 text-gray-500';
+    document.getElementById('buBtnNew').className = base;
+    document.getElementById('buBtnRepair').className = base;
+}
+
+async function submitBU(action) {
+    const buCode = document.getElementById('buSelect').value;
+    const errEl = document.getElementById('buError');
+    if (!buCode) { errEl.textContent = 'Please select a Business Unit.'; errEl.classList.remove('hidden'); return; }
+    if (!_buWork) { errEl.textContent = 'Please select New or Repair.'; errEl.classList.remove('hidden'); return; }
+    errEl.classList.add('hidden');
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+    try {
+        // Step 1: Assign account
+        const r1 = await fetch('{% url "workorders:api_update_bit_account" %}', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ bit_id: {{ drill_bit.pk }}, account_code: buCode, work_type: _buWork,
+                requester: document.getElementById('buRequester').value,
+                justification: document.getElementById('buJustification').value })
+        });
+        const d1 = await r1.json();
+        if (!d1.success) { errEl.textContent = d1.error || 'Failed'; errEl.classList.remove('hidden'); return; }
+
+        // Step 2: If "Assign & Plan", also add to planner
+        if (action === 'assign_and_plan') {
+            const r2 = await fetch('{% url "workorders:api_add_to_plan" %}', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                body: JSON.stringify({ serial_number: '{{ drill_bit.serial_number }}', account: buCode,
+                    work_type: _buWork, priority: 'NORMAL', planned_date: '', intended_wo_type: '', notes: '' })
+            });
+            const d2 = await r2.json();
+            if (!d2.success) { errEl.textContent = 'Account assigned, but planner failed: ' + d2.error; errEl.classList.remove('hidden'); return; }
+        }
+        closeBUModal();
+        location.reload();
+    } catch (e) { errEl.textContent = 'Network error'; errEl.classList.remove('hidden'); }
+}
 </script>
+
+{# ═══ Business Unit Assignment Modal ═══ #}
+<div id="buModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeBUModal()">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Assign Business Unit</h2>
+                <p class="text-sm text-gray-500 mt-0.5">S/N: {{ drill_bit.serial_number }}{% if drill_bit.design.hdbs_type %} · {{ drill_bit.design.hdbs_type }}{% endif %}{% if drill_bit.design.size %} · {{ drill_bit.design.size.size_display }}"{% endif %}</p>
+            </div>
+            <button onclick="closeBUModal()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="px-6 py-5 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Business Unit <span class="text-red-500">*</span></label>
+                <select id="buSelect" onchange="_onBUSelect(this.value)"
+                        class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500">
+                    <option value="">-- Select Business Unit --</option>
+                    {% for acc in accounts %}<option value="{{ acc.code }}" data-wf="{{ acc.workflow_type }}">{{ acc.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div id="buWTRow" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New or Repair? <span class="text-red-500">*</span></label>
+                <div class="flex gap-2">
+                    <button type="button" id="buBtnNew" onclick="_selectBUWT('NEW')" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium border-gray-200 dark:border-gray-600 text-gray-500">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> New
+                    </button>
+                    <button type="button" id="buBtnRepair" onclick="_selectBUWT('REPAIR')" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium border-gray-200 dark:border-gray-600 text-gray-500">
+                        <i data-lucide="wrench" class="w-4 h-4"></i> Repair
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requester</label>
+                <input type="text" id="buRequester" value="{{ request.user.get_full_name|default:request.user.username }}"
+                       class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Justification <span class="text-gray-400 text-xs">(optional)</span></label>
+                <textarea id="buJustification" rows="2" placeholder="Reason for assignment..."
+                          class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 resize-none"></textarea>
+            </div>
+            <div id="buError" class="hidden text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg"></div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
+            <button onclick="submitBU('assign_only')" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm">
+                <i data-lucide="bookmark" class="w-4 h-4"></i> Assign Business Unit Only
+            </button>
+            <button onclick="submitBU('assign_and_plan')" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm">
+                <i data-lucide="calendar-plus" class="w-4 h-4"></i> Assign & Add to Planner
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -63,13 +63,17 @@
 {% block page_header %}
 <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
-        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
-           class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <i data-lucide="arrow-left" class="w-5 h-5"></i>
-        </a>
         <div>
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">Release Paper</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ work_order.wo_number }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ work_order.wo_number }}
+                <span class="mx-1 text-gray-300">|</span>
+                {% if return_url %}
+                <a href="{{ return_url }}" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Back to Transfers</a>
+                <span class="mx-1 text-gray-300">|</span>
+                {% endif %}
+                <a href="{{ parent_url }}" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Back to Work Order</a>
+            </p>
         </div>
     </div>
     <div class="flex items-center gap-2 no-print">
@@ -98,7 +102,7 @@
                 </td>
                 <td rowspan="4" style="width:90px; text-align:center; vertical-align:middle;">
                     {% if qr_code %}
-                    <img src="data:image/png;base64,{{ qr_code }}" alt="QR" style="width:80px; height:80px;">
+                    <img src="{{ qr_code }}" alt="QR" style="width:80px; height:80px;">
                     {% endif %}
                 </td>
             </tr>
@@ -127,7 +131,7 @@
     <div class="print:hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-4 flex items-start gap-4">
         {% if qr_code %}
         <div class="bg-white p-2 rounded-lg border border-gray-200 dark:border-gray-600 flex-shrink-0">
-            <img src="data:image/png;base64,{{ qr_code }}" alt="QR" class="w-20 h-20">
+            <img src="{{ qr_code }}" alt="QR" class="w-20 h-20">
         </div>
         {% endif %}
         <div class="flex-1 min-w-0">
@@ -205,58 +209,36 @@
         {% endif %}
     </div>
 
-    <!-- ===== SECTION 2: ROUTE SUMMARY ===== -->
+    <!-- ===== SECTION 2: SPECIAL INSTRUCTIONS ===== -->
+    {% if special_instructions %}
     <div class="rp-section bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 mb-4">
         <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <i data-lucide="route" class="w-4 h-4 text-green-500 no-print"></i>
-            Production Route ({{ router_entries|length }} steps)
+            <i data-lucide="alert-circle" class="w-4 h-4 text-amber-500 no-print"></i>
+            Special Instructions ({{ special_instructions|length }})
         </h3>
-        {% if router_entries %}
-        <table class="rp-route-table">
-            <thead>
-                <tr>
-                    <th style="width:40px">#</th>
-                    <th>Process Step</th>
-                    <th style="width:80px">Category</th>
-                    <th style="width:50px">QC</th>
-                    <th style="width:80px">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in router_entries %}
-                <tr>
-                    <td class="font-mono text-gray-500">{{ entry.step_number }}</td>
-                    <td class="font-medium text-gray-900 dark:text-white">
-                        {{ entry.step_description }}
-                        {% if entry.instructions %}<span class="text-gray-400 text-[10px] ml-1">(has instructions)</span>{% endif %}
-                    </td>
-                    <td>
-                        {% if entry.source_operation %}
-                        <span class="text-xs text-gray-500">{{ entry.source_operation.get_category_display|default:"--" }}</span>
-                        {% else %}--{% endif %}
-                    </td>
-                    <td>
-                        {% if entry.source_operation and entry.source_operation.requires_qc %}
-                        <span class="text-xs text-purple-600 font-semibold">QC</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if entry.step_status == 'COMPLETED' %}
-                        <span class="text-xs text-green-600 font-medium">Done</span>
-                        {% elif entry.step_status == 'IN_PROGRESS' %}
-                        <span class="text-xs text-yellow-600 font-medium">Active</span>
-                        {% else %}
-                        <span class="text-xs text-gray-400">Pending</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="text-sm text-gray-400">No route steps assigned yet.</p>
-        {% endif %}
+        <div class="space-y-2">
+            {% for si in special_instructions %}
+            <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg {% if si.priority == 'CRITICAL' %}bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800{% elif si.priority == 'HIGH' %}bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800{% else %}bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700{% endif %}">
+                <span class="flex-shrink-0 mt-0.5">
+                    {% if si.priority == 'CRITICAL' %}<i data-lucide="alert-octagon" class="w-4 h-4 text-red-500 no-print"></i>
+                    {% elif si.priority == 'HIGH' %}<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 no-print"></i>
+                    {% else %}<i data-lucide="info" class="w-4 h-4 text-blue-500 no-print"></i>{% endif %}
+                </span>
+                <div class="min-w-0">
+                    <p class="text-sm text-gray-900 dark:text-white">{{ si.instruction_text }}</p>
+                    {% if si.target_process %}
+                    <p class="text-xs text-gray-500 mt-0.5">Step: {{ si.target_process.name }}</p>
+                    {% endif %}
+                    {% if si.valid_to %}
+                    <p class="text-xs text-gray-400 mt-0.5">Valid until: {{ si.valid_to|date:"M d, Y" }}</p>
+                    {% endif %}
+                </div>
+                <span class="flex-shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded {% if si.priority == 'CRITICAL' %}bg-red-100 text-red-700{% elif si.priority == 'HIGH' %}bg-amber-100 text-amber-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ si.priority }}</span>
+            </div>
+            {% endfor %}
+        </div>
     </div>
+    {% endif %}
 
     <!-- ===== SECTION 3: BOM SUMMARY (if available) ===== -->
     {% if bom_lines %}

@@ -269,7 +269,28 @@
     <div class="section-card" id="section-timer">
         <div class="px-5 py-5">
 
-            {% if step.is_complete %}
+            {% if step.step_status == 'SKIPPED' %}
+            <!-- SKIPPED STATE -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <i data-lucide="skip-forward" class="w-7 h-7 text-gray-500 dark:text-gray-400"></i>
+                </div>
+                <div>
+                    <p class="text-lg font-bold text-gray-600 dark:text-gray-400">Step Skipped</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ step.get_skip_reason_display|default:"No reason" }}
+                        {% if step.skipped_by %} — by {{ step.skipped_by.get_full_name|default:step.skipped_by.username }}{% endif %}
+                    </p>
+                </div>
+                {% if request.user.is_staff %}
+                <button onclick="if(confirm('Return this step to pending?')) fetch('{% url 'workorders:api_step_unskip' wo_pk=work_order.pk step_number=step.step_number %}', {method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]')?.value},body:'{}'}).then(r=>r.json()).then(d=>{if(d.success)location.reload();else alert(d.error)})"
+                        class="ml-auto px-3 py-1.5 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg hover:bg-blue-200 font-medium flex items-center gap-1">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i> Unskip
+                </button>
+                {% endif %}
+            </div>
+
+            {% elif step.is_complete %}
             <!-- COMPLETED STATE -->
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
@@ -345,7 +366,7 @@
                 </button>
 
                 <!-- Skip -->
-                <button @click="skipStep()" class="btn-action btn-skip btn-sm" :disabled="saving">
+                <button @click="showSkipModal = true" class="btn-action btn-skip btn-sm" :disabled="saving">
                     <i data-lucide="skip-forward" class="w-4 h-4"></i>
                     Skip
                 </button>
@@ -400,6 +421,47 @@
             {% else %}
             <p class="text-sm text-gray-400 italic">No specific instructions for this step.</p>
             {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SPECIAL INSTRUCTIONS (gating)                                  -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if special_instructions %}
+    <div class="section-card" x-data="{ open: true }">
+        <div class="section-header" @click="open = !open">
+            <div class="flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4 text-amber-500"></i>
+                <span class="section-label mb-0">Special Instructions</span>
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{{ special_instructions|length }}</span>
+            </div>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
+        </div>
+        <div x-show="open" x-collapse class="section-body space-y-2">
+            {% for si in special_instructions %}
+            <div class="flex items-start gap-3 p-3 rounded-lg border
+                {% if si.priority == 'CRITICAL' %}bg-red-50 dark:bg-red-900/15 border-red-300 dark:border-red-800
+                {% elif si.priority == 'HIGH' %}bg-amber-50 dark:bg-amber-900/15 border-amber-300 dark:border-amber-800
+                {% else %}bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800{% endif %}">
+                <span class="flex-shrink-0 mt-0.5">
+                    {% if si.priority == 'CRITICAL' %}<i data-lucide="alert-octagon" class="w-5 h-5 text-red-500"></i>
+                    {% elif si.priority == 'HIGH' %}<i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                    {% else %}<i data-lucide="info" class="w-5 h-5 text-blue-500"></i>{% endif %}
+                </span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded
+                            {% if si.priority == 'CRITICAL' %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300
+                            {% elif si.priority == 'HIGH' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+                            {% else %}bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300{% endif %}">{{ si.priority }}</span>
+                        {% if si.target_process %}<span class="text-[10px] text-gray-500">{{ si.target_process.name }}</span>{% endif %}
+                    </div>
+                    <p class="text-sm text-gray-900 dark:text-white whitespace-pre-line">{{ si.instruction_text }}</p>
+                    {% if si.created_by %}<p class="text-xs text-gray-400 mt-1">By: {{ si.created_by.get_full_name|default:si.created_by.username }}{% if si.valid_to %} · Until: {{ si.valid_to|date:"M d, Y" }}{% endif %}</p>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
     {% endif %}
@@ -944,6 +1006,53 @@
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SKIP STEP MODAL                                               -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div x-show="showSkipModal" x-transition.opacity
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+         @keydown.escape.window="showSkipModal = false"
+         style="display: none;">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+             @click.outside="showSkipModal = false">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-base font-bold text-gray-900 dark:text-white">Skip Step</h3>
+                <p class="text-xs text-gray-500 mt-0.5">{{ step.step_description }}</p>
+            </div>
+            <div class="px-5 py-4 space-y-4">
+                <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Reason <span class="text-red-500">*</span></label>
+                    <div class="space-y-1.5">
+                        <template x-for="opt in skipReasonOptions" :key="opt.value">
+                            <label class="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-all"
+                                   :class="skipReason === opt.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30'">
+                                <input type="radio" name="skip_reason" :value="opt.value" x-model="skipReason" class="text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm text-gray-800 dark:text-gray-200" x-text="opt.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                <div x-show="skipReason === 'APPROVED_BY'">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Approved by</label>
+                    <input type="text" x-model="skipApprovedBy" placeholder="Supervisor name"
+                           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Notes <span class="text-gray-400 text-xs">(optional)</span></label>
+                    <textarea x-model="skipNotes" rows="2" placeholder="Additional details..."
+                              class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm px-3 py-2 resize-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                <button @click="showSkipModal = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Cancel</button>
+                <button @click="confirmSkip()" :disabled="!skipReason || saving"
+                        class="px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 font-medium">
+                    Skip Step
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div x-show="toast" x-transition
          class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium"
@@ -997,6 +1106,23 @@ function stepPage() {
         newStepDesc: '',
         newStepReason: '',
         newStepPosition: 'after',
+
+        // Skip modal
+        showSkipModal: false,
+        skipReason: '',
+        skipNotes: '',
+        skipApprovedBy: '',
+        skipReasonOptions: [
+            { value: 'N/A', label: 'Not Applicable (N/A)' },
+            { value: 'IN_SPEC', label: 'Within specification — no action needed' },
+            { value: 'ACCEPTED', label: 'Accepted as-is' },
+            { value: 'APPROVED_BY', label: 'Approved to skip by supervisor' },
+            { value: 'NOT_REQ', label: 'Not required for this bit type' },
+            { value: 'DONE_EXT', label: 'Done externally / previously completed' },
+            { value: 'DEFERRED', label: 'Deferred to next cycle' },
+            { value: 'REORDERED', label: 'Reordered — will execute later' },
+            { value: 'OTHER', label: 'Other (see notes)' },
+        ],
 
         // Toast
         toast: false,
@@ -1109,11 +1235,18 @@ function stepPage() {
             this.saving = false;
         },
 
-        async skipStep() {
-            if (!confirm('Skip this step? A reason is recommended.')) return;
+        async confirmSkip() {
+            if (!this.skipReason) {
+                this.showToast('Please select a skip reason', 'error');
+                return;
+            }
             this.saving = true;
             try {
-                const res = await this._postJSON(SKIP_URL, { reason: this.remarks || 'Skipped by operator' });
+                const res = await this._postJSON(SKIP_URL, {
+                    skip_reason: this.skipReason,
+                    notes: this.skipNotes,
+                    approved_by: this.skipApprovedBy,
+                });
                 if (res.success) {
                     window.location.reload();
                 } else {
@@ -1123,6 +1256,7 @@ function stepPage() {
                 this.showToast('Network error', 'error');
             }
             this.saving = false;
+            this.showSkipModal = false;
         },
 
         async pauseStep() {

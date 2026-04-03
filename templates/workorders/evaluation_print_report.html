@@ -85,10 +85,7 @@
 {% block page_header %}
 <div class="flex items-center justify-between no-print">
     <div class="flex items-center gap-3">
-        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
-           class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
-            <i data-lucide="arrow-left" class="w-5 h-5"></i>
-        </a>
+        {% include "components/back_nav.html" with parent_url="#" parent_label="Job Card" %}
         <div>
             <h1 class="text-xl font-bold text-gray-900 dark:text-white">
                 {{ matrix.get_evaluation_type_display }} Report

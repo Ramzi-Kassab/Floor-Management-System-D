@@ -2127,6 +2127,60 @@ Location types: RECEIVING, WIP, EVALUATION, INSPECTION, QC, REPAIR_SHOP,
 - **EvaluationPrintView** (`/work-orders/<pk>/evaluation/<eval_pk>/print/`): Print-ready evaluation summary with checklist, cutter grid, linked test results (die check, LPT, thread), signature blocks, QR code.
 - **BitDataSheetView** (`/work-orders/drill-bits/<bit_pk>/data-sheet/`): Print-ready bit specification sheet with design specs, BOM summary, cutter config, work order history, QR code.
 
+### Recent Enhancements (Apr 3, 2026) — Route Process Improvements, Workflow Engine, IAM Consolidation
+
+#### Route Process Fixes
+- **Step order enforcement fixed**: Prior steps must be complete or SKIPPED before starting next. Filter logic rewritten. `step_status` now properly set to COMPLETED/SKIPPED on all code paths.
+- **WO status gate**: Only ACTIVE and IN_PROGRESS allow step start. PENDING/RELEASED blocked.
+- **Location gate**: Changed from warning to hard block — bit must be at production location.
+- **Structured skip reasons**: 9 skip reasons (N/A, Within Spec, Accepted As-Is, Approved by Supervisor, Not Required, Done Externally, Deferred, Reordered, Other) with modal UI, `skip_reason` and `skipped_by` fields on RouterSheetEntry.
+- **Supervisor step reorder**: `api_step_reorder` (staff only) reorders pending steps. `api_step_unskip` returns skipped steps to pending.
+- **QR code fix**: Removed double `data:image/png;base64,` prefix from 4 templates.
+- **Add to Planner modal**: Drill bit detail page now has full BU assignment modal (was plain link).
+
+#### Router Step Enhancements
+- **Special instructions rendered**: New section on step detail page between Instructions and Procedure Reference. CRITICAL instructions block step start.
+- **Photo/evaluation requirements populated**: 11 processes with `requires_photos`, 3 with `requires_evaluation`.
+- **Process content seeded**: 17 processes updated with procedure refs/safety notes, 14 parameters, 46 checklists from QAS procedures.
+- **StepDurationRecord model**: Flat DB table for KPI analytics — denormalized per-step timing with indexes on process_code, bit_size, body_material, operator, account. Auto-created on step completion.
+
+#### WO Detail & Release Paper
+- **Router sheet hidden** on WO detail until evaluation complete.
+- **Route section removed** from release paper, replaced with Special Instructions section.
+- **Location transfers "already at destination"**: When bit is already at the target location, shows "Confirm Release" button instead of transfer.
+- **Release paper navigation**: Opens in same tab with `?return=` URL for proper back navigation.
+
+#### Production Floor Board & KPI
+- **Floor Board** (`/work-orders/floor-board/`): Real-time card view of all active WOs with progress bars, current step, operator, hold status. Auto-refreshes 30s via HTMX.
+- **KPI API** (`/work-orders/api/kpi/step-durations/`): Aggregated step duration analytics with group_by, filters.
+- **Sidebar links**: Floor Board, Operator Portal added to Production section.
+
+#### Hold/Wait Workflow Notifications
+- **All hold types** (waiting_qc, waiting_approval, waiting_tech) now send HIGH priority notifications.
+- **Resume notifications**: Operator notified when someone else resumes their step.
+
+#### Workflow Engine (Phase 1 + IAM Consolidation)
+- **WorkflowEvent enum**: 27 events covering full production lifecycle (BIT_RECEIVED through GRN_POSTED).
+- **ActionType enum**: 18 action types (INSPECT_BIT, TRANSFER_BIT, APPROVE_WO, QC_CHECK, etc.).
+- **WorkflowRule model**: 24 seeded rules (admin-configurable) mapping events → actions/notifications.
+- **WorkflowAction model**: Concrete tasks with assignment, deadlines, dependencies, escalation, completion tracking.
+- **Workflow engine** (`apps/notifications/workflow_engine.py`): `dispatch_event()` reads rules from DB, creates actions + notifications. `check_and_escalate_overdue_actions()` runs during bell poll. `complete_action()` marks done + unblocks dependents.
+- **IAM Consolidation**: WorkflowCapability/UserCapability models were created then **removed** — consolidated onto existing `accounts.Role` and `accounts.UserRole`. One assignment system.
+- **Role model extended**: `has_full_visibility` (GM/Director overview), `is_workflow_admin` (can configure rules), `positions` M2M (auto-assign from Position).
+- **UserRole model extended**: `is_position_derived`, `is_available` (attendance toggle), `account_scope` M2M (restrict to specific accounts), `notes`.
+- **All 24 rules** mapped to existing Role records (OPERATOR, QC_INSPECTOR, OPS_MANAGER, PDC_SUPERVISOR, etc.).
+- **Feature flag**: `WORKFLOW_ENGINE_ACTIVE = False` in settings — enable for testing.
+
+#### New Pages
+- **Action Center** (`/notifications/actions/`): My Actions, Team Actions, History tabs with action cards.
+- **Workflow Settings** (`/notifications/settings/workflow/`): Overview of all rules grouped by event, role coverage stats.
+- **Workflow Capabilities** (`/notifications/settings/workflow/capabilities/`): Grant/revoke roles to users with availability toggle.
+
+#### Back Navigation Pattern
+- All pages use `history.back()` for arrow icon + text link to logical parent page.
+- Reusable component: `templates/components/back_nav.html`.
+- Topnav global back button handles new-tab scenarios (falls back to `/`).
+
 ---
 
 ## Need Help?
