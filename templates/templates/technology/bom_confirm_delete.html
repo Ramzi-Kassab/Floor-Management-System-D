@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Delete BOM - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="{% url 'technology:bom_detail' object.pk %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete BOM</h1>
+        <p class="text-gray-600 dark:text-gray-400">Confirm deletion of {{ object.code }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <!-- Warning Icon -->
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 mx-auto rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                <i data-lucide="alert-triangle" class="w-8 h-8 text-red-600 dark:text-red-400"></i>
+            </div>
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Are you sure?</h2>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">
+                This action cannot be undone. This will permanently delete the BOM and all associated line items.
+            </p>
+        </div>
+
+        <!-- BOM Details -->
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6">
+            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">BOM to be deleted:</h3>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Code</dt>
+                    <dd class="font-mono font-medium text-gray-900 dark:text-white">{{ object.code }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Name</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ object.name|default:"--" }}</dd>
+                </div>
+                {% if object.design %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Design</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ object.design.mat_no }}</dd>
+                </div>
+                {% endif %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Line Items</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ object.lines.count }} items</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'technology:bom_detail' object.pk %}"
+               class="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                Cancel
+            </a>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center gap-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Delete BOM
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

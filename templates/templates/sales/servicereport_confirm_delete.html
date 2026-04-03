@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Delete Service Report - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center mb-6">
+            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mr-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Delete Service Report</h1>
+                <p class="text-gray-600 dark:text-gray-400">This action cannot be undone</p>
+            </div>
+        </div>
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+            <p class="text-red-800 dark:text-red-200">Are you sure you want to delete report <strong>{{ object.report_number }}</strong>?</p>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-end gap-4">
+                <a href="{% url 'sales:servicereport_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">Cancel</a>
+                <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

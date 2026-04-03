@@ -36,6 +36,73 @@
     <input type="hidden" name="grid_data" :value="JSON.stringify({findings: cutterEvalData, decisions: decisions})">
     <input type="hidden" name="materials_data" :value="JSON.stringify(materialsData)">
 
+    <!-- ══════ STEP CONTROL BANNER ══════ -->
+    {% if router_step %}
+    <div class="rounded-xl mb-4 overflow-hidden border no-print
+        {% if step_completed %}border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10
+        {% elif step_started %}border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/10
+        {% else %}border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10{% endif %}">
+        <div class="px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                {% if step_completed %}
+                <i data-lucide="check-circle-2" class="w-6 h-6 text-green-600"></i>
+                <div>
+                    <p class="text-sm font-semibold text-green-800 dark:text-green-300">Step Completed</p>
+                    <p class="text-xs text-green-600">{{ router_step.step_description }} — {{ router_step.qr_scan_end|date:"M d, H:i:s" }}</p>
+                </div>
+                {% elif step_started %}
+                <i data-lucide="play-circle" class="w-6 h-6 text-blue-600 animate-pulse"></i>
+                <div>
+                    <p class="text-sm font-semibold text-blue-800 dark:text-blue-300">Step In Progress</p>
+                    <p class="text-xs text-blue-600">Started {{ router_step.qr_scan_start|date:"M d, H:i:s" }} by {{ router_step.operator.get_full_name|default:router_step.operator.username }}</p>
+                </div>
+                {% else %}
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-amber-600"></i>
+                <div>
+                    <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">Step Not Started</p>
+                    <p class="text-xs text-amber-600">You must start this step before filling the report</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2">
+                {% if not step_started and not step_completed %}
+                <button type="button" onclick="startStepFromDedicated()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold flex items-center gap-2 shadow">
+                    <i data-lucide="play" class="w-4 h-4"></i> Start Step
+                </button>
+                {% elif step_started and not step_completed %}
+                <button type="button" onclick="completeStepFromDedicated()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-semibold flex items-center gap-2 shadow">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i> Complete Step
+                </button>
+                {% endif %}
+                {% if step_completed %}
+                <a href="{% url 'workorders:router_sheet' work_order.pk %}"
+                   class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                    <i data-lucide="list" class="w-4 h-4"></i> Router Sheet
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Block form when step not started -->
+    {% if router_step and not step_started and not step_completed %}
+    <div class="relative">
+        <div class="absolute inset-0 bg-white/60 dark:bg-gray-900/60 z-10 flex items-start justify-center pt-20 rounded-xl">
+            <div class="bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-xl shadow-xl p-6 text-center max-w-sm">
+                <i data-lucide="lock" class="w-10 h-10 mx-auto text-amber-500 mb-3"></i>
+                <p class="font-semibold text-gray-900 dark:text-white mb-1">Start the step first</p>
+                <p class="text-sm text-gray-500 mb-4">Click "Start Step" above to begin the timer and enable the form.</p>
+                <button type="button" onclick="startStepFromDedicated()"
+                        class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    <i data-lucide="play" class="w-4 h-4 inline mr-1"></i> Start Step
+                </button>
+            </div>
+        </div>
+    {% endif %}
+
     <!-- ══════ SECTION 1: Header Info ══════ -->
     <div data-screen-section class="rounded-xl mb-4 overflow-hidden border border-blue-200 dark:border-blue-800">
         <!-- Top banner -->
@@ -528,6 +595,25 @@
                           class="w-full text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700 focus:ring-2 focus:ring-blue-400 resize-y shadow-inner"></textarea>
                 <p class="text-[10px] text-blue-500 dark:text-blue-400 mt-1.5">Edit the summary above then click Copy to share conclusions.</p>
             </div>
+
+            <!-- Report Issue — sends to Quality team for decision -->
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button type="button" @click="showIssuePanel = !showIssuePanel"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 transition-colors">
+                    <i data-lucide="flag" class="w-3.5 h-3.5"></i> Report Issue to Quality Team
+                </button>
+                <div x-show="showIssuePanel" x-collapse class="mt-3 p-3 bg-red-50/30 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg" style="display:none;">
+                    <p class="text-xs text-gray-500 mb-2">The shareable summary above will be sent automatically. Add optional remarks below.</p>
+                    <textarea x-model="issueExtraRemark" rows="2" placeholder="Additional remarks (optional)..."
+                              class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 mb-2 focus:ring-1 focus:ring-red-500"></textarea>
+                    <button type="button" @click="submitIssueReport()" :disabled="issueSubmitting"
+                            class="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                        <span x-show="!issueSubmitting">Send to Quality Team</span>
+                        <span x-show="issueSubmitting">Sending...</span>
+                    </button>
+                    <div x-show="issueMsg" class="mt-2 text-xs" :class="issueOk ? 'text-green-600' : 'text-red-600'" x-text="issueMsg"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -550,6 +636,10 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
+
+    {% if router_step and not step_started and not step_completed %}
+    </div>{# close blocking overlay wrapper #}
     {% endif %}
 
     <!-- ══════ ACTIONS ══════ -->
@@ -748,6 +838,66 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script>
+function _csrf() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+}
+
+{% if router_step %}
+async function startStepFromDedicated() {
+    try {
+        const r = await fetch('/work-orders/{{ work_order.pk }}/router-sheet/{{ router_step.step_number }}/api-scan/', {
+            method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': _csrf()},
+            body: 'action=start'
+        });
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('json')) { alert('Session expired — please refresh.'); return; }
+        const d = await r.json();
+        if (d.success) { location.reload(); }
+        else { alert(d.error || 'Cannot start step'); }
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function completeStepFromDedicated() {
+    // Validate section 2 — materials must be filled
+    const comp = document.querySelector('[x-data]')?._x_dataStack?.[0];
+    if (comp) {
+        const mat = comp.materialsData || {};
+        if (!mat.penetrant?.product?.trim()) { alert('Please fill Section 2: Penetrant product name is required.'); return; }
+        if (!mat.developer?.product?.trim()) { alert('Please fill Section 2: Developer product name is required.'); return; }
+        if (!comp.result) { alert('Please select a Result (Pass/Fail/Partial) in Section 5.'); return; }
+        // Check all flagged cutters have decisions
+        if (comp.flaggedCutters?.length > 0) {
+            for (const fc of comp.flaggedCutters) {
+                if (!comp.decisions[fc.key]?.decision) {
+                    alert('Section 4: All flagged cutters must have a decision. Missing: ' + fc.label);
+                    return;
+                }
+            }
+        }
+    }
+    // Save the form first
+    const form = document.querySelector('form');
+    if (form) {
+        const formData = new FormData(form);
+        await fetch(form.action || window.location.href, {
+            method: 'POST', headers: {'X-CSRFToken': _csrf()}, body: formData
+        });
+    }
+    if (!confirm('Complete this step and finalize the die check?')) return;
+    try {
+        const r = await fetch('/work-orders/{{ work_order.pk }}/router-sheet/{{ router_step.step_number }}/api-scan/', {
+            method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': _csrf()},
+            body: 'action=end'
+        });
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('json')) { alert('Session expired — please refresh.'); return; }
+        const d = await r.json();
+        if (d.success) { location.reload(); }
+        else { alert(d.error || 'Cannot complete step'); }
+    } catch (e) { alert('Error: ' + e.message); }
+}
+{% endif %}
+
 function dieCheckPage() {
     return {
         // Section toggles
@@ -757,6 +907,11 @@ function dieCheckPage() {
         result: '{{ report.result|default:"" }}',
         remarks: '{{ report.remarks|default:""|escapejs }}',
         remarkEdited: '',
+
+        // Issue reporting
+        showIssuePanel: false,
+        issueExtraRemark: '', issueSubmitting: false, issueMsg: '', issueOk: false,
+
 
         // Materials
         materialsData: {
@@ -832,13 +987,36 @@ function dieCheckPage() {
 
         copyAutoRemark() {
             navigator.clipboard.writeText(this.remarkEdited || this.autoRemark).then(() => {
-                // Simple flash feedback
                 const btn = event.target.closest('button');
                 const orig = btn.innerHTML;
                 btn.innerHTML = '<i data-lucide="check" class="w-3 h-3"></i> Copied';
                 if (typeof lucide !== 'undefined') lucide.createIcons({nodes: [btn]});
                 setTimeout(() => { btn.innerHTML = orig; if (typeof lucide !== 'undefined') lucide.createIcons({nodes: [btn]}); }, 1500);
             });
+        },
+
+        async submitIssueReport() {
+            this.issueSubmitting = true; this.issueMsg = '';
+            try {
+                const r = await fetch('{% url "workorders:api_report_quality_issue" wo_pk=work_order.pk %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrf()},
+                    body: JSON.stringify({
+                        summary: this.remarkEdited || this.autoRemark,
+                        additional_remarks: this.issueExtraRemark,
+                        source_step: '{{ step_label|default:"Die Check" }}',
+                        step_number: {{ router_step.step_number|default:"null" }},
+                    })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    this.issueMsg = d.message; this.issueOk = true;
+                    this.issueExtraRemark = '';
+                } else {
+                    this.issueMsg = d.error; this.issueOk = false;
+                }
+            } catch (e) { this.issueMsg = 'Network error'; this.issueOk = false; }
+            this.issueSubmitting = false;
         },
 
         init() {
@@ -940,6 +1118,7 @@ function dieCheckPage() {
             this.setCutterSymbols(ref.b, ref.r, ref.p, ref.i, syms);
             this.cutterModal.open = false;
             this.rebuildFlaggedCutters();
+            this.$nextTick(() => { this.remarkEdited = this.autoRemark; });
         },
         clearCutterCell() {
             const ref = this.cutterCellRef[this.cutterModal.blade + '_' + this.cutterModal.col];
@@ -947,6 +1126,7 @@ function dieCheckPage() {
             this.cutterModal.selected = [];
             this.cutterModal.open = false;
             this.rebuildFlaggedCutters();
+            this.$nextTick(() => { this.remarkEdited = this.autoRemark; });
         },
         getCutterSymbols(blade, col) {
             const ref = this.cutterCellRef[blade + '_' + col];
@@ -1028,10 +1208,14 @@ function dieCheckPage() {
         setDecision(key, value) {
             if (!this.decisions[key]) this.decisions[key] = { decision: '', remarks: '', photo_name: '' };
             this.decisions[key].decision = value;
+            // Auto-regenerate shareable summary on every decision change
+            this.$nextTick(() => { this.remarkEdited = this.autoRemark; });
         },
         setDecisionRemarks(key, value) {
             if (!this.decisions[key]) this.decisions[key] = { decision: '', remarks: '', photo_name: '' };
             this.decisions[key].remarks = value;
+            // Auto-regenerate on remark change
+            this.$nextTick(() => { this.remarkEdited = this.autoRemark; });
         },
         openCutterPhoto(fc) {
             // Open photo section, switch to camera tab, pre-fill display name

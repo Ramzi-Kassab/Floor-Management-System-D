@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GRN {{ grn.grn_number }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; padding: 20px; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company { font-size: 18px; font-weight: bold; }
+        .doc-title { font-size: 16px; font-weight: bold; text-align: right; }
+        .doc-number { font-size: 14px; color: #333; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .info-box { border: 1px solid #ccc; padding: 10px; }
+        .info-box h3 { font-size: 11px; text-transform: uppercase; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+        .info-row { display: flex; margin: 3px 0; }
+        .info-label { width: 100px; font-weight: bold; color: #555; }
+        .info-value { flex: 1; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+        th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .status { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .status-posted { background: #d4edda; color: #155724; }
+        .status-draft { background: #e2e3e5; color: #383d41; }
+        .footer { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .signature-box { border-top: 1px solid #000; padding-top: 5px; text-align: center; margin-top: 40px; }
+        .signature-label { font-size: 10px; color: #666; }
+        .notes { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; margin-bottom: 20px; }
+        @media print { body { padding: 0; } @page { margin: 1cm; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="company">ARDT Floor Management System</div>
+            <div style="color: #666; font-size: 11px;">Goods Receipt Note</div>
+        </div>
+        <div class="doc-title">
+            <div>GRN</div>
+            <div class="doc-number">{{ grn.grn_number }}</div>
+            <span class="status {% if grn.status == 'POSTED' %}status-posted{% else %}status-draft{% endif %}">{{ grn.get_status_display }}</span>
+        </div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-box">
+            <h3>Receipt Details</h3>
+            <div class="info-row"><span class="info-label">Receipt Date:</span><span class="info-value">{{ grn.receipt_date|date:"Y-m-d" }}</span></div>
+            <div class="info-row"><span class="info-label">Warehouse:</span><span class="info-value">{{ grn.warehouse.name }}</span></div>
+            <div class="info-row"><span class="info-label">Receipt Type:</span><span class="info-value">{{ grn.get_receipt_type_display }}</span></div>
+            <div class="info-row"><span class="info-label">PO Reference:</span><span class="info-value">{{ grn.po_reference|default:"-" }}</span></div>
+        </div>
+        <div class="info-box">
+            <h3>Supplier / Owner</h3>
+            <div class="info-row"><span class="info-label">Supplier:</span><span class="info-value">{{ grn.supplier_party.name|default:"-" }}</span></div>
+            <div class="info-row"><span class="info-label">Owner Party:</span><span class="info-value">{{ grn.owner_party.name|default:"-" }}</span></div>
+            <div class="info-row"><span class="info-label">Ownership:</span><span class="info-value">{{ grn.ownership_type.name|default:"-" }}</span></div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:5%">#</th>
+                <th style="width:15%">Item Code</th>
+                <th style="width:25%">Description</th>
+                <th style="width:10%">Location</th>
+                <th style="width:10%">Lot</th>
+                <th class="text-right" style="width:10%">Qty</th>
+                <th class="text-right" style="width:10%">Unit Cost</th>
+                <th class="text-right" style="width:10%">Total</th>
+                <th class="text-center" style="width:5%">Posted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ line.item.code }}</td>
+                <td>{{ line.item.name }}</td>
+                <td>{{ line.location.code }}</td>
+                <td>{{ line.lot.lot_number|default:"-" }}</td>
+                <td class="text-right">{{ line.qty_received }}</td>
+                <td class="text-right">{{ line.unit_cost|floatformat:2 }}</td>
+                <td class="text-right">{{ line.total_cost|floatformat:2 }}</td>
+                <td class="text-center">{% if line.is_posted %}Y{% else %}N{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if grn.notes %}
+    <div class="notes">
+        <strong>Notes:</strong> {{ grn.notes }}
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <div>
+            <div class="signature-box"><div class="signature-label">Received By</div></div>
+        </div>
+        <div>
+            <div class="signature-box"><div class="signature-label">Checked By</div></div>
+        </div>
+        <div>
+            <div class="signature-box"><div class="signature-label">Approved By</div></div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; font-size: 10px; color: #999; text-align: center;">
+        Printed: {% now "Y-m-d H:i" %} | {{ grn.grn_number }}
+    </div>
+</body>
+</html>

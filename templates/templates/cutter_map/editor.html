@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Cutter Map - {{ document.mat_number|default:document.original_filename }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="p-6" x-data="cutterMapEditor({{ data|safe }}, {{ document.id }})">
+    <!-- Page Header -->
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                Edit: {{ document.mat_number|default:document.original_filename }}
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                Status: <span class="font-medium">{{ document.get_status_display }}</span>
+                | Created: {{ document.created_at|date:"M d, Y H:i" }}
+            </p>
+        </div>
+        <a href="{% url 'cutter_map:index' %}" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+            <i data-lucide="arrow-left" class="w-4 h-4 inline mr-2"></i>Back
+        </a>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div class="flex flex-wrap items-center gap-4">
+            <button @click="saveData()" :disabled="saving" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50">
+                <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Save
+            </button>
+            <button @click="validateData()" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <i data-lucide="check-circle" class="w-4 h-4 inline mr-2"></i>Validate
+            </button>
+            <button @click="generatePDF()" :disabled="generating" class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg disabled:opacity-50">
+                <i data-lucide="file-text" class="w-4 h-4 inline mr-2"></i>Generate PDF
+            </button>
+            <button @click="generatePPT()" :disabled="generating" class="px-4 py-2 bg-orange-600 text-white hover:bg-orange-700 rounded-lg disabled:opacity-50">
+                <i data-lucide="presentation" class="w-4 h-4 inline mr-2"></i>Generate PPT
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div x-show="message" x-transition class="mb-4 p-4 rounded-lg"
+         :class="messageType === 'success' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'"
+         x-text="message"></div>
+
+    <!-- Data Editor -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Document Data</h2>
+        <pre class="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto max-h-[60vh] text-sm" x-text="JSON.stringify(data, null, 2)"></pre>
+    </div>
+
+    <!-- Validation Modal -->
+    <div x-show="showValidation"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.self="showValidation = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Validation Results</h3>
+            <div x-show="validationResult?.is_valid" class="p-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg mb-4">
+                All validations passed!
+            </div>
+            <div x-show="!validationResult?.is_valid">
+                <template x-for="msg in validationResult?.messages || []" :key="msg.message">
+                    <div class="p-3 mb-2 rounded-lg"
+                         :class="msg.type === 'warning' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'">
+                        <span x-text="msg.message"></span>
+                    </div>
+                </template>
+            </div>
+            <button @click="showValidation = false" class="mt-4 w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function cutterMapEditor(initialData, documentId) {
+    return {
+        data: initialData,
+        documentId: documentId,
+        saving: false,
+        generating: false,
+        message: null,
+        messageType: 'success',
+        showValidation: false,
+        validationResult: null,
+
+        async saveData() {
+            this.saving = true;
+            this.message = null;
+            try {
+                const response = await fetch(`/cutter-map/save/${this.documentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    this.message = 'Data saved successfully';
+                    this.messageType = 'success';
+                } else {
+                    this.message = result.error || 'Save failed';
+                    this.messageType = 'error';
+                }
+            } catch (err) {
+                this.message = 'Save failed: ' + err.message;
+                this.messageType = 'error';
+            } finally {
+                this.saving = false;
+                setTimeout(() => this.message = null, 3000);
+            }
+        },
+
+        async validateData() {
+            try {
+                const response = await fetch(`/cutter-map/validate/${this.documentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+                this.validationResult = await response.json();
+                this.showValidation = true;
+            } catch (err) {
+                this.message = 'Validation failed: ' + err.message;
+                this.messageType = 'error';
+            }
+        },
+
+        async generatePDF() {
+            this.generating = true;
+            try {
+                const response = await fetch(`/cutter-map/generate/${this.documentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    window.open(result.download_url, '_blank');
+                    this.message = 'PDF generated successfully';
+                    this.messageType = 'success';
+                } else {
+                    this.message = result.error || 'Generation failed';
+                    this.messageType = 'error';
+                }
+            } catch (err) {
+                this.message = 'Generation failed: ' + err.message;
+                this.messageType = 'error';
+            } finally {
+                this.generating = false;
+            }
+        },
+
+        async generatePPT() {
+            this.generating = true;
+            try {
+                const response = await fetch(`/cutter-map/generate-ppt/${this.documentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(this.data)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    window.open(result.download_url, '_blank');
+                    this.message = 'PPT generated successfully';
+                    this.messageType = 'success';
+                } else {
+                    this.message = result.error || 'Generation failed';
+                    this.messageType = 'error';
+                }
+            } catch (err) {
+                this.message = 'Generation failed: ' + err.message;
+                this.messageType = 'error';
+            } finally {
+                this.generating = false;
+            }
+        },
+
+        init() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

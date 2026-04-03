@@ -1,0 +1,1777 @@
+{% extends "base.html" %}
+{% load inventory_filters %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important; /* Allow flex item to shrink */
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container - always bounded */
+    .cutter-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Header section - never scrolls horizontally */
+    .cutter-header-section {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Freeze mode - fills viewport, table gets independent scroll */
+    .cutter-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .freeze-mode .cutter-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .cutter-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Table wrapper - ONLY element with horizontal scroll */
+    .cutter-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .freeze-mode .cutter-table-wrapper {
+        height: 100%;
+    }
+
+    /* Sticky table header (always on in freeze mode) */
+    .freeze-mode .cutter-table-wrapper thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    /* Sticky columns - positioned relative to table scroll container */
+    .freeze-col-1 {
+        position: sticky;
+        left: 0;
+        z-index: 16; /* Higher than col-2 to be on top */
+        background: #f9fafb !important; /* gray-50 header background */
+        min-width: 40px;
+        width: 40px;
+        box-sizing: border-box;
+    }
+    .freeze-col-2 {
+        position: sticky;
+        left: 39px; /* Overlap by 1px to eliminate gap */
+        z-index: 15;
+        background: #f9fafb !important; /* gray-50 header background */
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+        border-left: 1px solid #f9fafb; /* Match background to cover any gap */
+    }
+    .dark .freeze-col-1,
+    .dark .freeze-col-2 {
+        background: #1f2937 !important; /* dark:bg-gray-800 */
+    }
+    .dark .freeze-col-2 {
+        border-left-color: #1f2937;
+    }
+    .freeze-col-1-body {
+        position: sticky;
+        left: 0;
+        z-index: 6; /* Higher than col-2 body */
+        background: white !important;
+        min-width: 40px;
+        width: 40px;
+        box-sizing: border-box;
+    }
+    .freeze-col-2-body {
+        position: sticky;
+        left: 39px; /* Overlap by 1px to eliminate gap */
+        z-index: 5;
+        background: white !important;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2);
+        border-left: 1px solid white; /* Match background to cover any gap */
+    }
+    .dark .freeze-col-1-body,
+    .dark .freeze-col-2-body {
+        background: #1f2937 !important;
+    }
+    .dark .freeze-col-2-body {
+        border-left-color: #1f2937;
+    }
+    /* Red row backgrounds for below safety stock */
+    tr.below-safety .freeze-col-1-body,
+    tr.below-safety .freeze-col-2-body {
+        background: #fef2f2 !important; /* red-50 */
+    }
+    tr.below-safety .freeze-col-2-body {
+        border-left-color: #fef2f2 !important;
+    }
+    .dark tr.below-safety .freeze-col-1-body,
+    .dark tr.below-safety .freeze-col-2-body {
+        background: rgba(127, 29, 29, 0.3) !important; /* dark red */
+    }
+    .dark tr.below-safety .freeze-col-2-body {
+        border-left-color: rgba(127, 29, 29, 0.3) !important;
+    }
+
+    /* Full page mode - maximizes table view */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .cutter-header-section {
+        flex-shrink: 0;
+    }
+    .full-page-mode .cutter-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .full-page-mode .cutter-table-wrapper {
+        height: 100%;
+    }
+    /* Hide page header in full page mode */
+    .full-page-mode ~ #pageHeader,
+    body:has(.full-page-mode) #pageHeader {
+        display: none !important;
+    }
+    /* Compact filter section in full page mode */
+    .full-page-mode #filterSection {
+        padding: 0.5rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Text wrap mode - cells wrap text and expand height */
+    .text-wrap-mode #cutterTable td,
+    .text-wrap-mode #cutterTable th {
+        white-space: normal;
+        word-wrap: break-word;
+        max-width: none;
+    }
+    .text-wrap-mode #cutterTable td {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    .text-wrap-mode #cutterTable .truncate {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    /* No-wrap mode (default) - columns auto-size to fit content exactly */
+    .no-wrap-mode #cutterTable {
+        width: auto;
+        table-layout: auto;
+    }
+    .no-wrap-mode #cutterTable td,
+    .no-wrap-mode #cutterTable th {
+        white-space: nowrap !important;
+        max-width: none !important;
+        min-width: auto !important;
+        width: auto !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+    .no-wrap-mode #cutterTable .truncate,
+    .no-wrap-mode #cutterTable [class*="max-w-"],
+    .no-wrap-mode #cutterTable a {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+        max-width: none !important;
+        display: inline !important;
+    }
+
+    /* Filter active indicator for column headers */
+    th.has-filter {
+        background: linear-gradient(to bottom, #dbeafe, #e0f2fe) !important;
+    }
+    .dark th.has-filter {
+        background: linear-gradient(to bottom, #1e3a5f, #1e40af) !important;
+    }
+    th.has-filter .column-header span {
+        color: #2563eb;
+        font-weight: 600;
+    }
+    .dark th.has-filter .column-header span {
+        color: #93c5fd;
+    }
+    .filter-active-icon {
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">PDC Cutter inventory - matching Excel format</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <button type="button" onclick="openExportDialog()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Export to Excel">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>Export Excel
+        </button>
+        <a href="{% url 'inventory:cutter_order_list' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="shopping-cart" class="w-4 h-4 mr-2"></i>View Orders
+        </a>
+        <a href="{% url 'inventory:item_list' %}?category=CUT-PDC" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="list" class="w-4 h-4 mr-2"></i>All Cutters
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="cutter-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView, 'text-wrap-mode': textWrap, 'no-wrap-mode': !textWrap }" x-data="cutterInventory()" x-init="init()">
+
+<!-- HEADER SECTION - Always visible -->
+<div class="cutter-header-section">
+    <!-- Compact Stats Bar (hidden in full page mode) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-3" x-data="{ statsExpanded: false }" x-show="!fullPageView" x-transition>
+        <!-- Collapsed View - Single row with key stats and expand button -->
+        <div class="flex items-center justify-between px-4 py-2">
+            <!-- Toggle Button -->
+            <button @click="statsExpanded = !statsExpanded"
+                    class="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <svg class="w-4 h-4 transition-transform duration-200" :class="statsExpanded ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+                <span class="text-sm font-medium">Statistics</span>
+            </button>
+
+            <!-- Key Stats (always visible) -->
+            <div class="flex items-center gap-4 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Items:</span>
+                    <span class="font-bold text-gray-900 dark:text-white">{{ total_cutters }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Stock:</span>
+                    <span class="font-bold text-gray-700 dark:text-gray-200">{{ total_stock|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded">
+                    <span class="text-emerald-600 dark:text-emerald-400">New:</span>
+                    <span class="font-bold text-emerald-700 dark:text-emerald-300">{{ total_new_stock|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">
+                    <span class="text-blue-600 dark:text-blue-400">Order:</span>
+                    <span class="font-bold text-blue-700 dark:text-blue-300">{{ total_on_order|floatformat:0 }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-gray-500 dark:text-gray-400">Forecast:</span>
+                    <span class="font-bold {% if total_forecast >= 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ total_forecast|floatformat:0 }}</span>
+                </div>
+                {% if below_safety_count > 0 %}
+                <div class="flex items-center gap-1.5 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">
+                    <span class="text-red-600 dark:text-red-400">⚠ Below Safety:</span>
+                    <span class="font-bold text-red-700 dark:text-red-300">{{ below_safety_count }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Expanded View - Detailed stats -->
+        <div x-show="statsExpanded" x-collapse class="border-t border-gray-200 dark:border-gray-700">
+            <div class="p-4">
+                <!-- Stock by Variant - Compact horizontal layout -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Stock by Variant</h4>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
+                            <span class="text-blue-600 dark:text-blue-400">New Stock:</span>
+                            <span class="font-bold text-blue-700 dark:text-blue-300">{{ total_new_pur|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ENO New:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_eno_new|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ENO Grd:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_eno_grd|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">ARDT Rcl:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_ardt_rcl|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/20 rounded text-xs">
+                            <span class="text-green-600 dark:text-green-400">LSTK Rcl:</span>
+                            <span class="font-bold text-green-700 dark:text-green-300">{{ total_lstk_rcl|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 dark:bg-purple-900/20 rounded text-xs">
+                            <span class="text-purple-600 dark:text-purple-400">Retrofit:</span>
+                            <span class="font-bold text-purple-700 dark:text-purple-300">{{ total_retrofit|floatformat:0 }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded text-xs">
+                            <span class="text-orange-600 dark:text-orange-400">BOM Req:</span>
+                            <span class="font-bold text-orange-700 dark:text-orange-300">{{ total_bom_req|floatformat:0 }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consumption & Health - Side by side -->
+                <div class="flex flex-wrap gap-4">
+                    <!-- Consumption -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Consumption:</span>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                                <span class="text-yellow-600 dark:text-yellow-400">6M:</span>
+                                <span class="font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_6m|floatformat:0 }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                                <span class="text-yellow-600 dark:text-yellow-400">3M:</span>
+                                <span class="font-bold text-yellow-700 dark:text-yellow-300">{{ total_consumption_3m|floatformat:0 }}</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs">
+                                <span class="text-yellow-700 dark:text-yellow-300">2M:</span>
+                                <span class="font-bold text-yellow-800 dark:text-yellow-200">{{ total_consumption_2m|floatformat:0 }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Health -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Health:</span>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                                <span class="text-gray-500 dark:text-gray-400">Avg:</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-200">{{ avg_stock_per_item|floatformat:0|default:"0" }}/item</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 {% if below_safety_count > 0 %}bg-red-50 dark:bg-red-900/20{% else %}bg-green-50 dark:bg-green-900/20{% endif %} rounded text-xs">
+                                <span class="{% if below_safety_count > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">Health:</span>
+                                <span class="font-bold {% if below_safety_count > 0 %}text-red-700 dark:text-red-300{% else %}text-green-700 dark:text-green-300{% endif %}">{{ health_percent|floatformat:0 }}%</span>
+                            </div>
+                            <div class="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                                <span class="text-gray-500 dark:text-gray-400">Coverage:</span>
+                                <span class="font-bold text-gray-700 dark:text-gray-200">{{ coverage_months }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Filters & Controls -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
+    <form method="get" class="flex flex-wrap gap-3 items-center">
+        <!-- Search field - narrower -->
+        <div class="w-48">
+            <input type="text" name="search" value="{{ current_search }}" placeholder="Search code or name..."
+                   class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        </div>
+        <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="search" class="w-4 h-4 inline"></i>
+        </button>
+        <a href="{% url 'inventory:cutter_inventory_list' %}" class="px-3 py-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 text-sm">Clear</a>
+
+        <!-- Divider -->
+        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+        <!-- Page size selector -->
+        <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-500">Show:</label>
+            <select name="page_size" id="pageSizeSelect" onchange="saveCutterPageSize(this.value); this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
+                <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+            </select>
+        </div>
+
+        <!-- Record count display -->
+        <div class="text-sm text-gray-500">
+            {% if page_obj %}
+            <span>{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>
+            {% else %}
+            <span class="text-green-600">{{ total_cutters }} records</span>
+            {% endif %}
+        </div>
+
+        <!-- Pagination controls (inline when paginated) -->
+        {% if page_obj and page_obj.has_other_pages %}
+        <div class="flex items-center gap-1">
+            {% if page_obj.has_previous %}
+            <a href="?page=1&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="First">«</a>
+            <a href="?page={{ page_obj.previous_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">‹</a>
+            {% endif %}
+            <span class="px-2 py-1 text-sm text-gray-600 dark:text-gray-300">Page {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">›</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&search={{ current_search }}&page_size={{ page_size }}"
+               class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="Last">»</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Spacer to push toggle buttons to the right -->
+        <div class="flex-1"></div>
+
+        <!-- Toggle buttons -->
+        <div class="flex gap-2 flex-wrap">
+            <!-- Freeze Panes Toggle -->
+            <button type="button" @click="toggleFreezePanes()"
+                    :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                <span x-text="freezePanes ? 'Unfreeze' : 'Freeze'"></span>
+            </button>
+
+            <!-- Full Page View Toggle -->
+            <button type="button" @click="toggleFullPageView()"
+                    :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                <span x-text="fullPageView ? 'Exit' : 'Full'"></span>
+            </button>
+
+            <!-- Text Wrap Toggle -->
+            <button type="button" @click="toggleTextWrap()"
+                    :class="textWrap ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                    class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm"
+                    :title="textWrap ? 'Text wraps, rows expand' : 'No wrap, columns expand'">
+                <i data-lucide="wrap-text" class="w-4 h-4"></i>
+                <span x-text="textWrap ? 'Wrap' : 'NoWrap'"></span>
+            </button>
+
+            <!-- Column Toggle Button -->
+            <div class="relative">
+                <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                    <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Cols
+                </button>
+                <!-- Column Visibility Dropdown -->
+                <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
+                     class="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-[70vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <span class="text-xs font-medium text-gray-500">Column Visibility</span>
+                        <div class="flex gap-2">
+                            <button type="button" @click="resetToDefaults()" class="text-xs text-blue-600 hover:text-blue-800">Reset</button>
+                            <button type="button" @click="showAllColumns()" class="text-xs text-blue-600 hover:text-blue-800">Show All</button>
+                        </div>
+                    </div>
+                    <p class="text-xs font-medium text-gray-500 mb-2">Attributes</p>
+                    {% for attr in category_attributes %}
+                    <label class="flex items-center gap-2 py-1 text-sm">
+                        <input type="checkbox" x-model="columns.attr_{{ attr.code }}" @change="savePreferences()">
+                        <span>{{ attr.name }}</span>
+                        {% if not attr.visible_default %}<span class="text-xs text-gray-400">(hidden by default)</span>{% endif %}
+                    </label>
+                    {% endfor %}
+                    <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">ERP Item Numbers</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_item_no" @change="savePreferences()"> ERP# (New Stock)</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_eno_new" @change="savePreferences()"> ERP# ENO New</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_ardt_rcl" @change="savePreferences()"> ERP# ARDT Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_lstk_rcl" @change="savePreferences()"> ERP# LSTK Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_retrofit" @change="savePreferences()"> ERP# Retrofit</label>
+                    <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Stock Variants</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_new" @change="savePreferences()"> ENO New</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.eno_grd" @change="savePreferences()"> ENO Grd</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.ardt_rcl" @change="savePreferences()"> ARDT Rcl</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.lstk_rcl" @change="savePreferences()"> LSTK Rcl</label>
+                    <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Stock Totals</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.retrofit" @change="savePreferences()"> Retrofit</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.new_stock" @change="savePreferences()"> New Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.total_new" @change="savePreferences()"> Total New</label>
+                    <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Consumption</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_6m" @change="savePreferences()"> 6M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_3m" @change="savePreferences()"> 3M Consumption</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cons_2m" @change="savePreferences()"> 2M Consumption</label>
+                    <hr class="my-2">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Planning</p>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.safety" @change="savePreferences()"> Safety Stock</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.bom_req" @change="savePreferences()"> BOM Req</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.on_order" @change="savePreferences()"> On Order</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.forecast" @change="savePreferences()"> Forecast</label>
+                    <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.remarks" @change="savePreferences()"> Remarks</label>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Active Filters Bar (shown when any column filters are active) -->
+<div id="activeFiltersBar" class="hidden mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center justify-between">
+    <div class="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+        <i data-lucide="filter" class="w-4 h-4"></i>
+        <span id="activeFiltersText">Filters active</span>
+    </div>
+    <button type="button" onclick="clearAllFilters()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex items-center gap-1">
+        <i data-lucide="x" class="w-3 h-3"></i>
+        Clear All Filters
+    </button>
+</div>
+
+<!-- Filter Notification (shown when filtered data may exist outside visible rows) -->
+<div id="filterNotification" class="hidden mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center justify-between">
+    <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+        <i data-lucide="info" class="w-5 h-5"></i>
+        <span id="filterNotificationText">No matching records in current view.</span>
+        {% if page_obj %}
+        <span class="text-amber-600 dark:text-amber-300">The record may exist in other pages. Click "Show All" to search all records.</span>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+        {% if page_obj %}
+        <a href="?page_size=all&search={{ current_search }}" class="px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 text-sm font-medium">
+            Show All
+        </a>
+        {% endif %}
+        <button type="button" onclick="hideFilterNotification()" class="text-amber-600 hover:text-amber-800 dark:text-amber-400">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+</div>
+</div>
+<!-- END HEADER SECTION -->
+
+<!-- TABLE SECTION - Independent scrolling -->
+<div class="cutter-table-section">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden h-full">
+        <div class="cutter-table-wrapper">
+            <table class="w-full text-xs border-collapse" id="cutterTable">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr class="text-gray-500 dark:text-gray-400">
+                        <!-- # - Row Number (always visible, sticky when freeze) -->
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700"
+                            :class="freezePanes ? 'freeze-col-1' : ''">#</th>
+                        <!-- MN - HDBS Code (sticky when freeze) -->
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700"
+                            :class="freezePanes ? 'freeze-col-2' : ''"
+                            x-show="columns.attr_hdbs_code" data-column="mn" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'mn')">
+                            <span>MN</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Product Name -->
+                    <th class="pl-4 pr-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="product_name" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'product_name')">
+                            <span>Product Name</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- ERP Item # (primary NEW-PUR) -->
+                    <th x-show="columns.erp_item_no" class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" data-column="erp_item_no" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_item_no')">
+                            <span>ERP#</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- ERP Item # per variant -->
+                    <th x-show="columns.erp_eno_new" class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" data-column="erp_eno_new" data-type="text" title="ENO As New ERP Item #">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_eno_new')">
+                            <span>ERP# ENO</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.erp_ardt_rcl" class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" data-column="erp_ardt_rcl" data-type="text" title="ARDT Reclaim ERP Item #">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_ardt_rcl')">
+                            <span>ERP# ARDT</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.erp_lstk_rcl" class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" data-column="erp_lstk_rcl" data-type="text" title="LSTK Reclaim ERP Item #">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_lstk_rcl')">
+                            <span>ERP# LSTK</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.erp_retrofit" class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 border-r border-gray-200 dark:border-gray-600 relative" data-column="erp_retrofit" data-type="text" title="Retrofit ERP Item #">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_retrofit')">
+                            <span>ERP# Retro</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Dynamic Attributes (in Excel order: Cutter/Type, Size, Chamfer, Family, Category) -->
+                    {% for attr in category_attributes %}
+                    {% if attr.code != 'hdbs_code' and attr.code != 'hdbs' and attr.code != 'cutter_hdbs' %}
+                    <th x-show="columns.attr_{{ attr.code }}" class="px-2 py-2 text-left font-medium relative" data-column="attr_{{ attr.code }}" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_{{ attr.code }}')">
+                            <span>{{ attr.name }}</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    {% endif %}
+                    {% endfor %}
+                    <!-- Stock Variants (green background) -->
+                    <th x-show="columns.eno_new" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O New Stock" data-column="eno_new" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'eno_new')">
+                            <span>ENO New</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.eno_grd" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="E&O Ground Stock" data-column="eno_grd" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'eno_grd')">
+                            <span>ENO Grd</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="ARDT Reclaim Stock" data-column="ardt_rcl" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'ardt_rcl')">
+                            <span>ARDT Rcl</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 border-r border-gray-200 dark:border-gray-600 relative" title="LSTK Reclaim (Halliburton Client Stock)" data-column="lstk_rcl" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'lstk_rcl')">
+                            <span>LSTK Rcl</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Stock Totals (blue background) -->
+                    <th x-show="columns.retrofit" class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20 relative" title="Retrofit (NEW-RET)" data-column="retrofit" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'retrofit')">
+                            <span>Retrofit</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.new_stock" class="px-2 py-2 text-right font-medium bg-blue-50 dark:bg-blue-900/20 relative" title="NEW-PUR only" data-column="new_stock" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'new_stock')">
+                            <span>New Stock</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.total_new" class="px-2 py-2 text-right font-medium bg-blue-100 dark:bg-blue-900/30 border-r border-gray-200 dark:border-gray-600 relative" title="NEW-PUR + NEW-EO + NEW-RET + NEW-CLI" data-column="total_new" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'total_new')">
+                            <span>Total New</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Consumption (yellow background) -->
+                    <th x-show="columns.cons_6m" class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20 relative" data-column="cons_6m" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'cons_6m')">
+                            <span>6M</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.cons_3m" class="px-2 py-2 text-right font-medium bg-yellow-50 dark:bg-yellow-900/20 relative" data-column="cons_3m" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'cons_3m')">
+                            <span>3M</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.cons_2m" class="px-2 py-2 text-right font-medium bg-yellow-100 dark:bg-yellow-900/30 border-r border-gray-200 dark:border-gray-600 relative" data-column="cons_2m" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'cons_2m')">
+                            <span>2M</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Safety (red background) -->
+                    <th x-show="columns.safety" class="px-2 py-2 text-right font-medium bg-red-50 dark:bg-red-900/20 relative" data-column="safety" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'safety')">
+                            <span>Safety</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Category (from attributes, moved here to match Excel order) -->
+                    <th x-show="columns.attr_category" class="px-2 py-2 text-left font-medium border-r border-gray-200 dark:border-gray-600 relative" data-column="attr_category" data-type="text">
+                        <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_category')">
+                            <span>Category</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Planning (green background) -->
+                    <th x-show="columns.bom_req" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" title="BOM Requirement" data-column="bom_req" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'bom_req')">
+                            <span>BOM Req</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.on_order" class="px-2 py-2 text-right font-medium bg-green-50 dark:bg-green-900/20 relative" data-column="on_order" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'on_order')">
+                            <span>On Order</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <th x-show="columns.forecast" class="px-2 py-2 text-right font-medium bg-green-100 dark:bg-green-900/30 border-r border-gray-200 dark:border-gray-600 relative" title="Total New + On Order - BOM Req" data-column="forecast" data-type="number">
+                        <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'forecast')">
+                            <span>Forecast</span>
+                            <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                        </div>
+                    </th>
+                    <!-- Remarks -->
+                    <th x-show="columns.remarks" class="px-2 py-2 text-left font-medium">Remarks</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for row in cutter_data %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.below_safety %}below-safety bg-red-50 dark:bg-red-900/10{% endif %}">
+                    <!-- Row # -->
+                    <td class="px-2 py-2 text-gray-400 text-center bg-white dark:bg-gray-800"
+                        :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
+                    <!-- MN (HDBS Code) -->
+                    <td class="px-2 py-2 font-mono text-xs font-medium bg-white dark:bg-gray-800"
+                        :class="freezePanes ? 'freeze-col-2-body' : ''"
+                        x-show="columns.attr_hdbs_code" data-value="{{ row.attributes|get_item:'hdbs_code'|default:'' }}">
+                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.product_name }}">
+                            {{ row.attributes|get_item:'hdbs_code'|default:"-" }}
+                        </a>
+                    </td>
+                    <!-- Product Name (with link) -->
+                    <td class="pl-4 pr-2 py-2 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.product_name }}">
+                        <a href="{% url 'inventory:item_detail' row.item.pk %}" class="font-medium text-gray-900 dark:text-white hover:text-blue-600 text-[10px]" title="{{ row.product_name }}">
+                            {{ row.product_name }}
+                        </a>
+                    </td>
+                    <!-- ERP Item # (primary NEW-PUR) -->
+                    <td x-show="columns.erp_item_no" class="px-2 py-2 font-mono text-[10px] bg-violet-50/50 dark:bg-violet-900/10 text-gray-700 dark:text-gray-300" data-value="{{ row.erp_item_no|default:'' }}">
+                        {{ row.erp_item_no|default:"-" }}
+                    </td>
+                    <!-- ERP Item # per variant -->
+                    <td x-show="columns.erp_eno_new" class="px-2 py-2 font-mono text-[10px] bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp|get_item:'NEW-EO' %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variant_erp|get_item:'NEW-EO'|default:'' }}">
+                        {{ row.variant_erp|get_item:"NEW-EO"|default:"-" }}
+                    </td>
+                    <td x-show="columns.erp_ardt_rcl" class="px-2 py-2 font-mono text-[10px] bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp|get_item:'USED-RCL' %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variant_erp|get_item:'USED-RCL'|default:'' }}">
+                        {{ row.variant_erp|get_item:"USED-RCL"|default:"-" }}
+                    </td>
+                    <td x-show="columns.erp_lstk_rcl" class="px-2 py-2 font-mono text-[10px] bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp|get_item:'CLI-RCL' %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variant_erp|get_item:'CLI-RCL'|default:'' }}">
+                        {{ row.variant_erp|get_item:"CLI-RCL"|default:"-" }}
+                    </td>
+                    <td x-show="columns.erp_retrofit" class="px-2 py-2 font-mono text-[10px] bg-violet-50/50 dark:bg-violet-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.variant_erp|get_item:'NEW-RET' %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variant_erp|get_item:'NEW-RET'|default:'' }}">
+                        {{ row.variant_erp|get_item:"NEW-RET"|default:"-" }}
+                    </td>
+                    <!-- Dynamic Attributes (excluding HDBS and Category which are handled separately) -->
+                    {% for attr in category_attributes %}
+                    {% if attr.code != 'hdbs_code' and attr.code != 'hdbs' and attr.code != 'cutter_hdbs' and attr.code != 'category' and attr.code != 'cutter_category' and attr.code != 'size_category' %}
+                    <td x-show="columns.attr_{{ attr.code }}" class="px-2 py-2 text-gray-700 dark:text-gray-300" data-value="{{ row.attributes|get_item:attr.code|default:'' }}">
+                        {{ row.attributes|get_item:attr.code|default:"-" }}
+                    </td>
+                    {% endif %}
+                    {% endfor %}
+                    <!-- Stock Variants -->
+                    <td x-show="columns.eno_new" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'NEW-EO' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-EO'|default:0 }}">
+                        {{ row.variants|get_item:"NEW-EO"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.eno_grd" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-GRD' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-GRD'|default:0 }}">
+                        {{ row.variants|get_item:"USED-GRD"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.ardt_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 {% if row.variants|get_item:'USED-RCL' > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'USED-RCL'|default:0 }}">
+                        {{ row.variants|get_item:"USED-RCL"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.lstk_rcl" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 border-r border-gray-100 dark:border-gray-700 {% if row.lstk_rcl > 0 %}text-gray-900 dark:text-white{% else %}text-gray-300{% endif %}" data-value="{{ row.lstk_rcl|default:0 }}">
+                        {{ row.lstk_rcl|floatformat:0|default:"-" }}
+                    </td>
+                    <!-- Stock Totals (Blue) -->
+                    <td x-show="columns.retrofit" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.variants|get_item:'NEW-RET' > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}" data-value="{{ row.variants|get_item:'NEW-RET'|default:0 }}">
+                        {{ row.variants|get_item:"NEW-RET"|floatformat:0|default:"-" }}
+                    </td>
+                    <td x-show="columns.new_stock" class="px-2 py-2 text-right font-mono bg-blue-50/50 dark:bg-blue-900/10 {% if row.new_stock > 0 %}text-blue-700 dark:text-blue-300{% else %}text-gray-300{% endif %}" data-value="{{ row.new_stock }}">
+                        {{ row.new_stock|floatformat:0 }}
+                    </td>
+                    <td x-show="columns.total_new" class="px-2 py-2 text-right font-mono font-bold bg-blue-100/50 dark:bg-blue-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.total_new > 0 %}text-blue-800 dark:text-blue-200{% else %}text-gray-400{% endif %}" data-value="{{ row.total_new }}">
+                        {{ row.total_new|floatformat:0 }}
+                    </td>
+                    <!-- Consumption -->
+                    <td x-show="columns.cons_6m" class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300" data-value="{{ row.consumption_6m }}">
+                        {{ row.consumption_6m|floatformat:0 }}
+                    </td>
+                    <td x-show="columns.cons_3m" class="px-2 py-2 text-right font-mono bg-yellow-50/50 dark:bg-yellow-900/10 text-yellow-700 dark:text-yellow-300" data-value="{{ row.consumption_3m }}">
+                        {{ row.consumption_3m|floatformat:0 }}
+                    </td>
+                    <td x-show="columns.cons_2m" class="px-2 py-2 text-right font-mono font-bold bg-yellow-100/50 dark:bg-yellow-900/20 border-r border-gray-100 dark:border-gray-700 text-yellow-800 dark:text-yellow-200" data-value="{{ row.consumption_2m }}">
+                        {{ row.consumption_2m|floatformat:0 }}
+                    </td>
+                    <!-- Safety Stock -->
+                    <td x-show="columns.safety" class="px-2 py-2 text-right font-mono bg-red-50/50 dark:bg-red-900/10 {% if row.below_safety %}text-red-700 dark:text-red-300 font-bold{% else %}text-gray-500{% endif %}" data-value="{{ row.safety_stock }}">
+                        {{ row.safety_stock|floatformat:0 }}
+                    </td>
+                    <!-- Category -->
+                    <td x-show="columns.attr_category" class="px-2 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-100 dark:border-gray-700" data-value="{{ row.attributes|get_item:'category'|default:'' }}">
+                        {{ row.attributes|get_item:'category'|default:"-" }}
+                    </td>
+                    <!-- Planning -->
+                    <td x-show="columns.bom_req" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-purple-600 dark:text-purple-400" data-value="{{ row.bom_requirement }}">
+                        {{ row.bom_requirement|floatformat:0 }}
+                    </td>
+                    <td x-show="columns.on_order" class="px-2 py-2 text-right font-mono bg-green-50/50 dark:bg-green-900/10 text-blue-600 dark:text-blue-400" data-value="{{ row.on_order }}">
+                        {{ row.on_order|floatformat:0 }}
+                    </td>
+                    <td x-show="columns.forecast" class="px-2 py-2 text-right font-mono font-bold bg-green-100/50 dark:bg-green-900/20 border-r border-gray-100 dark:border-gray-700 {% if row.below_safety %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}" data-value="{{ row.forecast }}">
+                        {{ row.forecast|floatformat:0 }}
+                    </td>
+                    <!-- Remarks -->
+                    <td x-show="columns.remarks" class="px-2 py-2 text-gray-500 dark:text-gray-400 text-[10px]" title="{{ row.remarks }}">
+                        {{ row.remarks|default:"-" }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="24" class="px-4 py-8 text-center text-gray-500">
+                        <i data-lucide="circle-dot" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
+                        <p>No PDC Cutters found</p>
+                        <p class="text-sm mt-1">Ensure items exist with category code "CUT-PDC"</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+<!-- END TABLE SECTION -->
+
+<!-- Legend (hidden in full page view) -->
+<div class="mt-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4" x-show="!fullPageView" x-transition>
+    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Column Legend</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-500 dark:text-gray-400">
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 border border-green-300"></span>
+            <span>Stock variants (E&O, Reclaim)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-blue-100 dark:bg-blue-900/30 border border-blue-300"></span>
+            <span>New Stock = PUR + EO + RET</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300"></span>
+            <span>Consumption (6/3/2 months)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded bg-red-100 dark:bg-red-900/30 border border-red-300"></span>
+            <span>Safety Stock (from 2M consumption)</span>
+        </div>
+    </div>
+    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500">
+        <strong>Forecast Formula:</strong> Total New + On Order - BOM Requirement |
+        <strong>Safety Formula:</strong> 2M consumption + buffer (2-10), rounded up to nearest 5
+    </div>
+</div>
+
+</div>
+
+<!-- Column Filter Menu (Excel-like dropdown) -->
+<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[260px] max-h-[80vh] overflow-hidden flex flex-col"
+     onwheel="event.stopPropagation();" onscroll="event.stopPropagation();">
+    <!-- Sort Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('asc')">
+            <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-asc-text">Sort A to Z</span>
+        </button>
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('desc')">
+            <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-desc-text">Sort Z to A</span>
+        </button>
+    </div>
+
+    <!-- Clear Filter -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="clearColumnFilter()">
+            <i data-lucide="filter-x" class="w-4 h-4 text-gray-500"></i>
+            Clear Filter from "<span id="clearFilterColumnName"></span>"
+        </button>
+    </div>
+
+    <!-- Custom Filter Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Custom Filter</div>
+        <div class="px-3 py-2 space-y-2">
+            <select id="filterOperator" class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                <option value="contains">Contains</option>
+                <option value="equals">Equals</option>
+                <option value="not_equals">Does Not Equal</option>
+                <option value="starts_with">Starts With</option>
+                <option value="ends_with">Ends With</option>
+                <option value="greater">Greater Than</option>
+                <option value="less">Less Than</option>
+                <option value="between">Between</option>
+            </select>
+            <input type="text" id="filterValue1" placeholder="Value..." class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <input type="text" id="filterValue2" placeholder="Value 2 (for Between)" class="hidden w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onclick="applyCustomFilter()">
+                Apply Filter
+            </button>
+        </div>
+    </div>
+
+    <!-- Values List (with checkboxes) -->
+    <div class="p-2 flex-1 flex flex-col min-h-0">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase flex items-center justify-between flex-shrink-0">
+            <span>Filter by Values</span>
+            <div class="flex gap-2">
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectAllValues()">All</button>
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectNoneValues()">None</button>
+            </div>
+        </div>
+        <div class="px-2 py-1 flex-shrink-0">
+            <input type="text" id="valueSearch" placeholder="Search values..." class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200" oninput="filterValuesList()">
+        </div>
+        <div id="valuesList" class="flex-1 overflow-y-auto px-2 py-1 min-h-[100px] max-h-[200px]"
+             onwheel="event.stopPropagation();">
+            <!-- Values will be populated dynamically -->
+        </div>
+        <div class="px-2 pt-2 flex-shrink-0">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700" onclick="applyValueFilter()">
+                Apply
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Dialog Modal -->
+<div id="exportDialog" class="hidden fixed inset-0 z-[200] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" onclick="closeExportDialog()"></div>
+
+        <!-- Modal panel -->
+        <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <!-- Header -->
+            <div class="bg-green-600 px-4 py-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-white flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                        Export to Excel
+                    </h3>
+                    <button type="button" onclick="closeExportDialog()" class="text-white hover:text-green-200">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="px-4 py-4">
+                <!-- Columns Option -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>
+                        Columns to Export
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportColumns" value="visible" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>Visible columns only</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export only the columns currently shown in the table</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportColumns" value="all"
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>All columns</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all available columns including hidden ones</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Records Option -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="rows" class="w-4 h-4 inline mr-1"></i>
+                        Records to Export
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="exportRecords" value="all" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>All records</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block">Export all {{ total_cutters }} cutter items from the database</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer" id="exportFilteredOption">
+                            <input type="radio" name="exportRecords" value="filtered"
+                                   class="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">
+                                <strong>Filtered/visible rows only</strong>
+                                <span class="text-gray-500 dark:text-gray-400 text-xs block" id="filteredCountText">Export only rows currently visible after filters</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Include Options -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="settings-2" class="w-4 h-4 inline mr-1"></i>
+                        Additional Options
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="exportIncludeSummary" checked
+                                   class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Include summary row at bottom</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="exportIncludeFormulas"
+                                   class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Add formulas for calculations (Safety Stock, Forecast)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Export Info -->
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-300">
+                    <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                    The export will create an Excel file (.xlsx) with formatting, frozen headers, and conditional highlighting for below-safety items.
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex justify-end gap-2">
+                <button type="button" onclick="closeExportDialog()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeExport()"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Export Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Page size persistence
+    const CUTTER_PAGE_SIZE_KEY = 'cutterInventoryPageSize';
+
+    function saveCutterPageSize(size) {
+        localStorage.setItem(CUTTER_PAGE_SIZE_KEY, size);
+    }
+
+    function loadCutterPageSize() {
+        return localStorage.getItem(CUTTER_PAGE_SIZE_KEY);
+    }
+
+    // On page load, check if we should redirect to saved page size
+    (function() {
+        const savedPageSize = loadCutterPageSize();
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPageSize = urlParams.get('page_size');
+
+        // Only redirect if we have a saved preference and it doesn't match current
+        if (savedPageSize && !currentPageSize) {
+            urlParams.set('page_size', savedPageSize);
+            urlParams.delete('page'); // Reset to page 1 when changing page size
+            window.location.search = urlParams.toString();
+        }
+    })();
+
+    // Default column visibility (matching Excel)
+    const defaultColumns = {
+        // Attributes - Excel visible ones
+        {% for attr in category_attributes %}
+        'attr_{{ attr.code }}': {{ attr.visible_default|yesno:"true,false" }},
+        {% endfor %}
+        // ERP Item #
+        erp_item_no: true,
+        erp_eno_new: false,
+        erp_ardt_rcl: false,
+        erp_lstk_rcl: false,
+        erp_retrofit: false,
+        // Stock variants
+        eno_new: true,
+        eno_grd: true,
+        ardt_rcl: true,
+        lstk_rcl: true,
+        // Stock totals
+        retrofit: true,
+        new_stock: true,
+        total_new: true,
+        // Consumption
+        cons_6m: true,
+        cons_3m: true,
+        cons_2m: true,
+        // Planning
+        safety: true,
+        bom_req: true,
+        on_order: true,
+        forecast: true,
+        remarks: true
+    };
+
+    function cutterInventory() {
+        return {
+            columns: { ...defaultColumns },
+            freezePanes: false,
+            fullPageView: false,
+            textWrap: false,
+            showColumnMenu: false,
+
+            init() {
+                // Load saved preferences from localStorage
+                const saved = localStorage.getItem('cutterInventoryPrefs');
+                if (saved) {
+                    try {
+                        const prefs = JSON.parse(saved);
+                        if (prefs.columns) {
+                            this.columns = { ...defaultColumns, ...prefs.columns };
+                        }
+                        if (prefs.freezePanes !== undefined) {
+                            this.freezePanes = prefs.freezePanes;
+                        }
+                        if (prefs.fullPageView !== undefined) {
+                            this.fullPageView = prefs.fullPageView;
+                            if (this.fullPageView) {
+                                this.applySidebarState(true);
+                                this.applyPageHeaderState(true);
+                            }
+                        }
+                        if (prefs.textWrap !== undefined) {
+                            this.textWrap = prefs.textWrap;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load preferences:', e);
+                    }
+                }
+            },
+
+            savePreferences() {
+                const prefs = {
+                    columns: this.columns,
+                    freezePanes: this.freezePanes,
+                    fullPageView: this.fullPageView,
+                    textWrap: this.textWrap
+                };
+                localStorage.setItem('cutterInventoryPrefs', JSON.stringify(prefs));
+            },
+
+            toggleFreezePanes() {
+                this.freezePanes = !this.freezePanes;
+                this.savePreferences();
+            },
+
+            toggleFullPageView() {
+                this.fullPageView = !this.fullPageView;
+                this.applySidebarState(this.fullPageView);
+                this.applyPageHeaderState(this.fullPageView);
+                this.savePreferences();
+            },
+
+            applySidebarState(collapse) {
+                // Access the parent Alpine component for sidebar
+                const mainEl = document.querySelector('[x-data]');
+                if (mainEl && mainEl._x_dataStack) {
+                    const rootData = mainEl._x_dataStack[0];
+                    if (rootData && rootData.sidebarOpen !== undefined) {
+                        rootData.sidebarOpen = !collapse;
+                    }
+                }
+            },
+
+            applyPageHeaderState(hide) {
+                // Hide/show the page header
+                const pageHeader = document.getElementById('pageHeader');
+                if (pageHeader) {
+                    pageHeader.style.display = hide ? 'none' : '';
+                }
+            },
+
+            toggleTextWrap() {
+                this.textWrap = !this.textWrap;
+                this.savePreferences();
+            },
+
+            resetToDefaults() {
+                this.columns = { ...defaultColumns };
+                this.savePreferences();
+            },
+
+            showAllColumns() {
+                Object.keys(this.columns).forEach(key => {
+                    this.columns[key] = true;
+                });
+                this.savePreferences();
+            }
+        };
+    }
+
+    // Column menu state
+    let currentColumn = null;
+    let currentColumnType = 'text';
+    let columnValues = [];
+    let selectedValues = new Set();
+
+    // Multi-column filter storage: Map of column -> Set of selected values
+    const activeFilters = new Map();
+
+    // Toggle column menu
+    function toggleColumnMenu(event, column) {
+        event.stopPropagation();
+        const menu = document.getElementById('columnMenu');
+        const th = event.currentTarget.closest('th');
+
+        currentColumnType = th.dataset.type || 'text';
+        currentColumn = column;
+
+        if (currentColumnType === 'number') {
+            document.querySelector('.sort-asc-text').textContent = 'Sort Smallest to Largest';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Largest to Smallest';
+        } else {
+            document.querySelector('.sort-asc-text').textContent = 'Sort A to Z';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Z to A';
+        }
+
+        document.getElementById('clearFilterColumnName').textContent = th.querySelector('span').textContent;
+        populateValuesList(column);
+        menu.classList.remove('hidden');
+
+        const rect = th.getBoundingClientRect();
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const padding = 10;
+
+        let left = rect.left;
+        let top = rect.bottom + 5;
+
+        if (left + menuRect.width > viewportWidth - padding) {
+            left = viewportWidth - menuRect.width - padding;
+        }
+        if (left < padding) {
+            left = padding;
+        }
+        if (top + menuRect.height > viewportHeight - padding) {
+            top = rect.top - menuRect.height - 5;
+            if (top < padding) {
+                top = padding;
+            }
+        }
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+    }
+
+    function populateValuesList(column) {
+        const table = document.getElementById('cutterTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${column}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+        const valuesSet = new Set();
+        let hasBlankInVisible = false;
+
+        // Only collect values from VISIBLE rows (cascading filter behavior)
+        // This means when other filters are applied, we only show values that exist
+        // in the currently filtered result set
+        rows.forEach(row => {
+            // Skip hidden rows (filtered out by other columns)
+            if (row.style.display === 'none') return;
+
+            const cell = row.children[colIndex];
+            if (cell) {
+                const value = cell.dataset.value || cell.textContent.trim();
+                if (value && value !== '--' && value !== '-') {
+                    valuesSet.add(value);
+                } else {
+                    hasBlankInVisible = true;
+                }
+            }
+        });
+
+        columnValues = Array.from(valuesSet).sort((a, b) => {
+            const numA = parseFloat(a);
+            const numB = parseFloat(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.localeCompare(b);
+        });
+
+        // Check if there's an existing filter for this column
+        if (activeFilters.has(column)) {
+            // Restore previous filter selections, but only for values that still exist
+            const previousSelection = activeFilters.get(column);
+            selectedValues = new Set();
+            for (const val of previousSelection) {
+                if (val === '__blank__' && hasBlankInVisible) {
+                    selectedValues.add(val);
+                } else if (columnValues.includes(val)) {
+                    selectedValues.add(val);
+                }
+            }
+        } else {
+            // No filter - select all visible values by default
+            selectedValues = new Set(columnValues);
+            if (hasBlankInVisible) {
+                selectedValues.add('__blank__'); // Include blank values if they exist
+            }
+        }
+
+        // Store whether we have blanks for rendering
+        window.hasBlankInVisible = hasBlankInVisible;
+        renderValuesList();
+    }
+
+    function renderValuesList(filter = '') {
+        const container = document.getElementById('valuesList');
+        const filtered = filter
+            ? columnValues.filter(v => v.toLowerCase().includes(filter.toLowerCase()))
+            : columnValues;
+
+        container.innerHTML = filtered.map(value => `
+            <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                       value="${value}" ${selectedValues.has(value) ? 'checked' : ''} onchange="toggleValue('${value.replace(/'/g, "\\'")}')">
+                <span class="text-sm text-gray-700 dark:text-gray-200 truncate">${value}</span>
+            </label>
+        `).join('');
+
+        // Only show "(Blank)" option if there are blank values in the visible rows
+        if (!filter && window.hasBlankInVisible) {
+            container.innerHTML = `
+                <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                    <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                           value="__blank__" ${selectedValues.has('__blank__') ? 'checked' : ''} onchange="toggleValue('__blank__')">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 italic">(Blank)</span>
+                </label>
+            ` + container.innerHTML;
+        }
+    }
+
+    function filterValuesList() {
+        renderValuesList(document.getElementById('valueSearch').value);
+    }
+
+    function toggleValue(value) {
+        if (selectedValues.has(value)) {
+            selectedValues.delete(value);
+        } else {
+            selectedValues.add(value);
+        }
+    }
+
+    function selectAllValues() {
+        selectedValues = new Set(columnValues);
+        if (window.hasBlankInVisible) {
+            selectedValues.add('__blank__');
+        }
+        renderValuesList();
+    }
+
+    function selectNoneValues() {
+        selectedValues = new Set();
+        renderValuesList();
+    }
+
+    function sortColumn(direction) {
+        const table = document.getElementById('cutterTable');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.sort((a, b) => {
+            const cellA = a.children[colIndex];
+            const cellB = b.children[colIndex];
+            if (!cellA || !cellB) return 0;
+
+            let valA = cellA.dataset.value || cellA.textContent.trim();
+            let valB = cellB.dataset.value || cellB.textContent.trim();
+
+            const numA = parseFloat(valA);
+            const numB = parseFloat(valB);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return direction === 'asc' ? numA - numB : numB - numA;
+            }
+            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+        closeColumnMenu();
+    }
+
+    function clearColumnFilter() {
+        // Remove filter for current column
+        activeFilters.delete(currentColumn);
+
+        // Re-apply remaining filters
+        applyAllFilters();
+
+        // Update visual indicator
+        updateFilterIndicator(currentColumn);
+
+        // Update active filters bar
+        updateActiveFiltersBar();
+
+        hideFilterNotification();
+        closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function clearAllFilters() {
+        // Clear all filters
+        activeFilters.clear();
+
+        // Show all rows
+        const table = document.getElementById('cutterTable');
+        table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+
+        // Update all indicators
+        updateAllFilterIndicators();
+
+        hideFilterNotification();
+        checkFilterResults();
+    }
+
+    // Whether we're in paginated mode (server passes this info)
+    const isPaginated = {{ page_obj|yesno:"true,false" }};
+    const totalRecords = {{ total_cutters|default:0 }};
+
+    function checkFilterResults() {
+        const table = document.getElementById('cutterTable');
+        const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+        const notification = document.getElementById('filterNotification');
+        const notificationText = document.getElementById('filterNotificationText');
+
+        if (visibleRows.length === 0 && isPaginated) {
+            // No visible results in paginated mode - show notification
+            notificationText.textContent = `No matching records found in current page (showing subset of ${totalRecords} total records).`;
+            notification.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            notification.classList.add('hidden');
+        }
+    }
+
+    function hideFilterNotification() {
+        document.getElementById('filterNotification').classList.add('hidden');
+    }
+
+    function applyCustomFilter() {
+        const operator = document.getElementById('filterOperator').value;
+        const value1 = document.getElementById('filterValue1').value.toLowerCase();
+        const value2 = document.getElementById('filterValue2').value.toLowerCase();
+
+        const table = document.getElementById('cutterTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            if (!cell) return;
+
+            const cellValue = (cell.dataset.value || cell.textContent.trim()).toLowerCase();
+            let show = true;
+
+            switch(operator) {
+                case 'contains': show = cellValue.includes(value1); break;
+                case 'equals': show = cellValue === value1; break;
+                case 'not_equals': show = cellValue !== value1; break;
+                case 'starts_with': show = cellValue.startsWith(value1); break;
+                case 'ends_with': show = cellValue.endsWith(value1); break;
+                case 'greater': show = parseFloat(cellValue) > parseFloat(value1); break;
+                case 'less': show = parseFloat(cellValue) < parseFloat(value1); break;
+                case 'between':
+                    const num = parseFloat(cellValue);
+                    show = num >= parseFloat(value1) && num <= parseFloat(value2);
+                    break;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+
+        closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function applyValueFilter() {
+        const table = document.getElementById('cutterTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        // Store the filter for current column
+        // Check if this is a "select all" scenario (all values selected)
+        const allSelected = columnValues.every(v => selectedValues.has(v)) && selectedValues.has('__blank__');
+        if (allSelected) {
+            // Remove filter if all values are selected
+            activeFilters.delete(currentColumn);
+        } else {
+            // Store the filter
+            activeFilters.set(currentColumn, new Set(selectedValues));
+        }
+
+        // Apply all active filters
+        applyAllFilters();
+
+        // Update visual indicator for this column
+        updateFilterIndicator(currentColumn);
+
+        // Update active filters bar
+        updateActiveFiltersBar();
+
+        closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function applyAllFilters() {
+        const table = document.getElementById('cutterTable');
+        const rows = table.querySelectorAll('tbody tr');
+
+        // If no filters active, show all rows
+        if (activeFilters.size === 0) {
+            rows.forEach(row => row.style.display = '');
+            return;
+        }
+
+        // For each row, check all active filters
+        rows.forEach(row => {
+            let showRow = true;
+
+            for (const [column, filterValues] of activeFilters) {
+                const th = table.querySelector(`th[data-column="${column}"]`);
+                if (!th) continue;
+
+                const colIndex = Array.from(th.parentNode.children).indexOf(th);
+                const cell = row.children[colIndex];
+                if (!cell) {
+                    showRow = false;
+                    break;
+                }
+
+                const cellValue = cell.dataset.value || cell.textContent.trim();
+                const isBlank = !cellValue || cellValue === '--' || cellValue === '-';
+
+                let matchesFilter = false;
+                if (isBlank && filterValues.has('__blank__')) {
+                    matchesFilter = true;
+                } else if (filterValues.has(cellValue)) {
+                    matchesFilter = true;
+                }
+
+                if (!matchesFilter) {
+                    showRow = false;
+                    break;
+                }
+            }
+
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    function updateFilterIndicator(column) {
+        const th = document.querySelector(`th[data-column="${column}"]`);
+        if (!th) return;
+
+        const icon = th.querySelector('.filter-active-icon');
+        if (activeFilters.has(column)) {
+            // Add filter indicator
+            if (!icon) {
+                const indicator = document.createElement('i');
+                indicator.setAttribute('data-lucide', 'filter');
+                indicator.className = 'filter-active-icon w-3 h-3 text-blue-500 ml-1';
+                th.querySelector('.column-header').appendChild(indicator);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+            th.classList.add('has-filter');
+        } else {
+            // Remove filter indicator
+            if (icon) icon.remove();
+            th.classList.remove('has-filter');
+        }
+    }
+
+    function updateAllFilterIndicators() {
+        // Update all column indicators
+        document.querySelectorAll('th[data-column]').forEach(th => {
+            const column = th.dataset.column;
+            updateFilterIndicator(column);
+        });
+
+        // Update active filters bar
+        updateActiveFiltersBar();
+    }
+
+    function updateActiveFiltersBar() {
+        const bar = document.getElementById('activeFiltersBar');
+        const text = document.getElementById('activeFiltersText');
+
+        if (activeFilters.size > 0) {
+            // Get column names for active filters
+            const filterNames = [];
+            for (const column of activeFilters.keys()) {
+                const th = document.querySelector(`th[data-column="${column}"]`);
+                if (th) {
+                    const name = th.querySelector('.column-header span')?.textContent || column;
+                    filterNames.push(name);
+                }
+            }
+            text.textContent = `${activeFilters.size} filter${activeFilters.size > 1 ? 's' : ''} active: ${filterNames.join(', ')}`;
+            bar.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            bar.classList.add('hidden');
+        }
+    }
+
+    function closeColumnMenu() {
+        document.getElementById('columnMenu').classList.add('hidden');
+    }
+
+    document.getElementById('filterOperator').addEventListener('change', function() {
+        const value2 = document.getElementById('filterValue2');
+        value2.classList.toggle('hidden', this.value !== 'between');
+    });
+
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('columnMenu');
+        if (!menu.contains(e.target) && !e.target.closest('.column-header')) {
+            closeColumnMenu();
+        }
+    });
+
+    // Close menu on main window scroll only (not when scrolling inside the menu)
+    window.addEventListener('scroll', (e) => {
+        const menu = document.getElementById('columnMenu');
+        if (menu.classList.contains('hidden')) return;
+
+        // Only close if scroll is from the main window, not the menu
+        if (e.target === document || e.target === document.documentElement || e.target === document.body) {
+            closeColumnMenu();
+        }
+    }, false);  // Use bubbling phase, not capture
+    window.addEventListener('resize', () => closeColumnMenu());
+
+    // Prevent scroll inside menu from closing it
+    document.getElementById('columnMenu').addEventListener('scroll', (e) => {
+        e.stopPropagation();
+    }, true);
+
+    // Also prevent wheel events from propagating
+    document.getElementById('columnMenu').addEventListener('wheel', (e) => {
+        e.stopPropagation();
+    }, false);
+
+    const observer = new MutationObserver(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+    observer.observe(document.getElementById('columnMenu'), { attributes: true, attributeFilter: ['class'] });
+
+    // ========================================
+    // Export Dialog Functions
+    // ========================================
+
+    function openExportDialog() {
+        const dialog = document.getElementById('exportDialog');
+        dialog.classList.remove('hidden');
+
+        // Update filtered count text
+        const table = document.getElementById('cutterTable');
+        const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])').length;
+        const totalRows = table.querySelectorAll('tbody tr').length;
+        const filteredText = document.getElementById('filteredCountText');
+
+        if (activeFilters.size > 0 || visibleRows < totalRows) {
+            filteredText.textContent = `Export ${visibleRows} of ${totalRows} rows currently visible`;
+        } else {
+            filteredText.textContent = `Export only rows currently visible after filters`;
+        }
+
+        // Initialize lucide icons in dialog
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeExportDialog() {
+        document.getElementById('exportDialog').classList.add('hidden');
+    }
+
+    function executeExport() {
+        const columnsOption = document.querySelector('input[name="exportColumns"]:checked').value;
+        const recordsOption = document.querySelector('input[name="exportRecords"]:checked').value;
+        const includeSummary = document.getElementById('exportIncludeSummary').checked;
+        const includeFormulas = document.getElementById('exportIncludeFormulas').checked;
+
+        // Get visible columns if needed
+        let visibleColumns = [];
+        if (columnsOption === 'visible') {
+            // Get the Alpine data from the MAIN container (not the stats bar)
+            const container = document.querySelector('.cutter-page-container');
+            if (container && container._x_dataStack) {
+                const alpineData = container._x_dataStack[0];
+                if (alpineData && alpineData.columns) {
+                    visibleColumns = Object.entries(alpineData.columns)
+                        .filter(([key, visible]) => visible)
+                        .map(([key]) => key);
+                    console.log('Visible columns:', visibleColumns);
+                }
+            }
+            // Fallback: check table headers for visible columns
+            if (visibleColumns.length === 0) {
+                const table = document.getElementById('cutterTable');
+                table.querySelectorAll('thead th[data-column]').forEach(th => {
+                    if (th.offsetParent !== null) { // Check if visible
+                        visibleColumns.push(th.dataset.column);
+                    }
+                });
+                console.log('Visible columns (fallback):', visibleColumns);
+            }
+        }
+
+        // Get visible row IDs if filtering
+        let visibleRowIds = [];
+        if (recordsOption === 'filtered') {
+            const table = document.getElementById('cutterTable');
+            const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+            visibleRows.forEach(row => {
+                // Get item PK from the row's first link
+                const link = row.querySelector('a[href*="/inventory/items/"]');
+                if (link) {
+                    const match = link.href.match(/\/inventory\/items\/(\d+)/);
+                    if (match) {
+                        visibleRowIds.push(match[1]);
+                    }
+                }
+            });
+        }
+
+        // Build export URL with parameters
+        const params = new URLSearchParams();
+        params.set('columns', columnsOption);
+        params.set('records', recordsOption);
+        if (includeSummary) params.set('summary', '1');
+        if (includeFormulas) params.set('formulas', '1');
+        if (visibleColumns.length > 0) params.set('visible_cols', visibleColumns.join(','));
+        if (visibleRowIds.length > 0) params.set('item_ids', visibleRowIds.join(','));
+
+        // Trigger download
+        window.location.href = '{% url "inventory:cutter_inventory_export" %}?' + params.toString();
+
+        closeExportDialog();
+    }
+
+    // Close export dialog on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const dialog = document.getElementById('exportDialog');
+            if (!dialog.classList.contains('hidden')) {
+                closeExportDialog();
+            }
+        }
+    });
+</script>
+{% endblock %}

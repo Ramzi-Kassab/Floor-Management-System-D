@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ assignment.assignment_number }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ assignment.get_assignment_type_display|default:"Assignment" }} - {{ assignment.assignment_date|date:"M d, Y"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldassetassignment_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldassetassignment_update' assignment.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Assignment Details</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Assignment Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.get_assignment_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Status</dt><dd><span class="px-2 py-1 text-xs rounded-full {% if assignment.status == 'RETURNED' %}bg-green-100 text-green-800{% elif assignment.status == 'IN_USE' %}bg-blue-100 text-blue-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ assignment.get_status_display|default:"-" }}</span></dd></div>
+                <div><dt class="text-gray-500">Drill Bit</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.drill_bit.serial_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.service_site.site_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.technician.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Assigned By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.assigned_by|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Dates</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Assignment Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.assignment_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Expected Return</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.expected_return_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Actual Return</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.actual_return_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Returned To</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.returned_to|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Condition</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">At Assignment</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.get_condition_at_assignment_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">At Return</dt><dd class="font-medium text-gray-900 dark:text-white">{{ assignment.get_condition_at_return_display|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Purpose</h3>
+            <p class="text-gray-700 dark:text-gray-300">{{ assignment.purpose|default:"No purpose specified" }}</p>
+            {% if assignment.notes %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Notes</h4><p class="text-gray-900 dark:text-white">{{ assignment.notes }}</p></div>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

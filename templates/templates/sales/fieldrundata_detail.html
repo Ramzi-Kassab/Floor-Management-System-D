@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Field Run Data #{{ data.pk }}</h1>
+            <p class="text-sm text-gray-500 mt-1">Recorded: {{ data.recorded_at|date:"M d, Y H:i"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldrundata_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldrundata_update' data.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Run Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Drill String Run</dt><dd class="font-medium text-gray-900 dark:text-white">{% if data.drill_string_run %}<a href="{% url 'sales:fielddrillstringrun_detail' data.drill_string_run.pk %}" class="text-ardt-blue hover:underline">{{ data.drill_string_run.run_number }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Drill Bit</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.drill_string_run.drill_bit.serial_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Recorded At</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.recorded_at|date:"M d, Y H:i"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Drilling Parameters</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Depth</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.depth|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">ROP</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.rop|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">WOB</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.wob|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">RPM</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.rpm|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Torque</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.torque|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Flow Rate</dt><dd class="font-medium text-gray-900 dark:text-white">{{ data.flow_rate|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

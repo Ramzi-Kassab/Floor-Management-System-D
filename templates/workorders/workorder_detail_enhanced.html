@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize duration_tags %}
 
 {% block title %}{{ page_title }} - ARDT FMS{% endblock %}
 
@@ -658,7 +658,7 @@
                                         <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ entry.operator.get_short_name|default:"--" }}</td>
                                         <td class="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono">{{ entry.qr_scan_start|date:"M d H:i"|default:"--" }}</td>
                                         <td class="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono">{{ entry.qr_scan_end|date:"M d H:i"|default:"--" }}</td>
-                                        <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{% if entry.duration_minutes %}{{ entry.duration_minutes }}m{% else %}--{% endif %}</td>
+                                        <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{% if entry.duration_gross_seconds %}{{ entry.duration_gross_seconds|duration_hms }}{% else %}--{% endif %}</td>
                                         <td class="px-3 py-2">
                                             {% if entry.is_complete %}
                                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Done</span>
@@ -1060,7 +1060,7 @@
                                 </div>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     {% if entry.operator %}{{ entry.operator.get_short_name }} · {% endif %}
-                                    {% if entry.duration_minutes %}{{ entry.duration_minutes }}m{% endif %}
+                                    {% if entry.duration_gross_seconds %}{{ entry.duration_gross_seconds|duration_hms }}{% endif %}
                                 </p>
                             </div>
                         </div>

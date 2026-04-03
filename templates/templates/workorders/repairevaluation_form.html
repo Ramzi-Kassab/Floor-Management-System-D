@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Edit{% else %}New{% endif %} Repair Evaluation - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if object %}Edit Repair Evaluation{% else %}New Repair Evaluation{% endif %}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Assess drill bit condition and recommend repair actions</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Evaluation Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.evaluation_number.label }}</label>
+                    {{ form.evaluation_number }}
+                    {% if form.evaluation_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.evaluation_number.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.drill_bit.label }}</label>
+                    {{ form.drill_bit }}
+                    {% if form.drill_bit.errors %}<p class="mt-1 text-sm text-red-600">{{ form.drill_bit.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.evaluation_date.label }}</label>
+                    {{ form.evaluation_date }}
+                    {% if form.evaluation_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.evaluation_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.recommendation.label }}</label>
+                    {{ form.recommendation }}
+                    {% if form.recommendation.errors %}<p class="mt-1 text-sm text-red-600">{{ form.recommendation.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.condition_assessment.label }}</label>
+                    {{ form.condition_assessment }}
+                    {% if form.condition_assessment.errors %}<p class="mt-1 text-sm text-red-600">{{ form.condition_assessment.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost & Approval</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.estimated_cost.label }}</label>
+                    {{ form.estimated_cost }}
+                    {% if form.estimated_cost.errors %}<p class="mt-1 text-sm text-red-600">{{ form.estimated_cost.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.evaluated_by.label }}</label>
+                    {{ form.evaluated_by }}
+                    {% if form.evaluated_by.errors %}<p class="mt-1 text-sm text-red-600">{{ form.evaluated_by.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'workorders:repairevaluation_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">{% if object %}Update{% else %}Create{% endif %} Evaluation</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

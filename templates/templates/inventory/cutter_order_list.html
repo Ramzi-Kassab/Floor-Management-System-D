@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">Purchase order lines for PDC Cutters</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex gap-2">
+        <a href="{% url 'inventory:cutter_inventory_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Total Ordered</p>
+                <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ total_ordered|floatformat:0 }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <i data-lucide="shopping-cart" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Total Received</p>
+                <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ total_received|floatformat:0 }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <i data-lucide="package-check" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Pending Receipt</p>
+                <p class="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{{ total_pending|floatformat:0 }}</p>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <i data-lucide="clock" class="w-6 h-6 text-orange-600 dark:text-orange-400"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <div class="min-w-[150px]">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All</option>
+                <option value="open" {% if current_status == "open" %}selected{% endif %}>Open (Pending)</option>
+                <option value="received" {% if current_status == "received" %}selected{% endif %}>Fully Received</option>
+            </select>
+        </div>
+        <div class="min-w-[200px]">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cutter Item</label>
+            <select name="item" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Cutters</option>
+                {% for item in cutter_items %}
+                <option value="{{ item.pk }}" {% if current_item == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.code }} - {{ item.name|truncatechars:30 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
+            </button>
+            <a href="{% url 'inventory:cutter_order_list' %}" class="px-4 py-2 text-gray-600 hover:text-gray-800 ml-2">Clear</a>
+        </div>
+    </form>
+</div>
+
+<!-- Orders Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
+                    <th class="px-4 py-3 text-left font-medium">PO #</th>
+                    <th class="px-4 py-3 text-left font-medium">Date</th>
+                    <th class="px-4 py-3 text-left font-medium">Status</th>
+                    <th class="px-4 py-3 text-left font-medium">Cutter</th>
+                    <th class="px-4 py-3 text-left font-medium">Description</th>
+                    <th class="px-4 py-3 text-right font-medium">Ordered</th>
+                    <th class="px-4 py-3 text-right font-medium">Received</th>
+                    <th class="px-4 py-3 text-right font-medium">Balance</th>
+                    <th class="px-4 py-3 text-right font-medium">Unit Price</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for line in orders %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-4 py-3">
+                        <a href="{% url 'supplychain:po_detail' line.purchase_order.pk %}" class="font-medium text-blue-600 hover:text-blue-800">
+                            {{ line.purchase_order.po_number }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 text-gray-500">
+                        {{ line.purchase_order.order_date|date:"M d, Y" }}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if line.purchase_order.status == 'DRAFT' %}bg-gray-100 text-gray-800
+                            {% elif line.purchase_order.status == 'APPROVED' %}bg-blue-100 text-blue-800
+                            {% elif line.purchase_order.status == 'SENT' %}bg-yellow-100 text-yellow-800
+                            {% elif line.purchase_order.status == 'PARTIAL' %}bg-orange-100 text-orange-800
+                            {% elif line.purchase_order.status == 'RECEIVED' %}bg-green-100 text-green-800
+                            {% elif line.purchase_order.status == 'CLOSED' %}bg-gray-100 text-gray-600
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ line.purchase_order.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if line.inventory_item %}
+                        <a href="{% url 'inventory:item_detail' line.inventory_item.pk %}" class="font-mono text-sm text-gray-900 dark:text-white hover:text-blue-600">
+                            {{ line.inventory_item.code }}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 max-w-[250px] truncate">
+                        {{ line.item_description }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono">
+                        {{ line.quantity_ordered|floatformat:0 }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono text-green-600">
+                        {{ line.quantity_received|floatformat:0 }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono font-bold {% if line.quantity_ordered > line.quantity_received %}text-orange-600{% else %}text-gray-400{% endif %}">
+                        {% widthratio line.quantity_ordered 1 1 as ordered %}
+                        {% widthratio line.quantity_received 1 1 as received %}
+                        {{ line.quantity_ordered|add:"-"|add:line.quantity_received|floatformat:0 }}
+                    </td>
+                    <td class="px-4 py-3 text-right text-gray-500">
+                        {% if line.unit_price %}{{ line.currency|default:"SAR" }} {{ line.unit_price|floatformat:2 }}{% else %}--{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                        <i data-lucide="shopping-cart" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
+                        <p>No cutter orders found</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<!-- Pagination -->
+<div class="mt-6 flex items-center justify-between">
+    <p class="text-sm text-gray-500">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} orders
+    </p>
+    <nav class="flex gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&item={{ current_item }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Prev</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="px-3 py-1 bg-blue-600 text-white rounded">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <a href="?page={{ num }}&status={{ current_status }}&item={{ current_item }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">{{ num }}</a>
+        {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&item={{ current_item }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200">Next</a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+{% endblock %}

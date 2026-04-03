@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Assign assets to field operations</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assignment Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.assignment_number.label }}</label>{{ form.assignment_number }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.assignment_type.label }}</label>{{ form.assignment_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>{{ form.status }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.drill_bit.label }}</label>{{ form.drill_bit }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.service_site.label }}</label>{{ form.service_site }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.technician.label }}</label>{{ form.technician }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Dates</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.assignment_date.label }}</label>{{ form.assignment_date }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.expected_return_date.label }}</label>{{ form.expected_return_date }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.actual_return_date.label }}</label>{{ form.actual_return_date }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Condition & Tracking</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.condition_at_assignment.label }}</label>{{ form.condition_at_assignment }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.condition_at_return.label }}</label>{{ form.condition_at_return }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.assigned_by.label }}</label>{{ form.assigned_by }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.returned_to.label }}</label>{{ form.returned_to }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <div class="grid grid-cols-1 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.purpose.label }}</label>{{ form.purpose }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>{{ form.notes }}</div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'sales:fieldassetassignment_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">{{ submit_text|default:"Save" }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

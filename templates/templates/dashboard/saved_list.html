@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}My Dashboards - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Create and manage your custom dashboards</p>
+    </div>
+    <a href="{% url 'dashboard:saved_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        New Dashboard
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- My Dashboards -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">My Dashboards</h2>
+
+        {% if my_dashboards %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for dashboard in my_dashboards %}
+            <div class="border dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3">
+                            <i data-lucide="{{ dashboard.icon }}" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-gray-900 dark:text-white">{{ dashboard.name }}</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ dashboard.widget_count }} widgets</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        {% if dashboard.id in favorite_ids %}
+                        <span class="text-yellow-500"><i data-lucide="star" class="w-4 h-4 fill-current"></i></span>
+                        {% endif %}
+                        <span class="text-xs px-2 py-1 rounded-full
+                            {% if dashboard.visibility == 'PUBLIC' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                            {% elif dashboard.visibility == 'SHARED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ dashboard.get_visibility_display }}
+                        </span>
+                    </div>
+                </div>
+
+                {% if dashboard.description %}
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{{ dashboard.description }}</p>
+                {% endif %}
+
+                <div class="flex items-center justify-between pt-3 border-t dark:border-gray-700">
+                    <a href="{% url 'dashboard:saved_view' dashboard.pk %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        Open Dashboard
+                    </a>
+                    <div class="flex items-center space-x-2">
+                        <a href="{% url 'dashboard:saved_edit' dashboard.pk %}" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="edit" class="w-4 h-4"></i>
+                        </a>
+                        <form method="post" action="{% url 'dashboard:saved_delete' dashboard.pk %}" class="inline" onsubmit="return confirm('Are you sure you want to delete this dashboard?')">
+                            {% csrf_token %}
+                            <button type="submit" class="text-gray-400 hover:text-red-600 dark:hover:text-red-400">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+            <i data-lucide="layout-dashboard" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+            <p>You haven't created any dashboards yet</p>
+            <a href="{% url 'dashboard:saved_create' %}" class="mt-2 inline-block text-blue-600 dark:text-blue-400 hover:underline">Create your first dashboard</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Shared Dashboards -->
+    {% if shared_dashboards %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Shared with Me</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for dashboard in shared_dashboards %}
+            <div class="border dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center mr-3">
+                            <i data-lucide="{{ dashboard.icon }}" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-gray-900 dark:text-white">{{ dashboard.name }}</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">by {{ dashboard.created_by.get_full_name|default:dashboard.created_by.username }}</p>
+                        </div>
+                    </div>
+                    {% if dashboard.id in favorite_ids %}
+                    <span class="text-yellow-500"><i data-lucide="star" class="w-4 h-4 fill-current"></i></span>
+                    {% endif %}
+                </div>
+
+                {% if dashboard.description %}
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{{ dashboard.description }}</p>
+                {% endif %}
+
+                <div class="flex items-center justify-between pt-3 border-t dark:border-gray-700">
+                    <a href="{% url 'dashboard:saved_view' dashboard.pk %}" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        Open Dashboard
+                    </a>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ dashboard.widget_count }} widgets</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Theme - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'organization:theme-list' %}" class="hover:text-blue-600">Themes</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Theme{% else %}New Theme{% endif %}</h1>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            {% csrf_token %}
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+                        <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" required
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                        <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}" required
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                        {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="id_primary_color" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Primary Color</label>
+                        <div class="flex gap-2">
+                            <input type="color" name="primary_color" id="id_primary_color" value="{{ form.primary_color.value|default:'#0066cc' }}"
+                                   class="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer">
+                            <input type="text" id="primary_color_text" value="{{ form.primary_color.value|default:'#0066cc' }}"
+                                   class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                   oninput="document.getElementById('id_primary_color').value = this.value">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_secondary_color" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Secondary Color</label>
+                        <div class="flex gap-2">
+                            <input type="color" name="secondary_color" id="id_secondary_color" value="{{ form.secondary_color.value|default:'#6c757d' }}"
+                                   class="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer">
+                            <input type="text" id="secondary_color_text" value="{{ form.secondary_color.value|default:'#6c757d' }}"
+                                   class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                   oninput="document.getElementById('id_secondary_color').value = this.value">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="id_sidebar_color" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sidebar Color</label>
+                        <div class="flex gap-2">
+                            <input type="color" name="sidebar_color" id="id_sidebar_color" value="{{ form.sidebar_color.value|default:'#1e293b' }}"
+                                   class="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer">
+                            <input type="text" id="sidebar_color_text" value="{{ form.sidebar_color.value|default:'#1e293b' }}"
+                                   class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                   oninput="document.getElementById('id_sidebar_color').value = this.value">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-6">
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_dark" id="id_is_dark" {% if form.is_dark.value %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                        <label for="id_is_dark" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Dark Mode Theme</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_default" id="id_is_default" {% if form.is_default.value %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                        <label for="id_is_default" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Set as Default</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" name="is_active" id="id_is_active" {% if form.is_active.value %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                        <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'organization:theme-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</a>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {% if form.instance.pk %}Update{% else %}Create{% endif %} Theme
+                </button>
+            </div>
+        </form>
+    </div>
+    <div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Preview</h2>
+            <div id="theme-preview" class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                <div class="h-16" style="background: linear-gradient(135deg, var(--preview-primary, #0066cc) 0%, var(--preview-secondary, #6c757d) 100%);"></div>
+                <div class="h-8" style="background-color: var(--preview-sidebar, #1e293b);"></div>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Color preview updates as you type</p>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const preview = document.getElementById('theme-preview');
+    const primaryInput = document.getElementById('id_primary_color');
+    const secondaryInput = document.getElementById('id_secondary_color');
+    const sidebarInput = document.getElementById('id_sidebar_color');
+
+    function updatePreview() {
+        preview.style.setProperty('--preview-primary', primaryInput.value);
+        preview.style.setProperty('--preview-secondary', secondaryInput.value);
+        preview.style.setProperty('--preview-sidebar', sidebarInput.value);
+    }
+
+    primaryInput.addEventListener('input', function() {
+        document.getElementById('primary_color_text').value = this.value;
+        updatePreview();
+    });
+    secondaryInput.addEventListener('input', function() {
+        document.getElementById('secondary_color_text').value = this.value;
+        updatePreview();
+    });
+    sidebarInput.addEventListener('input', function() {
+        document.getElementById('sidebar_color_text').value = this.value;
+        updatePreview();
+    });
+
+    updatePreview();
+});
+</script>
+{% endblock %}

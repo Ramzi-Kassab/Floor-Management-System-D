@@ -1,0 +1,582 @@
+{
+  "Favorites_Loc": {
+    "type": "xpath",
+    "value": "//*[@id=\"navPaneFavoritesID\"]/span[2]"
+  },
+  "Released_products_Loc": {
+    "type": "xpath",
+    "value": "//a[@class='modulesPane-linkText' and text()='Released products']"
+  },
+  "Released_products_Form_Share_Loc": {
+    "type": "xpath",
+    "value": "//div[@id=\"PrimaryConductor\"]"
+  },
+  "New_released_product_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, 'ecoresproductdetailsextendedgrid') and contains(@id, 'SystemDefinedNewButton_label')]"
+  },
+  "Form_released_product_Loc": {
+    "type": "xpath",
+    "value": "//div[@id=\"PrimaryConductor\"]"
+  },
+  "Product_subtype_Ddown_Button_Loc": {
+    "type": "xpath",
+    "value": "/html/body/div[2]/div/div[7]/div[2]/div/div[5]/div/div[1]/div[2]/div[1]/div[2]/div/div/div[2]/div"
+  },
+  "Product_Master_Option_RP_Loc": {
+    "type": "xpath",
+    "value": "/html/body/ul/li[2]"
+  },
+  "Item_group_Loc": {
+    "type": "xpath",
+    "value": "//*[@name=\"ItemGroupId\"]"
+  },
+  "Item_group_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"Sel_\") and contains(@id, \"_input\")]"
+  },
+  "Apply_template_Loc": {
+    "type": "xpath",
+    "value": "//input[@name=\"TemplateName\"]"
+  },
+  "Product_number_Field_Loc": {
+    "type": "xpath",
+    "value": "//input[@name=\"Identification_ProductNumber\"]"
+  },
+  "RP_Item_number_Field_Loc": {
+    "type": "xpath",
+    "value": "//input[@name='ItemIdentification_ItemId' and @type='text' and @required='true']"
+  },
+  "already_been_assigned_to_a_product_Error_Message_Loc": {
+    "type": "xpath",
+    "value": "//span[@class='messageBar-message' and contains(text(), 'already been assigned to a product')]"
+  },    
+  "already_been_assigned_to_a_product_Error_Message_Close_Loc": {
+    "type": "xpath",
+    "value": "//button[@aria-label='Close' and contains(@class, 'messageBar-closeIcon')]"
+  },  
+  "Apply_template_sel_RPR_FC_LST_Loc": {
+    "type": "xpath",
+    "value": "//input[@type='text' and @title='RPR-FC-LST']"
+  },
+  "Apply_template_sel_RPR_FC_HDB_Loc": {
+    "type": "xpath",
+    "value": "//input[@title=\"RPR-FC-HDB\" and @readonly=\"\"]"
+  },
+  "ModelGroupId_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"ModelGroupId_input\")]"
+  },
+  "ModelGroupId_input_Sel_Loc": {
+    "type": "xpath",
+    "value": "//input[@title=\"Repair Bit\" and @value=\"Repair Bit\"]"
+  },
+  "StorageDimensionGroup_Name_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"StorageDimensionGroup_Name_input\")]"
+  },
+  "StorageDimensionGroup_Name_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"SysGen_Name\") and @title=\"SWL\" and @value=\"SWL\"]"
+  },
+  "TrackingDimensionGroup_Name_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"TrackingDimensionGroup_Name_input\")]"
+  },
+  "TrackingDimensionGroup_Name_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"SysGen_Name\") and @title=\"Serial\" and @value=\"Serial\"]"
+  },
+  "InventUnitId_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"InventUnitId_input\")]"
+  },
+  "InventUnitId_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"UnitOfMeasureAll_Symbol\") and contains(@id, \"_input\") and contains(@title, \"ea\")]"
+  },
+  "Purchase_UnitId_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"PurchUnitId_input\")]"
+  },
+  "Purchase_UnitId_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"UnitOfMeasureConvertible_Symbol\") and contains(@id, \"_input\") and contains(@title, \"ea\")]"
+  },
+  "SalesUnitId_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"SalesUnitId_input\")]"
+  },
+  "SalesUnitId_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"UnitOfMeasureConvertible_Symbol\") and contains(@id, \"_input\") and contains(@title, \"ea\")]"
+  },
+  "BOMUnitId_input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate_\") and contains(@id, \"BOMUnitId_input\")]"
+  },
+  "BOMUnitId_input_sel_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"UnitOfMeasureConvertible_Symbol\") and contains(@id, \"_input\") and contains(@title, \"ea\")]"
+  },
+  "BOM_unit_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductCreate\") and contains(@id, \"BOMUnitId_input\")]"
+  },
+  "dimension_group_Loc": {
+    "type": "xpath",
+    "value": "//*[@name=\"ProductDimensionGroup_Name\"]"
+  },
+  "Product_name_Loc": {
+    "type": "xpath",
+    "value": "//input[@name=\"Identification_Name\"]"
+  },
+  "Search_name_1_Loc": {
+    "type": "xpath",
+    "value": "//input[@name=\"Identification_SearchName\"]"
+  },
+  "Search_name_2_Loc": {
+    "type": "xpath",
+    "value": "//input[@name=\"ItemIdentification_NameAlias\"]"
+  },
+  "ok_button_RP_Loc": {
+    "type": "xpath",
+    "value": "//button[@name='OKButton']"
+  },
+  "ok_button_attribute_Loc": {
+    "type": "xpath",
+    "value": "//button[@name='OkButton']"
+  },
+  "Old_Serial_ID_RP_Loc": {
+    "type": "xpath",
+    "value": "//input[@name='InventTable_Inf_InventSerialId']"
+  },
+  "Product_header_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"_ActionPaneTabDefine_button\")]/span"
+  },
+  "Product_dimensions_RP_Loc": {
+    "type": "xpath",
+    "value": "//span[contains(@aria-describedby, \"EcoResProductMasterDimensionPerCompany_helptext\")]"
+  },
+  "Product_dim_Config_RP_Loc": {
+    "type": "xpath",
+    "value": "//li[contains(@id, \"TabPageConfigurations_header\")]"
+  },
+  "Product_dim_Config_New_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"NewConfiguration\")]/div/span[1]"
+  },
+  "Product_dim_Config_Name_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResConfiguration_Name_\") and contains(@id, \"_0_0_input\")]"
+  },
+  "Product_dim_Size_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"TabPageSizes_header\")]"
+  },
+  "Product_dim_Size_New_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"NewSize_label\")]"
+  },
+  "Product_dim_Size_Name_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResSize_Name\") and contains(@id, \"0_0_input\")]"
+  },
+  "Product_dim_Color_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"TabPageColors_header\")]"
+  },
+  "Product_dim_Color_New_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"NewColor_label\")]"
+  },
+  "Product_dim_Color_Name_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResColor_Name\") and contains(@id, \"0_0_input\")]"
+  },
+  "Product_dim_Style_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"TabPageStyles_header\")]"
+  },
+  "Product_dim_Style_New_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"NewStyle_label\")]"
+  },
+  "Product_dim_Style_Name_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResStyle_Name\") and contains(@id, \"0_0_input\")]"
+  },
+  "Close_Product_dimensions_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductMasterDimension\") and contains(@id, \"SystemDefinedCloseButton\")]/div/span[1]"
+  },
+  "Released_product_Variants_PMaster_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ecoresproductdetailsextendedgrid\") and contains(@id, \"EcoResProductVariantsAction_label\")]"
+  },
+  "P_variant_header_RP_Loc": {
+    "type": "xpath",
+    "value": "//button[contains(@id, \"EcoResProductVariantsPerCompany\") and contains(@id, \"ActionPaneTabProductVariant_button\")]"
+  },
+  "Released_product_Variant_suggestions_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductVariantsPerCompany\") and contains(@id, \"EcoResProductVariantPerCompanyMgr_label\")]"
+  },
+  "Suggest_Variant_suggestions_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductVariantSuggestionsEnhanced\") and contains(@id, \"SuggestButton_label\")]"
+  },
+  "Suggested_Variant_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResTmpProductModelSuggestions_selected\") and contains(@id, \"0_0_container\")]/div/span"
+  },
+  "Create_Variant_suggestions_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductVariantSuggestionsEnhanced\") and contains(@id, \"CommandButtonOk_label\")]"
+  },
+  "Close_Operation_Complete_Msg_Variant_suggestions_RP_Loc": {
+    "type": "xpath",
+    "value": "//button[@data-dyn-controlname=\"MessageBarClose\" and @aria-label=\"Close\"]"
+  },
+  "Close_Variant_suggestions_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductVariantsPerCompany\") and contains(@id, \"SystemDefinedCloseButton\")]/div/span[1]"
+  },
+  "Suggested_Variant_Main_Filter_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"EcoResProductVariantsPerCompany\") and contains(@id, \"QuickFilterControl1_Input_input\")]"
+  },
+  "Engineer_header_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ecoresproductdetailsextendedgrid\") and contains(@id, \"ActionPaneTabEngineer_button\")]/span"
+  },
+  "BOM_Versions_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ecoresproductdetailsextendedgrid\") and contains(@id, \"BOMConsistOfAction_label\")]"
+  },
+  "New_BOM_Button_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"NewFormMenuButton_label\")]"
+  },
+  "CreateBOMVersion_label_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"CreateBOMVersion_label\")]"
+  },
+  "BOMVersion_ERP_BOM_Name_DD_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"General_BOMVersion_BOMId\")]/div/div"
+  },
+  "BOM_switchView_Input_RP_DD_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMIdLookup\") and contains(@id, \"switchView\")]/div/div[2]/div"
+  },
+  "BOM_switchView_All_BOMs_Option_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMIdLookup\") and contains(@id, \"switchView_list_item1\")]"
+  },
+  "All_BOMs_Table_Name_header_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMTableAll_Name\") and contains(@id, \"0_header\")]"
+  },
+  "All_BOMs_Table_Name_Filter_Input_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"FilterField_BOMTableAll_Name_Name_Input\") and contains(@id, \"0_input\")]"
+  },
+  "BOMTableAll_Name_ApplyFilters_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMTableAll_Name\") and contains(@id, \"ApplyFilters\")]"
+  },
+  "ItemNumber_NavigationListVersion_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"NavigationListVersion_ItemId\") and contains(@id, \"0_input\")]"
+  },
+  "BOMVersionApprove_label_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"BOMVersionApprove_label\")]"
+  },
+  "BOMVersionApprove_Dialog_OkButton_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"Dialog\") and contains(@id, \"OkButton\")]"
+  },
+  "BOMVersionApproved_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"General_BOMVersion_ApprovedBy_PersonnelNumber_input\")]"
+  },
+  "ItemNumber_Main_Filter_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ecoresproductdetailsextendedgrid\") and contains(@id, \"QuickFilter_Input_input\")]"
+  },
+  "ItemNumber_Filter_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventTable_ItemIdGrid\") and contains(@id, \"_0_header\")]/div"
+  },
+  "ItemNumber_Filter_Input_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"__FilterField_InventTable_ItemIdGrid_ItemId_Input\") and contains(@id, \"_0_input\")]"
+  },
+  "ItemNumber_Filter_Apply_RP_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"__InventTable_ItemIdGrid\") and contains(@id, \"ApplyFilters_label\")]"
+  },
+  "Bom_Name_Line_Sel_PR_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMTableAll_Name\") and contains(@id, \"0_0_input\")]"
+  },
+  "General_BOMVersion_Name_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"BOMConsistOf\") and contains(@id, \"General_BOMVersion_Name_input\")]"
+  },
+  "Update_product_workflow_status_Loc": {
+    "type": "xpath",
+    "value": "//*[@id=\"mainPane\"]/div[5]/div/div[1]/div[2]/div[15]"
+  },
+  "Update_product_workflow_ItemNumber_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"Dialog_\") and contains(@id, \"_Fld2_1_input\")]"
+  },
+  "Update_product_workflow_OkButton_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"Dialog_\") and contains(@id, \"_OkButton_label\")]"
+  },
+  "Movement_Journal_Loc": {
+    "type": "xpath",
+    "value": "//*[@id=\"mainPane\"]/div[5]/div/div[1]/div[2]/div[9]"
+  },
+  "Movement_Journal_Main_Filter_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"_OverviewFilter_Input_input\")]"
+  },
+  "Movement_Journal_Filter_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ctrlGridJournalId1\") and contains(@id, \"_0_header\")]/div"
+  },
+  "Movement_Journal_Filter_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"__FilterField_ctrlGridJournalId1_JournalId_Input\") and contains(@id, \"_0_input\")]"
+  },
+  "Movement_Journal_Filter_Apply_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"__ctrlGridJournalId1\") and contains(@id, \"ApplyFilters_label\")]"
+  },
+  "Movement_Journal_line_Movement_Number_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"ctrlGridJournalId1\") and contains(@id, \"0_0_input\")]"
+  },
+  "New_Movement_Journal_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"SystemDefinedNewButton_label\")]"
+  },
+  "Create_Movement_inventory_journal_Name_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"InventJournalTable_JournalNameId_input\")]"
+  },
+  "Create_Movement_inventory_journal_Number_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"InventJournalTable_JournalId_input\")]"
+  },
+  "Create_Movement_inventory_journal_Description_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"InventJournalTable_Description_input\")]"
+  },
+  "Create_Movement_inventory_journal_Site_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"RetailStoreInventory_InventSiteId_input\")]"
+  },
+  "Create_Movement_inventory_journal_Warehouse_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"RetailStoreInventory_InventLocationId_input\")]"
+  },
+  "Create_Movement_inventory_journal_Ok_Button_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalCreate\") and contains(@id, \"Ok_label\")]"
+  },
+  "Movement_Journal_Customer_account_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventJournalTable_Inf_CustomerAccount\")]/div/div"
+  },
+  "Movement_Journal_Customer_account_Hal00010_sel_Loc": {
+    "type": "xpath",
+    "value": "//input[@title=\"HAL00010\"]"
+  },
+  "Movement_Journal_Remarks_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventJournalTable_Inf_Remarks_input\")]"
+  },
+  "Movement_Journal_Evaluator_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventJournalTable_Inf_Evaluator_input\")]"
+  },
+  "Movement_Journal_QC_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventJournalTable_Inf_QC_input\")]"
+  },
+  "Movement_Journal_Date_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventJournalTable_Inf_Date_input\")]"
+  },
+  "Movement_Journal_Lines_New_button_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"_NewLine\")]/div"
+  },
+  "Movement_Journal_Display_Dimensions_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"inventjournaltablemovement\") and contains(@id, \"InventDimParmFixed_label\")]"
+  },
+  "Movement_Journal_Display_Dimensions_Configuration_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed_\") and contains(@id, \"ProductDimensions_ConfigIdFlag_check\")]"
+  },
+  "Movement_Journal_Display_Dimensions_Site_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed_\") and contains(@id, \"StorageDimensions_InventSiteIdFlag_check\")]"
+  },
+  "Movement_Journal_Display_Dimensions_Warehouse_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed_\") and contains(@id, \"StorageDimensions_InventLocationIdFlag_check\")]"
+  },
+  "Movement_Journal_Display_Dimensions_Location_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed_\") and contains(@id, \"StorageDimensions_WMSLocationIdFlag_check\")]"
+  },
+  "Movement_Journal_Display_Dimensions_Serial_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed_\") and contains(@id, \"TrackingDimensions_InventSerialIdFlag_check\")]"
+  },
+  "Movement_Journal_Display_Dimensions_OK_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventDimParmFixed\") and contains(@id, \"_Ok_label\")]"
+  },
+  "Movement_Journal_Line_Item_Number_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventJournalTrans_ItemId\") and contains(@id, \"0_0_input\")]"
+  },
+  "Movement_Journal_Line_Configuration_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventoryDimensionsGrid_configId\") and contains(@id, \"_0_0\")]/div/div[2]"
+  },
+  "Movement_Journal_Line_Configuration_Combinations_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventProductDimensionLookup\") and contains(@id, \"ctrlTabPageCombination_header\")]/span"
+  },
+  "Movement_Journal_Line_Configuration_details_Line_Loc": {
+    "type": "xpath",
+    "value": "//input[contains(@id, \"EcoResProductAllVariants_DisplayProductNumber\") and contains(@id, \"_0_0\") and contains(@title, \":\")]"
+  },
+  "Movement_Journal_Line_Location_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventoryDimensionsGrid_wMSLocationId\") and contains(@id, \"0_0_input\")]"
+  },
+  "Movement_Journal_Line_Serial_number_Header_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventoryDimensionsGrid_inventSerialId\") and contains(@id, \"0_header\")]"
+  },
+  "Movement_Journal_Line_Serial_number_Input_Loc": {
+    "type": "xpath",
+    "value": "//input[contains(@id, \"InventoryDimensionsGrid_inventSerialId\") and contains(@id, \"0_0_input\") and contains(@class, \"dyn-field\")]"
+  },
+  "Movement_Journal_Line_Serial_RC_View_details_Loc": {
+    "type": "xpath",
+    "value": "//span[contains(text(), \"View details\") and contains(@id, \"_label\")]"
+  },
+  "Movement_Journal_Serial_View_details_New_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventSerial\") and contains(@id, \"SystemDefinedNewButton_label\")]"
+  },
+  "Movement_Journal_Serial_View_details_SN_Input_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventSerial\") and contains(@id, \"Header_InventSerialId_input\")]"
+  },
+  "Movement_Journal_Serial_View_details_Close_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"InventSerial\") and contains(@id, \"SystemDefinedCloseButton\") and contains(@aria-label, \"Close\")]"
+  },
+  "Movement_Journal_Line_slider_Loc": {
+    "type": "xpath",
+    "value": "//*[contains(@id, \"Grid_\") and contains(@id, \"0_grid\")]/div[2]/div/div"
+  },
+  "ERP_Body_Loc": {
+    "type": "xpath",
+    "value": "//*[@id=\"mainPane\"]"
+  },
+  "ITEM_NO": {
+    "type": "xpath",
+    "value": "//input[contains(@name,'ItemIdField')]"
+  },
+  "SEARCH_ITEM_NO": {
+    "type": "xpath",
+    "value": "//input[contains(@id,'ItemId')]"
+  },
+  "PRODUCT_TYPE": {
+    "type": "xpath",
+    "value": "//select[contains(@data-dyn-for,'ProductTypeDataSourceProductType')]"
+  },
+  "PRODUCT_SUBTYPE": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'ProductSubType')]"
+  },
+  "SEARCH_BUTTON": {
+    "type": "xpath",
+    "value": "//button[@class='button ext-search-button']"
+  },
+  "PRODUCT_DIMENSION_GROUP": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'ProductDimensionGroupField')]"
+  },
+  "ITEM_MODEL_GROUP": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'ModelGroupId')]"
+  },
+  "ITEM_GROUP": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'ItemGroupId')]"
+  },
+  "STORAGE_DIMENSION_GROUP": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'StorageDimensionGroupField')]"
+  },
+  "TRACKING_DIMENSION_GROUP": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'TrackingDimensionGroupField')]"
+  },
+  "UNIT": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'InventoryUnitOfMeasureIdField')]"
+  },
+  "ITEM_PURCHASE_UNIT": {
+    "type": "xpath",
+    "value": "//select[contains(@name,'PurchUnitOfMeasureIdField')]"
+  },
+  "ITEM_SAVE_BUTTON": {
+    "type": "xpath",
+    "value": "//button[contains(@class,'ms-command-bar-item')][contains(@data-dyn-controlname,'SaveButton')]"
+  },
+  "CLICK_ON_PRODUCTS_MASTER_INFORMATION": {
+    "type": "xpath",
+    "value": "//h3[text()='Product']"
+  },
+  "PRODUCT_MASTER_NEW": {
+    "type": "xpath",
+    "value": "//span[text()='New']"
+  },
+  "PRODUCT_MASTER_SEARCH": {
+    "type": "xpath",
+    "value": "//span[text()='Search']"
+  },
+  "PRODUCT_MASTER_PRODUCT_NUMBER": {
+    "type": "xpath",
+    "value": "//input[contains(@id,'ProductNumber')]"
+  },
+  "login_user_field_Loc": {
+    "type": "xpath",
+    "value": "//*[@id='userNameInput']"
+  },
+  "login_pass_field_Loc": {
+    "type": "xpath",
+    "value": "//*[@id='passwordInput']"
+  },
+  "login_submit_button_Loc": {
+    "type": "xpath",
+    "value": "//*[@id='submitButton']"
+  }
+}

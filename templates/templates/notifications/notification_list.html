@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if unread_count > 0 %}{{ unread_count }} unread{% else %}All caught up{% endif %}
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        {% if unread_count > 0 %}
+        <form method="post" action="{% url 'notifications:notification_mark_all_read' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                <i data-lucide="check-check" class="w-4 h-4 mr-2"></i>Mark All Read
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="w-full md:w-40">
+            <select name="is_read" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All</option>
+                <option value="false" {% if current_is_read == 'false' %}selected{% endif %}>Unread</option>
+                <option value="true" {% if current_is_read == 'true' %}selected{% endif %}>Read</option>
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="priority" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Priorities</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Filter</button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if notifications %}
+    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for notification in notifications %}
+        <div class="p-4 {% if not notification.is_read %}bg-blue-50 dark:bg-blue-900/20{% endif %} hover:bg-gray-50 dark:hover:bg-gray-700/30">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start flex-1">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0
+                        {% if notification.priority == 'URGENT' %}bg-red-100 text-red-600
+                        {% elif notification.priority == 'HIGH' %}bg-orange-100 text-orange-600
+                        {% else %}bg-blue-100 text-blue-600{% endif %}">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-medium text-gray-900 dark:text-white">{{ notification.title }}</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ notification.message|truncatewords:20 }}</p>
+                        <div class="flex items-center mt-2 text-xs text-gray-500">
+                            <span>{{ notification.created_at|timesince }} ago</span>
+                            {% if notification.priority != 'NORMAL' %}
+                            <span class="ml-2 px-2 py-0.5 rounded-full
+                                {% if notification.priority == 'URGENT' %}bg-red-100 text-red-800
+                                {% elif notification.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ notification.get_priority_display }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 ml-4">
+                    {% if not notification.is_read %}
+                    <form method="post" action="{% url 'notifications:notification_read' notification.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-gray-400 hover:text-blue-600" title="Mark as read">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'notifications:notification_delete' notification.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-gray-400 hover:text-red-600" title="Delete">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="bell-off" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No notifications</h3>
+        <p class="text-gray-500 dark:text-gray-400">You're all caught up!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Review Requisition</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ pr.pr_number }}</p>
+    </div>
+    <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Requisition Summary</h2>
+        <dl class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <dt class="text-gray-500">Requested By</dt>
+                <dd class="text-gray-900 dark:text-white">{{ pr.requested_by.username }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Required Date</dt>
+                <dd class="text-gray-900 dark:text-white">{{ pr.required_date|date:"M d, Y"|default:"-" }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Decision</h2>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Action *</label>
+                    {{ form.action }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end space-x-3 pt-6">
+            <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Submit</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

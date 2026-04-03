@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Movement History Report</h1>
+        <p class="text-gray-600 dark:text-gray-400">Stock movements for the selected period</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:dashboard' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back to Dashboard
+        </a>
+        <button onclick="window.print()" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+            <i data-lucide="printer" class="w-4 h-4 mr-1"></i>Print
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <div class="flex-1 min-w-40">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Date</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+        </div>
+        <div class="flex-1 min-w-40">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To Date</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+        </div>
+        <div class="flex-1 min-w-40">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Warehouse</label>
+            <select name="warehouse" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                <option value="">All Warehouses</option>
+                {% for wh in warehouses %}
+                <option value="{{ wh.id }}" {% if selected_warehouse == wh.id|stringformat:"s" %}selected{% endif %}>{{ wh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex-1 min-w-40">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Item</label>
+            <select name="item" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                <option value="">All Items</option>
+                {% for itm in items %}
+                <option value="{{ itm.id }}" {% if selected_item == itm.id|stringformat:"s" %}selected{% endif %}>{{ itm.code }} - {{ itm.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Apply
+        </button>
+    </form>
+</div>
+
+<!-- Summary -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Receipts (In)</p>
+        <p class="text-2xl font-bold text-green-600 dark:text-green-400">+{{ totals.total_in|default:0|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Issues (Out)</p>
+        <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ totals.total_out|default:0|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Net Change</p>
+        {% with net=totals.total_in|default:0|add:totals.total_out|default:0 %}
+        <p class="text-2xl font-bold {% if net >= 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+            {% if net >= 0 %}+{% endif %}{{ net|floatformat:2 }}
+        </p>
+        {% endwith %}
+    </div>
+</div>
+
+<!-- Report Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date/Time</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Document</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Item</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Location</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Lot</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Unit Cost</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">User</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for mvt in movements %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ mvt.transaction_date|date:"Y-m-d H:i" }}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ mvt.document_type }} {{ mvt.document_number }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ mvt.item.code }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ mvt.location.code }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ mvt.lot.lot_number|default:"-" }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium {% if mvt.qty_delta > 0 %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+                        {% if mvt.qty_delta > 0 %}+{% endif %}{{ mvt.qty_delta|floatformat:2 }}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-300">${{ mvt.unit_cost|floatformat:2 }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{{ mvt.created_by.get_full_name|default:mvt.created_by.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        No movements found for the selected criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

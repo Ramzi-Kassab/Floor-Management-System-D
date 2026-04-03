@@ -28,6 +28,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "notifications/partials/action_widget.html" with pending_actions=pending_actions %}
 {% if widgets %}
 <!-- Dynamic Widget Grid -->
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 mb-4">

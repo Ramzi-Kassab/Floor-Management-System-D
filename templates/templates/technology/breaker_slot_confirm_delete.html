@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Breaker Slot - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+            <i data-lucide="trash-2" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+        </div>
+        <h2 class="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">Delete Breaker Slot</h2>
+        <p class="text-center text-gray-600 dark:text-gray-400 mb-6">
+            Are you sure you want to delete breaker slot <strong class="font-mono">{{ object.mat_no }}</strong>?
+        </p>
+
+        {% if object.designs.exists %}
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+            <div class="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                <strong>Warning</strong>
+            </div>
+            <p class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                This breaker slot is used by {{ object.designs.count }} design(s). Deleting it will remove the breaker slot reference from those designs.
+            </p>
+        </div>
+        {% endif %}
+
+        <form method="post" class="flex gap-3 justify-center">
+            {% csrf_token %}
+            <a href="{% url 'technology:breaker_slot_detail' object.pk %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">
+                Delete Breaker Slot
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

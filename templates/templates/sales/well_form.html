@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'sales:well_list' %}" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Well Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Well Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Well Name <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.name }}</div>
+                        {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer</label>
+                        <div class="mt-1">{{ form.customer }}</div>
+                    </div>
+                    <div>
+                        <label for="id_rig" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rig</label>
+                        <div class="mt-1">{{ form.rig }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_field_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Oil Field Name</label>
+                    <div class="mt-1">{{ form.field_name }}</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_spud_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Spud Date</label>
+                        <div class="mt-1">{{ form.spud_date }}</div>
+                    </div>
+                    <div>
+                        <label for="id_target_depth" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Target Depth (ft)</label>
+                        <div class="mt-1">{{ form.target_depth }}</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    {{ form.is_active }}
+                    <label for="id_is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Active Well</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'sales:well_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

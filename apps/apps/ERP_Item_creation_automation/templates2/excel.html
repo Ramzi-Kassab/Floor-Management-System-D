@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel Operations</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 8px; box-sizing: border-box; }
+        .button { 
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 10px 15px; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 4px;
+        }
+        .button:hover { background-color: #45a049; }
+        .alert { 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 4px; 
+        }
+        .alert-error { background-color: #f8d7da; color: #721c24; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Excel Operations</h1>
+        
+        <div class="panel">
+            <h2>Find Excel File</h2>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="post" action="{{ url_for('excel') }}">
+                <div class="form-group">
+                    <label for="file_pattern">Partial File Name</label>
+                    <input type="text" id="file_pattern" name="file_pattern" placeholder="Enter a partial name to search for in Excel files">
+                    <small>Enter a partial name to search for in Excel files</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="search_path">Search Path</label>
+                    <input type="text" id="search_path" name="search_path" placeholder="D:\PycharmProjects\ERP_automation\EXCEL BITS TRACKING">
+                    <small>Directory to search for Excel files</small>
+                </div>
+                
+                <button type="submit" class="button">Search Excel Files</button>
+            </form>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Available Workflows</h3>
+            <ul>
+                <li><a href="{{ url_for('excel_selection', flow_name='OpenAndCreate') }}">Open and Create Items</a></li>
+                <!-- Add more workflow links as needed -->
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

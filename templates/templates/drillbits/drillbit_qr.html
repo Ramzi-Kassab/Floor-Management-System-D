@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}QR Code - {{ drill_bit.serial_number }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .no-print { display: none !important; }
+        body { background: white !important; }
+        .print-content { padding: 0 !important; margin: 0 !important; }
+        .print-content .qr-card { box-shadow: none !important; border: 1px solid #e5e7eb; }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="mb-4 no-print" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        <li><a href="{% url 'dashboard:index' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:drillbit_list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Drill Bits</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li><a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ drill_bit.serial_number }}</a></li>
+        <li><i data-lucide="chevron-right" class="w-4 h-4"></i></li>
+        <li class="text-gray-900 dark:text-white font-medium">QR Code</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6 no-print">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Print or scan to identify this drill bit</p>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+            Print
+        </button>
+        <a href="{% url 'workorders:drillbit_detail_enhanced' drill_bit.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+            Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto print-content">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center qr-card">
+        <!-- Company Header -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-ardt-blue dark:text-white">ARDT</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Floor Management System</p>
+        </div>
+
+        <!-- QR Code -->
+        <div class="bg-white p-4 rounded-lg inline-block mb-6 border-4 border-gray-100">
+            {% if qr_code %}
+            <img src="{{ qr_code }}" alt="QR Code for {{ drill_bit.serial_number }}" class="w-48 h-48 mx-auto">
+            {% else %}
+            <div class="w-48 h-48 bg-gray-100 rounded flex items-center justify-center mx-auto">
+                <span class="text-gray-400 text-sm">QR unavailable</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Serial Number -->
+        <div class="mb-6">
+            <p class="text-3xl font-bold font-mono text-gray-900 dark:text-white tracking-wider">{{ drill_bit.serial_number }}</p>
+        </div>
+
+        <!-- Drill Bit Info -->
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_bit_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Size</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ size_display|default:"--" }}</dd>
+                </div>
+                {% if smi_display %}
+                <div class="col-span-2">
+                    <dt class="text-gray-500 dark:text-gray-400">SMI Type</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ smi_display }}</dd>
+                </div>
+                {% endif %}
+                {% if drill_bit.design %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Design</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ drill_bit.design.mat_no|default:drill_bit.design.code }}</dd>
+                </div>
+                {% endif %}
+                {% if active_bom %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">BOM</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ active_bom.code }}</dd>
+                </div>
+                {% endif %}
+                {% if drill_bit.iadc_code %}
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">IADC</dt>
+                    <dd class="font-medium font-mono text-gray-900 dark:text-white">{{ drill_bit.iadc_code }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Status -->
+        <div class="mt-6">
+            <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium
+                {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800
+                {% elif drill_bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ drill_bit.get_status_display }}
+            </span>
+        </div>
+
+        <!-- Instructions (no-print) -->
+        <div class="mt-8 text-xs text-gray-400 dark:text-gray-500 no-print">
+            Scan this QR code to view drill bit details and history
+        </div>
+    </div>
+
+    <!-- Print multiple labels option -->
+    <div class="mt-6 text-center no-print">
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Need multiple labels? Use your browser's print dialog to adjust copies.
+        </p>
+        <div class="flex justify-center gap-4">
+            <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+                Print Label
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

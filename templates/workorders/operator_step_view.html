@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize duration_tags %}
 
 {% block title %}Step {{ step.step_number }} — {{ step.step_description }} — {{ work_order.wo_number }}{% endblock %}
 
@@ -217,8 +217,8 @@
         <p class="op-panel-label">Elapsed Time</p>
         <div class="timer-display" x-text="timerText">
             {% if step.is_complete %}
-                {% if step.duration_minutes %}
-                    {{ step.duration_minutes }}m
+                {% if step.duration_gross_seconds %}
+                    {{ step.duration_gross_seconds|duration_hms }}
                 {% else %}—{% endif %}
             {% else %}00:00:00{% endif %}
         </div>

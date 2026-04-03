@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Review Request</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ maintenance_request.request_number }}</p>
+    </div>
+    <a href="{% url 'maintenance:request_detail' maintenance_request.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <!-- Request Summary -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Request Summary</h2>
+        <dl class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <dt class="text-gray-500">Title</dt>
+                <dd class="text-gray-900 dark:text-white font-medium">{{ maintenance_request.title }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Equipment</dt>
+                <dd class="text-gray-900 dark:text-white">{{ maintenance_request.equipment.code|default:"-" }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Priority</dt>
+                <dd>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if maintenance_request.priority == 'CRITICAL' %}bg-red-100 text-red-800
+                        {% elif maintenance_request.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                        {% elif maintenance_request.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ maintenance_request.get_priority_display }}
+                    </span>
+                </dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Requested By</dt>
+                <dd class="text-gray-900 dark:text-white">{{ maintenance_request.requested_by.get_full_name|default:maintenance_request.requested_by.username }}</dd>
+            </div>
+        </dl>
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <dt class="text-gray-500 text-sm">Description</dt>
+            <dd class="text-gray-900 dark:text-white mt-1">{{ maintenance_request.description }}</dd>
+        </div>
+    </div>
+
+    <!-- Approval Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Decision</h2>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Action *</label>
+                    {{ form.action }}
+                    {% if form.action.errors %}<p class="text-red-600 text-sm mt-1">{{ form.action.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rejection Reason</label>
+                    {{ form.rejection_reason }}
+                    {% if form.rejection_reason.errors %}<p class="text-red-600 text-sm mt-1">{{ form.rejection_reason.errors.0 }}</p>{% endif %}
+                    <p class="text-gray-500 text-xs mt-1">Required if rejecting the request.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-6">
+            <a href="{% url 'maintenance:request_detail' maintenance_request.pk %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Submit Decision
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

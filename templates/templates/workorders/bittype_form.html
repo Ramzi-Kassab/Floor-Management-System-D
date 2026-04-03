@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center">
+    <a href="{% url 'workorders:bittype_list' %}" class="mr-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            {% if is_create %}Enter the details for the new bit type{% else %}Update the bit type information{% endif %}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="max-w-4xl">
+    {% csrf_token %}
+
+    <div class="space-y-6">
+        <!-- Identity Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="tag" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Identity
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="id_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Category <span class="text-red-500">*</span>
+                    </label>
+                    <select name="category" id="id_category" required
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                        <option value="FC" {% if form.category.value == 'FC' %}selected{% endif %}>Fixed Cutter</option>
+                        <option value="MT" {% if form.category.value == 'MT' %}selected{% endif %}>Mill Tooth</option>
+                        <option value="TCI" {% if form.category.value == 'TCI' %}selected{% endif %}>Tri Cone Inserts</option>
+                    </select>
+                    {% if form.category.errors %}<p class="text-red-500 text-sm mt-1">{{ form.category.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Size
+                    </label>
+                    {{ form.size }}
+                    {% if form.size.errors %}<p class="text-red-500 text-sm mt-1">{{ form.size.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_smi_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        SMI Name (Client) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="smi_name" id="id_smi_name" value="{{ form.smi_name.value|default:'' }}"
+                           placeholder="e.g., GT65RHs-1"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.smi_name.errors %}<p class="text-red-500 text-sm mt-1">{{ form.smi_name.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_hdbs_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        HDBS Name (Internal)
+                    </label>
+                    <input type="text" name="hdbs_name" id="id_hdbs_name" value="{{ form.hdbs_name.value|default:'' }}"
+                           placeholder="e.g., GT65RHs"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.hdbs_name.errors %}<p class="text-red-500 text-sm mt-1">{{ form.hdbs_name.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_series" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Series
+                    </label>
+                    <input type="text" name="series" id="id_series" value="{{ form.series.value|default:'' }}"
+                           placeholder="e.g., GT, HD, MM"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.series.errors %}<p class="text-red-500 text-sm mt-1">{{ form.series.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Numbers Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="hash" class="w-5 h-5 mr-2 text-green-500"></i>
+                Material Numbers
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="id_hdbs_mn" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        HDBS MN (SAP)
+                    </label>
+                    <input type="text" name="hdbs_mn" id="id_hdbs_mn" value="{{ form.hdbs_mn.value|default:'' }}"
+                           placeholder="e.g., 2022318"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.hdbs_mn.errors %}<p class="text-red-500 text-sm mt-1">{{ form.hdbs_mn.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_ref_hdbs_mn" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Reference HDBS MN
+                    </label>
+                    <input type="text" name="ref_hdbs_mn" id="id_ref_hdbs_mn" value="{{ form.ref_hdbs_mn.value|default:'' }}"
+                           placeholder="Parent material number"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.ref_hdbs_mn.errors %}<p class="text-red-500 text-sm mt-1">{{ form.ref_hdbs_mn.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_ardt_item_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ARDT Item Number
+                    </label>
+                    <input type="text" name="ardt_item_number" id="id_ardt_item_number" value="{{ form.ardt_item_number.value|default:'' }}"
+                           placeholder="ARDT ERP number"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-blue-500 focus:border-blue-500">
+                    {% if form.ardt_item_number.errors %}<p class="text-red-500 text-sm mt-1">{{ form.ardt_item_number.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Specs Section (FC Only) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" id="fc-specs">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="settings" class="w-5 h-5 mr-2 text-orange-500"></i>
+                Technical Specifications (Fixed Cutter Only)
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <label for="id_body_material" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Body Material
+                    </label>
+                    <select name="body_material" id="id_body_material"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                        <option value="" {% if not form.body_material.value %}selected{% endif %}>N/A</option>
+                        <option value="M" {% if form.body_material.value == 'M' %}selected{% endif %}>Matrix</option>
+                        <option value="S" {% if form.body_material.value == 'S' %}selected{% endif %}>Steel</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="id_no_of_blades" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Number of Blades
+                    </label>
+                    <input type="number" name="no_of_blades" id="id_no_of_blades" value="{{ form.no_of_blades.value|default:'' }}"
+                           min="1" max="20" placeholder="e.g., 6"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="id_cutter_size" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Cutter Size (mm)
+                    </label>
+                    <input type="number" name="cutter_size" id="id_cutter_size" value="{{ form.cutter_size.value|default:'' }}"
+                           min="1" max="30" placeholder="e.g., 5"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="id_gage_length" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Gage Length (inches)
+                    </label>
+                    <input type="number" name="gage_length" id="id_gage_length" value="{{ form.gage_length.value|default:'' }}"
+                           step="0.1" min="0" max="10" placeholder="e.g., 2.5"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Production Level Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="layers" class="w-5 h-5 mr-2 text-indigo-500"></i>
+                Production Level
+            </h2>
+            <div>
+                <label for="id_order_level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    JV Order Level
+                </label>
+                <select name="order_level" id="id_order_level"
+                        class="w-full md:w-1/2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                    <option value="" {% if not form.order_level.value %}selected{% endif %}>Not specified</option>
+                    <option value="3" {% if form.order_level.value == '3' %}selected{% endif %}>Level 3 - No cutters, upper section separate</option>
+                    <option value="4" {% if form.order_level.value == '4' %}selected{% endif %}>Level 4 - No cutters, upper section welded/machined</option>
+                    <option value="5" {% if form.order_level.value == '5' %}selected{% endif %}>Level 5 - With cutters brazed</option>
+                    <option value="6" {% if form.order_level.value == '6' %}selected{% endif %}>Level 6 - Painted and ready for use</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Status & Description Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="info" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Additional Information
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Description
+                    </label>
+                    <textarea name="description" id="id_description" rows="3"
+                              placeholder="Optional notes about this bit type..."
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">{{ form.description.value|default:'' }}</textarea>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_active" id="id_is_active"
+                           {% if form.is_active.value or is_create %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="id_is_active" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                        Active (available for use)
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'workorders:bittype_list' %}"
+               class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+                {% if is_create %}Create Bit Type{% else %}Save Changes{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+
+<script>
+// Show/hide FC-specific fields based on category selection
+document.getElementById('id_category').addEventListener('change', function() {
+    const fcSpecs = document.getElementById('fc-specs');
+    if (this.value === 'FC') {
+        fcSpecs.style.display = 'block';
+    } else {
+        fcSpecs.style.display = 'none';
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const category = document.getElementById('id_category').value;
+    const fcSpecs = document.getElementById('fc-specs');
+    if (category !== 'FC') {
+        fcSpecs.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ board.name }}</h1>
+            {% if board.sprint %}
+            <a href="{% url 'planning:sprint_detail' board.sprint.pk %}" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200">
+                {{ board.sprint.code }}
+            </a>
+            {% endif %}
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ board.code }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'planning:item_create' %}?board={{ board.pk }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Item
+        </a>
+        <a href="{% url 'planning:column_create' %}?board={{ board.pk }}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="columns" class="w-4 h-4 mr-2"></i>Add Column
+        </a>
+        <a href="{% url 'planning:board_update' board.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="settings" class="w-4 h-4 mr-2"></i>Settings
+        </a>
+        <a href="{% url 'planning:board_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Kanban Board -->
+<div class="flex gap-4 overflow-x-auto pb-4" style="min-height: 500px;">
+    {% for column in columns %}
+    <div class="flex-shrink-0 w-80 bg-gray-100 dark:bg-gray-800 rounded-xl">
+        <!-- Column Header -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">{{ column.name }}</h3>
+                    <span class="text-xs text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                        {{ column.items.count }}{% if column.wip_limit %}/{{ column.wip_limit }}{% endif %}
+                    </span>
+                </div>
+                <a href="{% url 'planning:column_update' column.pk %}" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                </a>
+            </div>
+            {% if column.is_done_column %}
+            <span class="text-xs text-green-600">Done column</span>
+            {% elif column.is_backlog_column %}
+            <span class="text-xs text-gray-500">Backlog</span>
+            {% endif %}
+        </div>
+
+        <!-- Column Items -->
+        <div class="p-2 space-y-2 max-h-[600px] overflow-y-auto">
+            {% for item in column.items.all %}
+            <a href="{% url 'planning:item_detail' item.pk %}" class="block bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow border-l-4
+                {% if item.priority == 'HIGHEST' %}border-red-500
+                {% elif item.priority == 'HIGH' %}border-orange-500
+                {% elif item.priority == 'MEDIUM' %}border-yellow-500
+                {% elif item.priority == 'LOW' %}border-blue-500
+                {% else %}border-gray-300{% endif %}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-mono text-gray-500">{{ item.code }}</span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                        {% if item.item_type == 'EPIC' %}bg-purple-100 text-purple-800
+                        {% elif item.item_type == 'STORY' %}bg-blue-100 text-blue-800
+                        {% elif item.item_type == 'BUG' %}bg-red-100 text-red-800
+                        {% elif item.item_type == 'SUBTASK' %}bg-gray-100 text-gray-800
+                        {% else %}bg-green-100 text-green-800{% endif %}">
+                        {{ item.get_item_type_display }}
+                    </span>
+                </div>
+                <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">{{ item.title|truncatewords:10 }}</h4>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-1">
+                        {% for label in item.labels.all|slice:":3" %}
+                        <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }}"></span>
+                        {% endfor %}
+                    </div>
+                    <div class="flex items-center space-x-2 text-xs text-gray-500">
+                        {% if item.story_points %}
+                        <span class="bg-gray-100 dark:bg-gray-600 px-1.5 py-0.5 rounded">{{ item.story_points }}pt</span>
+                        {% endif %}
+                        {% if item.assignee %}
+                        <span class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">
+                            {{ item.assignee.username|slice:":1"|upper }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% empty %}
+            <div class="text-center py-4 text-gray-400 text-sm">No items</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-xl">
+        <div class="text-center py-16">
+            <i data-lucide="columns" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No columns yet</h3>
+            <p class="text-gray-500 mb-4">Add columns to start organizing work</p>
+            <a href="{% url 'planning:column_create' %}?board={{ board.pk }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Column
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

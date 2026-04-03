@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ report.hoc_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hsse:hoc-list' %}" class="hover:text-blue-600">HOC Reports</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ report.hoc_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ report.hoc_number }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hsse:hoc-update' report.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'hsse:hoc-delete' report.pk %}" class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Observation Details</h2>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if report.category == 'UNSAFE_ACT' %}bg-red-100 text-red-800
+                    {% elif report.category == 'UNSAFE_CONDITION' %}bg-orange-100 text-orange-800
+                    {% elif report.category == 'NEAR_MISS' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ report.get_category_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">HOC Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ report.hoc_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ report.location }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if report.status == 'OPEN' %}bg-yellow-100 text-yellow-800
+                            {% elif report.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                            {% else %}bg-green-100 text-green-800{% endif %}">
+                            {{ report.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Description</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ report.description }}</p>
+            </div>
+            {% if report.immediate_action %}
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Immediate Action Taken</h3>
+                <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ report.immediate_action }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Info</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Reported By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ report.reported_by.get_full_name|default:report.reported_by.username }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Reported At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ report.reported_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'hsse:hoc-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

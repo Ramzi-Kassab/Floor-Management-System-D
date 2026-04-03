@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ inspection.inspection_number }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ inspection.get_inspection_type_display }} - {{ inspection.inspection_date|date:"M d, Y"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldinspection_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldinspection_update' inspection.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Inspection Details</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Inspection Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.get_inspection_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Status</dt><dd class="font-medium"><span class="px-2 py-1 text-xs rounded-full {% if inspection.status == 'COMPLETED' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ inspection.get_status_display|default:"-" }}</span></dd></div>
+                <div><dt class="text-gray-500">Inspector</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.inspector.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Drill String Run</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.drill_string_run.run_number|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Equipment Info</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Equipment Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.equipment_type|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Serial Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.serial_number|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Condition Rating</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.get_condition_rating_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Wear Percentage</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.wear_percentage|default:"-" }}%</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Condition Assessment</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Thread Condition</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.get_thread_condition_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Body Condition</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.get_body_condition_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Gauge Condition</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.get_gauge_condition_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Next Inspection Due</dt><dd class="font-medium text-gray-900 dark:text-white">{{ inspection.next_inspection_due|date:"M d, Y"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Result</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Passed</dt><dd class="font-medium"><span class="px-2 py-1 text-xs rounded-full {% if inspection.passed %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">{% if inspection.passed %}Yes{% else %}No{% endif %}</span></dd></div>
+                <div><dt class="text-gray-500">Photos Attached</dt><dd class="font-medium text-gray-900 dark:text-white">{% if inspection.photos_attached %}Yes{% else %}No{% endif %}</dd></div>
+            </dl>
+            {% if inspection.failed_reason %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Failed Reason</h4><p class="text-gray-900 dark:text-white">{{ inspection.failed_reason }}</p></div>{% endif %}
+            {% if inspection.corrective_action %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Corrective Action</h4><p class="text-gray-900 dark:text-white">{{ inspection.corrective_action }}</p></div>{% endif %}
+        </div>
+    </div>
+    {% if inspection.findings or inspection.recommendations %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
+        {% if inspection.findings %}<div class="mb-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Findings</h4><p class="text-gray-900 dark:text-white">{{ inspection.findings }}</p></div>{% endif %}
+        {% if inspection.recommendations %}<div><h4 class="text-sm font-medium text-gray-500 mb-1">Recommendations</h4><p class="text-gray-900 dark:text-white">{{ inspection.recommendations }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

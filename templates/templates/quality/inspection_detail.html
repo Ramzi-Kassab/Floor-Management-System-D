@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ inspection.inspection_number }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ inspection.inspection_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if inspection.status == 'PASSED' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                {% elif inspection.status == 'FAILED' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                {% elif inspection.status == 'IN_PROGRESS' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                {% elif inspection.status == 'SCHEDULED' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                {{ inspection.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ inspection.get_inspection_type_display }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if inspection.status == 'SCHEDULED' or inspection.status == 'IN_PROGRESS' %}
+        <a href="{% url 'quality:inspection_complete' inspection.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>Record Results
+        </a>
+        {% endif %}
+        <a href="{% url 'quality:inspection_update' inspection.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'quality:inspection_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Inspection Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspection Details</h2>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Inspection Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ inspection.inspection_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.get_inspection_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Work Order</dt>
+                    <dd>
+                        {% if inspection.work_order %}
+                        <a href="{% url 'workorders:detail' inspection.work_order.pk %}" class="text-blue-600 hover:underline">
+                            {{ inspection.work_order.wo_number }}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Drill Bit</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.drill_bit.serial_number|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Scheduled Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.scheduled_date|date:"M d, Y"|default:"--" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Inspected At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.inspected_at|date:"M d, Y H:i"|default:"Not yet" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Results -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Results</h2>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-green-600 dark:text-green-400">{{ inspection.pass_count }}</p>
+                    <p class="text-sm text-green-700 dark:text-green-300">Passed</p>
+                </div>
+                <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-red-600 dark:text-red-400">{{ inspection.fail_count }}</p>
+                    <p class="text-sm text-red-700 dark:text-red-300">Failed</p>
+                </div>
+            </div>
+            {% if inspection.findings %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Findings</h3>
+                <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ inspection.findings }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Related NCRs -->
+        {% if ncrs %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Related NCRs</h2>
+            <div class="space-y-3">
+                {% for ncr in ncrs %}
+                <div class="border-l-4 {% if ncr.severity == 'CRITICAL' %}border-red-600{% elif ncr.severity == 'MAJOR' %}border-orange-600{% else %}border-yellow-600{% endif %} bg-gray-50 dark:bg-gray-700/50 p-4 rounded-r-lg">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <a href="{% url 'quality:ncr_detail' ncr.pk %}" class="font-medium text-gray-900 dark:text-white hover:underline">{{ ncr.ncr_number }}</a>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ ncr.title|truncatewords:10 }}</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded {% if ncr.severity == 'CRITICAL' %}bg-red-100 text-red-800{% elif ncr.severity == 'MAJOR' %}bg-orange-100 text-orange-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ ncr.get_severity_display }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Inspector -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspector</h2>
+            {% if inspection.inspected_by %}
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center mr-3">
+                    <span class="text-sm font-medium text-gray-600 dark:text-gray-300">
+                        {{ inspection.inspected_by.first_name|slice:":1" }}{{ inspection.inspected_by.last_name|slice:":1" }}
+                    </span>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ inspection.inspected_by.get_full_name }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ inspection.inspected_at|date:"M d, Y H:i"|default:"Not completed" }}</p>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">Not assigned</p>
+            {% endif %}
+        </div>
+
+        <!-- Approval -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Approval</h2>
+            {% if inspection.approved_by %}
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3">
+                    <i data-lucide="check" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ inspection.approved_by.get_full_name }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ inspection.approved_at|date:"M d, Y H:i" }}</p>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400">Pending approval</p>
+            {% endif %}
+        </div>
+
+        <!-- Notes -->
+        {% if inspection.notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+            <p class="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ inspection.notes }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Audit -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Audit</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.created_at|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% if inspection.created_by %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.created_by.get_full_name }}</dd>
+                </div>
+                {% endif %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Updated</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ inspection.updated_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

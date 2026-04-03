@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.employee_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hr:employee-list' %}" class="hover:text-blue-600">Employees</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ employee.employee_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ employee.full_name }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ employee.job_title }} - {{ employee.department }}</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hr:employee-update' employee.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Employee Information</h2>
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if employee.employment_status == 'ACTIVE' %}bg-green-100 text-green-800
+                    {% elif employee.employment_status == 'ON_LEAVE' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ employee.get_employment_status_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Employee Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ employee.employee_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Badge Number</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.badge_number|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Email</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.user.email|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Mobile Phone</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.mobile_phone|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Department</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.department }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Job Title</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.job_title }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Manager</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.manager.full_name|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Work Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.work_location|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Hire Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.hire_date|date:"M d, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Years of Service</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.years_of_service|floatformat:1 }} years</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Employment Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.get_employment_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Pay Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ employee.get_pay_type_display }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Active Goals</h2>
+                <a href="{% url 'hr:goal-create' %}?employee={{ employee.pk }}" class="text-blue-600 hover:underline text-sm">Add Goal</a>
+            </div>
+            {% if active_goals %}
+            <div class="space-y-3">
+                {% for goal in active_goals %}
+                <a href="{% url 'hr:goal-detail' goal.pk %}" class="block p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ goal.title }}</p>
+                            <p class="text-xs text-gray-500">Due: {{ goal.target_date|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm font-medium text-blue-600">{{ goal.progress_percentage }}%</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full" style="width: {{ goal.progress_percentage }}%"></div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">No active goals</p>
+            {% endif %}
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Skills</h2>
+                <a href="{% url 'hr:skill-create' %}?employee={{ employee.pk }}" class="text-blue-600 hover:underline text-sm">Add Skill</a>
+            </div>
+            {% if skills %}
+            <div class="flex flex-wrap gap-2">
+                {% for skill in skills %}
+                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm">
+                    {{ skill.skill_name }}
+                    <span class="text-xs text-gray-500">({{ skill.get_proficiency_level_display }})</span>
+                </span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">No skills recorded</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'hr:review-create' %}?employee={{ employee.pk }}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <i data-lucide="clipboard-check" class="w-4 h-4 mr-2"></i>Start Review
+                </a>
+                <a href="{% url 'hr:leave-create' %}?employee={{ employee.pk }}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">
+                    <i data-lucide="calendar" class="w-4 h-4 mr-2"></i>Request Leave
+                </a>
+                <a href="{% url 'hr:document-create' %}?employee={{ employee.pk }}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    <i data-lucide="file-plus" class="w-4 h-4 mr-2"></i>Add Document
+                </a>
+                <a href="{% url 'hr:employee-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Emergency Contacts</h2>
+                <a href="{% url 'hr:emergency-contact-create' %}?employee={{ employee.pk }}" class="text-blue-600 hover:underline text-sm">Add</a>
+            </div>
+            {% if emergency_contacts %}
+            <div class="space-y-3">
+                {% for contact in emergency_contacts %}
+                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div class="flex justify-between">
+                        <p class="font-medium text-gray-900 dark:text-white">{{ contact.full_name }}</p>
+                        {% if contact.is_primary %}<span class="text-xs text-blue-600">Primary</span>{% endif %}
+                    </div>
+                    <p class="text-xs text-gray-500">{{ contact.get_relationship_display }}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">{{ contact.primary_phone }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">No emergency contacts</p>
+            {% endif %}
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Documents</h2>
+                <a href="{% url 'hr:document-list' %}?employee={{ employee.pk }}" class="text-blue-600 hover:underline text-sm">View All</a>
+            </div>
+            {% if recent_documents %}
+            <div class="space-y-2">
+                {% for doc in recent_documents %}
+                <a href="{% url 'hr:document-detail' doc.pk %}" class="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded">
+                    <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
+                    <div>
+                        <p class="text-sm text-gray-900 dark:text-white">{{ doc.title|truncatechars:30 }}</p>
+                        <p class="text-xs text-gray-500">{{ doc.get_document_type_display }}</p>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-sm">No documents</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

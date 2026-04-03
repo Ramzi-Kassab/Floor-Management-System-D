@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Configure instruction rule conditions and text</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:instruction_rule_list' %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Rules
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Basic Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rule Name *</label>
+                    <input type="text" name="name" value="{{ form.name.value|default:'' }}" required
+                           placeholder="e.g., Temperature Warning for Large Bits"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    {% if form.name.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                    <textarea name="description" rows="2"
+                              placeholder="Brief description of when this rule applies..."
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                        <input type="number" name="priority" value="{{ form.priority.value|default:10 }}" min="1" max="100"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                        <p class="mt-1 text-xs text-gray-500">Higher = more important (1-100)</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <label class="flex items-center mt-2">
+                            <input type="checkbox" name="is_active" value="true" {% if form.is_active.value %}checked{% endif %}
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Active</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instruction Text -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Instruction Text</h3>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instruction *</label>
+                <textarea name="instruction_text" rows="6" required
+                          placeholder="The instruction text that will be displayed on the Job Card when conditions are met..."
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">{{ form.instruction_text.value|default:'' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500">This text will appear in the Instructions tab on matching Job Cards</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applies To</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Work Order Types</label>
+                <p class="text-xs text-gray-500 mb-2">Leave empty to apply to all types</p>
+                <div class="space-y-2 max-h-48 overflow-y-auto p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    {% for value, label in wo_type_choices %}
+                    <label class="flex items-center">
+                        <input type="checkbox" name="applies_to_wo_types" value="{{ value }}"
+                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bit Types</label>
+                <p class="text-xs text-gray-500 mb-2">Leave empty to apply to all types</p>
+                <div class="space-y-2 max-h-48 overflow-y-auto p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    {% for value, label in bit_type_choices %}
+                    <label class="flex items-center">
+                        <input type="checkbox" name="applies_to_bit_types" value="{{ value }}"
+                               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conditions -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6" x-data="conditionFormset()">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Advanced Conditions</h3>
+            <button type="button" @click="addCondition()"
+                    class="inline-flex items-center px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 text-sm">
+                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Condition
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">All conditions must match for the rule to apply (AND logic). Leave empty for no additional conditions.</p>
+
+        <!-- Formset Management -->
+        {{ condition_formset.management_form }}
+
+        <!-- Condition Rows -->
+        <div id="conditions-container" class="space-y-3">
+            {% for form in condition_formset %}
+            <div class="condition-row flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg" data-index="{{ forloop.counter0 }}">
+                {{ form.id }}
+                <div class="flex-1 grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Field</label>
+                        <select name="{{ form.field_name.html_name }}"
+                                class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                            <option value="">Select field...</option>
+                            <option value="wo.wo_number" {% if form.field_name.value == "wo.wo_number" %}selected{% endif %}>WO Number</option>
+                            <option value="wo.customer__name" {% if form.field_name.value == "wo.customer__name" %}selected{% endif %}>Customer Name</option>
+                            <option value="wo.customer__code" {% if form.field_name.value == "wo.customer__code" %}selected{% endif %}>Customer Code</option>
+                            <option value="bit.serial_number" {% if form.field_name.value == "bit.serial_number" %}selected{% endif %}>Bit Serial Number</option>
+                            <option value="bit.size" {% if form.field_name.value == "bit.size" %}selected{% endif %}>Bit Size</option>
+                            <option value="bit.mat_number" {% if form.field_name.value == "bit.mat_number" %}selected{% endif %}>Bit MAT Number</option>
+                            <option value="design.mat_no" {% if form.field_name.value == "design.mat_no" %}selected{% endif %}>Design MAT No</option>
+                            <option value="wo.priority" {% if form.field_name.value == "wo.priority" %}selected{% endif %}>Priority</option>
+                            <option value="wo.contract_no" {% if form.field_name.value == "wo.contract_no" %}selected{% endif %}>Contract No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Operator</label>
+                        <select name="{{ form.operator.html_name }}"
+                                class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                            <option value="eq" {% if form.operator.value == "eq" %}selected{% endif %}>Equals</option>
+                            <option value="ne" {% if form.operator.value == "ne" %}selected{% endif %}>Not Equals</option>
+                            <option value="contains" {% if form.operator.value == "contains" %}selected{% endif %}>Contains</option>
+                            <option value="starts" {% if form.operator.value == "starts" %}selected{% endif %}>Starts With</option>
+                            <option value="ends" {% if form.operator.value == "ends" %}selected{% endif %}>Ends With</option>
+                            <option value="gt" {% if form.operator.value == "gt" %}selected{% endif %}>Greater Than</option>
+                            <option value="lt" {% if form.operator.value == "lt" %}selected{% endif %}>Less Than</option>
+                            <option value="null" {% if form.operator.value == "null" %}selected{% endif %}>Is Null</option>
+                            <option value="not_null" {% if form.operator.value == "not_null" %}selected{% endif %}>Is Not Null</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Value</label>
+                        <input type="text" name="{{ form.value.html_name }}" value="{{ form.value.value|default:'' }}"
+                               placeholder="Value to match"
+                               class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                </div>
+                <div class="flex items-end">
+                    <label class="block">
+                        <span class="text-xs text-gray-500">Delete</span>
+                        <input type="checkbox" name="{{ form.DELETE.html_name }}" class="condition-delete mt-1 w-4 h-4 text-red-600 border-gray-300 rounded">
+                    </label>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4" id="no-conditions-msg">
+                No conditions defined. Click "Add Condition" to add field-based filters.
+            </p>
+            {% endfor %}
+        </div>
+
+        <!-- Empty Form Template (for JS) -->
+        <template id="condition-template">
+            <div class="condition-row flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div class="flex-1 grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Field</label>
+                        <select name="conditions-__prefix__-field_name"
+                                class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                            <option value="">Select field...</option>
+                            <option value="wo.wo_number">WO Number</option>
+                            <option value="wo.customer__name">Customer Name</option>
+                            <option value="wo.customer__code">Customer Code</option>
+                            <option value="bit.serial_number">Bit Serial Number</option>
+                            <option value="bit.size">Bit Size</option>
+                            <option value="bit.mat_number">Bit MAT Number</option>
+                            <option value="design.mat_no">Design MAT No</option>
+                            <option value="wo.priority">Priority</option>
+                            <option value="wo.contract_no">Contract No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Operator</label>
+                        <select name="conditions-__prefix__-operator"
+                                class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                            <option value="eq">Equals</option>
+                            <option value="ne">Not Equals</option>
+                            <option value="contains">Contains</option>
+                            <option value="starts">Starts With</option>
+                            <option value="ends">Ends With</option>
+                            <option value="gt">Greater Than</option>
+                            <option value="lt">Less Than</option>
+                            <option value="null">Is Null</option>
+                            <option value="not_null">Is Not Null</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Value</label>
+                        <input type="text" name="conditions-__prefix__-value" placeholder="Value to match"
+                               class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                </div>
+                <div class="flex items-end">
+                    <label class="block">
+                        <span class="text-xs text-gray-500">Delete</span>
+                        <input type="checkbox" name="conditions-__prefix__-DELETE" class="condition-delete mt-1 w-4 h-4 text-red-600 border-gray-300 rounded">
+                    </label>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Info -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+        <div class="flex items-start">
+            <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0"></i>
+            <div class="text-sm">
+                <p class="font-medium text-gray-900 dark:text-white">How Rules Work</p>
+                <p class="text-gray-600 dark:text-gray-400 mt-1">
+                    Rules are evaluated when viewing a Job Card. If the work order matches the WO type and bit type filters,
+                    and all conditions are met, the instruction text will appear in the Instructions tab.
+                    Rules are sorted by priority (highest first).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end space-x-3">
+        <a href="{% url 'workorders:instruction_rule_list' %}"
+           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            Cancel
+        </a>
+        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Save Rule
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function conditionFormset() {
+    return {
+        addCondition() {
+            const container = document.getElementById('conditions-container');
+            const template = document.getElementById('condition-template');
+            const totalForms = document.querySelector('[name="conditions-TOTAL_FORMS"]');
+
+            // Hide empty message if exists
+            const emptyMsg = document.getElementById('no-conditions-msg');
+            if (emptyMsg) emptyMsg.remove();
+
+            // Get the template content and replace prefix
+            const index = parseInt(totalForms.value);
+            const newHtml = template.innerHTML.replace(/__prefix__/g, index);
+
+            // Create new element and add to container
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = newHtml;
+            container.appendChild(wrapper.firstElementChild);
+
+            // Increment total forms count
+            totalForms.value = index + 1;
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Contact - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-10">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full">
+            <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+        </div>
+        <h3 class="mt-4 text-lg font-medium text-center text-gray-900 dark:text-white">Delete Contact</h3>
+        <p class="mt-2 text-sm text-center text-gray-500 dark:text-gray-400">
+            Are you sure you want to delete <strong>{{ contact.name }}</strong> from {{ customer.name }}?
+            This action cannot be undone.
+        </p>
+        <form method="post" class="mt-6 flex justify-center gap-3">
+            {% csrf_token %}
+            <a href="{% url 'sales:customer_detail' customer.pk %}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700">
+                Delete Contact
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

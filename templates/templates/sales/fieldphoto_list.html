@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Field operation photos</p>
+        </div>
+        <a href="{% url 'sales:fieldphoto_create' %}" class="inline-flex items-center px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Upload Photo
+        </a>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search photos..." class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Search</button>
+        </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        {% if photos %}
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4">
+            {% for photo in photos %}
+            <a href="{% url 'sales:fieldphoto_detail' photo.pk %}" class="block group">
+                <div class="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                    {% if photo.photo %}<img src="{{ photo.photo.url }}" alt="{{ photo.title }}" class="w-full h-full object-cover group-hover:opacity-75 transition">{% else %}<div class="w-full h-full flex items-center justify-center"><i data-lucide="image" class="w-12 h-12 text-gray-400"></i></div>{% endif %}
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white truncate">{{ photo.title }}</p>
+                <p class="text-xs text-gray-500">{{ photo.taken_date|date:"M d, Y"|default:"-" }}</p>
+            </a>
+            {% endfor %}
+        </div>
+        {% if is_paginated %}{% include "components/pagination.html" %}{% endif %}
+        {% else %}
+        <div class="text-center py-12">
+            <i data-lucide="image" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No photos found</h3>
+            <a href="{% url 'sales:fieldphoto_create' %}" class="text-ardt-blue hover:underline">Upload your first photo</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

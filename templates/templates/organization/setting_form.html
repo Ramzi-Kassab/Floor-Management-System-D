@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Setting - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'organization:setting-list' %}" class="hover:text-blue-600">Settings</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if form.instance.pk %}Edit Setting{% else %}New Setting{% endif %}</h1>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Key *</label>
+                    <input type="text" name="key" id="id_key" value="{{ form.key.value|default:'' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-2 focus:ring-blue-500"
+                           {% if form.instance.pk %}readonly{% endif %}>
+                    {% if form.key.errors %}<p class="mt-1 text-sm text-red-600">{{ form.key.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Use SCREAMING_SNAKE_CASE (e.g., MAX_LOGIN_ATTEMPTS)</p>
+                </div>
+                <div>
+                    <label for="id_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                    <input type="text" name="category" id="id_category" value="{{ form.category.value|default:'general' }}" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">e.g., general, security, email, notifications</p>
+                </div>
+            </div>
+            <div>
+                <label for="id_value_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value Type *</label>
+                <select name="value_type" id="id_value_type"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                    <option value="STRING" {% if form.value_type.value == 'STRING' %}selected{% endif %}>String</option>
+                    <option value="INTEGER" {% if form.value_type.value == 'INTEGER' %}selected{% endif %}>Integer</option>
+                    <option value="BOOLEAN" {% if form.value_type.value == 'BOOLEAN' %}selected{% endif %}>Boolean</option>
+                    <option value="JSON" {% if form.value_type.value == 'JSON' %}selected{% endif %}>JSON</option>
+                    <option value="TEXT" {% if form.value_type.value == 'TEXT' %}selected{% endif %}>Text</option>
+                </select>
+            </div>
+            <div>
+                <label for="id_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Value *</label>
+                <textarea name="value" id="id_value" rows="3" required
+                          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono focus:ring-2 focus:ring-blue-500">{{ form.value.value|default:'' }}</textarea>
+                {% if form.value.errors %}<p class="mt-1 text-sm text-red-600">{{ form.value.errors.0 }}</p>{% endif %}
+                <div id="value-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400">Enter the setting value</div>
+            </div>
+            <div>
+                <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea name="description" id="id_description" rows="2"
+                          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" name="is_editable" id="id_is_editable" {% if form.is_editable.value %}checked{% endif %}
+                       class="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                <label for="id_is_editable" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Allow editing via UI</label>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'organization:setting-list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Setting
+            </button>
+        </div>
+    </form>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.getElementById('id_value_type');
+    const valueHint = document.getElementById('value-hint');
+
+    const hints = {
+        'STRING': 'Enter a text value',
+        'INTEGER': 'Enter a whole number (e.g., 100)',
+        'BOOLEAN': 'Enter true or false',
+        'JSON': 'Enter valid JSON (e.g., {"key": "value"})',
+        'TEXT': 'Enter multi-line text'
+    };
+
+    typeSelect.addEventListener('change', function() {
+        valueHint.textContent = hints[this.value] || 'Enter the setting value';
+    });
+});
+</script>
+{% endblock %}

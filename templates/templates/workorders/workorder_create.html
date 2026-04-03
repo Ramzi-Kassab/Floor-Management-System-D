@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}New Work Order - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">New Work Order</h1>
+        <p class="text-gray-600 dark:text-gray-400">Enter serial number to auto-populate bit data</p>
+    </div>
+    <a href="{% url 'workorders:workorder_list_enhanced' %}"
+       class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+        Back to List
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="woCreateForm()" x-init="init()">
+    <form method="post" class="space-y-5">
+        {% csrf_token %}
+        {{ form.drill_bit }}
+        {{ form.design }}
+        {{ form.bom }}
+
+        <!-- Row 1: Serial Number + Account + WO Type + Received -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <i data-lucide="clipboard-list" class="w-5 h-5 mr-2 text-blue-500"></i>
+                Work Order Setup
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Serial Number with picker button -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Serial Number *</label>
+                    <div class="flex gap-2">
+                        {{ form.serial_number }}
+                        <button type="button" @click="openSerialPicker()"
+                                class="px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                title="Browse drill bits">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    {% if form.serial_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs" :class="lookupStatus === 'found' ? 'text-green-600' : lookupStatus === 'not_found' ? 'text-amber-600' : 'text-gray-400'">
+                        <span x-show="lookupStatus === 'loading'"><i data-lucide="loader-2" class="w-3 h-3 inline animate-spin"></i> Looking up...</span>
+                        <span x-show="lookupStatus === 'found'" x-cloak>Bit found — data populated</span>
+                        <span x-show="lookupStatus === 'not_found'" x-cloak>New serial — will create drill bit</span>
+                        <span x-show="lookupStatus === 'idle'">Enter serial or click search</span>
+                    </p>
+                </div>
+                <!-- Account (auto-populated from bit, can be changed) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account *</label>
+                    {{ form.account }}
+                    {% if form.account.errors %}<p class="mt-1 text-sm text-red-600">{{ form.account.errors.0 }}</p>{% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" x-show="selectedAccount" x-cloak>
+                        WO Format: <span x-text="accountInfo.legacy_format" class="font-mono"></span>
+                    </p>
+                </div>
+                <!-- WO Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WO Type *</label>
+                    {{ form.wo_type }}
+                    {% if form.wo_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.wo_type.errors.0 }}</p>{% endif %}
+                </div>
+                <!-- Received Date/Time (auto-filled) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Received</label>
+                    {{ form.bit_received_date }}
+                    {% if form.bit_received_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.bit_received_date.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
+            <!-- Account Info Card -->
+            <div x-show="selectedAccount" x-cloak
+                 class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Workflow:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.workflow_type"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Pricing:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.pricing_mode"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Max Repairs:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.max_repairs || 'Unlimited'"></span>
+                    </div>
+                    <div>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">Delivery:</span>
+                        <span class="text-gray-700 dark:text-gray-300 ml-1" x-text="accountInfo.delivery_location"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Auto-Populated Bit Info (read-only display) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5" x-show="bitData.serial_number" x-cloak>
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <i data-lucide="disc" class="w-5 h-5 mr-2 text-green-500"></i>
+                Bit Information
+                <span class="ml-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">Auto-populated</span>
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                <!-- Size -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.size_display || '—'"></p>
+                </div>
+                <!-- Type -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.bit_type_display || '—'"></p>
+                </div>
+                <!-- HDBS Type -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">HDBS Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.hdbs_type || '—'"></p>
+                </div>
+                <!-- SMI Type -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">SMI Type</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.smi_type || '—'"></p>
+                </div>
+                <!-- Design MAT Level -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design Level</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="bitData.design_level || '—'"></p>
+                </div>
+                <!-- Design MAT No. -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design MAT</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono text-xs" x-text="bitData.design_mat_no || '—'"></p>
+                </div>
+                <!-- Repairs -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Repairs</label>
+                    <p class="text-sm font-semibold" :class="bitData.repair_count > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'" x-text="bitData.repair_count ?? '0'"></p>
+                </div>
+                <!-- Reruns -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Reruns</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white" x-text="(bitData.rerun_count_factory || 0) + (bitData.rerun_count_field || 0)"></p>
+                </div>
+            </div>
+
+            <!-- Second row: BOM -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                <!-- L5 MAT No (BOM) - editable -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">L5 MAT No. (BOM)</label>
+                    <div class="flex items-center gap-2">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white font-mono" x-text="bitData.bom_code || '—'" x-show="!showBomSelector"></p>
+                        <select id="id_bom_selector" x-show="showBomSelector" x-cloak
+                                class="flex-1 text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+                                @change="onBomChange($event.target.value)">
+                            <option value="">-- Current BOM --</option>
+                        </select>
+                        <button type="button" @click="showBomSelector = !showBomSelector; if(showBomSelector) loadBoms()"
+                                class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <span x-text="showBomSelector ? 'Cancel' : 'Change'"></span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-0.5" x-text="bitData.bom_name || ''" x-show="bitData.bom_name && !showBomSelector"></p>
+                </div>
+                <!-- Bit State/Account -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bit State / Current Account</label>
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                        <span x-text="bitData.bit_state || 'N/A'" class="px-2 py-0.5 rounded text-xs" :class="bitData.bit_state === 'Component' ? 'bg-blue-100 text-blue-700' : bitData.bit_state === 'Finished Good' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"></span>
+                        <span class="ml-2" x-text="bitData.account_code || '—'"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Schedule & Notes (collapsed) -->
+        <details class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <summary class="p-5 cursor-pointer flex items-center text-base font-semibold text-gray-900 dark:text-white">
+                <i data-lucide="file-text" class="w-5 h-5 mr-2 text-gray-500"></i>
+                Schedule &amp; Notes
+                <i data-lucide="chevron-down" class="w-4 h-4 ml-auto text-gray-400"></i>
+            </summary>
+            <div class="px-5 pb-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+                        {{ form.due_date }}
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work Description</label>
+                    {{ form.description }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </details>
+
+        <!-- Submit -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'workorders:workorder_list_enhanced' %}"
+               class="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center">
+                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                Create Work Order
+            </button>
+        </div>
+    </form>
+
+    <!-- Serial Number Picker Modal -->
+    <div x-show="showSerialPicker" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="showSerialPicker = false">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/50" @click="showSerialPicker = false"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Select Drill Bit</h3>
+                    <button @click="showSerialPicker = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <!-- Modal Body -->
+                <div class="flex-1 overflow-auto p-6">
+                    <div id="drillBitTableContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+<link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+<script>
+function woCreateForm() {
+    return {
+        selectedAccount: null,
+        accountInfo: {},
+        lookupStatus: 'idle',  // idle, loading, found, not_found
+        bitData: {},
+        showBomSelector: false,
+        showSerialPicker: false,
+        lookupTimer: null,
+        drillBitTable: null,
+        accounts: {
+            {% for acc in accounts %}
+            '{{ acc.pk }}': {
+                code: '{{ acc.code }}',
+                workflow_type: '{{ acc.get_workflow_type_display }}',
+                pricing_mode: '{{ acc.get_pricing_mode_display }}',
+                max_repairs: '{{ acc.max_repairs|default_if_none:"" }}',
+                delivery_location: '{{ acc.delivery_location }}',
+                legacy_format: '{{ acc.legacy_wo_format }}',
+            },
+            {% endfor %}
+        },
+
+        init() {
+            const accountSelect = document.getElementById('id_account');
+            if (accountSelect) {
+                accountSelect.addEventListener('change', () => this.onAccountChange(accountSelect.value));
+                if (accountSelect.value) this.onAccountChange(accountSelect.value);
+            }
+
+            const serialInput = document.getElementById('id_serial_number');
+            if (serialInput) {
+                serialInput.addEventListener('input', (e) => {
+                    clearTimeout(this.lookupTimer);
+                    const val = e.target.value.trim();
+                    if (val.length >= 4) {
+                        this.lookupStatus = 'loading';
+                        this.lookupTimer = setTimeout(() => this.lookupSerial(val), 500);
+                    } else {
+                        this.lookupStatus = 'idle';
+                        this.bitData = {};
+                        this.clearHiddenFields();
+                    }
+                });
+                serialInput.addEventListener('change', (e) => {
+                    const val = e.target.value.trim();
+                    if (val.length >= 4) {
+                        this.lookupSerial(val);
+                    }
+                });
+            }
+
+            // Auto-fill received date/time with current datetime
+            const recvDate = document.getElementById('id_bit_received_date');
+            if (recvDate && !recvDate.value) {
+                const now = new Date();
+                const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+                recvDate.value = local.toISOString().slice(0, 16);
+            }
+        },
+
+        onAccountChange(val) {
+            this.selectedAccount = val;
+            this.accountInfo = this.accounts[val] || {};
+        },
+
+        async lookupSerial(serial) {
+            this.lookupStatus = 'loading';
+            try {
+                const resp = await fetch(`/workorders/api/drill-bits/lookup/?serial=${encodeURIComponent(serial)}`);
+                const data = await resp.json();
+                if (data.found) {
+                    this.lookupStatus = 'found';
+                    this.bitData = data;
+                    this.populateFromBitData(data);
+                } else {
+                    this.lookupStatus = 'not_found';
+                    this.bitData = {};
+                    this.clearHiddenFields();
+                }
+            } catch (err) {
+                console.error('Lookup failed:', err);
+                this.lookupStatus = 'not_found';
+                this.bitData = {};
+            }
+        },
+
+        populateFromBitData(data) {
+            if (data.drill_bit_id) {
+                document.getElementById('id_drill_bit').value = data.drill_bit_id;
+            }
+            if (data.design_id) {
+                document.getElementById('id_design').value = data.design_id;
+            }
+            if (data.bom_id) {
+                document.getElementById('id_bom').value = data.bom_id;
+            }
+            // Auto-set account from bit
+            const acctSelect = document.getElementById('id_account');
+            if (acctSelect && data.account_id) {
+                acctSelect.value = data.account_id;
+                this.onAccountChange(String(data.account_id));
+            }
+        },
+
+        openSerialPicker() {
+            this.showSerialPicker = true;
+            this.$nextTick(() => this.initDrillBitTable());
+        },
+
+        async initDrillBitTable() {
+            if (this.drillBitTable) {
+                this.drillBitTable.destroy();
+            }
+            const container = document.getElementById('drillBitTableContainer');
+            container.innerHTML = '<p class="text-gray-500 text-center py-8">Loading drill bits...</p>';
+
+            try {
+                const resp = await fetch('/workorders/api/drill-bits/list/');
+                const data = await resp.json();
+
+                this.drillBitTable = new Tabulator(container, {
+                    data: data.bits || [],
+                    layout: "fitColumns",
+                    height: "400px",
+                    placeholder: "No drill bits found",
+                    columns: [
+                        { title: "Serial #", field: "serial_number", headerFilter: "input", width: 120 },
+                        { title: "Size", field: "size", headerFilter: "input", width: 80 },
+                        { title: "HDBS Type", field: "hdbs_type", headerFilter: "input" },
+                        { title: "Account", field: "account_code", headerFilter: "input", width: 100 },
+                        { title: "State", field: "bit_state", headerFilter: "input", width: 100 },
+                        { title: "Design Level", field: "design_level", headerFilter: "input", width: 90 },
+                        { title: "Repairs", field: "repair_count", hozAlign: "center", width: 70 },
+                        { title: "Reruns", field: "rerun_count", hozAlign: "center", width: 70 },
+                        {
+                            title: "Select",
+                            formatter: () => '<button class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Select</button>',
+                            width: 80,
+                            hozAlign: "center",
+                            cellClick: (e, cell) => {
+                                const row = cell.getRow().getData();
+                                this.selectDrillBit(row);
+                            }
+                        },
+                    ],
+                    rowClick: (e, row) => {
+                        if (e.target.tagName !== 'BUTTON') {
+                            this.selectDrillBit(row.getData());
+                        }
+                    },
+                });
+            } catch (err) {
+                container.innerHTML = '<p class="text-red-500 text-center py-8">Failed to load drill bits</p>';
+                console.error('Failed to load drill bits:', err);
+            }
+        },
+
+        selectDrillBit(bit) {
+            const serialInput = document.getElementById('id_serial_number');
+            serialInput.value = bit.serial_number;
+            this.showSerialPicker = false;
+            this.lookupSerial(bit.serial_number);
+        },
+
+        async loadBoms() {
+            if (!this.bitData.design_id) return;
+            try {
+                const resp = await fetch(`/technology/api/boms/?design_id=${this.bitData.design_id}`);
+                const data = await resp.json();
+                const sel = document.getElementById('id_bom_selector');
+                sel.innerHTML = '<option value="">-- Select BOM --</option>';
+                (data.boms || []).forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.id;
+                    opt.textContent = `${b.code} - ${b.name || 'L5'}`;
+                    if (b.id == this.bitData.bom_id) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            } catch(e) { console.error('Load BOMs failed:', e); }
+        },
+
+        onBomChange(bomId) {
+            document.getElementById('id_bom').value = bomId;
+            if (bomId) {
+                const sel = document.getElementById('id_bom_selector');
+                const opt = sel.options[sel.selectedIndex];
+                this.bitData.bom_code = opt.textContent.split(' - ')[0];
+                this.bitData.bom_name = opt.textContent.split(' - ').slice(1).join(' - ');
+                this.bitData.bom_id = bomId;
+            }
+        },
+
+        clearHiddenFields() {
+            const ids = ['id_drill_bit', 'id_design', 'id_bom'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        },
+    };
+}
+</script>
+{% endblock %}

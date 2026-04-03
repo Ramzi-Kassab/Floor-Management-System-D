@@ -1,0 +1,778 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Drill Bits - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important;
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container */
+    .drillbit-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Header section - never scrolls horizontally */
+    .drillbit-header-section {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Freeze mode - fills viewport, table gets independent scroll */
+    .drillbit-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .freeze-mode .drillbit-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .drillbit-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Table wrapper - element with horizontal scroll */
+    .drillbit-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .freeze-mode .drillbit-table-wrapper {
+        height: 100%;
+    }
+
+    /* Sticky table header (always on in freeze mode) */
+    .freeze-mode .drillbit-table-wrapper thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    /* Sticky first column */
+    .sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 16;
+        background: #f9fafb !important;
+        box-shadow: 4px 0 6px -4px rgba(0,0,0,0.15);
+    }
+    thead .sticky-col { z-index: 20; }
+    .dark .sticky-col {
+        background: #1f2937 !important;
+    }
+    tbody .sticky-col {
+        background: white !important;
+    }
+    .dark tbody .sticky-col {
+        background: #1f2937 !important;
+    }
+
+    /* Full page mode */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .drillbit-header-section {
+        flex-shrink: 0;
+    }
+    .full-page-mode .drillbit-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .full-page-mode .drillbit-table-wrapper {
+        height: 100%;
+    }
+    .full-page-mode #filterSection {
+        padding: 0.5rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    /* Hide page header in full page mode */
+    body:has(.full-page-mode) #pageHeader {
+        display: none !important;
+    }
+
+    /* No-wrap mode (default) - columns auto-size */
+    .no-wrap-mode #drillBitTable {
+        width: auto;
+        table-layout: auto;
+    }
+    .no-wrap-mode #drillBitTable td,
+    .no-wrap-mode #drillBitTable th {
+        white-space: nowrap !important;
+        max-width: none !important;
+    }
+
+    /* Column filter menu */
+    .column-menu {
+        position: fixed;
+        z-index: 100;
+        min-width: 220px;
+        max-height: 350px;
+    }
+    .filter-active { color: #2563eb !important; font-weight: 600; }
+    .filter-active i { color: #2563eb !important; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            Drill bit inventory with BOM linkage
+        </p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'workorders:drillbit_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Register Bit
+        </a>
+        <a href="{% url 'workorders:drillbit_export_excel' %}" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 mr-2"></i>Export Excel
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="drillbit-page-container" id="drillbitPageContainer">
+
+<!-- HEADER SECTION -->
+<div class="drillbit-header-section">
+
+<!-- Filters & Controls -->
+<form method="get" id="filterForm">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Search field -->
+            <div class="w-48">
+                <input type="text" name="search" value="{{ current_search }}" placeholder="Serial#, Design..."
+                       class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+            </div>
+            <div class="w-28">
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    <option value="">Status: All</option>
+                    {% for value, label in status_choices %}<option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="w-28">
+                <select name="lifecycle" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    <option value="">Lifecycle: All</option>
+                    {% for value, label in lifecycle_choices %}<option value="{{ value }}" {% if current_lifecycle == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="w-24">
+                <select name="bit_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    <option value="">Type: All</option>
+                    {% for value, label in bit_type_choices %}<option value="{{ value }}" {% if current_bit_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <i data-lucide="search" class="w-4 h-4 inline"></i>
+            </button>
+            {% if current_search or current_status or current_lifecycle or current_bit_type %}
+            <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="px-3 py-2 text-gray-500 hover:text-gray-700 text-sm">Clear</a>
+            {% endif %}
+
+            <!-- Divider -->
+            <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+            <!-- Page size & count -->
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-500">Show:</label>
+                <select name="page_size" onchange="this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
+                    <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                    <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                </select>
+            </div>
+            <div class="text-sm">
+                <span id="visibleCount" class="text-green-600 font-medium">{{ drill_bits|length }}</span>
+                <span class="text-gray-500">of {{ total_count }} bits</span>
+            </div>
+
+            <!-- Spacer -->
+            <div class="flex-1"></div>
+
+            <!-- View Toggle Buttons -->
+            <div class="flex gap-2 flex-wrap">
+                <!-- Freeze Panes Toggle -->
+                <button type="button" onclick="toggleFreezePanes()" id="freezeBtn"
+                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span id="freezeBtnText">Freeze</span>
+                </button>
+                <!-- Full Page View Toggle -->
+                <button type="button" onclick="toggleFullPageView()" id="fullPageBtn"
+                        class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    <span id="fullPageBtnText">Full</span>
+                </button>
+            </div>
+
+            <button type="button" id="clearColumnFilters" onclick="clearAllColumnFilters()" class="hidden px-3 py-2 text-orange-600 hover:text-orange-800 text-sm font-medium">
+                <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Clear Filters
+            </button>
+        </div>
+    </div>
+</form>
+
+</div><!-- End drillbit-header-section -->
+
+<!-- Column Filter Menu -->
+<div id="columnMenu" class="column-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
+    <div class="space-y-0.5 mb-2">
+        <button type="button" onclick="sortColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+            <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> <span class="sort-asc-text">Sort A to Z</span>
+        </button>
+        <button type="button" onclick="sortColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+            <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> <span class="sort-desc-text">Sort Z to A</span>
+        </button>
+    </div>
+    <div class="mb-2">
+        <input type="text" id="columnFilterSearch" placeholder="Search values..." oninput="filterColumnValues(this.value)"
+               class="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+    </div>
+    <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+    <div class="mb-2">
+        <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded">
+            <input type="checkbox" id="selectAllValues" onchange="toggleAllValues(this.checked)" checked>
+            <span class="text-gray-700 dark:text-gray-300">(Select All)</span>
+        </label>
+    </div>
+    <div id="columnValuesList" class="max-h-48 overflow-y-auto space-y-1"></div>
+    <div class="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2 flex justify-between">
+        <button type="button" onclick="clearColumnFilter()" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+        <button type="button" onclick="applyColumnFilter()" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Apply</button>
+    </div>
+</div>
+
+<!-- Table Section -->
+<div class="drillbit-table-section bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if drill_bits %}
+    <div class="drillbit-table-wrapper">
+        <table class="w-full text-xs" id="drillBitTable">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <!-- Identity -->
+                    <th class="px-3 py-2 font-medium sticky-col bg-gray-50 dark:bg-gray-700/50" data-column="serial">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'serial')">
+                            <span>Serial #</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="level">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'level')">
+                            <span>Level</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium" data-column="type">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'type')">
+                            <span>FC/RC</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <!-- Design Section (Blue) -->
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="design">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'design')">
+                            <span>Design MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="refmat">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'refmat')">
+                            <span>Ref Design MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <!-- BOM Section (Green) -->
+                    <th class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="systembom">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'systembom')">
+                            <span>System MAT</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-green-50 dark:bg-green-900/20" data-column="brazingbom">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'brazingbom')">
+                            <span>Brazing BOM</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <!-- Design Details (Blue) -->
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="hdbs">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'hdbs')">
+                            <span>HDBS Type</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="smi">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'smi')">
+                            <span>SMI Type</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="size">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'size')">
+                            <span>Size</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="connection">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'connection')">
+                            <span>Connection</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-blue-50 dark:bg-blue-900/20" data-column="iadc">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'iadc')">
+                            <span>IADC</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="breaker">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'breaker')">
+                            <span>Breaker Slot</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="specialtech">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'specialtech')">
+                            <span>Special Tech</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-purple-50 dark:bg-purple-900/20" data-column="application">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'application')">
+                            <span>Application</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <!-- Status Section -->
+                    <th class="px-3 py-2 font-medium" data-column="customer">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'customer')">
+                            <span>Customer</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium" data-column="location">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'location')">
+                            <span>Location</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium" data-column="status">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'status')">
+                            <span>Status</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium" data-column="lifecycle">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'lifecycle')">
+                            <span>Lifecycle</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium bg-yellow-50 dark:bg-yellow-900/20" data-column="created">
+                        <div class="column-header flex items-center gap-1 cursor-pointer hover:text-gray-900" onclick="toggleColumnMenu(event, 'created')">
+                            <span>Registered</span><i data-lucide="chevron-down" class="w-3 h-3"></i>
+                        </div>
+                    </th>
+                    <th class="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for bit in drill_bits %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 data-row">
+                    <!-- Serial # (sticky) -->
+                    <td class="px-3 py-2 sticky-col bg-white dark:bg-gray-800" data-value="{{ bit.serial_number }}">
+                        <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="text-blue-600 hover:underline font-medium font-mono">{{ bit.serial_number }}</a>
+                    </td>
+                    <!-- Level -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.order_level|default:'' }}">
+                        {% if bit.design.order_level %}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">L{{ bit.design.order_level }}</span>{% else %}--{% endif %}
+                    </td>
+                    <!-- FC/RC -->
+                    <td class="px-3 py-2" data-value="{{ bit.get_bit_type_display }}">{{ bit.get_bit_type_display }}</td>
+                    <!-- Design MAT -->
+                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.mat_no|default:'' }}">
+                        {% if bit.design %}<a href="{% url 'technology:design_detail' bit.design.pk %}" class="text-blue-600 hover:underline">{{ bit.design.mat_no }}</a>{% else %}<span class="text-gray-400">--</span>{% endif %}
+                    </td>
+                    <!-- Ref Design MAT -->
+                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.ref_mat_no|default:'' }}">{{ bit.design.ref_mat_no|default:"--" }}</td>
+                    <!-- System MAT# -->
+                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.system_mat_no bit.bom.system_mat_no bit.system_bom.code '' %}">
+                        {% if bit.brazing_bom.system_mat_no %}
+                            <span title="System MAT from Brazing BOM">{{ bit.brazing_bom.system_mat_no }}</span>
+                        {% elif bit.bom.system_mat_no %}
+                            <span title="System MAT from BOM">{{ bit.bom.system_mat_no }}</span>
+                        {% elif bit.system_bom %}
+                            <a href="{% url 'technology:bom_detail' bit.system_bom.pk %}" class="text-green-600 hover:underline" title="System BOM: {{ bit.system_bom.name }}">{{ bit.system_bom.code }}</a>
+                        {% else %}
+                            <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <!-- Brazing BOM -->
+                    <td class="px-3 py-2 font-mono bg-green-50/50 dark:bg-green-900/10" data-value="{% firstof bit.brazing_bom.code bit.bom.code '' %}">
+                        {% if bit.brazing_bom %}
+                            <a href="{% url 'technology:bom_detail' bit.brazing_bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.brazing_bom.name }}">{{ bit.brazing_bom.code }}</a>
+                        {% elif bit.bom %}
+                            <a href="{% url 'technology:bom_detail' bit.bom.pk %}" class="text-green-600 hover:underline" title="BOM: {{ bit.bom.name }}">{{ bit.bom.code }}</a>
+                        {% else %}
+                            <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <!-- HDBS Type -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.hdbs_type|default:'' }}">{{ bit.design.hdbs_type|default:"--" }}</td>
+                    <!-- SMI Type (from BOM FK, fallback to design CharField) -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type '' %}">{% firstof bit.brazing_bom.smi_type.smi_name bit.system_bom.smi_type.smi_name bit.bom.smi_type.smi_name bit.design.smi_type "--" %}</td>
+                    <!-- Size -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.size.size_display|default:'' }}">{{ bit.design.size.size_display|default:"--" }}</td>
+                    <!-- Connection -->
+                    <td class="px-3 py-2 font-mono bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.connection_ref.mat_no|default:'' }}">{{ bit.design.connection_ref.mat_no|default:"--" }}</td>
+                    <!-- IADC -->
+                    <td class="px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10" data-value="{{ bit.design.iadc_code_ref.code|default:'' }}">{{ bit.design.iadc_code_ref.code|default:"--" }}</td>
+                    <!-- Breaker Slot -->
+                    <td class="px-3 py-2 font-mono bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.breaker_slot.mat_no|default:'' }}">{{ bit.design.breaker_slot.mat_no|default:"--" }}</td>
+                    <!-- Special Technologies -->
+                    <td class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{% for tech in bit.design.special_technologies.all %}{{ tech.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% endfor %}">
+                        {% for tech in bit.design.special_technologies.all %}
+                            <span class="inline-block px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs mr-0.5 mb-0.5">{{ tech.code }}</span>
+                        {% empty %}
+                            <span class="text-gray-400">--</span>
+                        {% endfor %}
+                    </td>
+                    <!-- Application (merged: application + formation) -->
+                    <td class="px-3 py-2 bg-purple-50/50 dark:bg-purple-900/10" data-value="{{ bit.design.application_ref.name|default:'' }}{% if bit.design.formation_type_ref %} / {{ bit.design.formation_type_ref.name }}{% endif %}">
+                        {% if bit.design.application_ref or bit.design.formation_type_ref %}
+                            {% if bit.design.application_ref %}{{ bit.design.application_ref.name }}{% endif %}
+                            {% if bit.design.application_ref and bit.design.formation_type_ref %} / {% endif %}
+                            {% if bit.design.formation_type_ref %}{{ bit.design.formation_type_ref.name }}{% endif %}
+                        {% else %}
+                            <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                    <!-- Customer -->
+                    <td class="px-3 py-2 text-gray-600" data-value="{{ bit.customer.name|default:'' }}">{{ bit.customer.name|default:"--"|truncatechars:15 }}</td>
+                    <!-- Location -->
+                    <td class="px-3 py-2 text-gray-600" data-value="{{ bit.bit_location.name|default:'' }}">{{ bit.bit_location.name|default:"--" }}</td>
+                    <!-- Status -->
+                    <td class="px-3 py-2" data-value="{{ bit.get_status_display }}">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                            {% if bit.status == 'IN_STOCK' %}bg-green-100 text-green-800
+                            {% elif bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800
+                            {% elif bit.status == 'SCRAPPED' %}bg-red-100 text-red-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">{{ bit.get_status_display }}</span>
+                    </td>
+                    <!-- Lifecycle -->
+                    <td class="px-3 py-2" data-value="{{ bit.get_lifecycle_status_display|default:'' }}">{{ bit.get_lifecycle_status_display|default:"--" }}</td>
+                    <!-- Registered -->
+                    <td class="px-3 py-2 text-gray-500 bg-yellow-50/50 dark:bg-yellow-900/10" data-value="{{ bit.created_at|date:'Y-m-d' }}">{{ bit.created_at|date:"M d, Y" }}</td>
+                    <!-- Actions -->
+                    <td class="px-3 py-2 text-right">
+                        <div class="flex items-center justify-end space-x-1">
+                            <button onclick="addToPlan('{{ bit.serial_number }}', '{{ bit.account.code|default:"" }}')"
+                                    class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Add to Plan">
+                                <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                            </button>
+                            <a href="{% url 'workorders:drillbit_detail_enhanced' bit.pk %}" class="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="View"><i data-lucide="eye" class="w-4 h-4"></i></a>
+                            <a href="{% url 'workorders:drillbit_qr' bit.pk %}" class="p-1 text-gray-400 hover:text-green-600 rounded hover:bg-gray-100" title="QR"><i data-lucide="qr-code" class="w-4 h-4"></i></a>
+                            <a href="{% url 'workorders:drillbit_update' bit.pk %}" class="p-1 text-gray-400 hover:text-yellow-600 rounded hover:bg-gray-100" title="Edit"><i data-lucide="edit" class="w-4 h-4"></i></a>
+                            {% if bit.status != 'SCRAPPED' %}<a href="{% url 'workorders:drillbit_scrap' bit.pk %}" class="p-1 text-gray-400 hover:text-orange-600 rounded hover:bg-gray-100" title="Scrap"><i data-lucide="recycle" class="w-4 h-4"></i></a>{% endif %}
+                            <a href="{% url 'workorders:drillbit_delete' bit.pk %}" class="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-gray-100" title="Delete Record"><i data-lucide="trash-2" class="w-4 h-4"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="disc" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No drill bits found</h3>
+        <p class="text-gray-500 mb-4">Get started by registering your first drill bit</p>
+        <a href="{% url 'workorders:drillbit_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Register Bit
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+</div><!-- End drillbit-page-container -->
+
+<script>
+// View mode state
+let freezePanes = false;
+let fullPageView = false;
+
+function toggleFreezePanes() {
+    freezePanes = !freezePanes;
+    const container = document.getElementById('drillbitPageContainer');
+    const btn = document.getElementById('freezeBtn');
+    const btnText = document.getElementById('freezeBtnText');
+
+    if (freezePanes) {
+        container.classList.add('freeze-mode');
+        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.add('bg-blue-600', 'text-white');
+        btnText.textContent = 'Unfreeze';
+    } else {
+        container.classList.remove('freeze-mode');
+        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btnText.textContent = 'Freeze';
+    }
+    localStorage.setItem('drillbitFreezePanes', freezePanes);
+}
+
+function toggleFullPageView() {
+    fullPageView = !fullPageView;
+    const container = document.getElementById('drillbitPageContainer');
+    const btn = document.getElementById('fullPageBtn');
+    const btnText = document.getElementById('fullPageBtnText');
+    const pageHeader = document.getElementById('pageHeader');
+
+    if (fullPageView) {
+        container.classList.add('full-page-mode');
+        btn.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.add('bg-emerald-600', 'text-white');
+        btnText.textContent = 'Exit';
+        if (pageHeader) pageHeader.style.display = 'none';
+    } else {
+        container.classList.remove('full-page-mode');
+        btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+        btn.classList.remove('bg-emerald-600', 'text-white');
+        btnText.textContent = 'Full';
+        if (pageHeader) pageHeader.style.display = '';
+    }
+    localStorage.setItem('drillbitFullPageView', fullPageView);
+}
+
+// Restore preferences on load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedFreeze = localStorage.getItem('drillbitFreezePanes');
+    const savedFullPage = localStorage.getItem('drillbitFullPageView');
+    if (savedFreeze === 'true') toggleFreezePanes();
+    if (savedFullPage === 'true') toggleFullPageView();
+});
+
+// Column filter state
+let currentColumn = null;
+let columnFilters = {};
+let allColumnValues = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('#drillBitTable tbody tr.data-row');
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    headers.forEach(th => { allColumnValues[th.dataset.column] = new Set(); });
+    rows.forEach(row => {
+        row.querySelectorAll('td[data-value]').forEach((td, idx) => {
+            const th = headers[idx];
+            if (th && allColumnValues[th.dataset.column]) {
+                allColumnValues[th.dataset.column].add(td.dataset.value || '(empty)');
+            }
+        });
+    });
+    Object.keys(allColumnValues).forEach(col => {
+        allColumnValues[col] = Array.from(allColumnValues[col]).sort();
+    });
+});
+
+function toggleColumnMenu(event, column) {
+    event.stopPropagation();
+    const menu = document.getElementById('columnMenu');
+    const th = event.currentTarget.closest('th');
+    currentColumn = column;
+    const valuesList = document.getElementById('columnValuesList');
+    valuesList.innerHTML = '';
+
+    // Collect values from VISIBLE rows only (cascading filter behavior)
+    const visibleValues = new Set();
+    const rows = document.querySelectorAll('#drillBitTable tbody tr.data-row');
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    const colIndex = Array.from(headers).findIndex(h => h.dataset.column === column);
+
+    rows.forEach(row => {
+        // Skip hidden rows (filtered out by other columns)
+        if (row.style.display === 'none') return;
+        const td = row.querySelectorAll('td[data-value]')[colIndex];
+        if (td) {
+            visibleValues.add(td.dataset.value || '(empty)');
+        }
+    });
+
+    const values = Array.from(visibleValues).sort();
+    const selectedValues = columnFilters[column] || new Set(values);
+    values.forEach(value => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded';
+        label.innerHTML = `<input type="checkbox" data-value="${value}" ${selectedValues.has(value) ? 'checked' : ''}><span class="text-gray-700 dark:text-gray-300 truncate">${value || '(empty)'}</span>`;
+        valuesList.appendChild(label);
+    });
+    document.getElementById('selectAllValues').checked = selectedValues.size === values.length;
+    const rect = th.getBoundingClientRect();
+    menu.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.classList.remove('hidden');
+    document.getElementById('columnFilterSearch').value = '';
+    // Store current visible values for applyColumnFilter
+    window.currentVisibleValues = values;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function filterColumnValues(searchText) {
+    const search = searchText.toLowerCase();
+    document.querySelectorAll('#columnValuesList label').forEach(label => {
+        label.style.display = label.querySelector('span').textContent.toLowerCase().includes(search) ? '' : 'none';
+    });
+}
+
+function toggleAllValues(checked) {
+    document.querySelectorAll('#columnValuesList input[type="checkbox"]').forEach(cb => {
+        if (cb.closest('label').style.display !== 'none') cb.checked = checked;
+    });
+}
+
+function clearColumnFilter() {
+    delete columnFilters[currentColumn];
+    applyAllFilters();
+    closeColumnMenu();
+    updateFilterIndicators();
+}
+
+function applyColumnFilter() {
+    const allCbs = [...document.querySelectorAll('#columnValuesList input[type="checkbox"]')];
+    const visibleCbs = allCbs.filter(cb => {
+        const li = cb.closest('li') || cb.closest('label') || cb.parentElement;
+        return li && li.style.display !== 'none';
+    });
+    const visibleChecked = visibleCbs.filter(cb => cb.checked);
+    const selected = new Set();
+    visibleChecked.forEach(cb => selected.add(cb.dataset.value));
+    if (visibleChecked.length === allCbs.length || visibleChecked.length === 0) {
+        delete columnFilters[currentColumn];
+    } else {
+        columnFilters[currentColumn] = selected;
+    }
+    applyAllFilters();
+    closeColumnMenu();
+    updateFilterIndicators();
+}
+
+function applyAllFilters() {
+    const rows = document.querySelectorAll('#drillBitTable tbody tr.data-row');
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    let visibleCount = 0;
+    rows.forEach(row => {
+        let visible = true;
+        row.querySelectorAll('td[data-value]').forEach((td, idx) => {
+            const th = headers[idx];
+            if (th && columnFilters[th.dataset.column] && !columnFilters[th.dataset.column].has(td.dataset.value || '(empty)')) {
+                visible = false;
+            }
+        });
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
+    });
+    document.getElementById('visibleCount').textContent = visibleCount;
+}
+
+function updateFilterIndicators() {
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    let hasFilters = false;
+    headers.forEach(th => {
+        const header = th.querySelector('.column-header');
+        if (columnFilters[th.dataset.column]) {
+            header.classList.add('filter-active');
+            hasFilters = true;
+        } else {
+            header.classList.remove('filter-active');
+        }
+    });
+    document.getElementById('clearColumnFilters').classList.toggle('hidden', !hasFilters);
+}
+
+function sortColumn(dir) {
+    if (!currentColumn) return;
+    const headers = document.querySelectorAll('#drillBitTable thead th[data-column]');
+    const colIndex = Array.from(headers).findIndex(h => h.dataset.column === currentColumn);
+    if (colIndex < 0) return;
+
+    const tbody = document.querySelector('#drillBitTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr.data-row'));
+
+    rows.sort((a, b) => {
+        const tdA = a.querySelectorAll('td[data-value]')[colIndex];
+        const tdB = b.querySelectorAll('td[data-value]')[colIndex];
+        let va = tdA ? (tdA.dataset.value || '') : '';
+        let vb = tdB ? (tdB.dataset.value || '') : '';
+        let cmp = va.localeCompare(vb, undefined, {numeric: true});
+        return dir === 'desc' ? -cmp : cmp;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+    closeColumnMenu();
+}
+
+function clearAllColumnFilters() {
+    columnFilters = {};
+    applyAllFilters();
+    updateFilterIndicators();
+}
+
+function closeColumnMenu() {
+    document.getElementById('columnMenu').classList.add('hidden');
+    currentColumn = null;
+}
+
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('columnMenu');
+    if (!menu.contains(e.target) && !e.target.closest('.column-header')) closeColumnMenu();
+});
+
+// Prevent scroll/wheel inside menu from bubbling (which could cause unexpected closures)
+document.getElementById('columnMenu').addEventListener('scroll', (e) => {
+    e.stopPropagation();
+}, true);
+
+document.getElementById('columnMenu').addEventListener('wheel', (e) => {
+    e.stopPropagation();
+}, false);
+
+window.addEventListener('resize', () => closeColumnMenu());
+
+// Add to Plan function
+async function addToPlan(serialNumber, accountCode) {
+    if (!confirm(`Add drill bit ${serialNumber} to production plan?`)) return;
+
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                         document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
+        const response = await fetch('{% url "workorders:api_add_to_plan" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                serial_number: serialNumber,
+                account: accountCode,
+                priority: 'NORMAL',
+                planned_date: '',
+                intended_wo_type: '',
+                notes: ''
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`Added ${serialNumber} to production plan!\n\nGo to Production Planner to review and create Work Orders.`);
+        } else {
+            alert(data.error || 'Failed to add to plan');
+        }
+    } catch (e) {
+        alert('Error adding to plan');
+        console.error('Add to plan error:', e);
+    }
+}
+</script>
+{% csrf_token %}
+{% endblock %}

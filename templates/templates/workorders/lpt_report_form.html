@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Liquid Penetrant Test Report</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Job Card
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Header Info -->
+    <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">WO Number</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.wo_number }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Serial #</p>
+                <p class="font-medium text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Customer</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ work_order.customer.name|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500 dark:text-gray-400">Date</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ "now"|date:"M d, Y" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Test Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Test Details</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Type</label>
+                        <select name="test_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                            <option value="FINAL">Final Inspection</option>
+                            <option value="IN_PROCESS">In-Process</option>
+                            <option value="RECEIVING">Receiving</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Technique</label>
+                        <select name="technique" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                            <option value="VISIBLE">Visible (Color Contrast)</option>
+                            <option value="FLUORESCENT">Fluorescent</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Procedure Reference</label>
+                    <input type="text" name="procedure_ref" placeholder="e.g., LPT-001"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Conditions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Test Conditions</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Surface Temp (°C)</label>
+                        <input type="number" name="surface_temperature" step="0.1"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Light Intensity (lux)</label>
+                        <input type="number" name="light_intensity"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Penetrant Dwell (min)</label>
+                        <input type="number" name="penetrant_dwell_time"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Developer Dwell (min)</label>
+                        <input type="number" name="developer_dwell_time"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials Used -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Materials Used</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Cleaner -->
+            <div class="space-y-3">
+                <h4 class="font-medium text-gray-700 dark:text-gray-300">Cleaner</h4>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Product</label>
+                    <input type="text" name="cleaner_product"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Batch #</label>
+                    <input type="text" name="cleaner_batch"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Expiry Date</label>
+                    <input type="date" name="cleaner_expiry"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+            <!-- Penetrant -->
+            <div class="space-y-3">
+                <h4 class="font-medium text-gray-700 dark:text-gray-300">Penetrant</h4>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Product</label>
+                    <input type="text" name="penetrant_product"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Batch #</label>
+                    <input type="text" name="penetrant_batch"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Expiry Date</label>
+                    <input type="date" name="penetrant_expiry"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+            <!-- Developer -->
+            <div class="space-y-3">
+                <h4 class="font-medium text-gray-700 dark:text-gray-300">Developer</h4>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Product</label>
+                    <input type="text" name="developer_product"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Batch #</label>
+                    <input type="text" name="developer_batch"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Expiry Date</label>
+                    <input type="date" name="developer_expiry"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Results & Disposition</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Result</label>
+                <select name="result" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    <option value="">Select Result</option>
+                    <option value="ACCEPTABLE">Acceptable - No Relevant Indications</option>
+                    <option value="REJECTABLE">Rejectable - Relevant Indications Found</option>
+                    <option value="INCOMPLETE">Incomplete - Retest Required</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Disposition</label>
+                <select name="disposition" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    <option value="">Select Disposition</option>
+                    <option value="CONTINUE">Continue Processing</option>
+                    <option value="REPAIR">Repair Required</option>
+                    <option value="SCRAP">Scrap</option>
+                    <option value="RETEST">Retest</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end space-x-3">
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            Cancel
+        </a>
+        <button type="submit" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+            <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Create LPT Report
+        </button>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% comment %}
+Reusable Status Badge Component
+Usage: {% include "components/status_badge.html" with status="IN_PROGRESS" status_display="In Progress" %}
+Or: {% include "components/status_badge.html" with status=work_order.status status_display=work_order.get_status_display %}
+{% endcomment %}
+
+{% with status_lower=status|lower %}
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+    {% if status == 'DRAFT' %}
+        bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+    {% elif status == 'PLANNED' %}
+        bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+    {% elif status == 'RELEASED' %}
+        bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400
+    {% elif status == 'IN_PROGRESS' %}
+        bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+    {% elif status == 'ON_HOLD' %}
+        bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+    {% elif status == 'QC_PENDING' %}
+        bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400
+    {% elif status == 'QC_PASSED' %}
+        bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400
+    {% elif status == 'QC_FAILED' %}
+        bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+    {% elif status == 'COMPLETED' %}
+        bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+    {% elif status == 'CANCELLED' %}
+        bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+    {% elif status == 'NEW' %}
+        bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400
+    {% elif status == 'IN_STOCK' %}
+        bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+    {% elif status == 'ASSIGNED' %}
+        bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400
+    {% elif status == 'IN_PRODUCTION' %}
+        bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+    {% elif status == 'READY' %}
+        bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400
+    {% elif status == 'DISPATCHED' %}
+        bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400
+    {% elif status == 'IN_FIELD' %}
+        bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+    {% elif status == 'RETURNED' %}
+        bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+    {% elif status == 'SCRAPPED' %}
+        bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+    {% elif status == 'OPEN' %}
+        bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+    {% elif status == 'INVESTIGATING' %}
+        bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400
+    {% elif status == 'PENDING_DISPOSITION' %}
+        bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+    {% elif status == 'IN_REWORK' %}
+        bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400
+    {% elif status == 'PENDING_VERIFICATION' %}
+        bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400
+    {% elif status == 'CLOSED' %}
+        bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400
+    {% else %}
+        bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300
+    {% endif %}">
+    {{ status_display|default:status }}
+</span>
+{% endwith %}

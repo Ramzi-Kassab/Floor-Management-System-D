@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Enter service site details</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Site Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_number.label }}</label>{{ form.site_number }}{% if form.site_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.site_number.errors.0 }}</p>{% endif %}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_name.label }}</label>{{ form.site_name }}{% if form.site_name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.site_name.errors.0 }}</p>{% endif %}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.customer.label }}</label>{{ form.customer }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_type.label }}</label>{{ form.site_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>{{ form.status }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Location</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.address.label }}</label>{{ form.address }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.city.label }}</label>{{ form.city }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.country.label }}</label>{{ form.country }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.gps_latitude.label }}</label>{{ form.gps_latitude }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.gps_longitude.label }}</label>{{ form.gps_longitude }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rig & Well Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.rig_name.label }}</label>{{ form.rig_name }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.rig_type.label }}</label>{{ form.rig_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.field_name.label }}</label>{{ form.field_name }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.formation.label }}</label>{{ form.formation }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.total_depth_planned.label }}</label>{{ form.total_depth_planned }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.current_depth.label }}</label>{{ form.current_depth }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Contact</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_contact_name.label }}</label>{{ form.site_contact_name }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_contact_phone.label }}</label>{{ form.site_contact_phone }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.site_contact_email.label }}</label>{{ form.site_contact_email }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notes</h2>
+            <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>{{ form.notes }}</div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'sales:servicesite_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">{{ submit_text|default:"Save" }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

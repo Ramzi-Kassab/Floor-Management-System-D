@@ -1,0 +1,1018 @@
+{% extends "base.html" %}
+
+{% block title %}Create BOM - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-dropdown {
+        position: fixed;
+        z-index: 9999;
+        min-width: 200px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        display: none;
+    }
+    .dark .filter-dropdown {
+        background: #1f2937;
+        border-color: #374151;
+    }
+    .filter-dropdown.active {
+        display: block;
+    }
+    .th-filter {
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+    }
+    .th-filter:hover {
+        background: rgba(59, 130, 246, 0.1);
+    }
+    .th-filter.filtered {
+        color: #2563eb !important;
+    }
+    .dark .th-filter.filtered {
+        color: #60a5fa !important;
+    }
+    .th-filter .sort-icon {
+        display: inline-block;
+        margin-left: 4px;
+        font-size: 10px;
+        opacity: 0.5;
+    }
+    .th-filter.sort-asc .sort-icon::after { content: '▲'; opacity: 1; }
+    .th-filter.sort-desc .sort-icon::after { content: '▼'; opacity: 1; }
+    .th-filter:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
+    .design-row {
+        cursor: pointer;
+        transition: background-color 0.15s;
+    }
+    .design-row:hover {
+        background: rgba(59, 130, 246, 0.1);
+    }
+    .design-row.selected {
+        background: rgba(147, 51, 234, 0.15) !important;
+    }
+    .dark .design-row.selected {
+        background: rgba(147, 51, 234, 0.3) !important;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Create BOM</h1>
+        <p class="text-gray-600 dark:text-gray-400">Select a Design (L3/L4 MAT) to start creating a new BOM via Cutter Map</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:bom_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to BOMs
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Column Filter Dropdown -->
+<div id="col-filter-dropdown" class="filter-dropdown">
+    <div class="p-3 border-b border-gray-200 dark:border-gray-600">
+        <div class="space-y-0.5 mb-2">
+            <button onclick="sortColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> <span>Sort A to Z</span>
+            </button>
+            <button onclick="sortColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> <span>Sort Z to A</span>
+            </button>
+        </div>
+        <input type="text" id="filter-search-input" placeholder="Search values..."
+               class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
+               oninput="filterCheckboxList(this.value)">
+    </div>
+    <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+        <label class="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 rounded">
+            <input type="checkbox" id="filter-select-all" checked onchange="toggleFilterSelectAll(this.checked)"
+                   class="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+            <span class="font-medium">(Select All)</span>
+        </label>
+    </div>
+    <div id="filter-values-list" class="max-h-48 overflow-y-auto p-2 space-y-0.5"></div>
+    <div class="p-2 border-t border-gray-200 dark:border-gray-600 flex gap-2">
+        <button onclick="applyColumnFilter()" class="flex-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700">Apply</button>
+        <button onclick="clearColumnFilter()" class="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-500">Clear</button>
+    </div>
+</div>
+{% if preselect_drillbit %}
+<div class="mb-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+    <div class="flex items-center gap-3">
+        <div class="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+            <i data-lucide="hash" class="w-5 h-5 text-purple-600"></i>
+        </div>
+        <div>
+            <p class="text-sm text-purple-800 dark:text-purple-300">
+                Creating BOM for Drill Bit <span class="font-mono font-bold">SN: {{ preselect_drillbit.serial_number }}</span>
+            </p>
+            <p class="text-xs text-purple-600 dark:text-purple-400">
+                Design {{ preselect_drillbit.design.mat_no }} is pre-selected. Upload a PDF to create the BOM.
+            </p>
+        </div>
+        <a href="{% url 'workorders:drillbit_detail_enhanced' preselect_drillbit.pk %}"
+           class="ml-auto text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400">
+            ← Back to Drill Bit
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Column: Design Selection -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="layers" class="w-5 h-5 mr-2 text-purple-600"></i>
+                    Select Design (L3/L4 MAT)
+                </h2>
+                <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    {{ designs|length }} designs available
+                </span>
+            </div>
+
+            <!-- Search Box -->
+            <div class="mb-4">
+                <input type="text" id="design-search" placeholder="Search by MAT, HDBS Type, or Size..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    oninput="filterDesigns(this.value)">
+            </div>
+
+            <!-- Design Selection Table -->
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div class="max-h-[500px] overflow-y-auto">
+                    <table class="w-full text-sm" id="design-table">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-12"></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="level" onclick="toggleFilterDropdown(event, 'level')">Level<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="mat" onclick="toggleFilterDropdown(event, 'mat')">MAT No.<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="hdbs" onclick="toggleFilterDropdown(event, 'hdbs')">HDBS Type<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="size" onclick="toggleFilterDropdown(event, 'size')">Size<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="status" onclick="toggleFilterDropdown(event, 'status')">Status<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="boms" onclick="toggleFilterDropdown(event, 'boms')">BOMs<span class="sort-icon"></span></th>
+                                <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="design-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for design in designs %}
+                            <tr class="design-row hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                data-design-id="{{ design.pk }}"
+                                data-level="L{{ design.order_level }}"
+                                data-mat="{{ design.mat_no|lower }}"
+                                data-hdbs="{{ design.hdbs_type|lower }}"
+                                data-size="{{ design.size.size_decimal|default:'' }}"
+                                data-boms='[{% for bom in design.boms.all %}{"id":{{ bom.pk }},"code":"{{ bom.code }}","bom_type":"{{ bom.bom_type|default:"" }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                                onclick="selectDesign(this)">
+                                <td class="px-3 py-3">
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center design-check">
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if design.order_level == '3' %}bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300
+                                        {% else %}bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300{% endif %}">
+                                        L{{ design.order_level }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3 font-mono font-medium text-gray-900 dark:text-white">{{ design.mat_no }}</td>
+                                <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ design.hdbs_type }}</td>
+                                <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ design.size.size_display|default:"-" }}</td>
+                                <td class="px-3 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                        {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                        {{ design.status }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-3 text-gray-500">{{ design.boms.count }}</td>
+                                <td class="px-3 py-3 text-center" onclick="event.stopPropagation();">
+                                    <a href="{% url 'technology:design_detail' design.pk %}" target="_blank"
+                                       class="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded"
+                                       title="View design details in new tab">
+                                        <i data-lucide="external-link" class="w-3 h-3 mr-1"></i>View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="px-3 py-8 text-center text-gray-500">
+                                    No designs found. <a href="{% url 'technology:design_create' %}?from=bom_create" class="text-purple-600 hover:underline">Create a new Design</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Results count -->
+            <div class="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span id="design-count">Showing {{ designs|length }} designs</span>
+                <a href="{% url 'technology:design_create' %}?from=bom_create" class="text-purple-600 hover:text-purple-800 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>Create New Design
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Selected Design & Action -->
+    <div class="space-y-6">
+        <!-- Selected Design Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Selected Design</h3>
+
+            <!-- No Selection State -->
+            <div id="no-selection" class="text-center py-8">
+                <div class="w-16 h-16 mx-auto rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
+                    <i data-lucide="mouse-pointer-click" class="w-8 h-8 text-gray-400"></i>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400">Click on a Design from the table to select it</p>
+            </div>
+
+            <!-- Selection Made State -->
+            <div id="design-selected" class="hidden">
+                <div class="space-y-3 mb-6">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Level:</span>
+                        <span id="selected-level" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">MAT No.:</span>
+                        <span id="selected-mat" class="font-mono font-medium text-purple-600 dark:text-purple-400">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">HDBS Type:</span>
+                        <span id="selected-hdbs" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Size:</span>
+                        <span id="selected-size" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 mb-4">
+
+                <!-- BOM Fields: SMI Type, IADC, Status -->
+                <div class="space-y-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            SMI Type (Optional)
+                        </label>
+                        <select id="bom-smi-type"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            <option value="">-- None --</option>
+                            {% for smi in smi_types %}
+                            <option value="{{ smi.pk }}">{{ smi.smi_name }}{% if smi.hdbs_type %} ({{ smi.hdbs_type.code }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            IADC Code (Optional)
+                        </label>
+                        <select id="bom-iadc-code"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            <option value="">-- None --</option>
+                            {% for iadc in iadc_codes %}
+                            <option value="{{ iadc.pk }}">{{ iadc.code }} - {{ iadc.description }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Initial Status
+                        </label>
+                        <select id="bom-status"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                            {% for val, label in status_choices %}
+                            <option value="{{ val }}" {% if val == 'DRAFT' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 mb-4">
+
+                <!-- Serial Number Selection (Optional - Multi-select) -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                        Link to Serial Numbers (Optional)
+                    </label>
+                    <div id="serial-number-container" class="border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 max-h-40 overflow-y-auto">
+                        <div class="p-3 text-sm text-gray-500 dark:text-gray-400">
+                            Select a design first to see available drill bits
+                        </div>
+                    </div>
+                    <div id="selected-sn-count" class="text-xs text-gray-500 mt-1">
+                        Select drill bits to link this BOM to multiple serial numbers
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button type="button" onclick="openCutterMap()"
+                    class="w-full px-4 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-medium transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl">
+                    <i data-lucide="file-scan" class="w-6 h-6"></i>
+                    <span class="text-lg">Open Cutter Map</span>
+                </button>
+
+                <p class="text-xs text-center text-gray-500 mt-3">
+                    Import PDF to extract BOM data for this design
+                </p>
+
+                <button type="button" onclick="clearSelection()"
+                    class="w-full mt-4 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                    Clear Selection
+                </button>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+            <h3 class="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center">
+                <i data-lucide="info" class="w-4 h-4 mr-2"></i>
+                How it works
+            </h3>
+            <ol class="text-xs text-purple-700 dark:text-purple-400 space-y-2 list-decimal list-inside">
+                <li>Select a Design (L3/L4 MAT) from the table</li>
+                <li>Click "Open Cutter Map" to upload a PDF</li>
+                <li>Extract and edit BOM data from the PDF</li>
+                <li>The L5 MAT code is extracted from the PDF</li>
+                <li>Click "Create BOM" to save to the system</li>
+            </ol>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Quick Links</h3>
+            <ul class="text-sm space-y-2">
+                <li>
+                    <a href="{% url 'technology:design_list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="layers" class="w-4 h-4 mr-2"></i>View All Designs
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'technology:design_create' %}?from=bom_create" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create New Design
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'cutter_map:index' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+                        <i data-lucide="file-scan" class="w-4 h-4 mr-2"></i>Cutter Map (Direct)
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Store selected design info
+    let selectedDesign = null;
+
+    // Select a design from the table
+    function selectDesign(row) {
+        // Remove selection from all rows
+        document.querySelectorAll('.design-row').forEach(r => {
+            r.classList.remove('selected');
+            r.querySelector('.design-check').innerHTML = '';
+        });
+
+        // Add selection to clicked row
+        row.classList.add('selected');
+        row.querySelector('.design-check').innerHTML = '<i data-lucide="check" class="w-4 h-4 text-purple-600"></i>';
+
+        // Store design info
+        let existingBoms = [];
+        try {
+            existingBoms = JSON.parse(row.dataset.boms || '[]');
+        } catch(e) {
+            existingBoms = [];
+        }
+
+        selectedDesign = {
+            id: row.dataset.designId,
+            level: row.dataset.level.toUpperCase(),
+            mat: row.querySelector('td:nth-child(3)').textContent.trim(),
+            hdbs: row.querySelector('td:nth-child(4)').textContent.trim(),
+            size: row.querySelector('td:nth-child(5)').textContent.trim(),
+            boms: existingBoms
+        };
+
+        // Update sidebar
+        document.getElementById('no-selection').classList.add('hidden');
+        document.getElementById('design-selected').classList.remove('hidden');
+        document.getElementById('selected-level').textContent = selectedDesign.level;
+        document.getElementById('selected-mat').textContent = selectedDesign.mat;
+        document.getElementById('selected-hdbs').textContent = selectedDesign.hdbs;
+        document.getElementById('selected-size').textContent = selectedDesign.size || '-';
+
+        // Load drill bits for this design
+        loadDrillBitsForDesign(selectedDesign.id);
+
+        // Re-render lucide icons
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function loadDrillBitsForDesign(designId) {
+        const container = document.getElementById('serial-number-container');
+        container.innerHTML = '<div class="p-3 text-sm text-gray-500 dark:text-gray-400">Loading...</div>';
+
+        fetch(`/work-orders/api/drill-bits/search/?design_id=${designId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.results && data.results.length > 0) {
+                    let html = `
+                        <div class="p-2 bg-gray-50 dark:bg-gray-600 border-b border-gray-200 dark:border-gray-500 sticky top-0">
+                            <label class="flex items-center gap-2 cursor-pointer text-xs">
+                                <input type="checkbox" id="select-all-sns" onchange="toggleAllSerialNumbers(this.checked)"
+                                       class="rounded text-purple-600 focus:ring-purple-500">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Select All (${data.results.length})</span>
+                            </label>
+                        </div>
+                        <div class="divide-y divide-gray-100 dark:divide-gray-600">
+                    `;
+                    data.results.forEach(bit => {
+                        const statusColor = bit.lifecycle_status === 'ACTIVE' ? 'text-green-600' :
+                                           bit.lifecycle_status === 'NEW' ? 'text-blue-600' : 'text-gray-500';
+                        html += `
+                            <label class="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
+                                <input type="checkbox" name="drillbit_ids" value="${bit.id}"
+                                       data-serial-number="${bit.serial_number}"
+                                       onchange="updateSelectedSNCount()"
+                                       class="sn-checkbox rounded text-purple-600 focus:ring-purple-500">
+                                <div class="flex-1 min-w-0">
+                                    <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                                        SN: ${bit.serial_number}
+                                    </span>
+                                    <span class="text-xs ${statusColor} ml-2">
+                                        ${bit.lifecycle_status || 'Unknown'}
+                                    </span>
+                                </div>
+                            </label>
+                        `;
+                    });
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                            <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                            No drill bits registered for this design
+                        </div>
+                    `;
+                }
+                updateSelectedSNCount();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            })
+            .catch(err => {
+                console.error('Error loading drill bits:', err);
+                container.innerHTML = `
+                    <div class="p-3 text-sm text-red-500 text-center">
+                        Error loading drill bits
+                    </div>
+                `;
+            });
+    }
+
+    function toggleAllSerialNumbers(checked) {
+        document.querySelectorAll('.sn-checkbox').forEach(cb => cb.checked = checked);
+        updateSelectedSNCount();
+    }
+
+    function updateSelectedSNCount() {
+        const selected = document.querySelectorAll('.sn-checkbox:checked');
+        const countEl = document.getElementById('selected-sn-count');
+        if (selected.length === 0) {
+            countEl.innerHTML = 'Select drill bits to link this BOM to multiple serial numbers';
+            countEl.className = 'text-xs text-gray-500 mt-1';
+        } else if (selected.length === 1) {
+            const sn = selected[0].dataset.serialNumber;
+            countEl.innerHTML = `<span class="text-purple-600 font-medium">✓ 1 serial number selected: ${sn}</span>`;
+            countEl.className = 'text-xs mt-1';
+        } else {
+            countEl.innerHTML = `<span class="text-purple-600 font-medium">✓ ${selected.length} serial numbers selected</span>`;
+            countEl.className = 'text-xs mt-1';
+        }
+    }
+
+    function getSelectedDrillBitIds() {
+        const checkboxes = document.querySelectorAll('.sn-checkbox:checked');
+        return Array.from(checkboxes).map(cb => ({
+            id: cb.value,
+            serial_number: cb.dataset.serialNumber
+        }));
+    }
+
+    // Clear selection
+    function clearSelection() {
+        document.querySelectorAll('.design-row').forEach(r => {
+            r.classList.remove('selected');
+            r.querySelector('.design-check').innerHTML = '';
+        });
+
+        selectedDesign = null;
+
+        document.getElementById('no-selection').classList.remove('hidden');
+        document.getElementById('design-selected').classList.add('hidden');
+    }
+
+    // Filter designs by search text
+    function filterDesigns(searchText) {
+        const search = searchText.toLowerCase().trim();
+        const rows = document.querySelectorAll('.design-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const mat = row.dataset.mat || '';
+            const hdbs = row.dataset.hdbs || '';
+            const size = row.dataset.size || '';
+            const level = row.dataset.level || '';
+
+            const matches = !search ||
+                mat.includes(search) ||
+                hdbs.includes(search) ||
+                size.includes(search) ||
+                level.includes(search);
+
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        document.getElementById('design-count').textContent = `Showing ${visibleCount} designs`;
+    }
+
+    // Open Cutter Map with selected design
+    function openCutterMap() {
+        if (!selectedDesign) {
+            alert('Please select a design first.');
+            return;
+        }
+
+        // Check if design has existing BOMs
+        if (selectedDesign.boms && selectedDesign.boms.length > 0) {
+            showExistingBOMsDialog();
+            return;
+        }
+
+        // No existing BOMs - go directly to cutter map
+        goToCutterMapDirect();
+    }
+
+    // Show dialog with existing BOMs and option to create new
+    function showExistingBOMsDialog() {
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 z-50 flex items-center justify-center';
+        dialog.id = 'existing-boms-dialog';
+
+        let bomListHtml = '';
+        selectedDesign.boms.forEach(bom => {
+            const bomTypeLabel = bom.bom_type === 'BRAZING' ?
+                '<span class="px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded">Brazing</span>' :
+                bom.bom_type === 'SYSTEM' ?
+                '<span class="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">System</span>' : '';
+            bomListHtml += `
+                <button onclick="openExistingBOM(${bom.id}); document.getElementById('existing-boms-dialog').remove();"
+                        class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors text-left border border-gray-200 dark:border-gray-600">
+                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <div class="flex-1">
+                        <div class="font-mono font-medium">${bom.code}</div>
+                        <div class="text-xs text-gray-500">${bomTypeLabel || 'View in Cutter Map'}</div>
+                    </div>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            `;
+        });
+
+        dialog.innerHTML = `
+            <div class="fixed inset-0 bg-black/50" onclick="document.getElementById('existing-boms-dialog').remove()"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 z-10">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Existing BOMs Found</h3>
+                        <p class="text-sm text-gray-500">Design <span class="font-mono font-medium text-purple-600">${selectedDesign.mat}</span> already has ${selectedDesign.boms.length} BOM${selectedDesign.boms.length > 1 ? 's' : ''}</p>
+                    </div>
+                </div>
+
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    You can open an existing BOM to view/edit, or create a new BOM by uploading a PDF.
+                </p>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Existing BOMs
+                    </label>
+                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                        ${bomListHtml}
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 my-4">
+
+                <div class="space-y-3">
+                    <button onclick="goToCutterMapDirect(); document.getElementById('existing-boms-dialog').remove();"
+                            class="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        <div class="text-left">
+                            <div class="font-medium">Create New BOM</div>
+                            <div class="text-xs text-purple-200">Upload a new PDF file</div>
+                        </div>
+                    </button>
+
+                    <button onclick="document.getElementById('existing-boms-dialog').remove();"
+                            class="w-full px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    }
+
+    // Open existing BOM in Cutter Map view mode
+    function openExistingBOM(bomId) {
+        window.location.href = `/cutter-map/bom/${bomId}/?edit=1`;
+    }
+
+    // Go directly to Cutter Map (bypassing BOM check)
+    function goToCutterMapDirect() {
+        // Build URL with design context
+        const params = new URLSearchParams({
+            design_id: selectedDesign.id,
+            design_mat: selectedDesign.mat,
+            design_hdbs: selectedDesign.hdbs,
+            design_size: selectedDesign.size,
+            design_level: selectedDesign.level,  // Include L3/L4 level
+            from: 'bom_create'
+        });
+
+        // Pass BOM creation fields
+        const smiTypeId = document.getElementById('bom-smi-type')?.value;
+        const iadcCodeId = document.getElementById('bom-iadc-code')?.value;
+        const bomStatus = document.getElementById('bom-status')?.value;
+        if (smiTypeId) params.set('smi_type_id', smiTypeId);
+        if (iadcCodeId) params.set('iadc_code_id', iadcCodeId);
+        if (bomStatus) params.set('bom_status', bomStatus);
+
+        // Include selected serial numbers (multiple)
+        const selectedBits = getSelectedDrillBitIds();
+        if (selectedBits.length > 0) {
+            // Pass as JSON-encoded array
+            params.set('drillbit_ids', JSON.stringify(selectedBits.map(b => b.id)));
+            params.set('serial_numbers', JSON.stringify(selectedBits.map(b => b.serial_number)));
+            // Also pass first one for backwards compatibility
+            params.set('drillbit_id', selectedBits[0].id);
+            params.set('serial_number', selectedBits[0].serial_number);
+        }
+
+        window.location.href = `/cutter-map/?${params.toString()}`;
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Check for new_design query parameter (coming back from design create)
+        const urlParams = new URLSearchParams(window.location.search);
+        const newDesignId = urlParams.get('new_design');
+        const preselectDesignId = '{{ preselect_design_id|default:"" }}';
+        const preselectDrillbitId = '{{ preselect_drillbit_id|default:"" }}';
+
+        if (newDesignId) {
+            // Find and click the row with this design ID
+            const row = document.querySelector(`.design-row[data-design-id="${newDesignId}"]`);
+            if (row) {
+                // Scroll to the row
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Select it after a brief delay for visibility
+                setTimeout(() => {
+                    selectDesign(row);
+                    // Show options dialog instead of alert
+                    showNewDesignDialog(row);
+                }, 500);
+            }
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (preselectDesignId) {
+            // Coming from drill bit detail page - auto-select design
+            const row = document.querySelector(`.design-row[data-design-id="${preselectDesignId}"]`);
+            if (row) {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    selectDesign(row);
+                    // If drillbit_id was also passed, auto-check that drillbit after SN list loads
+                    if (preselectDrillbitId) {
+                        setTimeout(() => {
+                            const checkbox = document.querySelector(`.sn-checkbox[value="${preselectDrillbitId}"]`);
+                            if (checkbox) {
+                                checkbox.checked = true;
+                                updateSelectedSNCount();
+                            }
+                        }, 800); // Wait for drill bits to load
+                    }
+                }, 300);
+            }
+        }
+    });
+
+    // Show dialog with options after design creation
+    function showNewDesignDialog(row) {
+        const matNo = row.querySelector('td:nth-child(3)').textContent.trim();
+        const level = selectedDesign.level;
+        const hdbs = selectedDesign.hdbs;
+        const size = selectedDesign.size;
+
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 z-50 flex items-center justify-center';
+        dialog.innerHTML = `
+            <div class="fixed inset-0 bg-black/50" onclick="this.parentElement.remove()"></div>
+            <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 z-10">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Design Created!</h3>
+                        <p class="text-sm text-gray-500">
+                            <span class="inline-block px-2 py-0.5 text-xs font-bold rounded ${level === 'L3' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">${level}</span>
+                            ${matNo}
+                        </p>
+                    </div>
+                </div>
+
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                    What would you like to do next?
+                </p>
+
+                <div class="space-y-3">
+                    <button onclick="goToCutterMapWithDesign(); this.closest('.fixed').remove();"
+                            class="w-full flex items-center gap-3 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <div class="text-left">
+                            <div class="font-medium">Open Cutter Map</div>
+                            <div class="text-xs text-purple-200">Import PDF and create BOM</div>
+                        </div>
+                    </button>
+
+                    <button onclick="this.closest('.fixed').remove();"
+                            class="w-full flex items-center gap-3 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                        <div class="text-left">
+                            <div class="font-medium">Stay Here</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Continue selecting designs</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    }
+
+    // Navigate to Cutter Map with selected design (used after new design creation)
+    function goToCutterMapWithDesign() {
+        if (selectedDesign) {
+            // For newly created designs, go directly (no existing BOMs possible)
+            goToCutterMapDirect();
+        }
+    }
+
+    // ─── Column Filter & Sort ───────────────────────────────────
+    let activeFilterCol = null;
+    const columnFilters = {};  // col -> Set of allowed values
+    const columnSorts = {};    // col -> 'asc' | 'desc' | null
+
+    function getCellValue(row, col) {
+        const colIndex = { level: 1, mat: 2, hdbs: 3, size: 4, status: 5, boms: 6 };
+        const td = row.querySelectorAll('td')[colIndex[col]];
+        if (!td) return '';
+        return td.textContent.trim();
+    }
+
+    function getUniqueValues(col) {
+        const searchText = document.getElementById('design-search').value.toLowerCase().trim();
+        const vals = new Set();
+        document.querySelectorAll('.design-row').forEach(row => {
+            // Cascading: only include values from rows that pass OTHER filters + search
+            let passOthers = true;
+            for (const [fcol, allowed] of Object.entries(columnFilters)) {
+                if (fcol === col) continue;
+                if (!allowed.has(getCellValue(row, fcol))) { passOthers = false; break; }
+            }
+            if (passOthers && searchText) {
+                const mat = row.dataset.mat || '';
+                const hdbs = row.dataset.hdbs || '';
+                const size = row.dataset.size || '';
+                const level = row.dataset.level || '';
+                if (!(mat.includes(searchText) || hdbs.includes(searchText) || size.includes(searchText) || level.includes(searchText))) {
+                    passOthers = false;
+                }
+            }
+            if (passOthers) vals.add(getCellValue(row, col));
+        });
+        return [...vals].sort((a, b) => {
+            const na = parseFloat(a), nb = parseFloat(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            return a.localeCompare(b);
+        });
+    }
+
+    function toggleFilterDropdown(event, col) {
+        event.stopPropagation();
+        const dropdown = document.getElementById('col-filter-dropdown');
+        const th = event.currentTarget;
+
+        if (activeFilterCol === col && dropdown.classList.contains('active')) {
+            dropdown.classList.remove('active');
+            activeFilterCol = null;
+            return;
+        }
+
+        activeFilterCol = col;
+        const rect = th.getBoundingClientRect();
+        dropdown.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+        dropdown.style.top = rect.bottom + 4 + 'px';
+        dropdown.classList.add('active');
+
+        // Reset search
+        document.getElementById('filter-search-input').value = '';
+
+        // Build checkbox list
+        const values = getUniqueValues(col);
+        const allowed = columnFilters[col];
+        const list = document.getElementById('filter-values-list');
+        list.innerHTML = values.map(v => {
+            const checked = !allowed || allowed.has(v) ? 'checked' : '';
+            return `<label class="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 rounded filter-value-label">
+                <input type="checkbox" ${checked} value="${v.replace(/"/g, '&quot;')}"
+                       class="filter-value-cb rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+                <span>${v || '(empty)'}</span>
+            </label>`;
+        }).join('');
+
+        updateSelectAllState();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function filterCheckboxList(search) {
+        const s = search.toLowerCase();
+        document.querySelectorAll('.filter-value-label').forEach(label => {
+            const text = label.querySelector('span').textContent.toLowerCase();
+            label.style.display = text.includes(s) ? '' : 'none';
+        });
+    }
+
+    function toggleFilterSelectAll(checked) {
+        document.querySelectorAll('.filter-value-cb').forEach(cb => {
+            if (cb.closest('.filter-value-label').style.display !== 'none') {
+                cb.checked = checked;
+            }
+        });
+    }
+
+    function updateSelectAllState() {
+        const cbs = [...document.querySelectorAll('.filter-value-cb')];
+        const allChecked = cbs.every(cb => cb.checked);
+        document.getElementById('filter-select-all').checked = allChecked;
+    }
+
+    function applyColumnFilter() {
+        if (!activeFilterCol) return;
+        const cbs = [...document.querySelectorAll('.filter-value-cb')];
+        const visibleCbs = cbs.filter(cb => cb.closest('label').style.display !== 'none');
+        const visibleChecked = visibleCbs.filter(cb => cb.checked);
+
+        if (visibleChecked.length === cbs.length || visibleChecked.length === 0) {
+            delete columnFilters[activeFilterCol];
+        } else {
+            const allowed = new Set();
+            visibleChecked.forEach(cb => allowed.add(cb.value));
+            columnFilters[activeFilterCol] = allowed;
+        }
+
+        applyAllFilters();
+        document.getElementById('col-filter-dropdown').classList.remove('active');
+
+        // Update header style
+        const th = document.querySelector(`.th-filter[data-col="${activeFilterCol}"]`);
+        if (th) th.classList.toggle('filtered', !!columnFilters[activeFilterCol]);
+        activeFilterCol = null;
+    }
+
+    function clearColumnFilter() {
+        if (!activeFilterCol) return;
+        delete columnFilters[activeFilterCol];
+        const th = document.querySelector(`.th-filter[data-col="${activeFilterCol}"]`);
+        if (th) th.classList.remove('filtered');
+        applyAllFilters();
+        document.getElementById('col-filter-dropdown').classList.remove('active');
+        activeFilterCol = null;
+    }
+
+    function sortColumn(dir) {
+        if (!activeFilterCol) return;
+        const col = activeFilterCol;
+
+        // Clear other sort indicators
+        document.querySelectorAll('.th-filter').forEach(th => {
+            if (th.dataset.col !== col) {
+                th.classList.remove('sort-asc', 'sort-desc');
+                delete columnSorts[th.dataset.col];
+            }
+        });
+
+        const th = document.querySelector(`.th-filter[data-col="${col}"]`);
+        th.classList.remove('sort-asc', 'sort-desc');
+        th.classList.add('sort-' + dir);
+        columnSorts[col] = dir;
+
+        // Sort rows
+        const tbody = document.getElementById('design-table-body');
+        const rows = [...tbody.querySelectorAll('.design-row')];
+        rows.sort((a, b) => {
+            let va = getCellValue(a, col), vb = getCellValue(b, col);
+            const na = parseFloat(va), nb = parseFloat(vb);
+            let cmp;
+            if (!isNaN(na) && !isNaN(nb)) {
+                cmp = na - nb;
+            } else {
+                cmp = va.localeCompare(vb);
+            }
+            return dir === 'desc' ? -cmp : cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+
+        document.getElementById('col-filter-dropdown').classList.remove('active');
+        activeFilterCol = null;
+    }
+
+    function applyAllFilters() {
+        const searchText = document.getElementById('design-search').value.toLowerCase().trim();
+        let visibleCount = 0;
+
+        document.querySelectorAll('.design-row').forEach(row => {
+            // Text search filter
+            const mat = row.dataset.mat || '';
+            const hdbs = row.dataset.hdbs || '';
+            const size = row.dataset.size || '';
+            const level = row.dataset.level || '';
+            const matchesSearch = !searchText ||
+                mat.includes(searchText) || hdbs.includes(searchText) ||
+                size.includes(searchText) || level.includes(searchText);
+
+            // Column filters
+            let matchesColumns = true;
+            for (const [col, allowed] of Object.entries(columnFilters)) {
+                if (!allowed.has(getCellValue(row, col))) {
+                    matchesColumns = false;
+                    break;
+                }
+            }
+
+            const visible = matchesSearch && matchesColumns;
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        document.getElementById('design-count').textContent = `Showing ${visibleCount} designs`;
+    }
+
+    // Override the existing filterDesigns to use combined filtering
+    filterDesigns = function(searchText) {
+        applyAllFilters();
+    };
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('col-filter-dropdown');
+        if (dropdown.classList.contains('active') && !dropdown.contains(e.target) && !e.target.closest('.th-filter')) {
+            dropdown.classList.remove('active');
+            activeFilterCol = null;
+        }
+    });
+</script>
+{% endblock %}

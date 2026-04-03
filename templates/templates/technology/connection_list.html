@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Connections - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Connections</h1>
+        <p class="text-gray-600 dark:text-gray-400">Manage connection inventory for bit designs</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'technology:connection_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Connection
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by MAT No..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Types</option>
+                {% for type in connection_types %}
+                <option value="{{ type.id }}" {% if request.GET.type == type.id|stringformat:"s" %}selected{% endif %}>{{ type.code }} - {{ type.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="size" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Sizes</option>
+                {% for size in connection_sizes %}
+                <option value="{{ size.id }}" {% if request.GET.size == size.id|stringformat:"s" %}selected{% endif %}>{{ size.size_inches }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="ksa" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">KSA Repl.</option>
+                <option value="yes" {% if request.GET.ksa == "yes" %}selected{% endif %}>Yes</option>
+                <option value="no" {% if request.GET.ksa == "no" %}selected{% endif %}>No</option>
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="filter" class="w-4 h-4 inline mr-1"></i>Filter
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if connections %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">MAT No.</th>
+                    <th class="px-6 py-3 font-medium">Type</th>
+                    <th class="px-6 py-3 font-medium">Size</th>
+                    <th class="px-6 py-3 font-medium">Upper Section</th>
+                    <th class="px-6 py-3 font-medium">KSA</th>
+                    <th class="px-6 py-3 font-medium">Designs</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for conn in connections %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'technology:connection_detail' conn.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono">
+                            {{ conn.mat_no }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">{{ conn.connection_type.code }} - {{ conn.connection_type.name }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ conn.connection_size.size_inches }}</td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ conn.upper_section_type.name|default:"-" }}</td>
+                    <td class="px-6 py-4">
+                        {% if conn.can_replace_in_ksa %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Yes</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">No</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ conn.designs.count }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{% url 'technology:connection_detail' conn.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:connection_update' conn.pk %}" class="p-1 text-gray-400 hover:text-yellow-600" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4"></i>
+                            </a>
+                            <a href="{% url 'technology:connection_delete' conn.pk %}" class="p-1 text-gray-400 hover:text-red-600" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="link" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No connections found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first connection</p>
+        <a href="{% url 'technology:connection_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Connection
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

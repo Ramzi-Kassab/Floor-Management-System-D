@@ -4781,6 +4781,11 @@ class GRNPostView(LoginRequiredMixin, View):
                         entity_type="GoodsReceiptNote",
                         entity_id=grn.pk,
                     )
+                    from apps.notifications.dispatch import fire_event
+                    fire_event('GRN_POSTED', request.user, {
+                        'grn_number': grn.grn_number, 'line_count': posted_count,
+                        'entity_type': 'GoodsReceiptNote', 'entity_id': grn.pk,
+                    })
                 else:
                     messages.warning(request, "No lines were posted.")
 

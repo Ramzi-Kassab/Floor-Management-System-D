@@ -1,0 +1,2183 @@
+"""
+Cutter Map Views
+
+Handles PDF upload, extraction, editing, validation, and generation.
+"""
+
+import json
+import os
+from django.conf import settings
+from django.contrib.auth.decorators import login_required, permission_required
+from django.http import JsonResponse, FileResponse, Http404
+from django.shortcuts import render, get_object_or_404, redirect
+from django.views.decorators.http import require_http_methods, require_POST
+from django.core.files.base import ContentFile
+
+from .models import CutterMapDocument, CutterMapHistory
+from .forms import CutterMapUploadForm
+from .utils.pdf_extractor import extract_pdf_data
+from .utils.pdf_generator import HalliburtonPDFGenerator
+from .utils.ppt_generator import HalliburtonPPTGenerator
+
+
+def _enrich_cutter_shapes_from_inventory(source_data: dict):
+    """
+    Enrich source_data['cutter_shapes'] with shape images from InventoryItem.shape_image_base64.
+    Looks up items by MAT # from summary entries for any missing shapes.
+    """
+    from apps.inventory.models import InventoryItem
+
+    summary = source_data.get('summary', [])
+    cutter_shapes = source_data.get('cutter_shapes', {}) or {}
+
+    for item in summary:
+        idx = str(item.get('index', ''))
+        mat_number = item.get('mat_number', '')
+        # Skip if shape already exists for this index
+        if idx in cutter_shapes and cutter_shapes[idx]:
+            existing = cutter_shapes[idx]
+            if isinstance(existing, dict) and existing.get('data'):
+                continue
+            if isinstance(existing, str) and existing:
+                continue
+
+        # Look up shape from inventory item
+        if mat_number:
+            inv_item = InventoryItem.objects.filter(
+                mat_number=mat_number, shape_image_base64__isnull=False
+            ).exclude(shape_image_base64='').first()
+            if not inv_item:
+                inv_item = InventoryItem.objects.filter(
+                    code=mat_number, shape_image_base64__isnull=False
+                ).exclude(shape_image_base64='').first()
+            if inv_item and inv_item.shape_image_base64:
+                cutter_shapes[idx] = {'data': inv_item.shape_image_base64}
+
+    source_data['cutter_shapes'] = cutter_shapes
+
+
+@login_required
+def index(request):
+    """Main cutter map page - list documents or show editor."""
+    from apps.technology.models import Design
+
+    documents = CutterMapDocument.objects.filter(
+        created_by=request.user
+    ).order_by('-created_at')[:20]
+
+    form = CutterMapUploadForm()
+
+    # Check if coming from BOM create page with design info
+    design_context = None
+    if request.GET.get('from') in ['bom_create', 'design_create']:
+        design_id = request.GET.get('design_id')
+
+        # Handle multiple drillbit_ids (JSON array) or single drillbit_id
+        drillbit_ids_raw = request.GET.get('drillbit_ids', '')
+        serial_numbers_raw = request.GET.get('serial_numbers', '')
+        drillbit_ids = []
+        serial_numbers = []
+
+        if drillbit_ids_raw:
+            try:
+                drillbit_ids = json.loads(drillbit_ids_raw)
+            except json.JSONDecodeError:
+                drillbit_ids = []
+
+        if serial_numbers_raw:
+            try:
+                serial_numbers = json.loads(serial_numbers_raw)
+            except json.JSONDecodeError:
+                serial_numbers = []
+
+        # Fallback to single drillbit_id for backwards compatibility
+        if not drillbit_ids:
+            single_id = request.GET.get('drillbit_id', '')
+            single_sn = request.GET.get('serial_number', '')
+            if single_id:
+                drillbit_ids = [single_id]
+                serial_numbers = [single_sn] if single_sn else []
+
+        design_context = {
+            'design_id': design_id,
+            'design_mat': request.GET.get('design_mat', ''),
+            'design_hdbs': request.GET.get('design_hdbs', ''),
+            'design_size': request.GET.get('design_size', ''),
+            'design_level': request.GET.get('design_level', ''),  # L3 or L4
+            'smi_type_id': request.GET.get('smi_type_id', ''),
+            'iadc_code_id': request.GET.get('iadc_code_id', ''),
+            'bom_status': request.GET.get('bom_status', ''),
+            'from_bom_create': True,
+            # Serial number / Drill bit context (multiple)
+            'drillbit_ids': drillbit_ids,  # Array of IDs
+            'serial_numbers': serial_numbers,  # Array of serial numbers
+            # Legacy single values (first one)
+            'drillbit_id': drillbit_ids[0] if drillbit_ids else '',
+            'serial_number': serial_numbers[0] if serial_numbers else '',
+            # Fields for conflict detection
+            'blade_count': None,
+            'pocket_rows_count': None,
+            'total_pockets_count': None,
+        }
+        # Fetch additional design data for conflict detection
+        if design_id:
+            try:
+                design = Design.objects.get(pk=design_id)
+                design_context['blade_count'] = design.no_of_blades
+                design_context['pocket_rows_count'] = design.pocket_rows_count
+                design_context['total_pockets_count'] = design.total_pockets_count
+            except Design.DoesNotExist:
+                pass
+
+    # Load SMI Types and IADC Codes for review modal dropdowns
+    from apps.technology.models import SMIType, IADCCode
+    smi_types = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+    iadc_codes = IADCCode.objects.filter(is_active=True).order_by('code')
+
+    return render(request, 'cutter_map/index.html', {
+        'documents': documents,
+        'form': form,
+        'design_context': design_context,
+        'smi_types': smi_types,
+        'iadc_codes': iadc_codes,
+    })
+
+
+@login_required
+def bom_view(request, bom_id):
+    """
+    View a BOM's cutter layout in the PDF Generator interface.
+
+    If edit=1 query param is passed, enables full editing mode.
+    Otherwise, opens in view-only mode with limited controls.
+    """
+    from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
+
+    bom = get_object_or_404(BOM, pk=bom_id)
+    edit_mode = request.GET.get('edit', '0') == '1'
+    # Drill bit context from query params (when opened from drill bit detail page)
+    drillbit_id = request.GET.get('drillbit_id', '')
+    serial_number = request.GET.get('serial_number', '')
+
+    # Check if BOM has source data
+    if not bom.source_data:
+        # If no source data, we can try to reconstruct from BOMLines
+        # For now, show an error
+        return render(request, 'cutter_map/bom_no_data.html', {
+            'bom': bom,
+            'message': 'This BOM does not have saved layout data. It may have been created manually.'
+        })
+
+    # Check if BOM is linked to any drill bits (for warning when editing)
+    brazing_linked = list(DrillBit.objects.filter(brazing_bom=bom).values_list('serial_number', flat=True))
+    system_linked = list(DrillBit.objects.filter(system_bom=bom).values_list('serial_number', flat=True))
+    linked_serial_numbers = list(set(brazing_linked + system_linked))
+
+    # Enrich cutter_shapes from inventory items (by MAT #)
+    source_data = bom.source_data or {}
+    _enrich_cutter_shapes_from_inventory(source_data)
+
+    # Build context for template
+    bom_context = {
+        'bom_id': bom.pk,
+        'bom_code': bom.code,  # L5 MAT
+        'bom_status': bom.status,  # DRAFT, ACTIVE, or OBSOLETE
+        'design_id': bom.design.pk if bom.design else None,
+        'design_mat': bom.design.mat_no if bom.design else '',  # L3/L4 MAT
+        'design_level': f"L{bom.design.order_level}" if bom.design and bom.design.order_level else '',
+        'design_hdbs': bom.design.hdbs_type if bom.design else '',
+        'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
+        'smi_type': bom.smi_type.smi_name if bom.smi_type else (bom.design.smi_type if bom.design else ''),
+        'edit_mode': edit_mode,
+        'from_bom_view': True,
+        'source_data': json.dumps(source_data),  # Pre-serialized for JS
+        'linked_serial_numbers': json.dumps(linked_serial_numbers),  # SNs linked to this BOM
+        'smi_type_id': bom.smi_type_id or '',
+        'iadc_code_id': bom.design.iadc_code_ref_id if bom.design else '',
+        # Original / serial copy tracking
+        'is_original': 'true' if bom.is_original else 'false',
+        'serial_number_bom': bom.serial_number or '',  # Serial stored on BOM itself
+        'parent_bom_id': bom.parent_bom_id or '',
+        # Drill bit context (from query params)
+        'drillbit_id': drillbit_id,
+        'serial_number_param': serial_number,  # From URL query param
+        'serial_number': serial_number or bom.serial_number or '',  # Combined for display
+    }
+
+    form = CutterMapUploadForm()
+
+    # Load SMI Types and IADC Codes for review modal dropdowns
+    from apps.technology.models import SMIType, IADCCode
+    smi_types = SMIType.objects.filter(is_active=True).select_related('hdbs_type', 'size').order_by('smi_name')
+    iadc_codes = IADCCode.objects.filter(is_active=True).order_by('code')
+
+    return render(request, 'cutter_map/index.html', {
+        'documents': [],
+        'form': form,
+        'design_context': {
+            'design_id': bom.design.pk if bom.design else None,
+            'design_mat': bom.design.mat_no if bom.design else '',
+            'design_hdbs': bom.design.hdbs_type if bom.design else '',
+            'design_size': str(bom.design.size) if bom.design and bom.design.size else '',
+            'from_bom_create': False,
+            'smi_type_id': bom.smi_type_id or '',
+            'iadc_code_id': bom.design.iadc_code_ref_id if bom.design else '',
+            'bom_status': bom.status or '',
+            # Drill bit context (for linking BOM to drill bit on save)
+            'drillbit_id': drillbit_id,
+            'drillbit_ids': [drillbit_id] if drillbit_id else [],
+            'serial_number': serial_number,
+            'serial_numbers': [serial_number] if serial_number else [],
+            # Fields for conflict detection
+            'blade_count': bom.design.no_of_blades if bom.design else None,
+            'pocket_rows_count': bom.design.pocket_rows_count if bom.design else None,
+            'total_pockets_count': bom.design.total_pockets_count if bom.design else None,
+        },
+        'bom_context': bom_context,
+        'smi_types': smi_types,
+        'iadc_codes': iadc_codes,
+    })
+
+
+@login_required
+def bom_readonly(request, bom_id):
+    """
+    Read-only BOM view for work orders and job cards.
+
+    Simple, print-friendly layout showing BOM details without editing capabilities.
+    Used for internal/external work order documentation.
+    """
+    from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
+
+    bom = get_object_or_404(BOM, pk=bom_id)
+
+    # Get linked drill bits
+    brazing_linked = list(DrillBit.objects.filter(brazing_bom=bom))
+    system_linked = list(DrillBit.objects.filter(system_bom=bom))
+    linked_drillbits = list({db.pk: db for db in brazing_linked + system_linked}.values())
+
+    # Parse source_data for template (enrich from inventory items)
+    source_data = bom.source_data or {}
+    _enrich_cutter_shapes_from_inventory(source_data)
+    cutter_shapes = {}
+    if source_data.get('cutter_shapes'):
+        for key, shape in source_data['cutter_shapes'].items():
+            if isinstance(shape, dict) and shape.get('data'):
+                cutter_shapes[int(key)] = shape['data']
+
+    # Check where the user came from
+    from_workorder = request.GET.get('from') == 'workorder'
+    from_drillbit = request.GET.get('from') == 'drillbit'
+    workorder_id = request.GET.get('wo_id')
+    drillbit_id = request.GET.get('db_id')
+
+    return render(request, 'cutter_map/bom_readonly.html', {
+        'bom': bom,
+        'source_data': source_data,
+        'cutter_shapes': cutter_shapes,
+        'linked_drillbits': linked_drillbits,
+        'from_workorder': from_workorder,
+        'from_drillbit': from_drillbit,
+        'workorder_id': workorder_id,
+        'drillbit_id': drillbit_id,
+    })
+
+
+@login_required
+@require_http_methods(['POST'])
+def upload(request):
+    """Handle PDF upload and extract data."""
+    form = CutterMapUploadForm(request.POST, request.FILES)
+
+    if not form.is_valid():
+        print(f"[UPLOAD] Form validation failed: {form.errors}")
+        return JsonResponse({
+            'error': form.errors.get('original_pdf', ['Invalid file'])[0]
+        }, status=400)
+
+    # Save the document
+    doc = form.save(commit=False)
+    doc.created_by = request.user
+    doc.original_filename = request.FILES['original_pdf'].name.rsplit('.', 1)[0]
+    doc.save()
+
+    print(f"[UPLOAD] Document saved: id={doc.id}, filename={doc.original_filename}")
+
+    # Record history
+    CutterMapHistory.objects.create(
+        document=doc,
+        action=CutterMapHistory.Action.UPLOAD,
+        user=request.user
+    )
+
+    try:
+        # Extract data from PDF
+        pdf_path = doc.original_pdf.path
+        print(f"[UPLOAD] Extracting from: {pdf_path}")
+        data = extract_pdf_data(pdf_path)
+
+        # Log extraction results
+        blades_count = len(data.get('blades', []))
+        summary_count = len(data.get('summary', []))
+        print(f"[UPLOAD] Extraction complete: {blades_count} blades, {summary_count} summary items")
+
+        # Store extracted data
+        doc.extracted_data = data
+        doc.mat_number = data.get('header', {}).get('mat_number', '')
+        doc.sn_number = data.get('header', {}).get('sn_number', '')
+        doc.status = CutterMapDocument.Status.EXTRACTED
+        doc.save()
+
+        # Record extraction
+        CutterMapHistory.objects.create(
+            document=doc,
+            action=CutterMapHistory.Action.EXTRACT,
+            user=request.user
+        )
+
+        # Add document ID and original filename to response
+        data['document_id'] = doc.id
+        data['original_filename'] = doc.original_filename
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'document_id': doc.id,
+            'filename': doc.original_filename
+        })
+
+    except Exception as e:
+        doc.delete()  # Clean up on failure
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def save_edits(request, document_id):
+    """Save edited data without generating PDF."""
+    doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+
+    try:
+        data = json.loads(request.body)
+        doc.edited_data = data
+        doc.status = CutterMapDocument.Status.EDITED
+        doc.save()
+
+        CutterMapHistory.objects.create(
+            document=doc,
+            action=CutterMapHistory.Action.EDIT,
+            user=request.user,
+            details={'changes': 'Data saved'}
+        )
+
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def validate(request, document_id=None):
+    """Validate data before PDF generation."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+    validation = {
+        'is_valid': True,
+        'messages': []
+    }
+
+    try:
+        summary = data.get('summary', [])
+        blades = data.get('blades', [])
+
+        # Build BOM counts
+        bom_counts = {}
+        for item in summary:
+            idx = item.get('index')
+            count = item.get('count', 0)
+            if idx is not None:
+                bom_counts[idx] = count
+
+        # Build CL counts
+        cl_counts = {}
+        for blade in blades:
+            for row_key in ['r1', 'r2', 'r3', 'r4']:
+                row = blade.get(row_key, {})
+                if row:
+                    for pos, cells in row.items():
+                        if isinstance(cells, list):
+                            for cell in cells:
+                                grp = cell.get('group')
+                                if grp:
+                                    cl_counts[grp] = cl_counts.get(grp, 0) + 1
+
+        # Check for count mismatches
+        all_indices = set(bom_counts.keys()) | set(cl_counts.keys())
+        for idx in sorted(all_indices):
+            bom_count = bom_counts.get(idx, 0)
+            cl_count = cl_counts.get(idx, 0)
+            if bom_count != cl_count:
+                validation['is_valid'] = False
+                validation['messages'].append({
+                    'type': 'warning',
+                    'code': 'COUNT_MISMATCH',
+                    'message': f"Count mismatch: BOM index {idx} has Qty={bom_count}, but CL has {cl_count} cutters"
+                })
+
+        # Check for CL groups not in BOM
+        unmatched = set(cl_counts.keys()) - set(bom_counts.keys())
+        if unmatched:
+            validation['is_valid'] = False
+            validation['messages'].append({
+                'type': 'warning',
+                'code': 'UNMATCHED_GROUPS',
+                'message': f"CL has group references not in BOM: {sorted(unmatched)}"
+            })
+
+        # Check for empty data
+        if not summary:
+            validation['messages'].append({
+                'type': 'warning',
+                'code': 'EMPTY_BOM',
+                'message': "BOM table is empty"
+            })
+
+        if not blades:
+            validation['messages'].append({
+                'type': 'warning',
+                'code': 'EMPTY_CL',
+                'message': "Cutter Layout (CL) is empty"
+            })
+
+        # Save validation results if document exists
+        if document_id:
+            doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+            doc.is_validated = validation['is_valid']
+            doc.validation_messages = validation['messages']
+            doc.save()
+
+            CutterMapHistory.objects.create(
+                document=doc,
+                action=CutterMapHistory.Action.VALIDATE,
+                user=request.user,
+                details=validation
+            )
+
+        return JsonResponse(validation)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'is_valid': False,
+            'messages': [{'type': 'error', 'code': 'VALIDATION_ERROR', 'message': str(e)}]
+        })
+
+
+@login_required
+@require_http_methods(['POST'])
+def generate_pdf(request, document_id=None):
+    """Generate PDF from data."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+    try:
+        header = data.get('header', {})
+        original_name = data.get('original_filename', header.get('mat_number', 'output'))
+        output_filename = f"{original_name}.pdf"
+
+        # Generate PDF
+        generator = HalliburtonPDFGenerator()
+
+        # Create temp file path
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated')
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+
+        # Generate returns the actual path (may be .html if PDF backends unavailable)
+        actual_output_path = generator.generate(data, output_path)
+        actual_filename = os.path.basename(actual_output_path)
+        is_html = actual_output_path.endswith('.html')
+
+        # If document exists, save reference
+        if document_id:
+            doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+            doc.edited_data = data
+            doc.status = CutterMapDocument.Status.GENERATED
+
+            # Save file to model (only if PDF)
+            if not is_html and os.path.exists(actual_output_path):
+                with open(actual_output_path, 'rb') as f:
+                    doc.generated_pdf.save(actual_filename, ContentFile(f.read()))
+            doc.save()
+
+            CutterMapHistory.objects.create(
+                document=doc,
+                action=CutterMapHistory.Action.GENERATE_PDF,
+                user=request.user
+            )
+
+        # Determine file type and message
+        if is_html:
+            file_type = 'html'
+            message = 'HTML file generated (PDF backends not available - install playwright or weasyprint)'
+        else:
+            file_type = 'pdf'
+            message = None
+
+        response_data = {
+            'success': True,
+            'filename': actual_filename,
+            'download_url': f'/cutter-map/download/{actual_filename}',
+            'output_path': actual_output_path,
+            'file_type': file_type
+        }
+        if message:
+            response_data['message'] = message
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def generate_ppt(request, document_id=None):
+    """Generate PowerPoint from data."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+    try:
+        original_name = data.get('original_filename', data['header']['mat_number'])
+        output_filename = f"{original_name}.pptx"
+
+        # Generate PPT
+        generator = HalliburtonPPTGenerator()
+
+        # Create output path
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated')
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+
+        generator.generate(data, output_path)
+
+        # If document exists, save reference
+        if document_id:
+            doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+
+            # Save file to model
+            with open(output_path, 'rb') as f:
+                doc.generated_ppt.save(output_filename, ContentFile(f.read()))
+            doc.save()
+
+            CutterMapHistory.objects.create(
+                document=doc,
+                action=CutterMapHistory.Action.GENERATE_PPT,
+                user=request.user
+            )
+
+        return JsonResponse({
+            'success': True,
+            'filename': output_filename,
+            'download_url': f'/cutter-map/download/{output_filename}'
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def download_pdf(request, document_id, filename):
+    """Download generated PDF."""
+    if document_id > 0:
+        doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+        if doc.generated_pdf:
+            return FileResponse(doc.generated_pdf.open(), as_attachment=True, filename=filename)
+
+    # Fallback to file path
+    file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated', filename)
+    if os.path.exists(file_path):
+        return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+
+    raise Http404("File not found")
+
+
+@login_required
+def download_ppt(request, document_id, filename):
+    """Download generated PPT."""
+    if document_id > 0:
+        doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+        if doc.generated_ppt:
+            return FileResponse(doc.generated_ppt.open(), as_attachment=True, filename=filename)
+
+    # Fallback to file path
+    file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated', filename)
+    if os.path.exists(file_path):
+        return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+
+    raise Http404("File not found")
+
+
+@login_required
+@require_http_methods(['POST'])
+def export_json(request, document_id=None):
+    """Export data as JSON."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+    mat_number = data.get('header', {}).get('mat_number', 'export')
+    output_filename = f"export_{mat_number}.json"
+
+    output_dir = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'exports')
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, output_filename)
+
+    with open(output_path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+    return JsonResponse({
+        'success': True,
+        'filename': output_filename,
+        'download_url': f'/cutter-map/download/{output_filename}'
+    })
+
+
+@login_required
+def download_json(request, filename):
+    """Download exported JSON."""
+    file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'exports', filename)
+    if os.path.exists(file_path):
+        return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+    raise Http404("File not found")
+
+
+def download_file(request, filename):
+    """
+    Simple file download - matches Flask /download/<filename> pattern.
+    No login required for direct file access (files are in generated folder).
+    """
+    # Check in generated folder
+    file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'generated', filename)
+    if os.path.exists(file_path):
+        # Determine content type based on extension
+        if filename.lower().endswith('.pdf'):
+            content_type = 'application/pdf'
+        elif filename.lower().endswith('.pptx'):
+            content_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        elif filename.lower().endswith('.json'):
+            content_type = 'application/json'
+        else:
+            content_type = 'application/octet-stream'
+
+        response = FileResponse(
+            open(file_path, 'rb'),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type
+        )
+        return response
+
+    # Also check exports folder for JSON
+    if filename.lower().endswith('.json'):
+        file_path = os.path.join(settings.MEDIA_ROOT, 'cutter_maps', 'exports', filename)
+        if os.path.exists(file_path):
+            return FileResponse(
+                open(file_path, 'rb'),
+                as_attachment=True,
+                filename=filename,
+                content_type='application/json'
+            )
+
+    raise Http404("File not found")
+
+
+@login_required
+def editor(request, document_id):
+    """Load editor with existing document."""
+    doc = get_object_or_404(CutterMapDocument, id=document_id, created_by=request.user)
+
+    return render(request, 'cutter_map/editor.html', {
+        'document': doc,
+        'data': doc.get_data()
+    })
+
+
+# =============================================================================
+# API ENDPOINTS
+# =============================================================================
+
+@login_required
+def api_lookup_design(request):
+    """API: Lookup Design by MAT number and optionally check existing BOM suffixes."""
+    import re
+    from apps.technology.models import Design, BOM
+
+    mat_no = request.GET.get('mat_no', '').strip()
+    mat = request.GET.get('mat', '').strip()  # Alternative param name
+    check_suffixes = request.GET.get('check_suffixes', '0') == '1'
+
+    base_mat = mat_no or mat
+    if not base_mat:
+        return JsonResponse({'found': False, 'error': 'No MAT number provided'})
+
+    try:
+        design = Design.objects.filter(mat_no=base_mat).first()
+
+        response = {'found': design is not None}
+
+        if design:
+            response['design'] = {
+                'id': design.id,
+                'mat_no': design.mat_no,
+                'hdbs_type': design.hdbs_type,
+                'order_level': design.order_level,
+                'category': design.category,
+                'no_of_blades': design.no_of_blades,
+                'status': design.status,
+            }
+
+        # Check for existing BOM suffixes if requested
+        if check_suffixes:
+            # Find all BOMs that start with this base MAT
+            existing_boms = BOM.objects.filter(code__startswith=base_mat).values_list('code', flat=True)
+            existing_suffixes = []
+
+            for bom_code in existing_boms:
+                # Extract suffix (everything after the base MAT)
+                if len(bom_code) > len(base_mat):
+                    suffix = bom_code[len(base_mat):]
+                    # Check if it's an M-suffix pattern (M1, M2, etc.)
+                    if re.match(r'^M\d+$', suffix):
+                        existing_suffixes.append(suffix)
+
+            response['existing_suffixes'] = sorted(
+                existing_suffixes,
+                key=lambda x: int(x[1:]) if x[1:].isdigit() else 0
+            )
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        return JsonResponse({'found': False, 'error': str(e)})
+
+
+@login_required
+@require_http_methods(['POST'])
+def api_sync_to_erp(request):
+    """
+    API: Sync extracted PDF data to ERP.
+
+    Creates or links to L3/L4 Design, then creates:
+    - L5 BOM with BOMLines
+    - DesignPocketConfig entries (grouped by size + substrate_shape)
+    - DesignPocket entries from blade CL data
+
+    Accepts either:
+    - design_id: Direct link to a pre-selected Design (from BOM create workflow)
+    - parent_design_mat: MAT number to look up or create a Design
+    """
+    from apps.technology.models import (
+        Design, BOM, BOMLine, PocketSize, PocketShape,
+        DesignPocketConfig, DesignPocket
+    )
+    from apps.inventory.models import InventoryItem, ItemAttributeValue
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    document_id = payload.get('document_id')
+    design_id = payload.get('design_id')  # Direct design ID from BOM create workflow
+    # Support both single drillbit_id and array of drillbit_ids
+    drillbit_ids = payload.get('drillbit_ids', [])  # Array of drill bit IDs to link
+    drillbit_id = payload.get('drillbit_id')  # Legacy single drill bit ID (backwards compatibility)
+    # Build drillbit_ids list from either source
+    if not drillbit_ids and drillbit_id:
+        drillbit_ids = [drillbit_id]
+    parent_design_mat = payload.get('parent_design_mat', '').strip()
+    bom_type = payload.get('bom_type', 'BRAZING')  # BRAZING (internal) or SYSTEM (client-facing)
+    brazing_mat = payload.get('brazing_mat', '').strip()  # Brazing MAT (internal/production)
+    system_mat = payload.get('system_mat', '').strip()    # System MAT (client-facing)
+    smi_type_id = payload.get('smi_type_id')  # Optional SMI Type FK
+    iadc_code_id = payload.get('iadc_code_id')  # Optional IADC Code FK (set on Design)
+    bom_status = payload.get('bom_status', '')  # Optional BOM status override
+    serial_number = payload.get('serial_number', '').strip()  # Optional serial number (from first drill bit)
+    parent_bom_id = payload.get('parent_bom_id')  # Parent BOM ID for serial copies
+    data = payload.get('data', {})
+
+    # Require either design_id or parent_design_mat
+    if not design_id and not parent_design_mat:
+        return JsonResponse({'success': False, 'error': 'Either design_id or Parent Design MAT is required'}, status=400)
+
+    if not data:
+        return JsonResponse({'success': False, 'error': 'No data provided'}, status=400)
+
+    try:
+        header = data.get('header', {})
+        summary = data.get('summary', [])
+        blades = data.get('blades', [])
+        images = data.get('images', {})  # Drill bit face photo, etc.
+        groups = data.get('groups', [])  # Cutter groups with shapes
+        cutter_shapes = data.get('cutter_shapes', {})  # Individual cutter shapes by BOM index
+
+        # 1. Find or create parent Design (L3/L4)
+        parent_design = None
+
+        # First try design_id (from BOM create workflow)
+        if design_id:
+            try:
+                parent_design = Design.objects.get(pk=design_id)
+            except Design.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Design with ID {design_id} not found'}, status=400)
+
+        # Fallback to parent_design_mat lookup/creation
+        if not parent_design and parent_design_mat:
+            parent_design = Design.objects.filter(mat_no=parent_design_mat).first()
+
+            if not parent_design:
+                # Create new Design as L3 (base design)
+                parent_design = Design.objects.create(
+                    mat_no=parent_design_mat,
+                    hdbs_type=f"DRAFT-{parent_design_mat}",
+                    category=Design.Category.FC,
+                    order_level=Design.OrderLevel.LEVEL_3,
+                    status=Design.Status.DRAFT,
+                    no_of_blades=len(blades) if blades else None,
+                    created_by=request.user
+                )
+
+        # Update blade count if we have data
+        if blades and not parent_design.no_of_blades:
+            parent_design.no_of_blades = len(blades)
+            parent_design.save()
+
+        # Determine pocket rows count from blades
+        max_row = 1
+        for blade in blades:
+            for row_key in ['r1', 'r2', 'r3', 'r4']:
+                if blade.get(row_key):
+                    row_num = int(row_key[1])
+                    max_row = max(max_row, row_num)
+
+        if max_row > 1 and parent_design.pocket_rows_count != max_row:
+            parent_design.pocket_rows_count = max_row
+            parent_design.save()
+
+        # 2. Create L5 BOM
+        # Use brazing_mat as the primary BOM code (fallback to header mat_number)
+        l5_mat = brazing_mat or header.get('mat_number', f'L5-{parent_design_mat}')
+        bom_code = l5_mat
+
+        # Check for force_create_new flag - always create a new BOM even if code exists
+        force_create_new = payload.get('force_create_new', False)
+
+        # Check if BOM already exists
+        existing_bom = BOM.objects.filter(code=bom_code).first()
+        bom_was_updated = False
+        previous_lines_count = 0
+        linked_drillbits_warning = []
+
+        if existing_bom:
+            # Check if existing BOM is linked to any drill bits
+            from apps.workorders.models import DrillBit
+            brazing_linked = DrillBit.objects.filter(brazing_bom=existing_bom).values_list('serial_number', flat=True)
+            system_linked = DrillBit.objects.filter(system_bom=existing_bom).values_list('serial_number', flat=True)
+            linked_drillbits_warning = list(set(list(brazing_linked) + list(system_linked)))
+
+            if force_create_new:
+                # Generate a new unique BOM code by appending suffix
+                suffix = 1
+                new_code = f"{bom_code}-{suffix:03d}"
+                while BOM.objects.filter(code=new_code).exists():
+                    suffix += 1
+                    new_code = f"{bom_code}-{suffix:03d}"
+                bom_code = new_code
+                existing_bom = None  # Force creation of new BOM
+            else:
+                # Update existing BOM (original behavior)
+                previous_lines_count = existing_bom.lines.count()
+                existing_bom.lines.all().delete()
+                existing_bom.bom_type = bom_type  # Update BOM type on existing BOM
+                existing_bom.system_mat_no = system_mat  # Update System MAT
+                # Update SMI Type
+                if smi_type_id:
+                    from apps.technology.models import SMIType
+                    smi_type_obj = SMIType.objects.filter(pk=smi_type_id).first()
+                    existing_bom.smi_type = smi_type_obj
+                # Update Status
+                if bom_status and bom_status in dict(BOM.Status.choices):
+                    existing_bom.status = bom_status
+                bom = existing_bom
+                bom_was_updated = True
+
+                # Set IADC code on design if provided
+                if iadc_code_id:
+                    from apps.technology.models import IADCCode
+                    iadc_obj = IADCCode.objects.filter(pk=iadc_code_id).first()
+                    if iadc_obj:
+                        parent_design.iadc_code_ref = iadc_obj
+                        parent_design.save(update_fields=['iadc_code_ref'])
+
+        if not existing_bom or force_create_new:
+            # Resolve optional SMI Type
+            smi_type_obj = None
+            if smi_type_id:
+                from apps.technology.models import SMIType
+                smi_type_obj = SMIType.objects.filter(pk=smi_type_id).first()
+
+            # Resolve parent BOM for serial copies
+            parent_bom_obj = None
+            if parent_bom_id:
+                parent_bom_obj = BOM.objects.filter(pk=parent_bom_id).first()
+
+            bom = BOM.objects.create(
+                design=parent_design,
+                code=bom_code,
+                name=f"L5 BOM for {parent_design_mat}" + (f" (SN {serial_number})" if serial_number else ""),
+                revision=header.get('revision_level', 'A'),
+                status=bom_status if bom_status in dict(BOM.Status.choices) else BOM.Status.DRAFT,
+                bom_type=bom_type,  # BRAZING or SYSTEM
+                system_mat_no=system_mat,  # Client-facing MAT
+                smi_type=smi_type_obj,
+                serial_number=serial_number,
+                parent_bom=parent_bom_obj,
+                created_by=request.user
+            )
+
+            # Set IADC code on design if provided
+            if iadc_code_id:
+                from apps.technology.models import IADCCode
+                iadc_obj = IADCCode.objects.filter(pk=iadc_code_id).first()
+                if iadc_obj and not parent_design.iadc_code_ref:
+                    parent_design.iadc_code_ref = iadc_obj
+                    parent_design.save(update_fields=['iadc_code_ref'])
+
+        # Save complete source data for PDF Generator reconstruction
+        new_source_data = {
+            'header': header,
+            'summary': summary,
+            'blades': blades,
+            'images': images,  # Drill bit face photo (base64)
+            'groups': groups,  # Cutter groups with shapes
+            'cutter_shapes': cutter_shapes  # Individual cutter shapes by BOM index
+        }
+
+        # Create version history before updating
+        from apps.technology.models import BOMVersion
+
+        if bom_was_updated:
+            # Save version snapshot before changes
+            change_summary = f"Updated via PDF import. Previous lines: {previous_lines_count}"
+            BOMVersion.create_version(
+                bom=bom,
+                change_type=BOMVersion.ChangeType.UPDATED,
+                change_summary=change_summary,
+                user=request.user
+            )
+        else:
+            # New BOM - set original_source_data (baseline that never changes)
+            bom.original_source_data = new_source_data
+            # Create initial version
+            bom.source_data = new_source_data
+            bom.save()
+            BOMVersion.create_version(
+                bom=bom,
+                change_type=BOMVersion.ChangeType.CREATED,
+                change_summary="Initial BOM creation via PDF import",
+                user=request.user
+            )
+
+        # Update source_data
+        bom.source_data = new_source_data
+        bom.source_mat_number = brazing_mat or header.get('mat_number', '')  # Store brazing MAT
+        bom.source_sn_number = serial_number or header.get('sn_number', '')  # Store serial number
+        bom.source_revision_level = header.get('revision_level', '')
+        bom.source_software_version = header.get('software_version', '')
+        bom.save()
+
+        # 3. Create BOM Lines and build index→item mapping
+        # Option to create missing items (from payload)
+        create_missing_items = payload.get('create_missing_items', False)
+
+        bom_lines_created = 0
+        items_matched = 0
+        items_created = 0
+        items_unmatched = []
+        index_to_item_info = {}  # Maps BOM index to (size, substrate_shape, color)
+
+        for item in summary:
+            bom_index = item.get('index', bom_lines_created + 1)
+            cutter_size = item.get('size', '')
+            hdbs_code = item.get('mat_number', '')
+            color_code = item.get('fill_color', '#4A4A4A')
+            cutter_chamfer = item.get('chamfer', '')
+            cutter_type = item.get('type', '')
+
+            # Try to find matching inventory item
+            inv_item = None
+            substrate_shape = 'DEFAULT'
+
+            if hdbs_code:
+                # Try exact match on mat_number field
+                inv_item = InventoryItem.objects.filter(mat_number=hdbs_code).first()
+
+                if not inv_item:
+                    # Try match on code field
+                    inv_item = InventoryItem.objects.filter(code=hdbs_code).first()
+
+                if not inv_item:
+                    # Try attribute lookup (hdbs_code, hdbs, mat_number attributes)
+                    attr_match = ItemAttributeValue.objects.filter(
+                        attribute__attribute__code__in=['hdbs_code', 'hdbs', 'mat_number', 'hdbs_mat'],
+                        text_value=hdbs_code
+                    ).select_related('item').first()
+                    if attr_match:
+                        inv_item = attr_match.item
+
+                if inv_item:
+                    items_matched += 1
+                    # Get substrate_shape attribute
+                    shape_attr = ItemAttributeValue.objects.filter(
+                        item=inv_item,
+                        attribute__attribute__code__in=['substrate_shape', 'shape', 'pocket_shape']
+                    ).first()
+                    if shape_attr and shape_attr.text_value:
+                        substrate_shape = shape_attr.text_value
+                elif create_missing_items:
+                    # Create new inventory item for unmatched HDBS code
+                    display_name = f"{cutter_size} {cutter_type}".strip() or hdbs_code
+                    inv_item = InventoryItem.objects.create(
+                        code=hdbs_code,
+                        name=display_name,
+                        mat_number=hdbs_code,
+                        item_type=InventoryItem.ItemType.COMPONENT,
+                        unit='EA',
+                        description=f"Auto-created from PDF import. Size: {cutter_size}, Type: {cutter_type}, Chamfer: {cutter_chamfer}"
+                    )
+                    items_created += 1
+                else:
+                    # Track unmatched items for reporting
+                    items_unmatched.append({
+                        'hdbs_code': hdbs_code,
+                        'size': cutter_size,
+                        'type': cutter_type
+                    })
+
+            # Create BOM Line with inventory_item link if matched/created
+            BOMLine.objects.create(
+                bom=bom,
+                line_number=bom_index,
+                order_number=bom_index,
+                quantity=item.get('count', 1),
+                cutter_size=cutter_size,
+                cutter_chamfer=cutter_chamfer,
+                cutter_type=cutter_type,
+                hdbs_code=hdbs_code,
+                family_number=item.get('family_number', ''),
+                color_code=color_code,
+                inventory_item=inv_item,  # Link to inventory (may be None if unmatched)
+            )
+            bom_lines_created += 1
+
+            # Save cutter shape image to inventory item (linked by MAT #)
+            if inv_item and cutter_shapes:
+                shape_data = cutter_shapes.get(str(bom_index)) or cutter_shapes.get(bom_index)
+                if shape_data:
+                    shape_base64 = shape_data.get('data') if isinstance(shape_data, dict) else shape_data
+                    if shape_base64 and not inv_item.shape_image_base64:
+                        inv_item.shape_image_base64 = shape_base64
+                        inv_item.save(update_fields=['shape_image_base64'])
+
+            index_to_item_info[bom_index] = {
+                'size': cutter_size,
+                'shape': substrate_shape,
+                'color': color_code,
+                'count': item.get('count', 1)
+            }
+
+        # 4. Create DesignPocketConfig entries (grouped by size + shape)
+        # Clear existing pockets FIRST (they reference pocket_configs via protected FK)
+        # Then clear pocket_configs
+        parent_design.pockets.all().delete()
+        parent_design.pocket_configs.all().delete()
+
+        # Group by (size, shape)
+        config_groups = {}  # (size, shape) → {indices: [], count: 0, color: ''}
+        for bom_index, info in index_to_item_info.items():
+            key = (info['size'], info['shape'])
+            if key not in config_groups:
+                config_groups[key] = {
+                    'indices': [],
+                    'count': 0,
+                    'color': info['color']
+                }
+            config_groups[key]['indices'].append(bom_index)
+            config_groups[key]['count'] += info['count']
+
+        # Create PocketSize and PocketShape records, then DesignPocketConfig
+        index_to_config = {}  # Maps BOM index → DesignPocketConfig
+        pocket_configs_created = 0
+
+        for order, ((size_code, shape_code), group_info) in enumerate(config_groups.items(), start=1):
+            # Find or create PocketSize
+            pocket_size = PocketSize.objects.filter(code=size_code).first()
+            if not pocket_size:
+                pocket_size = PocketSize.objects.create(
+                    code=size_code,
+                    display_name=size_code,
+                    is_active=True
+                )
+
+            # Find or create PocketShape
+            pocket_shape = PocketShape.objects.filter(code=shape_code).first()
+            if not pocket_shape:
+                pocket_shape = PocketShape.objects.create(
+                    code=shape_code,
+                    name=shape_code,
+                    is_active=True
+                )
+
+            # Create DesignPocketConfig
+            config = DesignPocketConfig.objects.create(
+                design=parent_design,
+                order=order,
+                pocket_size=pocket_size,
+                pocket_shape=pocket_shape,
+                count=group_info['count'],
+                color_code=group_info['color'],
+                row_number=1  # Default to row 1, will be refined by pocket positions
+            )
+            pocket_configs_created += 1
+
+            # Map all indices in this group to this config
+            for idx in group_info['indices']:
+                index_to_config[idx] = config
+
+        # 5. Create DesignPocket entries from blade CL data
+        pockets_created = 0
+        pockets_skipped = 0
+        seen_positions = set()  # Track (blade_num, row_num, position_in_row) to avoid duplicates
+
+        for blade in blades:
+            # Blade data uses 'name' field like "B1", "B2", not 'blade_id'
+            blade_name = blade.get('name', 'B1')
+            try:
+                blade_num = int(blade_name.replace('B', '')) if blade_name.startswith('B') else int(blade_name)
+            except (ValueError, TypeError):
+                blade_num = 1
+            position_in_blade = 0
+
+            for row_key in ['r1', 'r2', 'r3', 'r4']:
+                row_data = blade.get(row_key, {})
+                if not row_data:
+                    continue
+
+                row_num = int(row_key[1])  # r1→1, r2→2, etc.
+                position_in_row = 0
+
+                # row_data is dict: {"1": [...], "2": [...], ...}
+                for pos_key in sorted(row_data.keys(), key=lambda x: int(x) if x.isdigit() else 0):
+                    cells = row_data.get(pos_key, [])
+                    if not isinstance(cells, list):
+                        continue
+
+                    for cell in cells:
+                        group = cell.get('group')
+                        if group is None:
+                            continue
+
+                        position_in_row += 1
+                        position_in_blade += 1
+
+                        # Check for duplicate position
+                        pos_key_tuple = (blade_num, row_num, position_in_row)
+                        if pos_key_tuple in seen_positions:
+                            pockets_skipped += 1
+                            continue
+                        seen_positions.add(pos_key_tuple)
+
+                        # Find config for this group
+                        config = index_to_config.get(group)
+                        if not config:
+                            # Fallback: use first config
+                            config = parent_design.pocket_configs.first()
+                            if not config:
+                                continue
+
+                        # Map blade location from position key (e.g., 'CONE', 'NOSE', 'SHOULDER')
+                        # The position is stored as the dictionary key, not in the cell object
+                        # Order: CONE → NOSE → SHOULDER → GAGE → PAD (matches frontend)
+                        pos_name = pos_key.upper()
+                        blade_location = None
+                        if 'CONE' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.CONE
+                        elif 'NOSE' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.NOSE
+                        elif 'SHOULDER' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.SHOULDER
+                        elif 'GAGE' in pos_name or 'GAUGE' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.GAGE
+                        elif 'PAD' in pos_name:
+                            blade_location = DesignPocket.BladeLocation.PAD
+
+                        # Use get_or_create to handle any remaining duplicates
+                        pocket, created = DesignPocket.objects.get_or_create(
+                            design=parent_design,
+                            blade_number=blade_num,
+                            row_number=row_num,
+                            position_in_row=position_in_row,
+                            defaults={
+                                'position_in_blade': position_in_blade,
+                                'blade_location': blade_location,
+                                'pocket_config': config
+                            }
+                        )
+                        if created:
+                            pockets_created += 1
+                        else:
+                            # Update existing pocket
+                            pocket.position_in_blade = position_in_blade
+                            pocket.blade_location = blade_location
+                            pocket.pocket_config = config
+                            pocket.save()
+                            pockets_skipped += 1
+
+        # 6. Update CutterMapDocument if provided
+        if document_id:
+            doc = CutterMapDocument.objects.filter(id=document_id, created_by=request.user).first()
+            if doc:
+                doc.design = parent_design
+                doc.status = CutterMapDocument.Status.SYNCED
+                doc.save()
+
+                CutterMapHistory.objects.create(
+                    document=doc,
+                    action=CutterMapHistory.Action.SYNC,
+                    user=request.user,
+                    details={
+                        'design_id': parent_design.id,
+                        'design_mat': parent_design.mat_no,
+                        'bom_id': bom.id,
+                        'bom_code': bom.code,
+                        'bom_lines_created': bom_lines_created,
+                        'pocket_configs_created': pocket_configs_created,
+                        'pockets_created': pockets_created,
+                        'items_matched': items_matched,
+                        'items_created': items_created,
+                        'items_unmatched': len(items_unmatched)
+                    }
+                )
+
+        # Link BOM to DrillBits if drillbit_ids were provided
+        linked_drillbits = []
+        if drillbit_ids:
+            try:
+                from apps.workorders.models import DrillBit
+                for db_id in drillbit_ids:
+                    try:
+                        drillbit = DrillBit.objects.get(pk=db_id)
+                        # Link as brazing or system BOM based on bom_type
+                        update_fields = []
+                        if bom_type == 'BRAZING':
+                            drillbit.brazing_bom = bom
+                            update_fields.append('brazing_bom')
+                        else:
+                            drillbit.system_bom = bom
+                            update_fields.append('system_bom')
+                        # Clear legacy bom FK if it pointed to old BOM (prevents stale Linked SNs)
+                        if drillbit.bom_id and drillbit.bom_id != bom.pk:
+                            drillbit.bom = None
+                            update_fields.append('bom')
+                        drillbit.save(update_fields=update_fields)
+                        linked_drillbits.append({
+                            'id': drillbit.pk,
+                            'serial_number': drillbit.serial_number
+                        })
+                    except DrillBit.DoesNotExist:
+                        print(f"Warning: DrillBit with ID {db_id} not found")
+                    except Exception as e:
+                        print(f"Warning: Failed to link BOM to drill bit {db_id}: {e}")
+            except Exception as e:
+                # Don't fail the whole operation if linking fails
+                print(f"Warning: Failed to link BOM to drill bits: {e}")
+
+        # For backwards compatibility, also provide single linked_drillbit
+        linked_drillbit = linked_drillbits[0] if linked_drillbits else None
+
+        return JsonResponse({
+            'success': True,
+            'design_id': parent_design.id,
+            'design_mat': parent_design.mat_no,
+            'bom_id': bom.id,
+            'bom_code': bom.code,
+            'bom_type': bom.bom_type,  # BRAZING or SYSTEM
+            'brazing_mat': bom.code,  # Brazing MAT (same as bom_code)
+            'system_mat': bom.system_mat_no or '',  # System MAT (client-facing)
+            'serial_number': bom.serial_number or bom.source_sn_number or '',
+            'is_original': bom.is_original,
+            'parent_bom_id': bom.parent_bom_id or '',
+            'smi_type_id': bom.smi_type_id or '',
+            'iadc_code_id': parent_design.iadc_code_ref_id or '',
+            'bom_status': bom.status or '',
+            'linked_drillbit': linked_drillbit,  # First drill bit (backwards compatibility)
+            'linked_drillbits': linked_drillbits,  # All linked drill bits
+            'bom_lines_created': bom_lines_created,
+            'pocket_configs_created': pocket_configs_created,
+            'pockets_created': pockets_created,
+            # BOM update info
+            'bom_was_updated': bom_was_updated,
+            'previous_lines_count': previous_lines_count if bom_was_updated else 0,
+            'linked_drillbits_warning': linked_drillbits_warning,  # SNs linked to original BOM (if any)
+            # Inventory matching statistics
+            'inventory_stats': {
+                'items_matched': items_matched,
+                'items_created': items_created,
+                'items_unmatched': len(items_unmatched),
+                'unmatched_items': items_unmatched if items_unmatched else None
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
+        # Provide user-friendly error messages
+        error_msg = str(e)
+        user_friendly_msg = error_msg
+
+        if 'UNIQUE constraint failed: design_pockets' in error_msg:
+            user_friendly_msg = (
+                "Duplicate pocket positions detected in the PDF data. "
+                "This can happen when the PDF has overlapping cutter entries. "
+                "Please check the blade data in 'Deep Edit' tab and ensure "
+                "there are no duplicate positions, then try again."
+            )
+        elif 'UNIQUE constraint' in error_msg:
+            user_friendly_msg = (
+                "A duplicate record was detected. This design may already have "
+                "BOM data imported. You can either: (1) Choose a different design, "
+                "or (2) Edit the existing BOM from the BOM list."
+            )
+        elif 'IntegrityError' in error_msg or 'foreign key' in error_msg.lower():
+            user_friendly_msg = (
+                "Data integrity error. Some required reference data may be missing. "
+                "Please ensure all cutter types in the BOM exist in the inventory."
+            )
+
+        return JsonResponse({
+            'success': False,
+            'error': user_friendly_msg,
+            'technical_error': error_msg,  # Include for debugging
+            'can_retry': True  # Tell frontend user can try again
+        }, status=500)
+
+
+@login_required
+@require_POST
+def api_activate_bom(request, bom_id):
+    """
+    API: Activate a BOM (set status from DRAFT to ACTIVE).
+
+    Validates that:
+    - BOM exists
+    - BOM has at least one line
+    - BOM is currently in DRAFT status
+    """
+    from apps.technology.models import BOM
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    # Check current status
+    if bom.status == BOM.Status.ACTIVE:
+        return JsonResponse({
+            'success': True,
+            'message': 'BOM is already active',
+            'status': bom.status
+        })
+
+    if bom.status == BOM.Status.OBSOLETE:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot activate an obsolete BOM'
+        }, status=400)
+
+    # Check if BOM has lines
+    lines_count = bom.lines.count()
+    if lines_count == 0:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cannot activate BOM with no items. Please add cutter items first.'
+        }, status=400)
+
+    # Activate the BOM
+    bom.status = BOM.Status.ACTIVE
+    bom.save(update_fields=['status'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'BOM {bom.code} activated successfully',
+        'status': bom.status,
+        'lines_count': lines_count
+    })
+
+
+@login_required
+@require_POST
+def api_toggle_original(request, bom_id):
+    """Toggle is_original flag on a BOM."""
+    from apps.technology.models import BOM
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'BOM not found'}, status=404)
+
+    bom.is_original = not bom.is_original
+    bom.save(update_fields=['is_original'])
+
+    return JsonResponse({
+        'success': True,
+        'is_original': bom.is_original,
+        'message': f'BOM {bom.code} {"marked as Original" if bom.is_original else "unmarked as Original"}'
+    })
+
+
+@login_required
+def api_check_bom_code(request):
+    """Check if a BOM code already exists. Returns BOM info if found."""
+    from apps.technology.models import BOM
+    code = request.GET.get('code', '').strip()
+    if not code:
+        return JsonResponse({'exists': False})
+    bom = BOM.objects.filter(code=code).select_related('design').first()
+    if not bom:
+        return JsonResponse({'exists': False})
+    # Get linked serial numbers
+    from apps.workorders.models import DrillBit
+    from django.db.models import Q
+    linked_sns = list(DrillBit.objects.filter(
+        Q(brazing_bom=bom) | Q(system_bom=bom)
+    ).values_list('serial_number', flat=True).distinct())
+    return JsonResponse({
+        'exists': True,
+        'bom_id': bom.pk,
+        'bom_code': bom.code,
+        'serial_number': bom.serial_number or '',
+        'is_original': bom.is_original,
+        'status': bom.status,
+        'linked_serial_numbers': linked_sns,
+    })
+
+
+@login_required
+@require_POST
+def api_set_system_mat(request, bom_id):
+    """
+    API: Set the system_mat_no for a BOM.
+
+    Used when a Brazing BOM needs a separate client-facing MAT number.
+    """
+    from apps.technology.models import BOM
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    system_mat_no = payload.get('system_mat_no', '').strip()
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    # Save the system MAT number
+    bom.system_mat_no = system_mat_no
+    bom.save(update_fields=['system_mat_no'])
+
+    return JsonResponse({
+        'success': True,
+        'message': f'System MAT set to {system_mat_no}' if system_mat_no else 'System MAT cleared',
+        'bom_id': bom.id,
+        'bom_code': bom.code,
+        'system_mat_no': bom.system_mat_no
+    })
+
+
+@login_required
+@require_POST
+def api_link_bom_to_drillbits(request, bom_id):
+    """
+    API: Link a BOM to additional drill bits.
+
+    Used to assign the same BOM to multiple serial numbers after initial creation.
+    Expects JSON body with:
+    {
+        "drillbit_ids": [1, 2, 3],  // Array of drill bit IDs to link
+        "bom_type": "BRAZING"  // Optional: BRAZING or SYSTEM (default: BRAZING)
+    }
+    """
+    from apps.technology.models import BOM
+    from apps.workorders.models import DrillBit
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    drillbit_ids = payload.get('drillbit_ids', [])
+    bom_type = payload.get('bom_type', 'BRAZING')
+
+    if not drillbit_ids:
+        return JsonResponse({
+            'success': False,
+            'error': 'No drill bit IDs provided'
+        }, status=400)
+
+    try:
+        bom = BOM.objects.get(pk=bom_id)
+    except BOM.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'BOM with ID {bom_id} not found'
+        }, status=404)
+
+    linked_drillbits = []
+    errors = []
+
+    for db_id in drillbit_ids:
+        try:
+            drillbit = DrillBit.objects.get(pk=db_id)
+            # Link as brazing or system BOM based on bom_type
+            update_fields = []
+            if bom_type == 'BRAZING':
+                drillbit.brazing_bom = bom
+                update_fields.append('brazing_bom')
+            else:
+                drillbit.system_bom = bom
+                update_fields.append('system_bom')
+            # Clear legacy bom FK if it pointed to old BOM (prevents stale Linked SNs)
+            if drillbit.bom_id and drillbit.bom_id != bom.pk:
+                drillbit.bom = None
+                update_fields.append('bom')
+            drillbit.save(update_fields=update_fields)
+            linked_drillbits.append({
+                'id': drillbit.pk,
+                'serial_number': drillbit.serial_number
+            })
+        except DrillBit.DoesNotExist:
+            errors.append(f'DrillBit with ID {db_id} not found')
+        except Exception as e:
+            errors.append(f'Error linking DrillBit {db_id}: {str(e)}')
+
+    return JsonResponse({
+        'success': True,
+        'message': f'BOM linked to {len(linked_drillbits)} drill bit(s)',
+        'bom_id': bom.id,
+        'bom_code': bom.code,
+        'linked_drillbits': linked_drillbits,
+        'errors': errors if errors else None
+    })
+
+
+@login_required
+def api_cutter_inventory(request):
+    """
+    API endpoint returning PDC cutter inventory with variant stock breakdown.
+    Used by the cutter selection dialog (Tabulator table).
+
+    Optional query params:
+        design_id: Include 'used_for_design' flag for cutters used in BOMs for this design
+    """
+    from apps.inventory.models import InventoryItem, ItemVariant, VariantStock, ItemAttributeValue
+    from apps.technology.models import BOM, BOMLine
+    from apps.supplychain.models import PurchaseOrderLine
+    from django.db.models import Sum, F, DecimalField, Value, Q
+    from django.db.models.functions import Coalesce
+    from decimal import Decimal
+
+    design_id = request.GET.get('design_id')
+
+    # Get cutters used for this design (across all BOMs)
+    design_mat_numbers = set()
+    if design_id:
+        bom_lines = BOMLine.objects.filter(
+            bom__design_id=design_id
+        ).values_list('hdbs_code', flat=True).distinct()
+        design_mat_numbers = {m for m in bom_lines if m}
+
+    variant_codes = ["NEW-PUR", "NEW-RET", "NEW-EO", "USED-GRD", "USED-RCL", "NEW-CLI", "USED-CLI"]
+    new_variant_codes = ["NEW-PUR", "NEW-EO", "NEW-RET", "NEW-CLI"]
+
+    cutters = InventoryItem.objects.filter(
+        category__code="CUT-PDC",
+        is_active=True
+    ).prefetch_related(
+        "variants__variant_case",
+        "variants__stock_records",
+        "attribute_values__attribute__attribute",
+    ).order_by("mat_number", "code")
+
+    results = []
+    for cutter in cutters:
+        # Get attributes
+        attrs = {}
+        for av in cutter.attribute_values.all():
+            try:
+                code = av.attribute.attribute.code
+                attrs[code] = av.text_value or ''
+            except Exception:
+                pass
+
+        mat = cutter.mat_number or attrs.get('hdbs_code', '') or cutter.code
+        size = attrs.get('cutter_size', '') or attrs.get('diameter', '')
+        cutter_type = attrs.get('cutter_type', '')
+        chamfer = attrs.get('chamfer', '')
+        family = attrs.get('family', '')
+
+        # Variant stock breakdown
+        variant_stock = {}
+        total_stock = Decimal('0')
+        total_new = Decimal('0')
+        for variant in cutter.variants.all():
+            if variant.variant_case and variant.variant_case.code in variant_codes:
+                stock = variant.stock_records.aggregate(
+                    total=Coalesce(Sum("quantity_on_hand"), Value(0), output_field=DecimalField())
+                )["total"]
+                variant_stock[variant.variant_case.code] = int(stock)
+                total_stock += stock
+                if variant.variant_case.code in new_variant_codes:
+                    total_new += stock
+
+        # On order
+        on_order = PurchaseOrderLine.objects.filter(
+            inventory_item=cutter,
+            purchase_order__status__in=["APPROVED", "SENT", "PARTIAL"],
+            is_cancelled=False
+        ).aggregate(
+            total=Coalesce(Sum(F("quantity_ordered") - F("quantity_received")), Value(0), output_field=DecimalField())
+        )["total"]
+        on_order = max(int(on_order), 0)
+
+        row = {
+            'mat': mat,
+            'size': size,
+            'type': cutter_type,
+            'chamfer': chamfer,
+            'family': family,
+            'name': cutter.name,
+            # Variant breakdown
+            'new_pur': variant_stock.get('NEW-PUR', 0),
+            'new_eo': variant_stock.get('NEW-EO', 0),
+            'new_ret': variant_stock.get('NEW-RET', 0),
+            'new_cli': variant_stock.get('NEW-CLI', 0),
+            'used_grd': variant_stock.get('USED-GRD', 0),
+            'used_rcl': variant_stock.get('USED-RCL', 0),
+            'used_cli': variant_stock.get('USED-CLI', 0),
+            # Totals
+            'total_new': int(total_new),
+            'total_stock': int(total_stock),
+            'on_order': on_order,
+            'qty': int(total_stock),  # Backward compat with old 'qty' field
+            # Design usage
+            'used_for_design': mat in design_mat_numbers if design_mat_numbers else False,
+        }
+        results.append(row)
+
+    return JsonResponse({'success': True, 'cutters': results})
+
+
+@login_required
+def api_cutter_shapes(request):
+    """
+    API endpoint returning saved cutter shape images from inventory items.
+    Returns shapes grouped by MAT number for the shape picker in Deep Edit.
+    """
+    from apps.inventory.models import InventoryItem
+
+    shapes = []
+    cutters = InventoryItem.objects.filter(
+        category__code="CUT-PDC",
+        is_active=True,
+        shape_image_base64__isnull=False,
+    ).exclude(shape_image_base64='').values('id', 'mat_number', 'code', 'name', 'shape_image_base64')
+
+    for c in cutters:
+        shapes.append({
+            'id': c['id'],
+            'mat': c['mat_number'] or c['code'],
+            'name': c['name'],
+            'data': c['shape_image_base64'],
+        })
+
+    return JsonResponse({'success': True, 'shapes': shapes})
+
+
+@login_required
+@require_POST
+def api_create_cutters(request):
+    """
+    API: Create inventory items for unmatched cutters from PDF import.
+
+    Expects JSON body with:
+    {
+        "items": [
+            {
+                "hdbs_code": "DGR1307A",
+                "size": "13.07",
+                "type": "ROUND",
+                "name": "13mm Round Premium",  // optional
+                "grade": "PREMIUM",  // optional
+                "thickness": 8.0,  // optional
+                "chamfer_type": "SINGLE"  // optional
+            },
+            ...
+        ]
+    }
+    """
+    from apps.inventory.models import InventoryItem, ItemCutterSpec
+
+    try:
+        data = json.loads(request.body)
+        items_data = data.get('items', [])
+
+        if not items_data:
+            return JsonResponse({
+                'success': False,
+                'error': 'No items provided'
+            }, status=400)
+
+        created_items = []
+        errors = []
+
+        for item_data in items_data:
+            hdbs_code = item_data.get('hdbs_code', '').strip()
+            if not hdbs_code:
+                errors.append("Missing HDBS code for an item")
+                continue
+
+            # Check if already exists
+            if InventoryItem.objects.filter(code=hdbs_code).exists():
+                errors.append(f"{hdbs_code} already exists in inventory")
+                continue
+
+            # Extract fields
+            cutter_size = item_data.get('size', '')
+            cutter_type = item_data.get('type', '')
+            name = item_data.get('name') or f"{cutter_size} {cutter_type}".strip() or hdbs_code
+            grade = item_data.get('grade', 'STANDARD')
+            thickness = item_data.get('thickness')
+            chamfer_type = item_data.get('chamfer_type', 'NONE')
+
+            try:
+                # Create InventoryItem
+                inv_item = InventoryItem.objects.create(
+                    code=hdbs_code,
+                    name=name,
+                    mat_number=hdbs_code,
+                    item_type=InventoryItem.ItemType.COMPONENT,
+                    unit='EA',
+                    description=f"PDC Cutter - Size: {cutter_size}mm, Type: {cutter_type}"
+                )
+
+                # Create ItemCutterSpec if we have size
+                if cutter_size:
+                    try:
+                        size_decimal = float(cutter_size)
+                        spec_data = {
+                            'item': inv_item,
+                            'cutter_size': size_decimal,
+                            'grade': grade if grade in ['PREMIUM', 'STANDARD', 'ECONOMY'] else 'STANDARD',
+                            'chamfer_type': chamfer_type if chamfer_type in ['NONE', 'SINGLE', 'DOUBLE', 'MULTI'] else 'NONE',
+                        }
+                        if thickness:
+                            try:
+                                spec_data['thickness'] = float(thickness)
+                            except (ValueError, TypeError):
+                                pass
+
+                        ItemCutterSpec.objects.create(**spec_data)
+                    except (ValueError, TypeError):
+                        # Size couldn't be converted, skip spec creation
+                        pass
+
+                created_items.append({
+                    'id': inv_item.id,
+                    'code': inv_item.code,
+                    'name': inv_item.name
+                })
+
+            except Exception as e:
+                errors.append(f"Failed to create {hdbs_code}: {str(e)}")
+
+        return JsonResponse({
+            'success': True,
+            'created': created_items,
+            'created_count': len(created_items),
+            'errors': errors if errors else None
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def api_quick_add_smi_type(request):
+    """Quick-add a new SMI Type from the Review BOM modal.
+
+    Accepts design_id to auto-resolve HDBS type and size from the design,
+    ensuring the SMI is added to the correct existing HDBSType+Size combination.
+    Falls back to hdbs_type_id/size_id if design_id not provided.
+    """
+    from apps.technology.models import SMIType, HDBSType, BitSize, Design
+    try:
+        data = json.loads(request.body)
+        smi_name = data.get('smi_name', '').strip()
+        design_id = data.get('design_id')
+        hdbs_type_id = data.get('hdbs_type_id')
+        size_id = data.get('size_id')
+
+        if not smi_name:
+            return JsonResponse({'success': False, 'error': 'SMI Name is required'}, status=400)
+
+        # Resolve HDBS type and size from design context first
+        hdbs_type = None
+        size = None
+        if design_id:
+            design = Design.objects.filter(pk=design_id).select_related('size').first()
+            if design:
+                if design.size:
+                    size = design.size
+                if design.hdbs_type:
+                    hdbs_name = design.hdbs_type.strip()
+                    # Try exact match first, then case-insensitive
+                    hdbs_type = (
+                        HDBSType.objects.filter(hdbs_name=hdbs_name).first()
+                        or HDBSType.objects.filter(hdbs_name__iexact=hdbs_name).first()
+                    )
+
+        # Fall back to explicit IDs only if design didn't resolve HDBS
+        if not hdbs_type and hdbs_type_id:
+            hdbs_type = HDBSType.objects.filter(pk=hdbs_type_id).first()
+        if not size and size_id:
+            size = BitSize.objects.filter(pk=size_id).first()
+
+        if not hdbs_type:
+            return JsonResponse({'success': False, 'error': 'HDBS Type not found for this design'}, status=400)
+        if not size:
+            return JsonResponse({'success': False, 'error': 'Size not found for this design'}, status=400)
+
+        # Check for duplicate
+        existing = SMIType.objects.filter(smi_name=smi_name, hdbs_type=hdbs_type, size=size).first()
+        if existing:
+            hdbs_type.sizes.add(size)  # Ensure size is linked
+            return JsonResponse({'success': True, 'id': existing.pk, 'label': str(existing), 'message': 'Already exists'})
+
+        smi = SMIType.objects.create(smi_name=smi_name, hdbs_type=hdbs_type, size=size)
+        # Ensure the size is linked to the HDBS type's sizes M2M
+        hdbs_type.sizes.add(size)
+        return JsonResponse({'success': True, 'id': smi.pk, 'label': str(smi)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(['POST'])
+def api_quick_add_iadc_code(request):
+    """Quick-add a new IADC Code from the Review BOM modal."""
+    from apps.technology.models import IADCCode
+    try:
+        data = json.loads(request.body)
+        code = data.get('code', '').strip()
+        description = data.get('description', '').strip()
+
+        if not code:
+            return JsonResponse({'success': False, 'error': 'IADC Code is required'}, status=400)
+
+        existing = IADCCode.objects.filter(code=code).first()
+        if existing:
+            return JsonResponse({'success': True, 'id': existing.pk, 'label': str(existing), 'message': 'Already exists'})
+
+        iadc = IADCCode.objects.create(
+            code=code,
+            bit_type='FC',
+            description=description or f'IADC {code}',
+        )
+        return JsonResponse({'success': True, 'id': iadc.pk, 'label': str(iadc)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def api_dropdown_data(request):
+    """Return HDBS Types and Bit Sizes for quick-add forms."""
+    from apps.technology.models import HDBSType, BitSize
+    hdbs_types = list(HDBSType.objects.filter(is_active=True).order_by('hdbs_name').values('id', 'hdbs_name'))
+    bit_sizes = list(BitSize.objects.filter(is_active=True).order_by('size_decimal').values('id', 'size_display', 'size_decimal'))
+    return JsonResponse({'hdbs_types': hdbs_types, 'bit_sizes': bit_sizes})
+
+
+@login_required
+def add_cutter_wizard(request):
+    """
+    Wizard for adding unmatched cutters to inventory one by one.
+    Redirects to the full inventory item create form with pre-filled data.
+    """
+    import re
+    from apps.inventory.models import InventoryItem, InventoryCategory
+
+    # Initialize wizard from GET params
+    if request.method == 'GET' and 'init' in request.GET:
+        try:
+            cutters_json = request.GET.get('cutters', '[]')
+            cutters = json.loads(cutters_json)
+            request.session['unmatched_cutters'] = cutters
+            request.session['cutters_added'] = []
+            request.session['cutter_wizard_design_id'] = request.GET.get('design_id')
+            request.session['cutter_wizard_bom_id'] = request.GET.get('bom_id')
+        except json.JSONDecodeError:
+            cutters = []
+        # Redirect to self without init to start the wizard
+        return redirect('cutter_map:add_cutter_wizard')
+
+    cutters = request.session.get('unmatched_cutters', [])
+    added = request.session.get('cutters_added', [])
+    design_id = request.session.get('cutter_wizard_design_id')
+    bom_id = request.session.get('cutter_wizard_bom_id')
+
+    # Check if item was just created (returning from inventory form)
+    if request.GET.get('item_created'):
+        item_id = request.GET.get('item_created')
+        try:
+            item = InventoryItem.objects.get(pk=item_id)
+            added.append({
+                'code': item.code,
+                'name': item.name,
+                'id': item.id
+            })
+            request.session['cutters_added'] = added
+        except InventoryItem.DoesNotExist:
+            pass
+
+    # Check if user wants to skip current cutter
+    if request.GET.get('skip'):
+        # Move the current cutter to end of list or mark as skipped
+        if cutters and len(added) < len(cutters):
+            skipped = cutters.pop(len(added))
+            cutters.append(skipped)  # Move to end
+            request.session['unmatched_cutters'] = cutters
+
+    current_index = len(added)
+    total_cutters = len(cutters)
+
+    # Check if done
+    is_done = request.GET.get('done') == '1' or (current_index >= total_cutters and total_cutters > 0)
+
+    if is_done:
+        # Show completion page
+        return render(request, 'cutter_map/add_cutter_wizard.html', {
+            'is_done': True,
+            'added_cutters': added,
+            'total_cutters': total_cutters,
+            'design_id': design_id,
+            'bom_id': bom_id,
+        })
+
+    # Get current cutter to add
+    if current_index < total_cutters:
+        current_cutter = cutters[current_index]
+    else:
+        # No more cutters - show done page
+        return redirect('/cutter-map/add-cutter-wizard/?done=1')
+
+    # Check if user clicked "Add to Inventory" button
+    if request.GET.get('start_add') or request.method == 'POST':
+        # Get PDC Cutters category (prefer subcategory)
+        cutter_category = InventoryCategory.objects.filter(
+            name='PDC Cutters'
+        ).first() or InventoryCategory.objects.filter(
+            code__icontains='PDC'
+        ).first() or InventoryCategory.objects.filter(
+            name__icontains='PDC Cutter'
+        ).first() or InventoryCategory.objects.filter(
+            name__icontains='Cutter'
+        ).first()
+
+        # Parse cutter data to extract attribute values
+        hdbs_code = current_cutter.get('hdbs_code', '') or current_cutter.get('type', '')
+        raw_size = current_cutter.get('size', '')
+        raw_type = current_cutter.get('type', '')
+        chamfer = current_cutter.get('chamfer', '')
+
+        # Parse size string (e.g., "1613" → diameter=16, length=13)
+        diameter = None
+        length = None
+        cutter_size = None
+        length_class = None
+
+        if raw_size:
+            # Try to parse 4-digit format (DDLL where DD=diameter, LL=length)
+            size_str = str(raw_size).replace('.', '').replace(' ', '')
+            if len(size_str) == 4 and size_str.isdigit():
+                diameter = int(size_str[:2])
+                length = int(size_str[2:])
+                cutter_size = str(diameter)  # For dropdown (e.g., "16")
+                # Determine length class based on length value
+                if length <= 8:
+                    length_class = 'Short'
+                elif length <= 13:
+                    length_class = 'Standard'
+                elif length <= 16:
+                    length_class = 'Long'
+                else:
+                    length_class = 'Extra Long'
+            elif len(size_str) == 3 and size_str.isdigit():
+                # Format like "913" → 9mm diameter, 13mm length
+                diameter = int(size_str[0])
+                length = int(size_str[1:])
+                cutter_size = str(diameter)
+            else:
+                # Try to extract just the diameter
+                match = re.match(r'^(\d+)', size_str)
+                if match:
+                    cutter_size = match.group(1)
+                    try:
+                        diameter = int(cutter_size)
+                    except ValueError:
+                        pass
+
+        # Parse type/hdbs_code to extract cutter_type prefix (e.g., "CT179" → "CT")
+        cutter_type = None
+        if hdbs_code:
+            # Extract letter prefix before digits
+            match = re.match(r'^([A-Za-z]+)', hdbs_code)
+            if match:
+                prefix = match.group(1).upper()
+                # Map common prefixes to cutter types
+                type_map = {
+                    'CT': 'CT',  # Carbide Tungsten
+                    'WC': 'WC',  # Tungsten Carbide
+                    'PDC': 'PDC',
+                    'TSP': 'TSP',
+                    'IMP': 'IMP',
+                    'NAT': 'NAT',
+                    'DGR': 'PDC',  # Diamond Grade Round
+                }
+                cutter_type = type_map.get(prefix, prefix[:3] if len(prefix) >= 2 else None)
+
+        # Build attribute values dict for pre-filling the form
+        attribute_values = {}
+        if hdbs_code:
+            attribute_values['hdbs_code'] = hdbs_code
+        if cutter_size:
+            attribute_values['cutter_size'] = cutter_size
+        if diameter:
+            attribute_values['diameter'] = str(diameter)
+        if length:
+            attribute_values['length'] = str(length)
+        if length_class:
+            attribute_values['length_class'] = length_class
+        if cutter_type:
+            attribute_values['cutter_type'] = cutter_type
+        if chamfer:
+            attribute_values['chamfer'] = chamfer
+
+        # Build description
+        desc_parts = ['PDC Cutter from BOM import']
+        if diameter:
+            desc_parts.append(f'Diameter: {diameter}mm')
+        if length:
+            desc_parts.append(f'Length: {length}mm')
+        if cutter_type:
+            desc_parts.append(f'Type: {cutter_type}')
+        if chamfer:
+            desc_parts.append(f'Chamfer: {chamfer}')
+        description = ' - '.join(desc_parts)
+
+        # Build item name
+        name_parts = []
+        if cutter_size:
+            name_parts.append(cutter_size)
+        if hdbs_code and hdbs_code != cutter_size:
+            name_parts.append(hdbs_code)
+        item_name = ' '.join(name_parts) if name_parts else hdbs_code or raw_size
+
+        # Prepare pre-fill data for inventory form
+        clone_data = {
+            'category_id': cutter_category.id if cutter_category else None,
+            'code': hdbs_code,
+            'name': item_name,
+            'mat_number': hdbs_code,
+            'item_type': 'COMPONENT',
+            'description': description,
+            'is_active': True,
+            # Pre-fill attribute values
+            'attribute_values': attribute_values,
+            # Wizard tracking info
+            'from_cutter_wizard': True,
+            'wizard_current': current_index + 1,
+            'wizard_total': total_cutters,
+            # Store parsed data for display
+            'parsed_data': {
+                'diameter': diameter,
+                'length': length,
+                'cutter_size': cutter_size,
+                'length_class': length_class,
+                'cutter_type': cutter_type,
+                'hdbs_code': hdbs_code,
+                'chamfer': chamfer,
+            }
+        }
+
+        # Store in session for inventory form
+        request.session['item_clone_data'] = clone_data
+        request.session['item_create_return_url'] = f'/cutter-map/add-cutter-wizard/?item_created='
+
+        # Redirect to inventory create form
+        return redirect('inventory:item_create')
+
+    # Show wizard page with current cutter info
+    return render(request, 'cutter_map/add_cutter_wizard.html', {
+        'current_cutter': current_cutter,
+        'current_index': current_index,
+        'total_cutters': total_cutters,
+        'added_cutters': added,
+        'is_done': False,
+        'design_id': design_id,
+        'bom_id': bom_id,
+    })

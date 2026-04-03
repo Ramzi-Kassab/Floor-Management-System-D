@@ -1,0 +1,1360 @@
+{% extends "base.html" %}
+
+{% block title %}Bills of Materials - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li><a href="{% url 'dashboard:home' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+            <i data-lucide="home" class="w-4 h-4"></i>
+        </a></li>
+        <li class="flex items-center">
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+            <a href="{% url 'technology:design_list' %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white text-sm">Technology</a>
+        </li>
+        <li class="flex items-center">
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+            <span class="ml-1 text-gray-700 dark:text-white text-sm font-medium">Bills of Materials</span>
+        </li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Bills of Materials</h1>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage BOMs for designs with material tracking</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'technology:bom_create' %}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            Create BOM
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Column filter styles */
+    th.has-filter {
+        background: linear-gradient(to bottom, #dbeafe, #e0f2fe) !important;
+    }
+    .dark th.has-filter {
+        background: linear-gradient(to bottom, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.15)) !important;
+    }
+    th.has-filter .col-header span.col-label {
+        color: #2563eb;
+        font-weight: 600;
+    }
+    .dark th.has-filter .col-header span.col-label {
+        color: #60a5fa;
+    }
+    /* Inline edit hover */
+    .editable-cell:hover {
+        background: rgba(59, 130, 246, 0.06);
+        cursor: pointer;
+    }
+    .editable-cell:hover::after {
+        content: '';
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-left: 4px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z'/%3E%3C/svg%3E");
+        background-size: contain;
+        background-repeat: no-repeat;
+        vertical-align: middle;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Column Filter Dropdown (shared, positioned absolutely) -->
+<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl w-72 max-h-[420px] flex flex-col text-sm"
+     style="top:0; left:0;">
+    <!-- Sort Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+        <button onclick="sortColumn('asc')"
+                class="w-full flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+            <i data-lucide="arrow-up" class="w-4 h-4"></i> <span id="sortAscText">Sort A → Z</span>
+        </button>
+        <button onclick="sortColumn('desc')"
+                class="w-full flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+            <i data-lucide="arrow-down" class="w-4 h-4"></i> <span id="sortDescText">Sort Z → A</span>
+        </button>
+    </div>
+    <!-- Clear Filter -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+        <button onclick="clearColumnFilter()"
+                class="w-full flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+            <i data-lucide="x-circle" class="w-4 h-4"></i> Clear Filter
+        </button>
+    </div>
+    <!-- Values List with Checkboxes -->
+    <div class="p-2 flex-1 overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between mb-1">
+            <button onclick="selectAllValues()" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Select All</button>
+            <button onclick="selectNoneValues()" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Select None</button>
+        </div>
+        <input type="text" id="valueSearch" placeholder="Search values..."
+               oninput="renderValuesList(this.value)"
+               class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs mb-2 focus:ring-1 focus:ring-blue-500">
+        <div id="valuesList" class="flex-1 overflow-y-auto max-h-[200px] space-y-0.5"></div>
+        <button onclick="applyValueFilter()"
+                class="mt-2 w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors">
+            Apply Filter
+        </button>
+    </div>
+</div>
+
+<div x-data="bomListPage()" x-init="init()">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <i data-lucide="file-text" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ boms_with_status|length }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Total BOMs</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="stats.ready">0</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Materials Ready</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="stats.shortage">0</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Shortage</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <i data-lucide="edit-3" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="stats.draft">0</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Drafts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Toggle & Search -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+        <div class="flex flex-wrap gap-4 items-center justify-between">
+            <!-- View Toggle -->
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500 dark:text-gray-400">View:</span>
+                <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1">
+                    <button type="button"
+                            @click="setView('bom')"
+                            :class="currentView === 'bom' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors">
+                        <i data-lucide="file-text" class="w-4 h-4 inline mr-1"></i>
+                        BOM View
+                    </button>
+                    <button type="button"
+                            @click="setView('design')"
+                            :class="currentView === 'design' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors">
+                        <i data-lucide="layers" class="w-4 h-4 inline mr-1"></i>
+                        Design View
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Search -->
+            <div class="flex-1 max-w-md">
+                <input type="text"
+                       x-model="searchQuery"
+                       @input="applyFilters()"
+                       placeholder="Search BOMs, designs, HDBS..."
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+
+            <!-- Active Filters Bar & Clear -->
+            <div class="flex items-center gap-2">
+                <span id="activeFiltersBar" class="text-xs text-gray-500 dark:text-gray-400 hidden"></span>
+                <button type="button" onclick="clearAllFilters()"
+                        class="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm">
+                    <i data-lucide="x" class="w-4 h-4 inline mr-1"></i> Clear All
+                </button>
+                <span class="text-sm text-gray-500 dark:text-gray-400" x-text="visibleCount + ' of {{ boms_with_status|length }} shown'"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOM View Table -->
+    <div x-show="currentView === 'bom'" x-cloak class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table id="bomTable" class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="w-8"></th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="level" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'level')">
+                                <span class="col-label">Level</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="mat" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'mat')">
+                                <span class="col-label">L3/L4 MAT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-orange-50 dark:bg-orange-900/20" data-column="brazing" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'brazing')">
+                                <span class="col-label">Brazing MAT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-blue-50 dark:bg-blue-900/20" data-column="system" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'system')">
+                                <span class="col-label">System MAT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="hdbs" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'hdbs')">
+                                <span class="col-label">HDBS Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="smi" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'smi')">
+                                <span class="col-label">SMI Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="size" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'size')">
+                                <span class="col-label">Size</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="iadc" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'iadc')">
+                                <span class="col-label">IADC</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="status" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'status')">
+                                <span class="col-label">Status</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="linked_sns" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'linked_sns')">
+                                <span class="col-label">Linked SNs</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="materials" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'materials')">
+                                <span class="col-label">Materials</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% for item in boms_with_status %}
+                    <tr class="bom-row hover:bg-blue-50/50 dark:hover:bg-gray-700/30 transition-colors"
+                        data-bom-id="{{ item.bom.pk }}"
+                        data-code="{{ item.bom.code|lower }}"
+                        data-name="{{ item.bom.name|lower }}"
+                        data-hdbs="{{ item.bom.design.hdbs_type|default:''|lower }}"
+                        data-smi="{% if item.bom.smi_type %}{{ item.bom.smi_type.smi_name|lower }}{% else %}{{ item.bom.design.smi_type|default:''|lower }}{% endif %}"
+                        data-mat="{{ item.bom.design.mat_no|default:''|lower }}"
+                        data-level="{{ item.bom.design.order_level }}"
+                        data-size="{{ item.bom.design.size_id|default:'' }}"
+                        data-size-display="{{ item.bom.design.size.size_display|default:'' }}"
+                        data-status="{{ item.bom.status }}"
+                        data-materials="{{ item.materials_ready|yesno:'ready,shortage,unknown' }}"
+                        x-show="isRowVisible($el)"
+                        x-cloak>
+                        <!-- Expand Toggle -->
+                        <td class="px-2 text-center">
+                            <button type="button" @click="toggleExpand({{ item.bom.pk }})"
+                                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded">
+                                <i data-lucide="chevron-right" class="w-4 h-4 transition-transform"
+                                   :class="expandedRows.includes({{ item.bom.pk }}) && 'rotate-90'"></i>
+                            </button>
+                        </td>
+                        <!-- Level -->
+                        <td class="px-4 py-3 text-center" data-column="level" data-value="L{{ item.bom.design.order_level }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if item.bom.design.order_level == '3' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300
+                                {% elif item.bom.design.order_level == '4' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                L{{ item.bom.design.order_level }}
+                            </span>
+                        </td>
+                        <!-- L3/L4 MAT (Design) -->
+                        <td class="px-4 py-3" data-column="mat" data-value="{{ item.bom.design.mat_no|default:'' }}">
+                            <a href="{% url 'technology:design_detail' item.bom.design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium font-mono text-xs">
+                                {{ item.bom.design.mat_no|default:"-" }}
+                            </a>
+                        </td>
+                        <!-- Brazing MAT -->
+                        <td class="px-4 py-3 bg-orange-50/50 dark:bg-orange-900/10" data-column="brazing" data-value="{{ item.bom.code }}">
+                            <a href="{% url 'cutter_map:bom_view' item.bom.pk %}" class="text-orange-600 dark:text-orange-400 hover:underline font-medium font-mono text-xs">
+                                {{ item.bom.code }}
+                            </a>
+                        </td>
+                        <!-- System MAT -->
+                        <td class="px-4 py-3 bg-blue-50/50 dark:bg-blue-900/10" data-column="system" data-value="{{ item.bom.system_mat_no|default:item.bom.code }}">
+                            {% if item.bom.system_mat_no %}
+                            <span class="text-blue-600 dark:text-blue-400 font-medium font-mono text-xs">
+                                {{ item.bom.system_mat_no }}
+                            </span>
+                            {% else %}
+                            <span class="text-blue-600 dark:text-blue-400 font-medium font-mono text-xs">
+                                {{ item.bom.code }}
+                            </span>
+                            <span class="text-gray-400 text-[10px] ml-1">(same)</span>
+                            {% endif %}
+                        </td>
+                        <!-- HDBS Type -->
+                        <td class="px-4 py-3 text-gray-900 dark:text-white text-xs" data-column="hdbs" data-value="{{ item.bom.design.hdbs_type|default:'' }}">{{ item.bom.design.hdbs_type|default:"-" }}</td>
+                        <!-- SMI Type (editable) -->
+                        <td class="px-4 py-3 text-gray-900 dark:text-white text-xs editable-cell" data-column="smi"
+                            data-value="{% if item.bom.smi_type %}{{ item.bom.smi_type.smi_name }}{% elif item.bom.design.smi_type %}{{ item.bom.design.smi_type }}{% else %}{% endif %}"
+                            @click="openInlineEdit({{ item.bom.pk }}, 'smi_type', '{{ item.bom.smi_type_id|default:'' }}', $event)">
+                            <span class="smi-display-{{ item.bom.pk }}">
+                            {% if item.bom.smi_type %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                {{ item.bom.smi_type.smi_name }}
+                            </span>
+                            {% elif item.bom.design.smi_type %}
+                            {{ item.bom.design.smi_type }}
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                            </span>
+                        </td>
+                        <!-- Size -->
+                        <td class="px-4 py-3 text-center text-gray-900 dark:text-white" data-column="size" data-value="{{ item.bom.design.size.size_display|default:'' }}">{{ item.bom.design.size.size_display|default:"-" }}</td>
+                        <!-- IADC (editable) -->
+                        <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 font-mono text-xs editable-cell" data-column="iadc"
+                            data-value="{% if item.bom.design.iadc_code_ref %}{{ item.bom.design.iadc_code_ref.code }}{% else %}{% endif %}"
+                            @click="openInlineEdit({{ item.bom.pk }}, 'iadc', '{{ item.bom.design.iadc_code_ref_id|default:'' }}', $event)">
+                            <span class="iadc-display-{{ item.bom.pk }}">
+                            {% if item.bom.design.iadc_code_ref %}{{ item.bom.design.iadc_code_ref.code }}{% else %}<span class="text-gray-400">-</span>{% endif %}
+                            </span>
+                        </td>
+                        <!-- Status (editable) -->
+                        <td class="px-4 py-3 text-center editable-cell" data-column="status"
+                            data-value="{{ item.bom.status }}"
+                            @click="openInlineEdit({{ item.bom.pk }}, 'status', '{{ item.bom.status }}', $event)">
+                            <span class="status-display-{{ item.bom.pk }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                {% if item.bom.status == 'ACTIVE' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif item.bom.status == 'DRAFT' %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300
+                                {% else %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                {{ item.bom.get_status_display }}
+                            </span>
+                            </span>
+                        </td>
+                        <!-- Linked SNs -->
+                        <td class="px-4 py-3" data-column="linked_sns" data-value="{% if item.linked_sns %}{{ item.linked_sns|join:',' }}{% else %}{% endif %}">
+                            {% if item.linked_drillbits %}
+                            <div class="relative" x-data="{ snOpen: false }">
+                                <button type="button" @click="snOpen = !snOpen" @click.outside="snOpen = false"
+                                        class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer">
+                                    <i data-lucide="link" class="w-3 h-3"></i>
+                                    <span>{{ item.linked_drillbits|length }} SN{{ item.linked_drillbits|length|pluralize }}</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform" :class="snOpen && 'rotate-180'"></i>
+                                </button>
+                                <div x-show="snOpen" x-transition.opacity x-cloak
+                                     class="absolute z-50 mt-1 left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg min-w-[180px] py-1"
+                                     style="max-height: 240px; overflow-y: auto;">
+                                    <div class="px-3 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase border-b border-gray-100 dark:border-gray-700">
+                                        Linked Drill Bits
+                                    </div>
+                                    {% for db in item.linked_drillbits %}
+                                    <a href="{% url 'workorders:drillbit_detail_enhanced' db.pk %}"
+                                       class="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group">
+                                        <span class="font-mono font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                            {{ db.sn }}
+                                        </span>
+                                        <i data-lucide="external-link" class="w-3 h-3 text-gray-300 group-hover:text-blue-500 ml-auto"></i>
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <!-- Materials (clickable) -->
+                        <td class="px-4 py-3 text-center cursor-pointer" data-column="materials" data-value="{{ item.materials_ready|yesno:'Ready,Shortage,No Items' }}"
+                            @click="openMaterialsModal({{ item.bom.pk }})">
+                            {% if item.materials_ready == None %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:ring-2 hover:ring-gray-300">
+                                <i data-lucide="minus" class="w-3 h-3 mr-1"></i> No Items
+                            </span>
+                            {% elif item.materials_ready %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:ring-2 hover:ring-green-300">
+                                <i data-lucide="check" class="w-3 h-3 mr-1"></i> Ready
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:ring-2 hover:ring-amber-300">
+                                <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i> Shortage
+                            </span>
+                            {% endif %}
+                        </td>
+                        <!-- Actions -->
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end gap-1">
+                                <a href="{% url 'cutter_map:bom_view' item.bom.pk %}"
+                                   class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                                   title="View Layout">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </a>
+                                <a href="{% url 'cutter_map:bom_view' item.bom.pk %}?edit=1"
+                                   class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded"
+                                   title="Edit Layout">
+                                    <i data-lucide="edit" class="w-4 h-4"></i>
+                                </a>
+                                <a href="{% url 'technology:bom_clone' item.bom.pk %}"
+                                   class="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
+                                   title="Clone">
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </a>
+                                <button type="button"
+                                        @click="showDeleteModal({{ item.bom.pk }}, '{{ item.bom.code }}')"
+                                        class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                                        title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Expanded Design Details Row -->
+                    <tr class="bom-detail-row bg-gray-50 dark:bg-gray-800/50"
+                        x-show="expandedRows.includes({{ item.bom.pk }})"
+                        x-cloak>
+                        <td colspan="14" class="px-8 py-4">
+                            <div class="bg-white dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                    <i data-lucide="layers" class="w-4 h-4 inline mr-1"></i>
+                                    Design Details (L{{ item.bom.design.order_level }})
+                                </h4>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                    <div>
+                                        <span class="text-gray-500 dark:text-gray-400">Design MAT:</span>
+                                        <p class="font-mono text-gray-900 dark:text-white">{{ item.bom.design.mat_no|default:"-" }}</p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500 dark:text-gray-400">Category:</span>
+                                        <p class="text-gray-900 dark:text-white">{{ item.bom.design.get_category_display|default:"-" }}</p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500 dark:text-gray-400">Body Material:</span>
+                                        <p class="text-gray-900 dark:text-white">{{ item.bom.design.get_body_material_display|default:"-" }}</p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500 dark:text-gray-400">Blade Count:</span>
+                                        <p class="text-gray-900 dark:text-white">{{ item.bom.design.blade_count|default:"-" }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                    <a href="{% url 'technology:design_detail' item.bom.design.pk %}"
+                                       class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                                        <i data-lucide="external-link" class="w-3 h-3 inline mr-1"></i>
+                                        View Full Design Details
+                                    </a>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="14" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                            <p>No BOMs found</p>
+                            <a href="{% url 'technology:bom_create' %}" class="text-blue-600 hover:underline text-sm">Create your first BOM</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Design View Table -->
+    <div x-show="currentView === 'design'" x-cloak class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table id="designTable" class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="w-8"></th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_level" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_level')">
+                                <span class="col-label">Level</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_mat" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_mat')">
+                                <span class="col-label">Design MAT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_hdbs" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_hdbs')">
+                                <span class="col-label">HDBS Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_smi" data-type="text">
+                            <div class="col-header flex items-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_smi')">
+                                <span class="col-label">SMI Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_size" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_size')">
+                                <span class="col-label">Size</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_boms" data-type="number">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_boms')">
+                                <span class="col-label">BOMs</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" data-column="d_status" data-type="text">
+                            <div class="col-header flex items-center justify-center gap-1 cursor-pointer select-none" onclick="toggleColumnMenu(event, 'd_status')">
+                                <span class="col-label">Status</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    {% regroup boms_with_status by bom.design as design_groups %}
+                    {% for design_group in design_groups %}
+                    {% with design=design_group.grouper bom_list=design_group.list %}
+                    <tr class="design-row hover:bg-blue-50/50 dark:hover:bg-gray-700/30 transition-colors"
+                        data-design-id="{{ design.pk }}"
+                        data-mat="{{ design.mat_no|default:''|lower }}"
+                        data-hdbs="{{ design.hdbs_type|default:''|lower }}"
+                        data-smi="{{ design.smi_type|default:''|lower }}"
+                        data-level="{{ design.order_level }}"
+                        data-size="{{ design.size_id|default:'' }}"
+                        data-status="{{ design.status }}"
+                        x-show="isDesignRowVisible($el)"
+                        x-cloak>
+                        <!-- Expand Toggle -->
+                        <td class="px-2 text-center">
+                            <button type="button" @click="toggleExpandDesign({{ design.pk }})"
+                                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded">
+                                <i data-lucide="chevron-right" class="w-4 h-4 transition-transform"
+                                   :class="expandedDesigns.includes({{ design.pk }}) && 'rotate-90'"></i>
+                            </button>
+                        </td>
+                        <!-- Level -->
+                        <td class="px-4 py-3 text-center" data-column="d_level" data-value="L{{ design.order_level }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if design.order_level == '3' %}bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300
+                                {% elif design.order_level == '4' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                L{{ design.order_level }}
+                            </span>
+                        </td>
+                        <!-- Design MAT -->
+                        <td class="px-4 py-3" data-column="d_mat" data-value="{{ design.mat_no|default:'' }}">
+                            <a href="{% url 'technology:design_detail' design.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                                {{ design.mat_no|default:"-" }}
+                            </a>
+                        </td>
+                        <!-- HDBS Type -->
+                        <td class="px-4 py-3 text-gray-900 dark:text-white" data-column="d_hdbs" data-value="{{ design.hdbs_type|default:'' }}">{{ design.hdbs_type|default:"-" }}</td>
+                        <!-- SMI Type -->
+                        <td class="px-4 py-3 text-gray-900 dark:text-white" data-column="d_smi" data-value="{{ design.smi_type|default:'' }}">{{ design.smi_type|default:"-" }}</td>
+                        <!-- Size -->
+                        <td class="px-4 py-3 text-center text-gray-900 dark:text-white" data-column="d_size" data-value="{{ design.size.size_display|default:'' }}">{{ design.size.size_display|default:"-" }}</td>
+                        <!-- BOMs Count -->
+                        <td class="px-4 py-3 text-center" data-column="d_boms" data-value="{{ bom_list|length }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {{ bom_list|length }}
+                            </span>
+                        </td>
+                        <!-- Status -->
+                        <td class="px-4 py-3 text-center" data-column="d_status" data-value="{{ design.get_status_display }}">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                {% if design.status == 'ACTIVE' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                {% elif design.status == 'DRAFT' %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300
+                                {% else %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+                                {{ design.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    <!-- Expanded BOMs for this Design -->
+                    {% for item in bom_list %}
+                    <tr class="design-bom-row bg-gray-50 dark:bg-gray-800/50 border-l-4 border-blue-400"
+                        x-show="expandedDesigns.includes({{ design.pk }})"
+                        x-cloak>
+                        <td></td>
+                        <td colspan="7" class="px-4 py-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-gray-400 dark:text-gray-500">&#x2514;</span>
+                                    <a href="{% url 'cutter_map:bom_view' item.bom.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                        {{ item.bom.code }}
+                                    </a>
+                                    <span class="text-gray-500 dark:text-gray-400 text-xs">Rev {{ item.bom.revision }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                        {% if item.bom.status == 'ACTIVE' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400
+                                        {% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                                        {{ item.bom.get_status_display }}
+                                    </span>
+                                    <span class="text-gray-500 dark:text-gray-400 text-xs">{{ item.line_count }} items</span>
+                                    {% if item.materials_ready %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        <i data-lucide="check" class="w-3 h-3 mr-1"></i> Ready
+                                    </span>
+                                    {% elif item.materials_ready == False %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                        <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i> Shortage
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <a href="{% url 'cutter_map:bom_view' item.bom.pk %}"
+                                       class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded" title="View Layout">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </a>
+                                    <a href="{% url 'cutter_map:bom_view' item.bom.pk %}?edit=1"
+                                       class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded" title="Edit Layout">
+                                        <i data-lucide="edit" class="w-4 h-4"></i>
+                                    </a>
+                                    <a href="{% url 'technology:bom_clone' item.bom.pk %}"
+                                       class="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded" title="Clone">
+                                        <i data-lucide="copy" class="w-4 h-4"></i>
+                                    </a>
+                                    <button type="button"
+                                            @click="showDeleteModal({{ item.bom.pk }}, '{{ item.bom.code }}')"
+                                            class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded" title="Delete">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                            <p>No designs with BOMs found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div x-show="deleteModal.show" x-cloak
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+         @click.self="deleteModal.show = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Delete BOM</h3>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">
+                Are you sure you want to delete BOM <strong x-text="deleteModal.code" class="text-gray-900 dark:text-white"></strong>?
+                This action cannot be undone.
+            </p>
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="deleteModal.show = false"
+                        class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                    Cancel
+                </button>
+                <form :action="'/technology/boms/' + deleteModal.id + '/delete/'" method="post" class="inline">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline Edit Modal -->
+    <div x-show="inlineEdit.show" x-cloak
+         class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+         @click.self="inlineEdit.show = false"
+         @keydown.escape.window="inlineEdit.show = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 max-w-sm w-full mx-4 shadow-xl" @click.stop>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3" x-text="inlineEdit.title"></h3>
+            <!-- SMI Type Select -->
+            <template x-if="inlineEdit.field === 'smi_type'">
+                <select x-model="inlineEdit.value"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">-- None --</option>
+                    {% for smi in smi_types %}
+                    <option value="{{ smi.pk }}">{{ smi.smi_name }}{% if smi.hdbs_type %} ({{ smi.hdbs_type.code }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </template>
+            <!-- IADC Select -->
+            <template x-if="inlineEdit.field === 'iadc'">
+                <select x-model="inlineEdit.value"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">-- None --</option>
+                    {% for iadc in iadc_codes %}
+                    <option value="{{ iadc.pk }}">{{ iadc.code }} - {{ iadc.description }}</option>
+                    {% endfor %}
+                </select>
+            </template>
+            <!-- Status Select -->
+            <template x-if="inlineEdit.field === 'status'">
+                <select x-model="inlineEdit.value"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    {% for val, label in status_choices %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </template>
+            <div class="flex gap-2 mt-4 justify-end">
+                <button @click="inlineEdit.show = false"
+                        class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                    Cancel
+                </button>
+                <button @click="saveInlineEdit()"
+                        class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                        :disabled="inlineEdit.saving">
+                    <span x-show="!inlineEdit.saving">Save</span>
+                    <span x-show="inlineEdit.saving">Saving...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials Detail Modal -->
+    <div x-show="materialsModal.show" x-cloak
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+         @click.self="materialsModal.show = false"
+         @keydown.escape.window="materialsModal.show = false">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full mx-4 shadow-xl max-h-[80vh] flex flex-col" @click.stop>
+            <!-- Header -->
+            <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Materials Inventory Detail
+                    </h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                        BOM: <span class="font-mono font-medium" x-text="materialsModal.bomCode"></span>
+                        &mdash; Design: <span class="font-mono" x-text="materialsModal.designMat"></span>
+                    </p>
+                </div>
+                <button @click="materialsModal.show = false" class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <!-- Summary bar -->
+            <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 items-center">
+                <template x-if="!materialsModal.loading && materialsModal.data">
+                    <div class="flex flex-wrap gap-4 items-center w-full">
+                        <span class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-semibold" x-text="materialsModal.data.total_lines"></span> line items
+                        </span>
+                        <template x-if="materialsModal.data.has_shortage">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                <i data-lucide="alert-triangle" class="w-3 h-3 mr-1"></i> Shortage
+                            </span>
+                        </template>
+                        <template x-if="!materialsModal.data.has_shortage && materialsModal.data.total_lines > 0">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <i data-lucide="check" class="w-3 h-3 mr-1"></i> All Available
+                            </span>
+                        </template>
+                        <span class="ml-auto text-sm font-medium">
+                            Possible builds:
+                            <span class="text-lg font-bold"
+                                  :class="materialsModal.data.possible_builds > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                  x-text="materialsModal.data.possible_builds"></span>
+                        </span>
+                    </div>
+                </template>
+                <template x-if="materialsModal.loading">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Loading...</span>
+                </template>
+            </div>
+            <!-- Table -->
+            <div class="flex-1 overflow-auto p-5">
+                <template x-if="materialsModal.loading">
+                    <div class="flex items-center justify-center py-12">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                </template>
+                <template x-if="!materialsModal.loading && materialsModal.data && materialsModal.data.items.length > 0">
+                    <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">MAT / HDBS</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Size</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                                <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Chamfer</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Req</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="New Purchased">New</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="ENO As New">ENO</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase bg-green-50 dark:bg-green-900/20" title="Retrofit as New">Retro</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="ENO Ground">Ground</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="ARDT Reclaimed">Reclm</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="Client Stock">LSTK</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase" title="Client Used">Cli U</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-900 dark:text-white uppercase bg-blue-50 dark:bg-blue-900/20">Avail (New)</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Short</th>
+                                <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Builds</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <template x-for="(item, idx) in materialsModal.data.items" :key="idx">
+                                <tr :class="item.shortage > 0 ? 'bg-red-50/50 dark:bg-red-900/10' : ''">
+                                    <td class="px-2 py-2 text-gray-500 dark:text-gray-400 text-xs" x-text="item.order_number || item.line_number"></td>
+                                    <td class="px-2 py-2">
+                                        <div class="flex items-center gap-1.5">
+                                            <span x-show="item.color_code" class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" :style="'background:' + item.color_code"></span>
+                                            <span class="font-mono text-xs text-gray-900 dark:text-white" x-text="item.mat_number"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_size || '-'"></td>
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.cutter_type || '-'"></td>
+                                    <td class="px-2 py-2 text-gray-700 dark:text-gray-300 text-xs" x-text="item.chamfer || '-'"></td>
+                                    <td class="px-2 py-2 text-center font-semibold text-gray-900 dark:text-white text-xs" x-text="item.required"></td>
+                                    <!-- Variant columns (green bg = new variants) -->
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-PUR'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-EO'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs bg-green-50/50 dark:bg-green-900/10" x-text="item.variants?.['NEW-RET'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-GRD'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-RCL'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['NEW-CLI'] || 0"></td>
+                                    <td class="px-2 py-2 text-center text-xs" x-text="item.variants?.['USED-CLI'] || 0"></td>
+                                    <!-- Available New (sum of NEW-PUR + NEW-EO + NEW-RET) -->
+                                    <td class="px-2 py-2 text-center font-semibold bg-blue-50/50 dark:bg-blue-900/10"
+                                        :class="item.available_new >= item.required ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                        x-text="item.available_new"></td>
+                                    <td class="px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400" x-text="item.total_stock"></td>
+                                    <td class="px-2 py-2 text-center">
+                                        <span x-show="item.shortage > 0" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" x-text="item.shortage"></span>
+                                        <span x-show="item.shortage === 0" class="text-green-600 dark:text-green-400 text-xs">-</span>
+                                    </td>
+                                    <td class="px-2 py-2 text-center font-medium text-xs"
+                                        :class="item.possible_builds > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-600 dark:text-red-400'"
+                                        x-text="item.possible_builds"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    </div>
+                </template>
+                <template x-if="!materialsModal.loading && materialsModal.data && materialsModal.data.items.length === 0">
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                        <p>No BOM lines found</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* =========================================================
+   Column Filter Engine (Excel-style)
+   ========================================================= */
+const activeFilters = new Map();
+let currentColumn = null;
+let columnValues = [];
+let selectedValues = new Set();
+
+function toggleColumnMenu(event, column) {
+    event.stopPropagation();
+    const menu = document.getElementById('columnMenu');
+    const isVisible = !menu.classList.contains('hidden') && currentColumn === column;
+
+    if (isVisible) {
+        menu.classList.add('hidden');
+        currentColumn = null;
+        return;
+    }
+
+    currentColumn = column;
+    populateValuesList(column);
+
+    // Update sort labels
+    const th = document.querySelector(`th[data-column="${column}"]`);
+    const isNum = th && th.dataset.type === 'number';
+    document.getElementById('sortAscText').textContent = isNum ? 'Sort Smallest → Largest' : 'Sort A → Z';
+    document.getElementById('sortDescText').textContent = isNum ? 'Sort Largest → Smallest' : 'Sort Z → A';
+
+    // Position near the header
+    const rect = event.currentTarget.getBoundingClientRect();
+    let left = rect.left;
+    if (left + 288 > window.innerWidth) left = window.innerWidth - 300;
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.left = left + 'px';
+    menu.classList.remove('hidden');
+
+    document.getElementById('valueSearch').value = '';
+    renderValuesList();
+}
+
+function getTableForColumn(column) {
+    if (column.startsWith('d_')) return { table: '#designTable', rowClass: '.design-row' };
+    return { table: '#bomTable', rowClass: '.bom-row' };
+}
+
+function populateValuesList(column) {
+    const { table, rowClass } = getTableForColumn(column);
+    const values = new Set();
+    document.querySelectorAll(`${table} tbody tr${rowClass}`).forEach(row => {
+        let passOtherFilters = true;
+        for (const [col, filterVals] of activeFilters) {
+            if (col === column) continue;
+            // Only check filters belonging to the same table
+            const colTable = getTableForColumn(col).table;
+            if (colTable !== table) continue;
+            const cell = row.querySelector(`td[data-column="${col}"]`);
+            if (!cell) continue;
+            const cv = (cell.dataset.value || cell.textContent.trim());
+            const isBlank = !cv || cv === '-';
+            if (isBlank && filterVals.has('__blank__')) continue;
+            if (filterVals.has(cv)) continue;
+            passOtherFilters = false;
+            break;
+        }
+        // Also check search query
+        const alpine = document.querySelector('[x-data]')._x_dataStack[0];
+        if (alpine && alpine.searchQuery) {
+            const q = alpine.searchQuery.toLowerCase();
+            const d = row.dataset;
+            const searchFields = d.mat || '';
+            const hdbs = d.hdbs || '';
+            const smi = d.smi || '';
+            const code = d.code || '';
+            const name = d.name || '';
+            if (!(code.includes(q) || name.includes(q) || hdbs.includes(q) || smi.includes(q) || searchFields.includes(q))) {
+                passOtherFilters = false;
+            }
+        }
+
+        if (!passOtherFilters) return;
+
+        const cell = row.querySelector(`td[data-column="${column}"]`);
+        if (cell) {
+            const v = cell.dataset.value !== undefined ? cell.dataset.value : cell.textContent.trim();
+            values.add(v || '__blank__');
+        }
+    });
+
+    columnValues = Array.from(values).sort((a, b) => {
+        if (a === '__blank__') return 1;
+        if (b === '__blank__') return -1;
+        return a.toString().localeCompare(b.toString(), undefined, {numeric: true});
+    });
+
+    if (activeFilters.has(column)) {
+        selectedValues = new Set(activeFilters.get(column));
+    } else {
+        selectedValues = new Set(columnValues);
+    }
+}
+
+function renderValuesList(filter) {
+    const container = document.getElementById('valuesList');
+    filter = (filter || '').toLowerCase();
+    let html = '';
+    const filtered = filter ? columnValues.filter(v => {
+        const display = v === '__blank__' ? '(Blank)' : v;
+        return display.toLowerCase().includes(filter);
+    }) : columnValues;
+
+    for (const v of filtered) {
+        const display = v === '__blank__' ? '<em class="text-gray-400">(Blank)</em>' : escapeHtml(v);
+        const checked = selectedValues.has(v) ? 'checked' : '';
+        html += `<label class="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-xs text-gray-700 dark:text-gray-300">
+            <input type="checkbox" value="${escapeHtml(v)}" ${checked}
+                   onchange="toggleValue('${escapeHtml(v)}', this.checked)"
+                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+            ${display}
+        </label>`;
+    }
+    container.innerHTML = html || '<p class="text-xs text-gray-400 py-2 text-center">No values</p>';
+}
+
+function toggleValue(val, checked) {
+    if (checked) selectedValues.add(val);
+    else selectedValues.delete(val);
+}
+
+function selectAllValues() {
+    selectedValues = new Set(columnValues);
+    renderValuesList(document.getElementById('valueSearch').value);
+}
+
+function selectNoneValues() {
+    selectedValues.clear();
+    renderValuesList(document.getElementById('valueSearch').value);
+}
+
+function applyValueFilter() {
+    if (!currentColumn) return;
+    if (selectedValues.size === columnValues.length) {
+        activeFilters.delete(currentColumn);
+    } else {
+        activeFilters.set(currentColumn, new Set(selectedValues));
+    }
+    document.getElementById('columnMenu').classList.add('hidden');
+    applyAllColumnFilters();
+    updateFilterIndicators();
+}
+
+function clearColumnFilter() {
+    if (!currentColumn) return;
+    activeFilters.delete(currentColumn);
+    document.getElementById('columnMenu').classList.add('hidden');
+    applyAllColumnFilters();
+    updateFilterIndicators();
+}
+
+function clearAllFilters() {
+    activeFilters.clear();
+    applyAllColumnFilters();
+    updateFilterIndicators();
+    // Also clear Alpine search
+    const alpine = document.querySelector('[x-data]')._x_dataStack[0];
+    if (alpine) {
+        alpine.searchQuery = '';
+        alpine.applyFilters();
+    }
+}
+
+function applyAllColumnFilters() {
+    // Apply to BOM table rows
+    document.querySelectorAll('#bomTable tbody tr.bom-row').forEach(row => {
+        let show = true;
+        for (const [col, filterVals] of activeFilters) {
+            if (col.startsWith('d_')) continue; // skip design filters
+            const cell = row.querySelector(`td[data-column="${col}"]`);
+            if (!cell) { show = false; break; }
+            const cv = cell.dataset.value !== undefined ? cell.dataset.value : cell.textContent.trim();
+            const isBlank = !cv || cv === '-';
+            let match = false;
+            if (isBlank && filterVals.has('__blank__')) match = true;
+            else if (filterVals.has(cv)) match = true;
+            if (!match) { show = false; break; }
+        }
+        row.dataset.columnFilterHidden = show ? '' : '1';
+    });
+    // Apply to Design table rows
+    document.querySelectorAll('#designTable tbody tr.design-row').forEach(row => {
+        let show = true;
+        for (const [col, filterVals] of activeFilters) {
+            if (!col.startsWith('d_')) continue; // skip bom filters
+            const cell = row.querySelector(`td[data-column="${col}"]`);
+            if (!cell) { show = false; break; }
+            const cv = cell.dataset.value !== undefined ? cell.dataset.value : cell.textContent.trim();
+            const isBlank = !cv || cv === '-';
+            let match = false;
+            if (isBlank && filterVals.has('__blank__')) match = true;
+            else if (filterVals.has(cv)) match = true;
+            if (!match) { show = false; break; }
+        }
+        row.dataset.columnFilterHidden = show ? '' : '1';
+    });
+    // Trigger Alpine re-evaluation by incrementing reactive counter
+    const alpine = document.querySelector('[x-data]')._x_dataStack[0];
+    if (alpine) {
+        alpine.filterTick++;
+        alpine.applyFilters();
+    }
+}
+
+function updateFilterIndicators() {
+    // Update both tables
+    document.querySelectorAll('#bomTable thead th[data-column], #designTable thead th[data-column]').forEach(th => {
+        const col = th.dataset.column;
+        if (activeFilters.has(col)) {
+            th.classList.add('has-filter');
+        } else {
+            th.classList.remove('has-filter');
+        }
+    });
+    const bar = document.getElementById('activeFiltersBar');
+    if (activeFilters.size > 0) {
+        const names = Array.from(activeFilters.keys()).join(', ');
+        bar.textContent = `Filters: ${names} (${activeFilters.size})`;
+        bar.classList.remove('hidden');
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
+function sortColumn(dir) {
+    if (!currentColumn) return;
+    const { table, rowClass } = getTableForColumn(currentColumn);
+    const tbody = document.querySelector(`${table} tbody`);
+    const rows = Array.from(tbody.querySelectorAll(`tr${rowClass}`));
+    const detailRows = new Map();
+
+    // Pair each row with its trailing detail/child rows
+    rows.forEach(row => {
+        const children = [];
+        let next = row.nextElementSibling;
+        while (next && !next.matches(rowClass)) {
+            children.push(next);
+            next = next.nextElementSibling;
+        }
+        if (children.length) detailRows.set(row, children);
+    });
+
+    rows.sort((a, b) => {
+        const cellA = a.querySelector(`td[data-column="${currentColumn}"]`);
+        const cellB = b.querySelector(`td[data-column="${currentColumn}"]`);
+        let va = cellA ? (cellA.dataset.value || cellA.textContent.trim()) : '';
+        let vb = cellB ? (cellB.dataset.value || cellB.textContent.trim()) : '';
+        let cmp = va.localeCompare(vb, undefined, {numeric: true});
+        return dir === 'desc' ? -cmp : cmp;
+    });
+
+    rows.forEach(row => {
+        tbody.appendChild(row);
+        if (detailRows.has(row)) detailRows.get(row).forEach(r => tbody.appendChild(r));
+    });
+
+    document.getElementById('columnMenu').classList.add('hidden');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Close menu on outside click
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('columnMenu');
+    if (!menu.classList.contains('hidden') && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
+
+/* =========================================================
+   Alpine.js Page Component
+   ========================================================= */
+function bomListPage() {
+    return {
+        currentView: localStorage.getItem('bomListView') || 'bom',
+        searchQuery: '',
+        expandedRows: [],
+        expandedDesigns: [],
+        deleteModal: { show: false, id: null, code: '' },
+        stats: { ready: 0, shortage: 0, draft: 0 },
+        visibleCount: 0,
+        filterTick: 0,
+
+        // Inline edit state
+        inlineEdit: { show: false, bomId: null, field: '', value: '', title: '', saving: false },
+
+        // Materials modal state
+        materialsModal: { show: false, bomId: null, bomCode: '', designMat: '', data: null, loading: false },
+
+        init() {
+            this.applyFilters();
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        setView(view) {
+            this.currentView = view;
+            localStorage.setItem('bomListView', view);
+            this.$nextTick(() => {
+                lucide.createIcons();
+                this.applyFilters();
+            });
+        },
+
+        toggleExpand(bomId) {
+            const idx = this.expandedRows.indexOf(bomId);
+            if (idx > -1) this.expandedRows.splice(idx, 1);
+            else this.expandedRows.push(bomId);
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        toggleExpandDesign(designId) {
+            const idx = this.expandedDesigns.indexOf(designId);
+            if (idx > -1) this.expandedDesigns.splice(idx, 1);
+            else this.expandedDesigns.push(designId);
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        isRowVisible(el) {
+            // Touch filterTick to create Alpine reactive dependency
+            void this.filterTick;
+            // Column filters
+            if (el.dataset.columnFilterHidden === '1') return false;
+
+            const d = el.dataset;
+            const q = this.searchQuery.toLowerCase();
+
+            // Search filter
+            if (q && !(d.code.includes(q) || d.name.includes(q) || d.hdbs.includes(q) || d.smi.includes(q) || d.mat.includes(q))) {
+                return false;
+            }
+
+            return true;
+        },
+
+        isDesignRowVisible(el) {
+            void this.filterTick;
+            if (el.dataset.columnFilterHidden === '1') return false;
+            const d = el.dataset;
+            const q = this.searchQuery.toLowerCase();
+            if (q && !(d.mat.includes(q) || d.hdbs.includes(q) || d.smi.includes(q))) {
+                return false;
+            }
+            return true;
+        },
+
+        applyFilters() {
+            this.$nextTick(() => {
+                this.updateStats();
+                lucide.createIcons();
+            });
+        },
+
+        updateStats() {
+            let ready = 0, shortage = 0, draft = 0, visible = 0;
+            document.querySelectorAll('.bom-row').forEach(row => {
+                if (this.isRowVisible(row)) {
+                    visible++;
+                    if (row.dataset.materials === 'ready') ready++;
+                    if (row.dataset.materials === 'shortage') shortage++;
+                    if (row.dataset.status === 'DRAFT') draft++;
+                }
+            });
+            this.stats = { ready, shortage, draft };
+            this.visibleCount = visible;
+        },
+
+        showDeleteModal(id, code) {
+            this.deleteModal = { show: true, id, code };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        /* --- Inline Edit --- */
+        openInlineEdit(bomId, field, currentValue, event) {
+            event.stopPropagation();
+            const titles = {
+                'smi_type': 'Set SMI Type',
+                'iadc': 'Set IADC Code',
+                'status': 'Set Status'
+            };
+            this.inlineEdit = {
+                show: true,
+                bomId: bomId,
+                field: field,
+                value: currentValue || '',
+                title: titles[field] || 'Edit',
+                saving: false
+            };
+        },
+
+        async saveInlineEdit() {
+            this.inlineEdit.saving = true;
+            try {
+                const resp = await fetch(`/technology/api/boms/${this.inlineEdit.bomId}/update-field/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        field: this.inlineEdit.field,
+                        value: this.inlineEdit.value || null
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.inlineEdit.show = false;
+                    // Refresh page to get updated data
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Network error');
+            }
+            this.inlineEdit.saving = false;
+        },
+
+        /* --- Materials Detail Modal --- */
+        async openMaterialsModal(bomId) {
+            this.materialsModal = {
+                show: true,
+                bomId: bomId,
+                bomCode: '...',
+                designMat: '...',
+                data: null,
+                loading: true
+            };
+            this.$nextTick(() => lucide.createIcons());
+
+            try {
+                const resp = await fetch(`/technology/api/boms/${bomId}/materials/`);
+                const data = await resp.json();
+                if (data.success) {
+                    this.materialsModal.data = data;
+                    this.materialsModal.bomCode = data.bom_code;
+                    this.materialsModal.designMat = data.design_mat;
+                }
+            } catch (e) {
+                console.error('Failed to load materials:', e);
+            }
+            this.materialsModal.loading = false;
+            this.$nextTick(() => lucide.createIcons());
+        }
+    };
+}
+</script>
+{% endblock %}

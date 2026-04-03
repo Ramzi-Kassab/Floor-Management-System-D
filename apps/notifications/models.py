@@ -122,6 +122,7 @@ class NotificationLog(models.Model):
 
 
 class Task(models.Model):
+    # NOTE: Superseded by WorkflowAction. Keep for migration history. Remove in Phase 5.
     """
     🟢 P1: Lightweight task/reminder system.
     """

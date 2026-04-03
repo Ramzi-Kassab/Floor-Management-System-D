@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="mb-6">
+    <nav class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        <a href="{% url 'dashboard:index' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Dashboard</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'organization:sequence-list' %}" class="hover:text-gray-700 dark:hover:text-gray-200">Number Sequences</a>
+        <span class="mx-2">/</span>
+        <span>{{ page_title }}</span>
+    </nav>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <form method="post" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+                    {{ form.code }}
+                    {% if form.code.errors %}<p class="text-red-500 text-xs mt-1">{{ form.code.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="id_prefix" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prefix</label>
+                    {{ form.prefix }}
+                    <p class="text-xs text-gray-500 mt-1">Text before the number (e.g., WO-)</p>
+                </div>
+                <div>
+                    <label for="id_suffix" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Suffix</label>
+                    {{ form.suffix }}
+                    <p class="text-xs text-gray-500 mt-1">Text after the number (e.g., -2024)</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label for="id_padding" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Padding *</label>
+                    {{ form.padding }}
+                    <p class="text-xs text-gray-500 mt-1">Number of digits (e.g., 6 = 000001)</p>
+                </div>
+                <div>
+                    <label for="id_current_value" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Value *</label>
+                    {{ form.current_value }}
+                    <p class="text-xs text-gray-500 mt-1">Last used number</p>
+                </div>
+                <div>
+                    <label for="id_increment_by" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Increment By *</label>
+                    {{ form.increment_by }}
+                    <p class="text-xs text-gray-500 mt-1">Usually 1</p>
+                </div>
+            </div>
+            <div>
+                <label for="id_reset_period" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reset Period</label>
+                {{ form.reset_period }}
+                <p class="text-xs text-gray-500 mt-1">When to reset the counter back to 0</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Preview</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">Next number will be: <span class="font-mono text-blue-600" id="preview">---</span></p>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <a href="{% url 'organization:sequence-list' %}" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Save Sequence
+            </button>
+        </div>
+    </form>
+</div>
+<script>
+function updatePreview() {
+    const prefix = document.getElementById('id_prefix')?.value || '';
+    const suffix = document.getElementById('id_suffix')?.value || '';
+    const padding = parseInt(document.getElementById('id_padding')?.value) || 6;
+    const current = parseInt(document.getElementById('id_current_value')?.value) || 0;
+    const increment = parseInt(document.getElementById('id_increment_by')?.value) || 1;
+    const next = (current + increment).toString().padStart(padding, '0');
+    document.getElementById('preview').textContent = prefix + next + suffix;
+}
+document.querySelectorAll('#id_prefix, #id_suffix, #id_padding, #id_current_value, #id_increment_by').forEach(el => {
+    if (el) el.addEventListener('input', updatePreview);
+});
+updatePreview();
+</script>
+{% endblock %}

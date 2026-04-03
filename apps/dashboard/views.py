@@ -80,12 +80,19 @@ def manager_dashboard(request):
     # Build widgets with data and styles
     widgets = build_widgets_from_layout(widget_layout, user)
 
+    try:
+        from apps.notifications.workflow_engine import get_pending_actions_for_user
+        pending_actions = list(get_pending_actions_for_user(user)[:10])
+    except Exception:
+        pending_actions = []
+
     context = {
         "page_title": "Manager Dashboard",
         "dashboard_type": "manager",
         "user": user,
         "widgets": widgets,
         "total_widgets": len(AVAILABLE_WIDGETS),
+        "pending_actions": pending_actions,
     }
     return render(request, "dashboard/manager.html", context)
 
@@ -104,12 +111,18 @@ def planner_dashboard(request):
     # Build widgets with data and styles
     widgets = build_widgets_from_layout(widget_layout, user)
 
+    try:
+        from apps.notifications.workflow_engine import get_pending_actions_for_user
+        pending_actions = list(get_pending_actions_for_user(user)[:10])
+    except Exception:
+        pending_actions = []
     context = {
         "page_title": "Planner Dashboard",
         "dashboard_type": "planner",
         "user": user,
         "widgets": widgets,
         "total_widgets": len(AVAILABLE_WIDGETS),
+        "pending_actions": pending_actions,
     }
     return render(request, "dashboard/planner.html", context)
 
@@ -128,12 +141,18 @@ def technician_dashboard(request):
     # Build widgets with data and styles
     widgets = build_widgets_from_layout(widget_layout, user)
 
+    try:
+        from apps.notifications.workflow_engine import get_pending_actions_for_user
+        pending_actions = list(get_pending_actions_for_user(user)[:10])
+    except Exception:
+        pending_actions = []
     context = {
         "page_title": "My Dashboard",
         "dashboard_type": "technician",
         "user": user,
         "widgets": widgets,
         "total_widgets": len(AVAILABLE_WIDGETS),
+        "pending_actions": pending_actions,
     }
     return render(request, "dashboard/technician.html", context)
 
@@ -152,12 +171,18 @@ def qc_dashboard(request):
     # Build widgets with data and styles
     widgets = build_widgets_from_layout(widget_layout, user)
 
+    try:
+        from apps.notifications.workflow_engine import get_pending_actions_for_user
+        pending_actions = list(get_pending_actions_for_user(user)[:10])
+    except Exception:
+        pending_actions = []
     context = {
         "page_title": "QC Dashboard",
         "dashboard_type": "qc",
         "user": user,
         "widgets": widgets,
         "total_widgets": len(AVAILABLE_WIDGETS),
+        "pending_actions": pending_actions,
     }
     return render(request, "dashboard/qc.html", context)
 

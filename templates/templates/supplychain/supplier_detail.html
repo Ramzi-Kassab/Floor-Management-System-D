@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ supplier.code }}</h1>
+            {% if supplier.is_active %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Active</span>
+            {% else %}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">Inactive</span>
+            {% endif %}
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ supplier.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'supplychain:po_create' %}?supplier={{ supplier.pk }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="file-plus" class="w-4 h-4 mr-2"></i>New PO
+        </a>
+        <a href="{% url 'supplychain:supplier_update' supplier.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'supplychain:supplier_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Recent Purchase Orders -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Purchase Orders</h2>
+            </div>
+            {% if recent_pos %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">PO #</th>
+                        <th class="px-6 py-3 font-medium">Date</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
+                        <th class="px-6 py-3 font-medium text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for po in recent_pos %}
+                    <tr>
+                        <td class="px-6 py-3">
+                            <a href="{% url 'supplychain:po_detail' po.pk %}" class="text-blue-600 hover:underline">{{ po.po_number }}</a>
+                        </td>
+                        <td class="px-6 py-3 text-gray-600">{{ po.order_date|date:"M d, Y" }}</td>
+                        <td class="px-6 py-3">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if po.status == 'RECEIVED' %}bg-green-100 text-green-800
+                                {% elif po.status == 'SENT' or po.status == 'CONFIRMED' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ po.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-3 text-right font-mono">${{ po.total_amount|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No purchase orders yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <!-- Contact Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Contact Information</h2>
+            <dl class="space-y-3 text-sm">
+                <div>
+                    <dt class="text-gray-500">Contact Person</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ supplier.contact_person|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Email</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        {% if supplier.email %}
+                        <a href="mailto:{{ supplier.email }}" class="text-blue-600 hover:underline">{{ supplier.email }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Phone</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ supplier.phone|default:"-" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Address -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Address</h2>
+            <dl class="space-y-3 text-sm">
+                <div>
+                    <dt class="text-gray-500">Address</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ supplier.address|default:"-"|linebreaks }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Country</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ supplier.country|default:"-" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Terms -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Terms</h2>
+            <p class="text-gray-900 dark:text-white">{{ supplier.payment_terms|default:"Not specified" }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

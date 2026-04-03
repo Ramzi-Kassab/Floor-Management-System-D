@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ incident.incident_number }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ incident.get_incident_type_display }} - {{ incident.incident_date|date:"M d, Y H:i"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldincident_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldincident_update' incident.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Incident Details</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.get_incident_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Severity</dt><dd><span class="px-2 py-1 text-xs rounded-full {% if incident.severity == 'CRITICAL' %}bg-red-100 text-red-800{% elif incident.severity == 'HIGH' %}bg-orange-100 text-orange-800{% elif incident.severity == 'MEDIUM' %}bg-yellow-100 text-yellow-800{% else %}bg-green-100 text-green-800{% endif %}">{{ incident.get_severity_display|default:"-" }}</span></dd></div>
+                <div><dt class="text-gray-500">Status</dt><dd><span class="px-2 py-1 text-xs rounded-full {% if incident.status == 'CLOSED' %}bg-gray-100 text-gray-800{% elif incident.status == 'RESOLVED' %}bg-green-100 text-green-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ incident.get_status_display|default:"-" }}</span></dd></div>
+                <div><dt class="text-gray-500">Priority</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.get_priority_display|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Location & Personnel</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.service_site.site_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Location</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.location_description|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Reported By</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.reported_by.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.technician.tech_id|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Impact</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Injuries</dt><dd class="font-medium {% if incident.injuries %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">{% if incident.injuries %}Yes{% else %}No{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Property Damage</dt><dd class="font-medium {% if incident.property_damage %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">{% if incident.property_damage %}Yes{% else %}No{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Downtime Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ incident.downtime_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Estimated Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ incident.estimated_cost|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Description</h3>
+        <p class="text-gray-900 dark:text-white">{{ incident.description|default:"No description provided" }}</p>
+    </div>
+    {% if incident.immediate_actions or incident.root_cause or incident.corrective_actions %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {% if incident.immediate_actions %}<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6"><h4 class="text-md font-medium text-gray-900 dark:text-white mb-2">Immediate Actions</h4><p class="text-gray-700 dark:text-gray-300">{{ incident.immediate_actions }}</p></div>{% endif %}
+        {% if incident.root_cause %}<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6"><h4 class="text-md font-medium text-gray-900 dark:text-white mb-2">Root Cause</h4><p class="text-gray-700 dark:text-gray-300">{{ incident.root_cause }}</p></div>{% endif %}
+        {% if incident.corrective_actions %}<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6"><h4 class="text-md font-medium text-gray-900 dark:text-white mb-2">Corrective Actions</h4><p class="text-gray-700 dark:text-gray-300">{{ incident.corrective_actions }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

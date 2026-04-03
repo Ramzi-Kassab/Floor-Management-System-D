@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'documents:document_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Document Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Document Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Document Code <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.code }}</div>
+                        {% if form.code.errors %}<p class="mt-1 text-sm text-red-600">{{ form.code.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_category" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+                        <div class="mt-1">{{ form.category }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Document Name <span class="text-red-500">*</span></label>
+                    <div class="mt-1">{{ form.name }}</div>
+                    {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label for="id_description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                    <div class="mt-1">{{ form.description }}</div>
+                </div>
+
+                <div>
+                    <label for="id_keywords" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Keywords</label>
+                    <div class="mt-1">{{ form.keywords }}</div>
+                    <p class="mt-1 text-xs text-gray-500">Separate keywords with commas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">File</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div>
+                    <label for="id_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Upload File {% if not object %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    <div class="mt-1">{{ form.file }}</div>
+                    {% if form.file.errors %}<p class="mt-1 text-sm text-red-600">{{ form.file.errors.0 }}</p>{% endif %}
+                    {% if object and object.file %}
+                    <p class="mt-2 text-sm text-gray-500">
+                        Current file: <a href="{% url 'documents:document_download' object.pk %}" class="text-ardt-blue hover:underline">{{ object.file.name }}</a>
+                    </p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">Supported formats: PDF, Word, Excel, PowerPoint, Images, Text, CSV</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Version & Status -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Version & Status</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="id_version" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Version</label>
+                        <div class="mt-1">{{ form.version }}</div>
+                    </div>
+                    <div>
+                        <label for="id_revision_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Revision Date</label>
+                        <div class="mt-1">{{ form.revision_date }}</div>
+                    </div>
+                    <div>
+                        <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                        <div class="mt-1">{{ form.status }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Access Control -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Access Control</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_expires_at" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
+                        <div class="mt-1">{{ form.expires_at }}</div>
+                        <p class="mt-1 text-xs text-gray-500">Leave blank for no expiry</p>
+                    </div>
+                    <div class="flex items-center pt-6">
+                        {{ form.is_confidential }}
+                        <label for="id_is_confidential" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                            Mark as Confidential
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Errors -->
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="flex">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 mr-2"></i>
+                <div class="text-sm text-red-700">
+                    {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'documents:document_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

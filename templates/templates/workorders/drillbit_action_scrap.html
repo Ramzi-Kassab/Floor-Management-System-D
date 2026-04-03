@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <nav class="flex mb-4" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li><a href="{% url 'workorders:drillbit_inventory_dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">Drill Bits</a></li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}" class="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400">{{ drill_bit.serial_number }}</a>
+                </li>
+                <li class="flex items-center">
+                    <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                    <span class="ml-1 text-gray-500 dark:text-gray-400">Scrap</span>
+                </li>
+            </ol>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Mark this drill bit as scrapped</p>
+    </div>
+
+    <!-- Warning Card -->
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+        <div class="flex">
+            <svg class="w-6 h-6 text-red-600 dark:text-red-400 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-red-800 dark:text-red-300">Warning: This action cannot be easily undone</p>
+                <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                    Serial: {{ drill_bit.serial_number }} | {{ drill_bit.get_bit_type_display }} | {{ drill_bit.size }}"
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bit Stats -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Drill Bit History</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="text-center">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ drill_bit.deployment_count }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Deployments</p>
+            </div>
+            <div class="text-center">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ drill_bit.repair_count }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Repairs</p>
+            </div>
+            <div class="text-center">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">${{ drill_bit.original_cost|floatformat:0 }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Original Cost</p>
+            </div>
+            <div class="text-center">
+                <p class="text-2xl font-bold text-gray-900 dark:text-white">${{ drill_bit.total_repair_cost|floatformat:0 }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Repair Cost</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="space-y-4">
+                <!-- Scrap Reason -->
+                <div>
+                    <label for="reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Scrap Reason <span class="text-red-500">*</span>
+                    </label>
+                    <select name="reason" id="reason"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                            required>
+                        <option value="">Select reason...</option>
+                        <option value="Beyond repair">Beyond repair</option>
+                        <option value="End of life">End of life</option>
+                        <option value="Customer request">Customer request</option>
+                        <option value="Failed QC">Failed QC inspection</option>
+                        <option value="Damaged in field">Damaged in field</option>
+                        <option value="Manufacturing defect">Manufacturing defect</option>
+                        <option value="Obsolete design">Obsolete design</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <!-- Scrap Location -->
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Scrap Location
+                    </label>
+                    <select name="location" id="location"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">Keep current location</option>
+                        {% for location in locations %}
+                        <option value="{{ location.pk }}">{{ location.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Notes <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="notes" id="notes" rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                              placeholder="Detailed reason for scrapping, inspection findings, etc."
+                              required></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end space-x-4">
+            <a href="{% url 'workorders:drillbit_detail' pk=drill_bit.pk %}"
+               class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Confirm Scrap
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

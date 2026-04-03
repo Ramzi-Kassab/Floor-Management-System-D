@@ -639,6 +639,7 @@ class ActionCenterView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         from .models import WorkflowAction, ActionType
+        from apps.accounts.models import UserRole
 
         user = self.request.user
         user_role_ids = list(

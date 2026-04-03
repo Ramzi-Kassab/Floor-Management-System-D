@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Track and manage maintenance requests</p>
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'maintenance:request_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>New Request
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search requests..."
+                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        </div>
+        <div class="w-full md:w-40">
+            <select name="status" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Statuses</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-full md:w-40">
+            <select name="priority" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Priorities</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="search" class="w-4 h-4"></i>
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    {% if requests %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                    <th class="px-6 py-3 font-medium">Request #</th>
+                    <th class="px-6 py-3 font-medium">Equipment</th>
+                    <th class="px-6 py-3 font-medium">Title</th>
+                    <th class="px-6 py-3 font-medium">Priority</th>
+                    <th class="px-6 py-3 font-medium">Status</th>
+                    <th class="px-6 py-3 font-medium">Requested</th>
+                    <th class="px-6 py-3 font-medium text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for req in requests %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-6 py-4">
+                        <a href="{% url 'maintenance:request_detail' req.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                            {{ req.request_number }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-gray-900 dark:text-white">
+                        {% if req.equipment %}
+                        <a href="{% url 'maintenance:equipment_detail' req.equipment.pk %}" class="hover:underline">{{ req.equipment.code }}</a>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ req.title|truncatewords:5 }}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if req.priority == 'CRITICAL' %}bg-red-100 text-red-800
+                            {% elif req.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                            {% elif req.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ req.get_priority_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if req.status == 'COMPLETED' %}bg-green-100 text-green-800
+                            {% elif req.status == 'APPROVED' %}bg-blue-100 text-blue-800
+                            {% elif req.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                            {% elif req.status == 'REJECTED' %}bg-red-100 text-red-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ req.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-xs">{{ req.created_at|date:"M d, Y" }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{% url 'maintenance:request_detail' req.pk %}" class="p-1 text-gray-400 hover:text-blue-600" title="View">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </a>
+                            {% if req.status == 'PENDING' %}
+                            <a href="{% url 'maintenance:request_approve' req.pk %}" class="p-1 text-gray-400 hover:text-green-600" title="Approve/Reject">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <i data-lucide="clipboard-list" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No maintenance requests</h3>
+        <a href="{% url 'maintenance:request_create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create Request
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

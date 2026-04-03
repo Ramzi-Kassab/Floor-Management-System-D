@@ -1,0 +1,128 @@
+{% extends "reports/report_base.html" %}
+
+{% block report_description %}NCR tracking and quality metrics{% endblock %}
+
+{% block filter_fields %}
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Date</label>
+    <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+</div>
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To Date</label>
+    <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+</div>
+<div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Severity</label>
+    <select name="severity"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+        <option value="">All Severities</option>
+        {% for value, label in severity_choices %}
+        <option value="{{ value }}" {% if request.GET.severity == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endblock %}
+
+{% block summary %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total NCRs</p>
+        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ summary.total_ncrs }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Open NCRs</p>
+        <p class="text-2xl font-bold text-yellow-600">{{ summary.open }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Critical NCRs</p>
+        <p class="text-2xl font-bold text-red-600">{{ summary.critical }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Closed This Month</p>
+        <p class="text-2xl font-bold text-green-600">{{ summary.closed_this_month }}</p>
+    </div>
+</div>
+
+<!-- Inspection Stats -->
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspection Summary</h3>
+    <div class="grid grid-cols-3 gap-4">
+        <div class="text-center">
+            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ inspection_stats.total }}</p>
+            <p class="text-sm text-gray-500">Total Inspections</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-green-600">{{ inspection_stats.passed }}</p>
+            <p class="text-sm text-gray-500">Passed</p>
+        </div>
+        <div class="text-center">
+            <p class="text-2xl font-bold text-red-600">{{ inspection_stats.failed }}</p>
+            <p class="text-sm text-gray-500">Failed</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block table %}
+<div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-900">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NCR Number</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Work Order</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Severity</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reported By</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for ncr in ncrs %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <a href="{% url 'quality:ncr_detail' ncr.pk %}" class="text-blue-600 hover:underline font-medium">
+                        {{ ncr.ncr_number }}
+                    </a>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {% if ncr.work_order %}
+                    <a href="{% url 'workorders:detail' ncr.work_order.pk %}" class="text-blue-600 hover:underline">
+                        {{ ncr.work_order.wo_number }}
+                    </a>
+                    {% else %}-{% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ ncr.get_ncr_type_display }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                        {% if ncr.severity == 'CRITICAL' %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400
+                        {% elif ncr.severity == 'MAJOR' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400
+                        {% else %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400{% endif %}">
+                        {{ ncr.get_severity_display }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    {% include "components/status_badge.html" with status=ncr.status %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ ncr.reported_by.username|default:"-" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                    {{ ncr.created_at|date:"M d, Y" }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                    No NCRs found matching your criteria.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -791,6 +791,25 @@
             <textarea name="general_remark" x-model="generalRemark" rows="3"
                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm">{{ matrix.general_remark }}</textarea>
         </div>
+
+        <!-- Report Issue to Quality Team -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button type="button" @click="showIssuePanel = !showIssuePanel"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 transition-colors">
+                <i data-lucide="flag" class="w-3.5 h-3.5"></i> Report Issue to Quality Team
+            </button>
+            <div x-show="showIssuePanel" x-collapse class="mt-3 p-3 bg-red-50/30 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg" style="display:none;">
+                <p class="text-xs text-gray-500 mb-2">The evaluation remarks will be sent automatically. Add optional notes below.</p>
+                <textarea x-model="issueExtraRemark" rows="2" placeholder="Additional remarks (optional)..."
+                          class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 mb-2"></textarea>
+                <button type="button" @click="submitQualityIssue()" :disabled="issueSubmitting"
+                        class="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                    <span x-show="!issueSubmitting">Send to Quality Team</span>
+                    <span x-show="issueSubmitting">Sending...</span>
+                </button>
+                <div x-show="issueMsg" class="mt-2 text-xs" :class="issueOk ? 'text-green-600' : 'text-red-600'" x-text="issueMsg"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -891,6 +910,7 @@ function evalPage() {
         checklistAutoFilled: {},
         decision: '{{ matrix.decision|default:"" }}',
         generalRemark: `{{ matrix.general_remark|escapejs }}`,
+        showIssuePanel: false, issueExtraRemark: '', issueSubmitting: false, issueMsg: '', issueOk: false,
 
         // Pocket evaluation (same as receiving inspection)
         pocketGridData: {}, pocketConfigData: {}, pocketRowSeparators: [], pocketEvalData: {},
@@ -969,6 +989,26 @@ function evalPage() {
             this.recalcCutterCounts();
             this.buildCutterRemarks();
             {% endif %}
+        },
+
+        async submitQualityIssue() {
+            this.issueSubmitting = true; this.issueMsg = '';
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+            try {
+                const r = await fetch('{% url "workorders:api_report_quality_issue" wo_pk=work_order.pk %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+                    body: JSON.stringify({
+                        summary: this.generalRemark || 'Evaluation issue reported',
+                        additional_remarks: this.issueExtraRemark,
+                        source_step: 'PDC Evaluation',
+                    })
+                });
+                const d = await r.json();
+                if (d.success) { this.issueMsg = d.message; this.issueOk = true; this.issueExtraRemark = ''; }
+                else { this.issueMsg = d.error; this.issueOk = false; }
+            } catch (e) { this.issueMsg = 'Network error'; this.issueOk = false; }
+            this.issueSubmitting = false;
         },
 
         // ═══════ SAVE (AJAX JSON) ═══════

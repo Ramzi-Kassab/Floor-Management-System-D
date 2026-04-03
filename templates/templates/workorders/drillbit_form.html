@@ -1,0 +1,689 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-dropdown {
+        position: fixed;
+        z-index: 9999;
+        min-width: 200px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        display: none;
+    }
+    .dark .filter-dropdown { background: #1f2937; border-color: #374151; }
+    .filter-dropdown.active { display: block; }
+    .th-filter { position: relative; cursor: pointer; user-select: none; }
+    .th-filter:hover { background: rgba(59, 130, 246, 0.1); }
+    .th-filter.filtered { color: #2563eb !important; }
+    .dark .th-filter.filtered { color: #60a5fa !important; }
+    .th-filter .sort-icon { display: inline-block; margin-left: 4px; font-size: 10px; opacity: 0.5; }
+    .th-filter.sort-asc .sort-icon::after { content: '▲'; opacity: 1; }
+    .th-filter.sort-desc .sort-icon::after { content: '▼'; opacity: 1; }
+    .th-filter:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
+    .sel-row { cursor: pointer; transition: background-color 0.15s; }
+    .sel-row:hover { background: rgba(59, 130, 246, 0.08); }
+    .sel-row.selected { background: rgba(59, 130, 246, 0.15) !important; }
+    .dark .sel-row.selected { background: rgba(59, 130, 246, 0.3) !important; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        {% if action == 'create' %}
+        <p class="text-gray-600 dark:text-gray-400">Select a Design or BOM, then enter the serial number to register a new drill bit.</p>
+        {% else %}
+        <p class="text-gray-600 dark:text-gray-400">Edit drill bit identity, design, and BOM assignments.</p>
+        {% endif %}
+    </div>
+    <div class="mt-4 md:mt-0">
+        <a href="{% url 'workorders:drillbit_list_enhanced' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Drill Bits
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Column Filter Dropdown (shared) -->
+<div id="col-filter-dropdown" class="filter-dropdown">
+    <div class="p-3 border-b border-gray-200 dark:border-gray-600">
+        <div class="space-y-0.5 mb-2">
+            <button onclick="sortColumn('asc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i> <span>Sort A to Z</span>
+            </button>
+            <button onclick="sortColumn('desc')" class="w-full text-left px-3 py-1.5 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2">
+                <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i> <span>Sort Z to A</span>
+            </button>
+        </div>
+        <input type="text" id="filter-search-input" placeholder="Search values..."
+               class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
+               oninput="filterCheckboxList(this.value)">
+    </div>
+    <div class="p-2 border-b border-gray-200 dark:border-gray-600">
+        <label class="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 rounded">
+            <input type="checkbox" id="filter-select-all" checked onchange="toggleFilterSelectAll(this.checked)"
+                   class="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+            <span class="font-medium">(Select All)</span>
+        </label>
+    </div>
+    <div id="filter-values-list" class="max-h-48 overflow-y-auto p-2 space-y-0.5"></div>
+    <div class="p-2 border-t border-gray-200 dark:border-gray-600 flex gap-2">
+        <button onclick="applyColumnFilter()" class="flex-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700">Apply</button>
+        <button onclick="clearColumnFilter()" class="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded hover:bg-gray-200 dark:hover:bg-gray-500">Clear</button>
+    </div>
+</div>
+
+<form method="post" id="createForm">
+{% csrf_token %}
+<!-- Hidden fields populated by JS -->
+<input type="hidden" name="design" id="id_design" value="{{ current_design_id|default:'' }}">
+{% if action == 'edit' %}
+<input type="hidden" name="brazing_bom" id="id_brazing_bom" value="{{ current_brazing_bom_id|default:'' }}">
+<input type="hidden" name="system_bom" id="id_system_bom" value="{{ current_system_bom_id|default:'' }}">
+{% else %}
+<input type="hidden" name="bom" id="id_bom" value="">
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Column: Table Selection -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <!-- Tab Headers -->
+            <div class="border-b border-gray-200 dark:border-gray-700">
+                <nav class="flex -mb-px">
+                    <button type="button" onclick="switchTab('design')" id="tab-design"
+                            class="flex-1 py-3 px-4 text-center border-b-2 border-blue-600 text-blue-600 font-medium text-sm flex items-center justify-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4"></i>
+                        From Design <span class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-xs px-1.5 py-0.5 rounded ml-1">{{ designs|length }}</span>
+                    </button>
+                    <button type="button" onclick="switchTab('bom')" id="tab-bom"
+                            class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm flex items-center justify-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        From BOM <span class="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 text-xs px-1.5 py-0.5 rounded ml-1">{{ boms|length }}</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Search -->
+            <div class="p-4 pb-2">
+                <input type="text" id="table-search" placeholder="Search MAT, HDBS, Size..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    oninput="applyAllFilters()">
+            </div>
+
+            <!-- Design Table -->
+            <div id="panel-design" class="px-4 pb-4">
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div class="max-h-[450px] overflow-y-auto">
+                        <table class="w-full text-sm" id="designTable">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase w-10"></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_level" onclick="toggleFilterDropdown(event, 'd_level')">Level<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_mat" onclick="toggleFilterDropdown(event, 'd_mat')">MAT No.<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_hdbs" onclick="toggleFilterDropdown(event, 'd_hdbs')">HDBS Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_smi" onclick="toggleFilterDropdown(event, 'd_smi')">SMI Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_size" onclick="toggleFilterDropdown(event, 'd_size')">Size<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_iadc" onclick="toggleFilterDropdown(event, 'd_iadc')">IADC<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_status" onclick="toggleFilterDropdown(event, 'd_status')">Status<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="d_boms" onclick="toggleFilterDropdown(event, 'd_boms')">BOMs<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for design in designs %}
+                                <tr class="sel-row design-row"
+                                    data-type="design"
+                                    data-id="{{ design.pk }}"
+                                    data-mat="{{ design.mat_no|lower }}"
+                                    data-hdbs="{{ design.hdbs_type|lower }}"
+                                    data-size="{{ design.size.size_decimal|default:'' }}"
+                                    onclick="selectRow(this)">
+                                    <td class="px-3 py-2"><div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center row-check"></div></td>
+                                    <td class="px-3 py-2" data-col="d_level" data-val="L{{ design.order_level }}">
+                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if design.order_level == '3' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">L{{ design.order_level }}</span>
+                                    </td>
+                                    <td class="px-3 py-2 font-mono font-medium text-gray-900 dark:text-white" data-col="d_mat" data-val="{{ design.mat_no }}">{{ design.mat_no }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_hdbs" data-val="{{ design.hdbs_type|default:'' }}">{{ design.hdbs_type|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_smi" data-val="{{ design.smi_type|default:'' }}">{{ design.smi_type|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_size" data-val="{{ design.size.size_display|default:'' }}">{{ design.size.size_display|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="d_iadc" data-val="{{ design.iadc_code_ref.code|default:'' }}">{{ design.iadc_code_ref.code|default:"--" }}</td>
+                                    <td class="px-3 py-2" data-col="d_status" data-val="{{ design.status }}">
+                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if design.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ design.status }}</span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-500" data-col="d_boms" data-val="{{ design.boms.count }}">{{ design.boms.count }}</td>
+                                    <td class="px-3 py-1 text-center">
+                                        <a href="{% url 'technology:design_detail' design.pk %}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center text-gray-400 hover:text-blue-600" title="View Design">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="10" class="px-3 py-8 text-center text-gray-500">No designs found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-gray-500"><span id="design-count">{{ designs|length }}</span> designs</div>
+            </div>
+
+            <!-- BOM Table -->
+            <div id="panel-bom" class="px-4 pb-4 hidden">
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div class="max-h-[450px] overflow-y-auto">
+                        <table class="w-full text-sm" id="bomTable">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase w-10"></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_mat" onclick="toggleFilterDropdown(event, 'b_mat')">Design MAT<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter bg-orange-50 dark:bg-orange-900/20" data-col="b_brazing" onclick="toggleFilterDropdown(event, 'b_brazing')">Brazing MAT<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter bg-blue-50 dark:bg-blue-900/20" data-col="b_system" onclick="toggleFilterDropdown(event, 'b_system')">System MAT<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_hdbs" onclick="toggleFilterDropdown(event, 'b_hdbs')">HDBS Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_smi" onclick="toggleFilterDropdown(event, 'b_smi')">SMI Type<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_size" onclick="toggleFilterDropdown(event, 'b_size')">Size<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_iadc" onclick="toggleFilterDropdown(event, 'b_iadc')">IADC<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase th-filter" data-col="b_status" onclick="toggleFilterDropdown(event, 'b_status')">Status<span class="sort-icon"></span></th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for bom in boms %}
+                                <tr class="sel-row bom-row"
+                                    data-type="bom"
+                                    data-id="{{ bom.pk }}"
+                                    data-design-id="{{ bom.design.pk }}"
+                                    data-mat="{{ bom.design.mat_no|lower }}"
+                                    data-hdbs="{{ bom.design.hdbs_type|lower }}"
+                                    data-size="{{ bom.design.size.size_decimal|default:'' }}"
+                                    data-bom-code="{{ bom.code|lower }}"
+                                    onclick="selectRow(this)">
+                                    <td class="px-3 py-2"><div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center row-check"></div></td>
+                                    <td class="px-3 py-2 font-mono text-gray-900 dark:text-white" data-col="b_mat" data-val="{{ bom.design.mat_no }}">{{ bom.design.mat_no }}</td>
+                                    <td class="px-3 py-2 font-mono text-orange-700 dark:text-orange-400" data-col="b_brazing" data-val="{{ bom.code }}">{{ bom.code }}</td>
+                                    <td class="px-3 py-2 font-mono text-blue-700 dark:text-blue-400" data-col="b_system" data-val="{{ bom.system_mat_no|default:'' }}">{{ bom.system_mat_no|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_hdbs" data-val="{{ bom.design.hdbs_type|default:'' }}">{{ bom.design.hdbs_type|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_smi" data-val="{{ bom.smi_type.smi_name|default:'' }}">{{ bom.smi_type.smi_name|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_size" data-val="{{ bom.design.size.size_display|default:'' }}">{{ bom.design.size.size_display|default:"--" }}</td>
+                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" data-col="b_iadc" data-val="{{ bom.design.iadc_code_ref.code|default:'' }}">{{ bom.design.iadc_code_ref.code|default:"--" }}</td>
+                                    <td class="px-3 py-2" data-col="b_status" data-val="{{ bom.status }}">
+                                        <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if bom.status == 'ACTIVE' %}bg-green-100 text-green-800{% elif bom.status == 'DRAFT' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ bom.status }}</span>
+                                    </td>
+                                    <td class="px-3 py-1 text-center">
+                                        <a href="{% url 'technology:bom_detail' bom.pk %}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center text-gray-400 hover:text-green-600" title="View BOM">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="11" class="px-3 py-8 text-center text-gray-500">No BOMs found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-gray-500"><span id="bom-count">{{ boms|length }}</span> BOMs</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Selection Summary & Serial -->
+    <div class="space-y-6">
+        <!-- Selection Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <i data-lucide="check-circle" class="w-5 h-5 mr-2 text-blue-600"></i>
+                Selection
+            </h3>
+
+            <!-- No Selection -->
+            <div id="no-selection" class="text-center py-6">
+                <div class="w-14 h-14 mx-auto rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-3">
+                    <i data-lucide="mouse-pointer-click" class="w-7 h-7 text-gray-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Click a row from the table to select a Design or BOM</p>
+            </div>
+
+            <!-- Selection Made -->
+            <div id="selection-info" class="hidden">
+                <div class="space-y-3 mb-4">
+                    <div id="sel-source-badge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                        From Design (Component)
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Design MAT:</span>
+                        <span id="sel-mat" class="font-mono font-medium text-blue-600 dark:text-blue-400">-</span>
+                    </div>
+                    <div id="sel-bom-row" class="hidden space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Brazing MAT:</span>
+                            <span id="sel-brazing" class="font-mono font-medium text-orange-600 dark:text-orange-400">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">System MAT:</span>
+                            <span id="sel-system" class="font-mono font-medium text-blue-600 dark:text-blue-400">-</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">HDBS Type:</span>
+                        <span id="sel-hdbs" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">SMI Type:</span>
+                        <span id="sel-smi" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">Size:</span>
+                        <span id="sel-size" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-500">IADC:</span>
+                        <span id="sel-iadc" class="font-medium text-gray-900 dark:text-white">-</span>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200 dark:border-gray-700 my-4">
+
+                <!-- Serial Number -->
+                <div class="mb-4">
+                    <label for="id_serial_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Serial Number <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.serial_number }}
+                    {% if form.serial_number.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.serial_number.errors.0 }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">6-8 digit serial number</p>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit"
+                    class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                    {% if action == 'edit' %}
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                    Save Changes
+                    {% else %}
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    Register Drill Bit
+                    {% endif %}
+                </button>
+
+                <button type="button" onclick="clearSelection()"
+                    class="w-full mt-3 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 text-sm">
+                    Clear Selection
+                </button>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            {% for error in form.non_field_errors %}
+            <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Help Card -->
+        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-5 border border-blue-200 dark:border-blue-800">
+            <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center">
+                <i data-lucide="info" class="w-4 h-4 mr-2"></i>How it works
+            </h4>
+            <ul class="text-xs text-blue-700 dark:text-blue-400 space-y-1.5 list-disc list-inside">
+                <li><strong>From Design</strong> = Component (no BOM yet, assign later)</li>
+                <li><strong>From BOM</strong> = Design auto-filled, BOM linked</li>
+                {% if action == 'edit' %}
+                <li>Change the design or BOM by selecting a new row</li>
+                <li>Edit the serial number if needed, then Save</li>
+                {% else %}
+                <li>Enter the serial number and click Register</li>
+                <li>Next step: specify the first event (received, in production, etc.)</li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+</form>
+
+<script>
+let currentTab = 'design';
+let activeFilterCol = null;
+const columnFilters = {};
+
+// ─── Tab Switching ──────────────────────────────────
+function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('panel-design').classList.toggle('hidden', tab !== 'design');
+    document.getElementById('panel-bom').classList.toggle('hidden', tab !== 'bom');
+
+    const dTab = document.getElementById('tab-design');
+    const bTab = document.getElementById('tab-bom');
+    if (tab === 'design') {
+        dTab.classList.add('border-blue-600', 'text-blue-600');
+        dTab.classList.remove('border-transparent', 'text-gray-500');
+        bTab.classList.remove('border-blue-600', 'text-blue-600');
+        bTab.classList.add('border-transparent', 'text-gray-500');
+    } else {
+        bTab.classList.add('border-blue-600', 'text-blue-600');
+        bTab.classList.remove('border-transparent', 'text-gray-500');
+        dTab.classList.remove('border-blue-600', 'text-blue-600');
+        dTab.classList.add('border-transparent', 'text-gray-500');
+    }
+    // Clear search when switching
+    document.getElementById('table-search').value = '';
+    applyAllFilters();
+}
+
+// ─── Row Selection ──────────────────────────────────
+function selectRow(row) {
+    // Deselect all rows in current tab
+    const tableId = currentTab === 'design' ? 'designTable' : 'bomTable';
+    document.querySelectorAll(`#${tableId} .sel-row`).forEach(r => {
+        r.classList.remove('selected');
+        r.querySelector('.row-check').innerHTML = '';
+    });
+
+    row.classList.add('selected');
+    row.querySelector('.row-check').innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-blue-600"></i>';
+
+    const type = row.dataset.type;
+    const cells = row.querySelectorAll('td[data-col]');
+
+    document.getElementById('no-selection').classList.add('hidden');
+    document.getElementById('selection-info').classList.remove('hidden');
+
+    // Helper to get cell value by data-col attribute
+    function cellVal(col) {
+        const td = row.querySelector(`td[data-col="${col}"]`);
+        return td ? (td.dataset.val || '') : '';
+    }
+
+    if (type === 'design') {
+        const designId = row.dataset.id;
+        document.getElementById('id_design').value = designId;
+        var bomField = document.getElementById('id_bom');
+        var brazingField = document.getElementById('id_brazing_bom');
+        var systemField = document.getElementById('id_system_bom');
+        if (bomField) bomField.value = '';
+        if (brazingField) brazingField.value = '';
+        if (systemField) systemField.value = '';
+
+        document.getElementById('sel-mat').textContent = cellVal('d_mat') || '-';
+        document.getElementById('sel-hdbs').textContent = cellVal('d_hdbs') || '--';
+        document.getElementById('sel-smi').textContent = cellVal('d_smi') || '--';
+        document.getElementById('sel-size').textContent = cellVal('d_size') || '--';
+        document.getElementById('sel-iadc').textContent = cellVal('d_iadc') || '--';
+        document.getElementById('sel-bom-row').classList.add('hidden');
+        document.getElementById('sel-source-badge').textContent = 'From Design (Component)';
+        document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300';
+    } else {
+        const bomId = row.dataset.id;
+        const designId = row.dataset.designId;
+        document.getElementById('id_design').value = designId;
+        // Set appropriate BOM field based on mode
+        var bomField = document.getElementById('id_bom');
+        var brazingField = document.getElementById('id_brazing_bom');
+        var systemField = document.getElementById('id_system_bom');
+        if (bomField) bomField.value = bomId;
+        if (brazingField) brazingField.value = bomId;
+        if (systemField) systemField.value = bomId;
+
+        document.getElementById('sel-mat').textContent = cellVal('b_mat') || '-';
+        document.getElementById('sel-hdbs').textContent = cellVal('b_hdbs') || '--';
+        document.getElementById('sel-smi').textContent = cellVal('b_smi') || '--';
+        document.getElementById('sel-size').textContent = cellVal('b_size') || '--';
+        document.getElementById('sel-iadc').textContent = cellVal('b_iadc') || '--';
+        document.getElementById('sel-bom-row').classList.remove('hidden');
+        document.getElementById('sel-brazing').textContent = cellVal('b_brazing') || '--';
+        document.getElementById('sel-system').textContent = cellVal('b_system') || '--';
+        document.getElementById('sel-source-badge').textContent = 'From BOM (Finished)';
+        document.getElementById('sel-source-badge').className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.sel-row').forEach(r => {
+        r.classList.remove('selected');
+        r.querySelector('.row-check').innerHTML = '';
+    });
+    document.getElementById('id_design').value = '';
+    var bomField = document.getElementById('id_bom');
+    var brazingField = document.getElementById('id_brazing_bom');
+    var systemField = document.getElementById('id_system_bom');
+    if (bomField) bomField.value = '';
+    if (brazingField) brazingField.value = '';
+    if (systemField) systemField.value = '';
+    document.getElementById('no-selection').classList.remove('hidden');
+    document.getElementById('selection-info').classList.add('hidden');
+}
+
+// ─── Column Filters & Sort ──────────────────────────
+function getCellValue(row, col) {
+    const td = row.querySelector(`td[data-col="${col}"]`);
+    return td ? (td.dataset.val || td.textContent.trim()) : '';
+}
+
+function getVisibleRows() {
+    const tableId = currentTab === 'design' ? 'designTable' : 'bomTable';
+    const rowClass = currentTab === 'design' ? '.design-row' : '.bom-row';
+    return document.querySelectorAll(`#${tableId} tbody tr${rowClass}`);
+}
+
+function getUniqueValues(col) {
+    const searchText = document.getElementById('table-search').value.toLowerCase().trim();
+    const vals = new Set();
+    getVisibleRows().forEach(row => {
+        let pass = true;
+        for (const [fcol, allowed] of Object.entries(columnFilters)) {
+            if (fcol === col) continue;
+            // Only check filters for current tab
+            const prefix = currentTab === 'design' ? 'd_' : 'b_';
+            if (!fcol.startsWith(prefix)) continue;
+            if (!allowed.has(getCellValue(row, fcol))) { pass = false; break; }
+        }
+        if (pass && searchText) {
+            const d = row.dataset;
+            const mat = d.mat || '';
+            const hdbs = d.hdbs || '';
+            const size = d.size || '';
+            const bomCode = d.bomCode || '';
+            if (!(mat.includes(searchText) || hdbs.includes(searchText) || size.includes(searchText) || bomCode.includes(searchText))) {
+                pass = false;
+            }
+        }
+        if (pass) vals.add(getCellValue(row, col));
+    });
+    return [...vals].sort((a, b) => {
+        const na = parseFloat(a), nb = parseFloat(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.localeCompare(b);
+    });
+}
+
+function toggleFilterDropdown(event, col) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('col-filter-dropdown');
+    const th = event.currentTarget;
+    if (activeFilterCol === col && dropdown.classList.contains('active')) {
+        dropdown.classList.remove('active');
+        activeFilterCol = null;
+        return;
+    }
+    activeFilterCol = col;
+    const rect = th.getBoundingClientRect();
+    dropdown.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+    dropdown.style.top = rect.bottom + 4 + 'px';
+    dropdown.classList.add('active');
+    document.getElementById('filter-search-input').value = '';
+
+    const values = getUniqueValues(col);
+    const allowed = columnFilters[col];
+    const list = document.getElementById('filter-values-list');
+    list.innerHTML = values.map(v => {
+        const checked = !allowed || allowed.has(v) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 px-1 py-1 cursor-pointer text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 rounded filter-value-label">
+            <input type="checkbox" ${checked} value="${(v||'').replace(/"/g, '&quot;')}"
+                   class="filter-value-cb rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+            <span>${v || '(empty)'}</span>
+        </label>`;
+    }).join('');
+    updateSelectAllState();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function filterCheckboxList(search) {
+    const s = search.toLowerCase();
+    document.querySelectorAll('.filter-value-label').forEach(label => {
+        label.style.display = label.querySelector('span').textContent.toLowerCase().includes(s) ? '' : 'none';
+    });
+}
+
+function toggleFilterSelectAll(checked) {
+    document.querySelectorAll('.filter-value-cb').forEach(cb => {
+        if (cb.closest('.filter-value-label').style.display !== 'none') cb.checked = checked;
+    });
+}
+
+function updateSelectAllState() {
+    const cbs = [...document.querySelectorAll('.filter-value-cb')];
+    document.getElementById('filter-select-all').checked = cbs.length > 0 && cbs.every(cb => cb.checked);
+}
+
+function applyColumnFilter() {
+    if (!activeFilterCol) return;
+    const cbs = [...document.querySelectorAll('.filter-value-cb')];
+    const visibleCbs = cbs.filter(cb => cb.closest('label').style.display !== 'none');
+    const visibleChecked = visibleCbs.filter(cb => cb.checked);
+    if (visibleChecked.length === cbs.length || visibleChecked.length === 0) {
+        delete columnFilters[activeFilterCol];
+    } else {
+        const allowed = new Set();
+        visibleChecked.forEach(cb => allowed.add(cb.value));
+        columnFilters[activeFilterCol] = allowed;
+    }
+    applyAllFilters();
+    document.getElementById('col-filter-dropdown').classList.remove('active');
+    const th = document.querySelector(`.th-filter[data-col="${activeFilterCol}"]`);
+    if (th) th.classList.toggle('filtered', !!columnFilters[activeFilterCol]);
+    activeFilterCol = null;
+}
+
+function clearColumnFilter() {
+    if (!activeFilterCol) return;
+    delete columnFilters[activeFilterCol];
+    const th = document.querySelector(`.th-filter[data-col="${activeFilterCol}"]`);
+    if (th) th.classList.remove('filtered');
+    applyAllFilters();
+    document.getElementById('col-filter-dropdown').classList.remove('active');
+    activeFilterCol = null;
+}
+
+function sortColumn(dir) {
+    if (!activeFilterCol) return;
+    const col = activeFilterCol;
+    const tableId = col.startsWith('d_') ? 'designTable' : 'bomTable';
+    const rowClass = col.startsWith('d_') ? '.design-row' : '.bom-row';
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    const rows = [...tbody.querySelectorAll(rowClass)];
+    rows.sort((a, b) => {
+        let va = getCellValue(a, col), vb = getCellValue(b, col);
+        let cmp = va.localeCompare(vb, undefined, {numeric: true});
+        return dir === 'desc' ? -cmp : cmp;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+
+    // Update sort icons
+    document.querySelectorAll('.th-filter').forEach(th => {
+        if (th.dataset.col !== col) th.classList.remove('sort-asc', 'sort-desc');
+    });
+    const th = document.querySelector(`.th-filter[data-col="${col}"]`);
+    if (th) { th.classList.remove('sort-asc', 'sort-desc'); th.classList.add('sort-' + dir); }
+
+    document.getElementById('col-filter-dropdown').classList.remove('active');
+    activeFilterCol = null;
+}
+
+function applyAllFilters() {
+    const searchText = document.getElementById('table-search').value.toLowerCase().trim();
+
+    // Filter Design table
+    let dCount = 0;
+    document.querySelectorAll('#designTable tbody tr.design-row').forEach(row => {
+        const d = row.dataset;
+        let matchSearch = !searchText || (d.mat||'').includes(searchText) || (d.hdbs||'').includes(searchText) || (d.size||'').includes(searchText);
+        let matchCols = true;
+        for (const [col, allowed] of Object.entries(columnFilters)) {
+            if (!col.startsWith('d_')) continue;
+            if (!allowed.has(getCellValue(row, col))) { matchCols = false; break; }
+        }
+        const visible = matchSearch && matchCols;
+        row.style.display = visible ? '' : 'none';
+        if (visible) dCount++;
+    });
+    document.getElementById('design-count').textContent = dCount;
+
+    // Filter BOM table
+    let bCount = 0;
+    document.querySelectorAll('#bomTable tbody tr.bom-row').forEach(row => {
+        const d = row.dataset;
+        let matchSearch = !searchText || (d.mat||'').includes(searchText) || (d.hdbs||'').includes(searchText) || (d.size||'').includes(searchText) || (d.bomCode||'').includes(searchText);
+        let matchCols = true;
+        for (const [col, allowed] of Object.entries(columnFilters)) {
+            if (!col.startsWith('b_')) continue;
+            if (!allowed.has(getCellValue(row, col))) { matchCols = false; break; }
+        }
+        const visible = matchSearch && matchCols;
+        row.style.display = visible ? '' : 'none';
+        if (visible) bCount++;
+    });
+    document.getElementById('bom-count').textContent = bCount;
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('col-filter-dropdown');
+    if (dropdown.classList.contains('active') && !dropdown.contains(e.target) && !e.target.closest('.th-filter')) {
+        dropdown.classList.remove('active');
+        activeFilterCol = null;
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Auto-select pre-existing design/BOM in edit mode
+    {% if action == 'edit' %}
+    var preDesignId = '{{ current_design_id|default:"" }}';
+    var preBrazingBomId = '{{ current_brazing_bom_id|default:"" }}';
+    var preBomId = '{{ current_bom_id|default:"" }}';
+    var preSelectId = preBrazingBomId || preBomId;
+
+    if (preSelectId) {
+        // Try to select from BOM table first
+        var bomRow = document.querySelector('.bom-row[data-id="' + preSelectId + '"]');
+        if (bomRow) {
+            switchTab('bom');
+            selectRow(bomRow);
+            bomRow.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+    } else if (preDesignId) {
+        // Fallback: select from Design table
+        var designRow = document.querySelector('.design-row[data-id="' + preDesignId + '"]');
+        if (designRow) {
+            selectRow(designRow);
+            designRow.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+    }
+    {% endif %}
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,52 @@
+<div class="flex space-x-3" id="comment-{{ comment.pk }}">
+    <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+        <span class="text-sm font-medium text-gray-600 dark:text-gray-400">
+            {{ comment.created_by.first_name.0|default:comment.created_by.username.0|upper }}
+        </span>
+    </div>
+    <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="font-medium text-gray-900 dark:text-white text-sm">
+                    {{ comment.created_by.get_full_name|default:comment.created_by.username }}
+                </span>
+                <span class="text-xs text-gray-500">{{ comment.created_at|timesince }} ago</span>
+                {% if comment.is_edited %}
+                <span class="text-xs text-gray-400">(edited)</span>
+                {% endif %}
+            </div>
+            {% if comment.created_by == request.user %}
+            <button hx-post="{% url 'notifications:comment_delete' comment.pk %}"
+                    hx-target="#comment-{{ comment.pk }}"
+                    hx-swap="outerHTML"
+                    class="text-gray-400 hover:text-red-600 p-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+            </button>
+            {% endif %}
+        </div>
+        <p class="text-gray-700 dark:text-gray-300 text-sm mt-1 whitespace-pre-wrap">{{ comment.content }}</p>
+
+        {% if comment.replies.all %}
+        <div class="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
+            {% for reply in comment.replies.all %}
+            <div class="flex space-x-3">
+                <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {{ reply.created_by.first_name.0|default:reply.created_by.username.0|upper }}
+                    </span>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-medium text-gray-900 dark:text-white text-xs">
+                            {{ reply.created_by.get_full_name|default:reply.created_by.username }}
+                        </span>
+                        <span class="text-xs text-gray-500">{{ reply.created_at|timesince }} ago</span>
+                    </div>
+                    <p class="text-gray-700 dark:text-gray-300 text-xs mt-1">{{ reply.content }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>

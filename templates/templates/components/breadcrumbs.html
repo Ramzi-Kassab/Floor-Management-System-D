@@ -1,0 +1,24 @@
+{% comment %}
+Reusable Breadcrumbs Component
+Usage: {% include "components/breadcrumbs.html" with items=breadcrumb_items %}
+Where items is a list of dicts: [{"label": "Home", "url": "/dashboard/"}, {"label": "Current"}]
+{% endcomment %}
+
+<nav class="mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+        {% for item in items %}
+            {% if item.url %}
+                <li>
+                    <a href="{{ item.url }}" class="hover:text-gray-700 dark:hover:text-gray-200">
+                        {{ item.label }}
+                    </a>
+                </li>
+                <li>
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </li>
+            {% else %}
+                <li class="text-gray-900 dark:text-white font-medium">{{ item.label }}</li>
+            {% endif %}
+        {% endfor %}
+    </ol>
+</nav>

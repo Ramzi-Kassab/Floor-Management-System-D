@@ -1,0 +1,1010 @@
+{% extends "base.html" %}
+{% load inventory_filters %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* CRITICAL: Prevent main content from extending under sidebar */
+    main {
+        overflow-x: hidden !important;
+        min-width: 0 !important;
+    }
+    main > div {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Page container */
+    .items-page-container {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Freeze mode */
+    .items-page-container.freeze-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .freeze-mode .items-header-section {
+        flex-shrink: 0;
+    }
+    .freeze-mode .items-table-section {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Table wrapper */
+    .items-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    .freeze-mode .items-table-wrapper {
+        height: 100%;
+    }
+    .freeze-mode .items-table-wrapper thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    /* Sticky columns */
+    .freeze-col-1 { position: sticky; left: 0; z-index: 15; background: inherit; }
+    .freeze-col-2 { position: sticky; left: 32px; z-index: 15; background: inherit; box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2); }
+    .freeze-col-1-body { position: sticky; left: 0; z-index: 5; }
+    .freeze-col-2-body { position: sticky; left: 32px; z-index: 5; box-shadow: 4px 0 6px -4px rgba(0,0,0,0.2); }
+
+    /* Full page mode */
+    .full-page-mode {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .full-page-mode .items-header-section { flex-shrink: 0; }
+    .full-page-mode .items-table-section { flex: 1; min-height: 0; overflow: hidden; }
+    .full-page-mode .items-table-wrapper { height: 100%; }
+    .full-page-mode ~ #pageHeader, body:has(.full-page-mode) #pageHeader { display: none !important; }
+    .full-page-mode #filterSection { padding: 0.5rem 1rem; margin-bottom: 0.5rem; }
+
+    /* Text wrap mode */
+    .text-wrap-mode #itemsTable td, .text-wrap-mode #itemsTable th {
+        white-space: normal; word-wrap: break-word; max-width: none;
+    }
+    .text-wrap-mode #itemsTable td { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+    /* No-wrap mode */
+    .no-wrap-mode #itemsTable { width: auto; table-layout: auto; }
+    .no-wrap-mode #itemsTable td, .no-wrap-mode #itemsTable th {
+        white-space: nowrap !important; max-width: none !important; overflow: visible !important;
+    }
+
+    /* Low stock row backgrounds for sticky columns */
+    tr.low-stock .freeze-col-1-body,
+    tr.low-stock .freeze-col-2-body {
+        background: #fef2f2 !important; /* red-50 */
+    }
+    tr.low-stock .freeze-col-2-body {
+        border-left-color: #fef2f2 !important;
+    }
+    .dark tr.low-stock .freeze-col-1-body,
+    .dark tr.low-stock .freeze-col-2-body {
+        background: rgba(127, 29, 29, 0.3) !important;
+    }
+    .dark tr.low-stock .freeze-col-2-body {
+        border-left-color: rgba(127, 29, 29, 0.3) !important;
+    }
+
+    /* Column header hover effect */
+    .column-header:hover i {
+        color: currentColor;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6" id="pageHeader">
+    <div class="flex items-center gap-3">
+        <!-- Back arrow -->
+        <a href="{% url 'inventory:dashboard' %}"
+           class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"
+           title="Back to Dashboard">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+            <p class="text-gray-600 dark:text-gray-400">Manage inventory items and stock levels</p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'inventory:item_export' %}" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+            <i data-lucide="download" class="w-4 h-4 mr-1"></i>Export
+        </a>
+        <a href="{% url 'inventory:item_create' %}" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>New Item
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="items-page-container" :class="{ 'freeze-mode': freezePanes, 'full-page-mode': fullPageView, 'text-wrap-mode': textWrap, 'no-wrap-mode': !textWrap }" x-data="itemsInventory()" x-init="init()">
+
+<!-- HEADER SECTION -->
+<div class="items-header-section">
+    <!-- Summary Cards -->
+    <div id="summarySection" x-show="!fullPageView" x-transition>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <i data-lucide="package" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Items</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_items }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <div class="flex items-center">
+                    <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                        <i data-lucide="check-circle" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Items</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ active_items }}</p>
+                    </div>
+                </div>
+            </div>
+            <a href="?low_stock=1" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 hover:ring-2 ring-red-500 transition-all">
+                <div class="flex items-center">
+                    <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                        <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Low Stock</p>
+                        <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ low_stock_count }}</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters & Controls -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-4" id="filterSection">
+        <form method="get" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
+                <input type="text" name="q" value="{{ search_query }}" placeholder="Code, name, description..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+            </div>
+            <div class="w-40">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
+                <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="w-32">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                <select name="type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="">All</option>
+                    {% for value, label in type_choices %}
+                    <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex gap-2 flex-wrap items-center">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <i data-lucide="search" class="w-4 h-4 inline mr-1"></i>Filter
+                </button>
+                {% if search_query or current_category or current_type or low_stock_filter %}
+                <a href="{% url 'inventory:item_list' %}" class="px-3 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 text-sm">Clear</a>
+                {% endif %}
+
+                <!-- Divider -->
+                <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+                <!-- Page size selector -->
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-500">Show:</label>
+                    <select name="page_size" id="pageSizeSelect" onchange="savePageSize(this.value); this.form.submit()" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700">
+                        <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                        <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                        <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+                        <option value="all" {% if page_size == 'all' %}selected{% endif %}>All</option>
+                    </select>
+                </div>
+
+                <!-- Record count -->
+                <div class="text-sm text-gray-500">
+                    {% if page_obj %}
+                    <span>{{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}</span>
+                    {% else %}
+                    <span class="text-green-600">{{ total_items }} records</span>
+                    {% endif %}
+                </div>
+
+                <!-- View Toggle Buttons -->
+                <button type="button" @click="toggleFreezePanes()"
+                        :class="freezePanes ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <span x-text="freezePanes ? 'Unfreeze' : 'Freeze'"></span>
+                </button>
+                <button type="button" @click="toggleFullPageView()"
+                        :class="fullPageView ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    <span x-text="fullPageView ? 'Exit' : 'Full'"></span>
+                </button>
+                <button type="button" @click="toggleTextWrap()"
+                        :class="textWrap ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                        class="px-3 py-2 rounded-lg hover:opacity-90 flex items-center gap-1 text-sm">
+                    <i data-lucide="wrap-text" class="w-4 h-4"></i>
+                    <span x-text="textWrap ? 'Wrap' : 'NoWrap'"></span>
+                </button>
+
+                <!-- Column Toggle -->
+                <div class="relative">
+                    <button type="button" @click="showColumnMenu = !showColumnMenu" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm">
+                        <i data-lucide="columns" class="w-4 h-4 inline mr-1"></i>Columns
+                    </button>
+                    <div x-show="showColumnMenu" @click.away="showColumnMenu = false"
+                         class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-3 max-h-[60vh] overflow-y-auto"
+                         onwheel="event.stopPropagation();">
+                        <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500">Columns</span>
+                            <div class="flex gap-2">
+                                <button type="button" @click="resetToDefaults()" class="text-xs text-blue-600 hover:text-blue-800">Reset</button>
+                                <button type="button" @click="showAllColumns()" class="text-xs text-blue-600 hover:text-blue-800">All</button>
+                            </div>
+                        </div>
+                        <p class="text-xs font-medium text-gray-500 mb-2">Basic</p>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.mat_number" @change="savePreferences()"> HDBS#</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.name" @change="savePreferences()"> Name</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.category" @change="savePreferences()"> Category</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.item_type" @change="savePreferences()"> Type</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.supplier" @change="savePreferences()"> Supplier</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_item_no" @change="savePreferences()"> ERP# (New Stock)</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_eno_new" @change="savePreferences()"> ERP# ENO New</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_ardt_rcl" @change="savePreferences()"> ERP# ARDT Rcl</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_lstk_rcl" @change="savePreferences()"> ERP# LSTK Rcl</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.erp_retrofit" @change="savePreferences()"> ERP# Retrofit</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.stock" @change="savePreferences()"> Stock</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.min_stock" @change="savePreferences()"> Min Stock</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.cost" @change="savePreferences()"> Cost</label>
+                        <label class="flex items-center gap-2 py-1 text-sm"><input type="checkbox" x-model="columns.status" @change="savePreferences()"> Status</label>
+                        {% if common_attributes %}
+                        <hr class="my-2">
+                        <p class="text-xs font-medium text-gray-500 mb-2">Attributes</p>
+                        {% for attr in common_attributes %}
+                        <label class="flex items-center gap-2 py-1 text-sm">
+                            <input type="checkbox" x-model="columns.attr_{{ attr.code }}" @change="savePreferences()">
+                            <span>{{ attr.name }}</span>
+                        </label>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- END HEADER SECTION -->
+
+<!-- TABLE SECTION -->
+<div class="items-table-section">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden h-full">
+        <div class="items-table-wrapper">
+            {% if item_data %}
+            <table class="w-full text-xs border-collapse" id="itemsTable">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr class="text-gray-500 dark:text-gray-400">
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700" :class="freezePanes ? 'freeze-col-1' : ''">#</th>
+                        <th class="px-2 py-2 text-left font-medium bg-gray-100 dark:bg-gray-700 relative" :class="freezePanes ? 'freeze-col-2' : ''" x-show="columns.mat_number" data-column="mat_number" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white whitespace-nowrap" onclick="toggleColumnMenu(event, 'mat_number')">
+                                <span>HDBS#</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium relative min-w-[150px]" x-show="columns.name" data-column="name" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white whitespace-nowrap" onclick="toggleColumnMenu(event, 'name')">
+                                <span>Name</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium relative" x-show="columns.category" data-column="category" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'category')">
+                                <span>Category</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium relative" x-show="columns.item_type" data-column="item_type" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'item_type')">
+                                <span>Type</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium relative" x-show="columns.supplier" data-column="supplier" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'supplier')">
+                                <span>Supplier</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" x-show="columns.erp_item_no" data-column="erp_item_no" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_item_no')">
+                                <span>ERP#</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" x-show="columns.erp_eno_new" data-column="erp_eno_new" data-type="text" title="ENO As New ERP Item #">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_eno_new')">
+                                <span>ERP# ENO</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" x-show="columns.erp_ardt_rcl" data-column="erp_ardt_rcl" data-type="text" title="ARDT Reclaim ERP Item #">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_ardt_rcl')">
+                                <span>ERP# ARDT</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" x-show="columns.erp_lstk_rcl" data-column="erp_lstk_rcl" data-type="text" title="LSTK Reclaim ERP Item #">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_lstk_rcl')">
+                                <span>ERP# LSTK</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-left font-medium bg-violet-50 dark:bg-violet-900/20 relative" x-show="columns.erp_retrofit" data-column="erp_retrofit" data-type="text" title="Retrofit ERP Item #">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'erp_retrofit')">
+                                <span>ERP# Retro</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        {% for attr in common_attributes %}
+                        <th class="px-2 py-2 text-left font-medium relative" x-show="columns.attr_{{ attr.code }}" data-column="attr_{{ attr.code }}" data-type="text">
+                            <div class="column-header flex items-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'attr_{{ attr.code }}')">
+                                <span>{{ attr.name }}</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        {% endfor %}
+                        <th class="px-2 py-2 text-right font-medium relative" x-show="columns.stock" data-column="stock" data-type="number">
+                            <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'stock')">
+                                <span>Stock</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-right font-medium relative" x-show="columns.min_stock" data-column="min_stock" data-type="number">
+                            <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'min_stock')">
+                                <span>Min</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-right font-medium relative" x-show="columns.cost" data-column="cost" data-type="number">
+                            <div class="column-header flex items-center justify-end gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'cost')">
+                                <span>Cost</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-center font-medium relative" x-show="columns.status" data-column="status" data-type="text">
+                            <div class="column-header flex items-center justify-center gap-1 cursor-pointer select-none hover:text-gray-900 dark:hover:text-white" onclick="toggleColumnMenu(event, 'status')">
+                                <span>Status</span>
+                                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400"></i>
+                            </div>
+                        </th>
+                        <th class="px-2 py-2 text-center font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for row in item_data %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 {% if row.is_low_stock %}low-stock bg-red-50 dark:bg-red-900/10{% endif %}">
+                        <td class="px-2 py-2 text-gray-400 text-center {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                            :class="freezePanes ? 'freeze-col-1-body' : ''">{{ row.row_num }}</td>
+                        <td class="px-2 py-2 font-mono text-xs font-medium {% if row.is_low_stock %}bg-red-50 dark:bg-red-900/30{% else %}bg-white dark:bg-gray-800{% endif %}"
+                            :class="freezePanes ? 'freeze-col-2-body' : ''" x-show="columns.mat_number" data-value="{{ row.mat_number }}">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline" title="Open {{ row.name }}">
+                                {{ row.mat_number }}
+                            </a>
+                        </td>
+                        <td class="px-2 py-2 min-w-[150px]" x-show="columns.name" data-value="{{ row.name }}">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-gray-900 dark:text-white hover:text-blue-600">{{ row.name }}</a>
+                        </td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.category" data-value="{{ row.category }}">{{ row.category }}</td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.item_type" data-value="{{ row.item_type }}">{{ row.item_type }}</td>
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.supplier" data-value="{{ row.supplier }}">{{ row.supplier }}</td>
+                        <td class="px-2 py-2 font-mono text-xs bg-violet-50/50 dark:bg-violet-900/10 text-gray-700 dark:text-gray-300" x-show="columns.erp_item_no" data-value="{{ row.erp_item_no|default:'' }}">{{ row.erp_item_no|default:"-" }}</td>
+                        <td class="px-2 py-2 font-mono text-xs bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp.NEW_EO %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" x-show="columns.erp_eno_new" data-value="{{ row.variant_erp.NEW_EO|default:'' }}">{{ row.variant_erp.NEW_EO|default:"-" }}</td>
+                        <td class="px-2 py-2 font-mono text-xs bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp.USED_RCL %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" x-show="columns.erp_ardt_rcl" data-value="{{ row.variant_erp.USED_RCL|default:'' }}">{{ row.variant_erp.USED_RCL|default:"-" }}</td>
+                        <td class="px-2 py-2 font-mono text-xs bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp.CLI_RCL %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" x-show="columns.erp_lstk_rcl" data-value="{{ row.variant_erp.CLI_RCL|default:'' }}">{{ row.variant_erp.CLI_RCL|default:"-" }}</td>
+                        <td class="px-2 py-2 font-mono text-xs bg-violet-50/50 dark:bg-violet-900/10 {% if row.variant_erp.NEW_RET %}text-gray-700 dark:text-gray-300{% else %}text-gray-300{% endif %}" x-show="columns.erp_retrofit" data-value="{{ row.variant_erp.NEW_RET|default:'' }}">{{ row.variant_erp.NEW_RET|default:"-" }}</td>
+                        {% for attr in common_attributes %}
+                        <td class="px-2 py-2 text-gray-600 dark:text-gray-300" x-show="columns.attr_{{ attr.code }}" data-value="{{ row.attributes|get_item:attr.code|default:'' }}">{{ row.attributes|get_item:attr.code|default:"-" }}</td>
+                        {% endfor %}
+                        <td class="px-2 py-2 text-right font-mono {% if row.is_low_stock %}text-red-600 font-bold{% else %}text-gray-900 dark:text-white{% endif %}" x-show="columns.stock" data-value="{{ row.stock }}">{{ row.stock|floatformat:0 }}</td>
+                        <td class="px-2 py-2 text-right text-gray-500" x-show="columns.min_stock" data-value="{{ row.min_stock }}">{{ row.min_stock|floatformat:0 }}</td>
+                        <td class="px-2 py-2 text-right text-gray-900 dark:text-white" x-show="columns.cost" data-value="{{ row.cost }}">{{ row.cost|floatformat:2 }}</td>
+                        <td class="px-2 py-2 text-center" x-show="columns.status" data-value="{% if row.is_active %}Active{% else %}Inactive{% endif %}">
+                            {% if row.is_active %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <a href="{% url 'inventory:item_detail' row.item.pk %}" class="text-blue-600 hover:text-blue-800" title="View">
+                                <i data-lucide="eye" class="w-4 h-4 inline"></i>
+                            </a>
+                            <a href="{% url 'inventory:item_update' row.item.pk %}" class="text-gray-600 hover:text-gray-800 ml-2" title="Edit">
+                                <i data-lucide="edit" class="w-4 h-4 inline"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-12">
+                <i data-lucide="package" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
+                <p class="text-gray-500">No items found</p>
+                <a href="{% url 'inventory:item_create' %}" class="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add First Item
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<!-- END TABLE SECTION -->
+
+<!-- Pagination -->
+{% if page_obj and page_obj.has_other_pages %}
+<div class="mt-4 flex items-center justify-between" x-show="!fullPageView" x-transition>
+    <p class="text-sm text-gray-500">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} items
+    </p>
+    <nav class="flex gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page=1&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="First">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">Prev</a>
+        {% endif %}
+        <span class="px-3 py-1 text-sm text-gray-600 dark:text-gray-300">Page {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&category={{ current_category }}&type={{ current_type }}&page_size={{ page_size }}"
+           class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 text-sm" title="Last">»</a>
+        {% endif %}
+    </nav>
+</div>
+{% endif %}
+
+</div>
+
+<!-- Column Filter Menu (Excel-like dropdown) -->
+<div id="columnMenu" class="hidden fixed z-[100] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 min-w-[260px] max-h-[80vh] overflow-hidden flex flex-col"
+     onwheel="event.stopPropagation();" onscroll="event.stopPropagation();">
+    <!-- Sort Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('asc')">
+            <i data-lucide="arrow-up-a-z" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-asc-text">Sort A to Z</span>
+        </button>
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="sortColumn('desc')">
+            <i data-lucide="arrow-down-z-a" class="w-4 h-4 text-gray-500"></i>
+            <span class="sort-desc-text">Sort Z to A</span>
+        </button>
+    </div>
+
+    <!-- Clear Filter -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <button type="button" class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2" onclick="clearColumnFilter()">
+            <i data-lucide="filter-x" class="w-4 h-4 text-gray-500"></i>
+            Clear Filter from "<span id="clearFilterColumnName"></span>"
+        </button>
+    </div>
+
+    <!-- Custom Filter Section -->
+    <div class="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Custom Filter</div>
+        <div class="px-3 py-2 space-y-2">
+            <select id="filterOperator" class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                <option value="contains">Contains</option>
+                <option value="equals">Equals</option>
+                <option value="not_equals">Does Not Equal</option>
+                <option value="starts_with">Starts With</option>
+                <option value="ends_with">Ends With</option>
+                <option value="greater">Greater Than</option>
+                <option value="less">Less Than</option>
+                <option value="between">Between</option>
+            </select>
+            <input type="text" id="filterValue1" placeholder="Value..." class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <input type="text" id="filterValue2" placeholder="Value 2 (for Between)" class="hidden w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" onclick="applyCustomFilter()">
+                Apply Filter
+            </button>
+        </div>
+    </div>
+
+    <!-- Values List (with checkboxes) -->
+    <div class="p-2 flex-1 flex flex-col min-h-0">
+        <div class="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase flex items-center justify-between flex-shrink-0">
+            <span>Filter by Values</span>
+            <div class="flex gap-2">
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectAllValues()">All</button>
+                <button type="button" class="text-blue-600 hover:text-blue-800 text-xs" onclick="selectNoneValues()">None</button>
+            </div>
+        </div>
+        <div class="px-2 py-1 flex-shrink-0">
+            <input type="text" id="valueSearch" placeholder="Search values..." class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200" oninput="filterValuesList()">
+        </div>
+        <div id="valuesList" class="flex-1 overflow-y-auto px-2 py-1 min-h-[100px] max-h-[200px]"
+             onwheel="event.stopPropagation();">
+            <!-- Values will be populated dynamically -->
+        </div>
+        <div class="px-2 pt-2 flex-shrink-0">
+            <button type="button" class="w-full px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700" onclick="applyValueFilter()">
+                Apply
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Notification -->
+<div id="filterNotification" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 p-4 bg-amber-50 dark:bg-amber-900/90 border border-amber-200 dark:border-amber-700 rounded-lg shadow-lg flex items-center gap-3">
+    <i data-lucide="info" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+    <span id="filterNotificationText" class="text-amber-800 dark:text-amber-200 text-sm"></span>
+    <button type="button" onclick="hideFilterNotification()" class="text-amber-600 hover:text-amber-800 dark:text-amber-400 ml-2">
+        <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+</div>
+
+<script>
+    // Page size persistence
+    const PAGE_SIZE_KEY = 'inventoryPageSize';
+
+    function savePageSize(size) {
+        localStorage.setItem(PAGE_SIZE_KEY, size);
+    }
+
+    function loadPageSize() {
+        return localStorage.getItem(PAGE_SIZE_KEY);
+    }
+
+    // On page load, check if we should redirect to saved page size
+    (function() {
+        const savedPageSize = loadPageSize();
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPageSize = urlParams.get('page_size');
+
+        // Only redirect if we have a saved preference and it doesn't match current
+        // Don't redirect if user explicitly set a different page_size in URL
+        if (savedPageSize && !currentPageSize) {
+            // No page_size in URL, apply saved preference
+            urlParams.set('page_size', savedPageSize);
+            urlParams.delete('page'); // Reset to page 1 when changing page size
+            window.location.search = urlParams.toString();
+        }
+    })();
+
+    // Default column visibility
+    const defaultColumns = {
+        mat_number: true,      // HDBS# - shown by default
+        name: true,
+        category: true,
+        item_type: true,
+        supplier: true,
+        erp_item_no: true,     // ERP Item # (primary NEW-PUR)
+        erp_eno_new: false,    // ERP# ENO New
+        erp_ardt_rcl: false,   // ERP# ARDT Reclaim
+        erp_lstk_rcl: false,   // ERP# LSTK Reclaim
+        erp_retrofit: false,   // ERP# Retrofit
+        stock: true,
+        min_stock: true,
+        cost: true,
+        status: true,
+        {% for attr in common_attributes %}
+        attr_{{ attr.code }}: {{ attr.visible_default|yesno:"true,false" }},
+        {% endfor %}
+    };
+
+    function itemsInventory() {
+        return {
+            columns: { ...defaultColumns },
+            freezePanes: false,
+            fullPageView: false,
+            textWrap: false,
+            showColumnMenu: false,
+
+            init() {
+                const saved = localStorage.getItem('itemsInventoryPrefs');
+                if (saved) {
+                    try {
+                        const prefs = JSON.parse(saved);
+                        if (prefs.columns) this.columns = { ...defaultColumns, ...prefs.columns };
+                        if (prefs.freezePanes !== undefined) this.freezePanes = prefs.freezePanes;
+                        if (prefs.fullPageView !== undefined) {
+                            this.fullPageView = prefs.fullPageView;
+                            if (this.fullPageView) {
+                                this.applySidebarState(true);
+                                this.applyPageHeaderState(true);
+                            }
+                        }
+                        if (prefs.textWrap !== undefined) this.textWrap = prefs.textWrap;
+                    } catch (e) { console.error('Failed to load preferences:', e); }
+                }
+            },
+
+            savePreferences() {
+                localStorage.setItem('itemsInventoryPrefs', JSON.stringify({
+                    columns: this.columns,
+                    freezePanes: this.freezePanes,
+                    fullPageView: this.fullPageView,
+                    textWrap: this.textWrap
+                }));
+            },
+
+            toggleFreezePanes() { this.freezePanes = !this.freezePanes; this.savePreferences(); },
+
+            toggleFullPageView() {
+                this.fullPageView = !this.fullPageView;
+                this.applySidebarState(this.fullPageView);
+                this.applyPageHeaderState(this.fullPageView);
+                this.savePreferences();
+            },
+
+            applySidebarState(collapse) {
+                const mainEl = document.querySelector('[x-data]');
+                if (mainEl && mainEl._x_dataStack) {
+                    const rootData = mainEl._x_dataStack[0];
+                    if (rootData && rootData.sidebarOpen !== undefined) rootData.sidebarOpen = !collapse;
+                }
+            },
+
+            applyPageHeaderState(hide) {
+                const pageHeader = document.getElementById('pageHeader');
+                if (pageHeader) pageHeader.style.display = hide ? 'none' : '';
+            },
+
+            toggleTextWrap() { this.textWrap = !this.textWrap; this.savePreferences(); },
+
+            resetToDefaults() { this.columns = { ...defaultColumns }; this.savePreferences(); },
+
+            showAllColumns() {
+                Object.keys(this.columns).forEach(key => this.columns[key] = true);
+                this.savePreferences();
+            }
+        };
+    }
+
+    // Column menu state
+    let currentColumn = null;
+    let currentColumnType = 'text';
+    let columnValues = [];
+    let selectedValues = new Set();
+
+    // Toggle column menu
+    function toggleColumnMenu(event, column) {
+        event.stopPropagation();
+        const menu = document.getElementById('columnMenu');
+        const th = event.currentTarget.closest('th');
+
+        currentColumnType = th.dataset.type || 'text';
+        currentColumn = column;
+
+        if (currentColumnType === 'number') {
+            document.querySelector('.sort-asc-text').textContent = 'Sort Smallest to Largest';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Largest to Smallest';
+        } else {
+            document.querySelector('.sort-asc-text').textContent = 'Sort A to Z';
+            document.querySelector('.sort-desc-text').textContent = 'Sort Z to A';
+        }
+
+        document.getElementById('clearFilterColumnName').textContent = th.querySelector('span').textContent;
+        populateValuesList(column);
+        menu.classList.remove('hidden');
+
+        const rect = th.getBoundingClientRect();
+        const menuRect = menu.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const padding = 10;
+
+        let left = rect.left;
+        let top = rect.bottom + 5;
+
+        if (left + menuRect.width > viewportWidth - padding) {
+            left = viewportWidth - menuRect.width - padding;
+        }
+        if (left < padding) {
+            left = padding;
+        }
+        if (top + menuRect.height > viewportHeight - padding) {
+            top = rect.top - menuRect.height - 5;
+            if (top < padding) {
+                top = padding;
+            }
+        }
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+    }
+
+    function populateValuesList(column) {
+        const table = document.getElementById('itemsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${column}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+        const valuesSet = new Set();
+        let hasBlankInVisible = false;
+
+        // Only collect values from VISIBLE rows (cascading filter behavior)
+        rows.forEach(row => {
+            // Skip hidden rows (filtered out by other columns)
+            if (row.style.display === 'none') return;
+
+            const cell = row.children[colIndex];
+            if (cell) {
+                const value = cell.dataset.value || cell.textContent.trim();
+                if (value && value !== '--' && value !== '-') {
+                    valuesSet.add(value);
+                } else {
+                    hasBlankInVisible = true;
+                }
+            }
+        });
+
+        columnValues = Array.from(valuesSet).sort((a, b) => {
+            const numA = parseFloat(a);
+            const numB = parseFloat(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.localeCompare(b);
+        });
+        selectedValues = new Set(columnValues);
+        if (hasBlankInVisible) {
+            selectedValues.add('__blank__');
+        }
+        window.hasBlankInVisible = hasBlankInVisible;
+        renderValuesList();
+    }
+
+    function renderValuesList(filter = '') {
+        const container = document.getElementById('valuesList');
+        const filtered = filter
+            ? columnValues.filter(v => v.toLowerCase().includes(filter.toLowerCase()))
+            : columnValues;
+
+        container.innerHTML = filtered.map(value => `
+            <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                       value="${value}" ${selectedValues.has(value) ? 'checked' : ''} onchange="toggleValue('${value.replace(/'/g, "\\'")}')">
+                <span class="text-sm text-gray-700 dark:text-gray-200 truncate">${value}</span>
+            </label>
+        `).join('');
+
+        // Only show "(Blank)" option if there are blank values in visible rows
+        if (!filter && window.hasBlankInVisible) {
+            container.innerHTML = `
+                <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                    <input type="checkbox" class="value-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                           value="__blank__" ${selectedValues.has('__blank__') ? 'checked' : ''} onchange="toggleValue('__blank__')">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 italic">(Blank)</span>
+                </label>
+            ` + container.innerHTML;
+        }
+    }
+
+    function filterValuesList() {
+        renderValuesList(document.getElementById('valueSearch').value);
+    }
+
+    function toggleValue(value) {
+        if (selectedValues.has(value)) {
+            selectedValues.delete(value);
+        } else {
+            selectedValues.add(value);
+        }
+    }
+
+    function selectAllValues() {
+        selectedValues = new Set(columnValues);
+        if (window.hasBlankInVisible) {
+            selectedValues.add('__blank__');
+        }
+        renderValuesList();
+    }
+
+    function selectNoneValues() {
+        selectedValues = new Set();
+        renderValuesList();
+    }
+
+    function sortColumn(direction) {
+        const table = document.getElementById('itemsTable');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.sort((a, b) => {
+            const cellA = a.children[colIndex];
+            const cellB = b.children[colIndex];
+            if (!cellA || !cellB) return 0;
+
+            let valA = cellA.dataset.value || cellA.textContent.trim();
+            let valB = cellB.dataset.value || cellB.textContent.trim();
+
+            const numA = parseFloat(valA);
+            const numB = parseFloat(valB);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return direction === 'asc' ? numA - numB : numB - numA;
+            }
+            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+        closeColumnMenu();
+    }
+
+    function clearColumnFilter() {
+        const table = document.getElementById('itemsTable');
+        table.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+        hideFilterNotification();
+        closeColumnMenu();
+    }
+
+    // Whether we're in paginated mode
+    const isPaginated = {{ page_obj|yesno:"true,false" }};
+    const totalRecords = {{ total_items|default:0 }};
+
+    function checkFilterResults() {
+        const table = document.getElementById('itemsTable');
+        const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+        const notification = document.getElementById('filterNotification');
+        const notificationText = document.getElementById('filterNotificationText');
+
+        if (visibleRows.length === 0 && isPaginated) {
+            notificationText.textContent = `No matching records found in current page (showing subset of ${totalRecords} total records). Try "Show All" to search entire dataset.`;
+            notification.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            notification.classList.add('hidden');
+        }
+    }
+
+    function hideFilterNotification() {
+        document.getElementById('filterNotification').classList.add('hidden');
+    }
+
+    function applyCustomFilter() {
+        const operator = document.getElementById('filterOperator').value;
+        const value1 = document.getElementById('filterValue1').value.toLowerCase();
+        const value2 = document.getElementById('filterValue2').value.toLowerCase();
+
+        const table = document.getElementById('itemsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            if (!cell) return;
+
+            const cellValue = (cell.dataset.value || cell.textContent.trim()).toLowerCase();
+            let show = true;
+
+            switch(operator) {
+                case 'contains': show = cellValue.includes(value1); break;
+                case 'equals': show = cellValue === value1; break;
+                case 'not_equals': show = cellValue !== value1; break;
+                case 'starts_with': show = cellValue.startsWith(value1); break;
+                case 'ends_with': show = cellValue.endsWith(value1); break;
+                case 'greater': show = parseFloat(cellValue) > parseFloat(value1); break;
+                case 'less': show = parseFloat(cellValue) < parseFloat(value1); break;
+                case 'between':
+                    const num = parseFloat(cellValue);
+                    show = num >= parseFloat(value1) && num <= parseFloat(value2);
+                    break;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+
+        closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function applyValueFilter() {
+        const table = document.getElementById('itemsTable');
+        const rows = table.querySelectorAll('tbody tr');
+        const th = table.querySelector(`th[data-column="${currentColumn}"]`);
+        if (!th) return;
+
+        const colIndex = Array.from(th.parentNode.children).indexOf(th);
+
+        rows.forEach(row => {
+            const cell = row.children[colIndex];
+            if (!cell) return;
+
+            const cellValue = cell.dataset.value || cell.textContent.trim();
+            const isBlank = !cellValue || cellValue === '--' || cellValue === '-';
+
+            let show = false;
+            if (isBlank && selectedValues.has('__blank__')) {
+                show = true;
+            } else if (selectedValues.has(cellValue)) {
+                show = true;
+            }
+
+            row.style.display = show ? '' : 'none';
+        });
+
+        closeColumnMenu();
+        checkFilterResults();
+    }
+
+    function closeColumnMenu() {
+        document.getElementById('columnMenu').classList.add('hidden');
+    }
+
+    // Event listeners for column menu
+    document.getElementById('filterOperator').addEventListener('change', function() {
+        const value2 = document.getElementById('filterValue2');
+        value2.classList.toggle('hidden', this.value !== 'between');
+    });
+
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('columnMenu');
+        if (!menu.contains(e.target) && !e.target.closest('.column-header')) {
+            closeColumnMenu();
+        }
+    });
+
+    // Close menu on main window scroll only (not when scrolling inside the menu)
+    window.addEventListener('scroll', (e) => {
+        const menu = document.getElementById('columnMenu');
+        if (menu.classList.contains('hidden')) return;
+
+        // Only close if scroll is from the main window, not the menu
+        if (e.target === document || e.target === document.documentElement || e.target === document.body) {
+            closeColumnMenu();
+        }
+    }, false);  // Use bubbling phase, not capture
+    window.addEventListener('resize', () => closeColumnMenu());
+
+    // Prevent scroll inside menu from closing it
+    document.getElementById('columnMenu').addEventListener('scroll', (e) => {
+        e.stopPropagation();
+    }, true);
+
+    // Also prevent wheel events from propagating
+    document.getElementById('columnMenu').addEventListener('wheel', (e) => {
+        e.stopPropagation();
+    }, false);
+
+    // Update lucide icons when menu opens
+    const observer = new MutationObserver(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+    observer.observe(document.getElementById('columnMenu'), { attributes: true, attributeFilter: ['class'] });
+</script>
+{% endblock %}

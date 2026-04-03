@@ -1,0 +1,987 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load inventory_filters %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* BOM Table - compact */
+    .bom-inline-table { width: 100%; border-collapse: collapse; }
+    .bom-inline-table th {
+        background: #f3f4f6; padding: 6px 10px; text-align: left;
+        font-size: 10px; font-weight: 600; text-transform: uppercase;
+        color: #6b7280; border-bottom: 2px solid #e5e7eb;
+    }
+    .bom-inline-table td { padding: 4px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+    .bom-inline-table tr:hover { background: #f9fafb; }
+    .dark .bom-inline-table th { background: #374151; color: #9ca3af; border-bottom-color: #4b5563; }
+    .dark .bom-inline-table td { border-bottom-color: #374151; }
+    .dark .bom-inline-table tr:hover { background: #374151; }
+
+    .bom-index-badge {
+        width: 24px; height: 24px; border-radius: 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 10px; color: white;
+    }
+    .bom-cutter-shape { width: 28px; height: 28px; object-fit: contain; background: #f3f4f6; border-radius: 4px; padding: 1px; }
+
+    /* ── Cutter-map blade layout (read-only replica) ── */
+    .ro-blade-block { margin-bottom: 4px; background: white; border: 2px solid #888; }
+    .dark .ro-blade-block { background: #1f2937; border-color: #4b5563; }
+    .ro-blade-inner { display: flex; align-items: stretch; }
+    .ro-blade-label {
+        width: 26px; min-width: 26px; background: #808080;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: bold; font-size: 12px; color: white;
+    }
+    .ro-blade-rows-wrap { flex: 1; }
+    .ro-blade-row { display: flex; align-items: flex-start; min-height: 38px; }
+    .ro-row-label {
+        width: 20px; min-width: 20px; background: #d0d0d0;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: bold; font-size: 7px; color: #333; align-self: stretch;
+    }
+    .dark .ro-row-label { background: #4b5563; color: #d1d5db; }
+    .ro-positions-wrap {
+        display: flex; flex: 1; flex-wrap: nowrap;
+        padding: 1px 2px; background: white; align-items: center;
+    }
+    .dark .ro-positions-wrap { background: #1f2937; }
+    .ro-pos-label {
+        writing-mode: vertical-rl; transform: rotate(180deg);
+        font-size: 5px; font-weight: bold; color: #333;
+        padding: 2px 1px; margin-right: 1px;
+        background: transparent; border-radius: 2px;
+    }
+    .dark .ro-pos-label { color: #d1d5db; }
+    .ro-cutter {
+        text-align: center; width: 26px; min-width: 26px;
+        display: flex; flex-direction: column; align-items: center;
+    }
+    .ro-cutter-type {
+        font-size: 7px; color: #444; font-weight: 500;
+        height: 10px; line-height: 10px; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; max-width: 30px;
+    }
+    .dark .ro-cutter-type { color: #9ca3af; }
+    .ro-cutter-circle {
+        width: 16px; height: 16px; border-radius: 50%;
+        border: 1px solid #333; display: flex; align-items: center;
+        justify-content: center; font-weight: bold; font-size: 8px;
+    }
+    .ro-cutter-shape-wrap { position: relative; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+    .ro-cutter-shape-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    .ro-cutter-shape-wrap .ro-group-label {
+        position: absolute; font-weight: bold; font-size: 7px;
+        color: white; text-shadow: 0 0 2px black, 0 0 2px black;
+    }
+    .ro-cutter-chamfer {
+        font-size: 6px; color: #666; height: 9px; line-height: 9px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30px;
+    }
+    .dark .ro-cutter-chamfer { color: #9ca3af; }
+
+    /* Foldable section */
+    .section-toggle { cursor: pointer; user-select: none; }
+    .section-toggle .toggle-icon { transition: transform 0.2s; }
+    .section-toggle.collapsed .toggle-icon { transform: rotate(-90deg); }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div class="flex items-start">
+        {% if request.GET.from == 'wo' and request.GET.wo_pk %}
+        <a href="{% url 'workorders:workorder_detail_enhanced' request.GET.wo_pk %}"
+           class="mr-3 inline-flex items-center px-2 py-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg"
+           title="Back to Work Order">
+            <i data-lucide="arrow-left" class="w-5 h-5 mr-1"></i>
+            <span class="text-sm">WO</span>
+        </a>
+        {% else %}
+        <a href="{% url 'workorders:drillbit_list_enhanced' %}"
+           class="mr-3 inline-flex items-center px-2 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg"
+           title="Back to Drill Bits">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        {% endif %}
+        {% if qr_code %}
+        <div class="hidden md:block mr-4 bg-white p-2 rounded-lg shadow-sm">
+            <img src="{{ qr_code }}" alt="QR Code" class="w-20 h-20">
+        </div>
+        {% endif %}
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</h1>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                    {% elif drill_bit.status == 'IN_PRODUCTION' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ drill_bit.get_status_display }}
+                </span>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">
+                {{ drill_bit.get_bit_type_display }}
+                {% if drill_bit.design.size %} - {{ drill_bit.design.size.size_display }}{% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'workorders:drillbit_qr' drill_bit.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
+            <i data-lucide="qr-code" class="w-4 h-4 mr-2"></i>Print QR
+        </a>
+        <a href="{% url 'workorders:drillbit_update' drill_bit.pk %}"
+           class="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 gap-6 transition-all duration-300" :class="rightSidebarOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'" x-data="{ bomOpen: true, designOpen: true, woOpen: true, eventsOpen: true, rightSidebarOpen: localStorage.getItem('drillbitRightSidebar') !== 'false' }" x-init="$watch('rightSidebarOpen', val => localStorage.setItem('drillbitRightSidebar', val))">
+    <!-- Right Sidebar Toggle -->
+    <div class="lg:col-span-full flex justify-end">
+        <button @click="rightSidebarOpen = !rightSidebarOpen"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                :class="rightSidebarOpen ? 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'">
+            <i data-lucide="panel-right-close" class="w-3.5 h-3.5" x-show="rightSidebarOpen"></i>
+            <i data-lucide="panel-right-open" class="w-3.5 h-3.5" x-show="!rightSidebarOpen"></i>
+            <span x-text="rightSidebarOpen ? 'Hide Panel' : 'Show Panel'"></span>
+        </button>
+    </div>
+
+    <!-- Main Info -->
+    <div class="space-y-6" :class="rightSidebarOpen ? 'lg:col-span-2' : 'lg:col-span-1'">
+        <!-- Bit Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Bit Details</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Serial Number</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.serial_number }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Design (L3/L4)</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Type</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_bit_type_display }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Size</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Brazing BOM (L5)</p>
+                    {% with bom=drill_bit.brazing_bom|default:drill_bit.bom %}
+                    {% if bom %}
+                    <p class="font-medium text-orange-600 dark:text-orange-400 font-mono">{{ bom.code }}</p>
+                    {% else %}
+                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">System MAT (L5)</p>
+                    {% if drill_bit.brazing_bom and drill_bit.brazing_bom.system_mat_no %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.brazing_bom.system_mat_no }}</p>
+                    {% elif drill_bit.bom and drill_bit.bom.system_mat_no %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.bom.system_mat_no }}</p>
+                    {% elif drill_bit.system_bom %}
+                    <p class="font-medium text-blue-600 dark:text-blue-400 font-mono">{{ drill_bit.system_bom.code }}</p>
+                    {% else %}
+                    <p class="font-medium text-gray-400 dark:text-gray-500">--</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">SMI Type</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.brazing_bom and drill_bit.brazing_bom.smi_type %}{{ drill_bit.brazing_bom.smi_type.smi_name }}{% elif drill_bit.bom and drill_bit.bom.smi_type %}{{ drill_bit.bom.smi_type.smi_name }}{% elif drill_bit.design %}{{ drill_bit.design.smi_type|default:"--" }}{% else %}--{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Customer</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.customer.name|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Location</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.bit_location.name|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Status</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.get_lifecycle_status_display|default:drill_bit.get_status_display }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- BILL OF MATERIALS SECTION (foldable)                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !bomOpen }" @click="bomOpen = !bomOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    <i data-lucide="file-text" class="w-5 h-5 mr-2 text-purple-600"></i>
+                    Bill of Materials
+                </h3>
+                <div class="flex items-center gap-2" @click.stop>
+                    {% if active_bom %}
+                    <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1&drillbit_id={{ drill_bit.pk }}&serial_number={{ drill_bit.serial_number }}"
+                       class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                       title="Open in Cutter Map">
+                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>Open in Cutter Map
+                    </a>
+                    {% elif drill_bit.design %}
+                    <a href="{% url 'cutter_map:index' %}?from=bom_create&design_id={{ drill_bit.design.pk }}&design_mat={{ drill_bit.design.mat_no }}&design_hdbs={{ drill_bit.design.hdbs_type|default:'' }}&design_size={{ drill_bit.design.size.size_display|default:'' }}&drillbit_id={{ drill_bit.pk }}&serial_number={{ drill_bit.serial_number }}"
+                       class="inline-flex items-center px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/50"
+                       title="Create BOM in Cutter Map">
+                        <i data-lucide="plus-circle" class="w-4 h-4 mr-1.5"></i>Create BOM in Cutter Map
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="p-6 pt-4" x-show="bomOpen" x-collapse>
+            {% if bom_source_data and bom_source_data.summary %}
+                <!-- BOM Lines Table (compact) -->
+                <div class="overflow-x-auto mb-4">
+                    <table class="bom-inline-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Shape</th>
+                                <th>Size</th>
+                                <th>Chamfer</th>
+                                <th>Type</th>
+                                <th>MAT #</th>
+                                <th style="text-align: center;">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in bom_source_data.summary %}
+                            <tr>
+                                <td>
+                                    <div class="bom-index-badge" style="background: {{ item.fill_color|default:'#3b82f6' }};">{{ item.index }}</div>
+                                </td>
+                                <td>
+                                    {% if cutter_shapes and item.index in cutter_shapes %}
+                                    <img src="{{ cutter_shapes|get_item:item.index }}" class="bom-cutter-shape" alt="Shape">
+                                    {% else %}
+                                    <div class="w-7 h-7 bg-gray-200 dark:bg-gray-600 rounded flex items-center justify-center text-[9px] text-gray-400">--</div>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono text-xs">{{ item.size }}</td>
+                                <td class="text-xs">{{ item.chamfer|default:"--" }}</td>
+                                <td class="font-medium text-xs">{{ item.type }}</td>
+                                <td class="font-mono text-blue-600 dark:text-blue-400 text-xs">{{ item.mat_number|default:"--" }}</td>
+                                <td style="text-align: center;" class="font-bold">{{ item.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cutter Layout (blade blocks, directly below BOM table) -->
+                {% if bom_source_data.blades %}
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                    <i data-lucide="layout-grid" class="w-4 h-4 mr-1.5 text-gray-400"></i>Cutter Layout
+                </h4>
+                <div class="overflow-x-auto">
+                    {% for blade in bom_source_data.blades %}
+                    <div class="ro-blade-block">
+                        <div class="ro-blade-inner">
+                            <div class="ro-blade-label">{{ blade.name|truncatechars:3 }}</div>
+                            <div class="ro-blade-rows-wrap">
+                                {% for row_key in 'r1,r2,r3,r4'|split:',' %}
+                                {% with row_data=blade|get_item:row_key %}
+                                {% if row_data %}
+                                <div class="ro-blade-row">
+                                    <div class="ro-row-label">{{ row_key|upper }}</div>
+                                    <div class="ro-positions-wrap">
+                                        {% for pos, cells in row_data|items %}
+                                        <div class="ro-pos-label">{{ pos }}</div>
+                                        {% for cell in cells %}
+                                        <div class="ro-cutter">
+                                            <div class="ro-cutter-type">{{ cell.type|default:"" }}</div>
+                                            {% if cutter_shapes and cell.group in cutter_shapes %}
+                                            <div class="ro-cutter-shape-wrap">
+                                                <img src="{{ cutter_shapes|get_item:cell.group }}" alt="{{ cell.group }}">
+                                                <span class="ro-group-label">{{ cell.group }}</span>
+                                            </div>
+                                            {% else %}
+                                            <div class="ro-cutter-circle" style="background: {{ cell.fill_color|default:'#e8e8e8' }}; color: {% if cell.fill_color %}white{% else %}#333{% endif %};">{{ cell.group|default:"" }}</div>
+                                            {% endif %}
+                                            <div class="ro-cutter-chamfer">{{ cell.chamfer|default:"" }}</div>
+                                        </div>
+                                        {% endfor %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% endwith %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+            {% elif active_bom %}
+            <!-- BOM exists but no source_data -->
+            <div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                <i data-lucide="file-text" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                <p class="text-gray-500 dark:text-gray-400 mb-3">BOM linked but no cutter data extracted yet</p>
+                <a href="{% url 'cutter_map:bom_view' active_bom.pk %}?edit=1&drillbit_id={{ drill_bit.pk }}&serial_number={{ drill_bit.serial_number }}"
+                   class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1"></i>Open in Cutter Map
+                </a>
+            </div>
+            {% else %}
+            <!-- No BOM linked -->
+            <div class="text-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                <i data-lucide="file-plus" class="w-12 h-12 mx-auto text-gray-400 mb-3"></i>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">No BOM linked to this drill bit</p>
+                {% if drill_bit.design %}
+                <a href="{% url 'cutter_map:index' %}?from=bom_create&design_id={{ drill_bit.design.pk }}&design_mat={{ drill_bit.design.mat_no }}&design_hdbs={{ drill_bit.design.hdbs_type|default:'' }}&design_size={{ drill_bit.design.size.size_display|default:'' }}&drillbit_id={{ drill_bit.pk }}&serial_number={{ drill_bit.serial_number }}"
+                   class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Create BOM in Cutter Map
+                </a>
+                {% else %}
+                <p class="text-sm text-gray-500">Assign a design first to create a BOM</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DESIGN DETAILS SECTION (foldable)                              -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        {% if drill_bit.design %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !designOpen }" @click="designOpen = !designOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    <i data-lucide="drafting-compass" class="w-5 h-5 mr-2 text-blue-600"></i>
+                    Design Details
+                </h3>
+                <div @click.stop>
+                    <a href="{% url 'technology:design_detail' drill_bit.design.pk %}"
+                       class="inline-flex items-center px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                       title="View Full Design">
+                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>View Design
+                    </a>
+                </div>
+            </div>
+
+            <div class="p-6 pt-4" x-show="designOpen" x-collapse>
+            <!-- Design specs grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Design MAT</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.mat_no }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Ref Design MAT</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.ref_mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">HDBS Type</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.hdbs_type|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Level</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{% if drill_bit.design.order_level %}L{{ drill_bit.design.order_level }}{% else %}--{% endif %}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Size</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.size.size_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Category</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.get_category_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Body Material</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.get_body_material_display|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Blades</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.no_of_blades|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Total Pockets</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.total_pockets_count|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Connection</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.connection_ref.mat_no|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">IADC</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.iadc_code_ref.code|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Breaker Slot</p>
+                    <p class="font-medium text-gray-900 dark:text-white font-mono">{{ drill_bit.design.breaker_slot.mat_no|default:"--" }}</p>
+                </div>
+                {% if drill_bit.design.nozzle_count %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Nozzles</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.nozzle_count }} x {{ drill_bit.design.nozzle_bore_size|default:"--" }}</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.gage_length %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Gage Length</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.gage_length }}"</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.application_ref %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Application</p>
+                    <p class="font-medium text-gray-900 dark:text-white">{{ drill_bit.design.application_ref.name }}{% if drill_bit.design.formation_type_ref %} / {{ drill_bit.design.formation_type_ref.name }}{% endif %}</p>
+                </div>
+                {% endif %}
+                {% if drill_bit.design.special_technologies.exists %}
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400">Special Tech</p>
+                    <p class="font-medium text-gray-900 dark:text-white">
+                        {% for tech in drill_bit.design.special_technologies.all %}
+                            <span class="inline-block px-1.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 rounded text-xs mr-0.5">{{ tech.code }}</span>
+                        {% endfor %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Pocket Layout (replicates design_pockets.html grid, read-only) -->
+            {% if pocket_configs %}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4"
+                 x-data="pocketsReadonly()" x-init="$nextTick(() => { if(typeof lucide !== 'undefined') lucide.createIcons() })">
+                <!-- Tabs -->
+                <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+                    <nav class="flex -mb-px">
+                        <button @click="pocketTab = 'config'"
+                                :class="pocketTab === 'config' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                                class="px-4 py-2 border-b-2 font-medium text-xs flex items-center gap-1">
+                            <i data-lucide="settings" class="w-3 h-3"></i>Configuration &amp; Grid
+                        </button>
+                        <button @click="pocketTab = 'locations'"
+                                :class="pocketTab === 'locations' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                                class="px-4 py-2 border-b-2 font-medium text-xs flex items-center gap-1">
+                            <i data-lucide="map-pin" class="w-3 h-3"></i>Pockets Locations
+                        </button>
+                        <button @click="pocketTab = 'engagements'"
+                                :class="pocketTab === 'engagements' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+                                class="px-4 py-2 border-b-2 font-medium text-xs flex items-center gap-1">
+                            <i data-lucide="layers" class="w-3 h-3"></i>Engagements
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab 1: Configuration & Grid -->
+                <div x-show="pocketTab === 'config'">
+                    <div class="overflow-x-auto mb-4">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Order</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Pocket Size</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">L/M/S</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Shape</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for config in pocket_configs %}
+                                <tr>
+                                    <td class="px-3 py-2">
+                                        <span class="w-6 h-6 inline-flex items-center justify-center rounded font-bold text-white text-xs"
+                                              style="background-color: {{ config.display_color }}">{{ config.order }}</span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white font-medium">{{ config.pocket_size.display_name }}</td>
+                                    <td class="px-3 py-2">
+                                        <span class="px-2 py-0.5 text-xs font-medium rounded
+                                            {% if config.length_type == 'L' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                            {% elif config.length_type == 'M' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200{% endif %}">
+                                            {{ config.get_length_type_display }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">{{ config.pocket_shape.name }}</td>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white font-bold">{{ config.count }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <td colspan="4" class="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">Total:</td>
+                                    <td class="px-3 py-2 font-bold text-gray-900 dark:text-white">{{ config_total }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    {% if drill_bit.design.no_of_blades and pocket_configs %}
+                    <div class="overflow-x-auto">
+                        <div class="inline-block min-w-full select-none">
+                            <div class="flex mb-1">
+                                <div class="w-16 flex-shrink-0"></div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 text-center text-xs font-medium py-1" :class="getColumnRowClass(col)" x-text="col"></div>
+                                            <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                                <div class="w-1 h-8 rounded" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600'"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="flex mb-2">
+                                <div class="w-16 flex-shrink-0 text-xs text-gray-400">Pos &rarr;</div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 text-center text-xs font-bold" :class="getColumnRowClass(col)" x-text="getPositionInRow(col)"></div>
+                                            <div class="w-4" x-show="col < 20" :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% for blade_num in "123456789"|make_list %}
+                            {% if blade_num|add:0 <= drill_bit.design.no_of_blades %}
+                            <div class="flex items-center mb-1">
+                                <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 h-10 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-xs font-bold text-white"
+                                                 :style="getCellStyle({{ blade_num }}, col)"
+                                                 x-text="getCellNumber({{ blade_num }}, col)"></div>
+                                            <div class="w-4" x-show="col < 20" :class="rowSeparators.includes(col) ? 'bg-red-200 dark:bg-red-900/30' : ''"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tab 2: Pockets Locations -->
+                <div x-show="pocketTab === 'locations'">
+                    <div class="flex flex-wrap gap-4 mb-4">
+                        <template x-for="loc in locationZones" :key="loc.code">
+                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg border" :style="`border-color: ${loc.color}`">
+                                <div class="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold" :style="`background-color: ${loc.color}`" x-text="loc.code"></div>
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300" x-text="loc.name"></span>
+                                <span class="text-xs text-gray-500" x-text="`(${getLocationCount(loc.code)})`"></span>
+                            </div>
+                        </template>
+                    </div>
+                    {% if drill_bit.design.no_of_blades and pocket_configs %}
+                    <div class="overflow-x-auto">
+                        <div class="inline-block min-w-full select-none">
+                            <div class="flex mb-1">
+                                <div class="w-16 flex-shrink-0"></div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 text-center text-xs font-medium py-1" :class="getColumnRowClass(col)" x-text="col"></div>
+                                            <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                                <div class="w-1 h-6 rounded" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% for blade_num in "123456789"|make_list %}
+                            {% if blade_num|add:0 <= drill_bit.design.no_of_blades %}
+                            <div class="flex items-center mb-1">
+                                <div class="w-16 flex-shrink-0 font-medium text-gray-900 dark:text-white text-sm">B{{ blade_num }}</div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 h-10 border rounded flex flex-col items-center justify-center relative"
+                                                 :style="getLocationCellStyle({{ blade_num }}, col)"
+                                                 :title="getLocationTooltip({{ blade_num }}, col)">
+                                                <span class="text-[9px] font-bold drop-shadow-sm"
+                                                      :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white' : 'text-gray-600'"
+                                                      x-show="gridData[`{{ blade_num }}_${col}`]"
+                                                      x-text="getPocketSizeCode({{ blade_num }}, col)"></span>
+                                                <span class="text-sm font-bold drop-shadow-sm"
+                                                      :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white' : 'text-gray-500'"
+                                                      x-text="getLocationCode({{ blade_num }}, col)"></span>
+                                                <span class="absolute bottom-0 right-0.5 text-[9px] font-semibold drop-shadow-sm"
+                                                      :class="locationData[`{{ blade_num }}_${col}`] ? 'text-white/80' : 'text-gray-500'"
+                                                      x-show="gridData[`{{ blade_num }}_${col}`]"
+                                                      x-text="getCellNumber({{ blade_num }}, col)"></span>
+                                            </div>
+                                            <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                                <div class="w-1 h-10" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tab 3: Engagements -->
+                <div x-show="pocketTab === 'engagements'">
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        {% for config in pocket_configs %}
+                        <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                            <div class="w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold" style="background-color: {{ config.display_color }}">{{ config.order }}</div>
+                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ config.pocket_size.display_name }}</span>
+                            <span class="text-[10px] text-gray-400">({{ config.pocket_shape.code }})</span>
+                            <span class="text-[10px] font-mono px-1 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">x{{ config.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if drill_bit.design.no_of_blades and pocket_configs %}
+                    <div class="overflow-x-auto">
+                        <div class="inline-block min-w-full select-none">
+                            <div class="flex mb-0.5">
+                                <div class="w-10 flex-shrink-0"></div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-9 text-center text-[10px] font-medium py-0.5" :class="getColumnRowClass(col)" x-text="col"></div>
+                                            <div class="w-1 flex items-center justify-center" x-show="col < 20">
+                                                <div class="w-0.5 h-4 rounded" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="flex mb-0.5" x-show="Object.keys(locationData).length > 0">
+                                <div class="w-10 flex-shrink-0 text-[10px] text-gray-400 flex items-center">Zone</div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-9 text-center text-[9px] font-bold py-0.5 rounded-t"
+                                                 :style="getLocationZoneHeaderStyle(col)" x-text="getLocationZoneLabel(col)"></div>
+                                            <div class="w-1" x-show="col < 20"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% for blade_num in "123456789"|make_list %}
+                            {% if blade_num|add:0 <= drill_bit.design.no_of_blades %}
+                            <div class="flex items-center mb-0.5">
+                                <div class="w-10 flex-shrink-0 font-medium text-gray-900 dark:text-white text-xs">B{{ blade_num }}</div>
+                                <div class="flex">
+                                    <template x-for="col in 20" :key="col">
+                                        <div class="flex">
+                                            <div class="w-10 h-10 border rounded flex flex-col items-center justify-center relative"
+                                                 :style="getEngagementCellStyle({{ blade_num }}, col)"
+                                                 :title="getEngagementTooltip({{ blade_num }}, col)">
+                                                <span class="text-[8px] text-gray-400 absolute top-0 left-0.5"
+                                                      x-show="gridData[`{{ blade_num }}_${col}`]"
+                                                      x-text="getCellNumber({{ blade_num }}, col)"></span>
+                                                <span class="text-xs font-bold"
+                                                      x-text="engagementData[`{{ blade_num }}_${col}`] || ''"></span>
+                                            </div>
+                                            <div class="w-4 flex items-center justify-center" x-show="col < 20">
+                                                <div class="w-1 h-10" :class="rowSeparators.includes(col) ? 'bg-red-500' : 'bg-transparent'"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Work Orders (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="flex items-center justify-between p-6 pb-0 section-toggle" :class="{ collapsed: !woOpen }" @click="woOpen = !woOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    Work Orders
+                </h3>
+                <div @click.stop>
+                    <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}"
+                       class="text-blue-600 dark:text-blue-400 text-sm hover:underline">Create WO &rarr;</a>
+                </div>
+            </div>
+
+            <div class="p-6 pt-4" x-show="woOpen" x-collapse>
+            {% if work_orders %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 dark:text-gray-400">
+                            <th class="pb-2 font-medium">WO#</th>
+                            <th class="pb-2 font-medium">Type</th>
+                            <th class="pb-2 font-medium">Status</th>
+                            <th class="pb-2 font-medium">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        {% for wo in work_orders %}
+                        <tr>
+                            <td class="py-2">
+                                <a href="{% url 'workorders:workorder_detail_enhanced' wo.pk %}" class="text-blue-600 dark:text-blue-400 hover:underline">{{ wo.wo_number }}</a>
+                            </td>
+                            <td class="py-2 text-gray-600 dark:text-gray-400">{{ wo.get_wo_type_display }}</td>
+                            <td class="py-2">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                    {% if wo.status == 'COMPLETED' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ wo.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="py-2 text-gray-500 dark:text-gray-400">{{ wo.created_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-4">No work orders yet</p>
+            {% endif %}
+            </div>
+        </div>
+
+        <!-- Event History (foldable) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <div class="p-6 pb-0 section-toggle" :class="{ collapsed: !eventsOpen }" @click="eventsOpen = !eventsOpen">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <i data-lucide="chevron-down" class="w-5 h-5 mr-2 text-gray-400 toggle-icon"></i>
+                    Event History
+                </h3>
+            </div>
+
+            <div class="p-6 pt-4" x-show="eventsOpen" x-collapse>
+            {% if events %}
+            <div class="relative">
+                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
+                <div class="space-y-4">
+                    {% for event in events %}
+                    <div class="relative flex items-start ml-8">
+                        <div class="absolute -left-6 w-3 h-3 rounded-full
+                            {% if event.event_type == 'CREATED' %}bg-green-500
+                            {% elif event.event_type == 'SHIPPED' %}bg-blue-500
+                            {% elif event.event_type == 'RECEIVED' %}bg-purple-500
+                            {% else %}bg-gray-400{% endif %}
+                            border-2 border-white dark:border-gray-800"></div>
+                        <div class="flex-1">
+                            <div class="flex justify-between">
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ event.get_event_type_display }}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ event.event_date|date:"M d, Y" }}</span>
+                            </div>
+                            {% if event.description %}
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ event.description }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-4">No events recorded</p>
+            {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="space-y-4" x-show="rightSidebarOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-4">
+        <!-- Status Card -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Current Status</h4>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 dark:text-gray-400">Status</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if drill_bit.status == 'ACTIVE' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ drill_bit.get_status_display }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 dark:text-gray-400">Lifecycle</span>
+                    <span class="text-gray-900 dark:text-white text-sm">{{ drill_bit.get_lifecycle_status_display|default:"--" }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600 dark:text-gray-400">Physical</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if drill_bit.physical_status == 'AT_RIG' %}bg-blue-100 text-blue-800
+                        {% elif drill_bit.physical_status == 'IN_SHOP' %}bg-purple-100 text-purple-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ drill_bit.get_physical_status_display|default:"--" }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Repair Stats -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Repair History</h4>
+            <div class="text-center py-4">
+                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ repairs|length }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Total Repairs</p>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Quick Actions</h4>
+            <div class="space-y-2">
+                <a href="{% url 'workorders:create' %}?drill_bit={{ drill_bit.pk }}&type=FC_REPAIR"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                    <i data-lucide="wrench" class="w-4 h-4 text-orange-500 mr-2"></i>Create Repair WO
+                </a>
+                <a href="{% url 'workorders:drillbit_qr' drill_bit.pk %}"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                    <i data-lucide="printer" class="w-4 h-4 text-gray-500 mr-2"></i>Print Label
+                </a>
+                {% if drill_bit.status != 'SCRAPPED' %}
+                <a href="{% url 'workorders:drillbit_scrap' drill_bit.pk %}"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 text-sm text-orange-600 dark:text-orange-400"
+                   onclick="return confirm('Are you sure you want to scrap this drill bit? This is a physical action and cannot be undone.')">
+                    <i data-lucide="recycle" class="w-4 h-4 mr-2"></i>Scrap
+                </a>
+                {% endif %}
+                <a href="{% url 'workorders:drillbit_delete' drill_bit.pk %}"
+                   class="flex items-center px-3 py-2 bg-white dark:bg-gray-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
+                   onclick="return confirm('Are you sure you want to delete this drill bit record? This will permanently remove it from the system.')">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete Record
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Read-only pocket grid (mirrors design_pockets.html pocketsLayout) ── */
+function pocketsReadonly() {
+    const configData = JSON.parse('{{ pocket_config_data_json|escapejs }}');
+    const gridData = JSON.parse('{{ pocket_grid_data_json|escapejs }}');
+    const rowSeparators = JSON.parse('{{ pocket_row_separators_json|escapejs }}');
+    const locationData = JSON.parse('{{ pocket_location_data_json|escapejs }}');
+    const engagementData = JSON.parse('{{ pocket_engagement_data_json|escapejs }}');
+
+    const locationZones = [
+        { code: 'C', name: 'Cone', color: '#ef4444' },
+        { code: 'N', name: 'Nose', color: '#f97316' },
+        { code: 'S', name: 'Shoulder', color: '#22c55e' },
+        { code: 'G', name: 'Gage', color: '#3b82f6' },
+        { code: 'P', name: 'Pad', color: '#a855f7' }
+    ];
+    const locationColors = { C: '#ef4444', N: '#f97316', S: '#22c55e', G: '#3b82f6', P: '#a855f7' };
+
+    return {
+        pocketTab: 'config',
+        configData, gridData, rowSeparators, locationData, engagementData, locationZones,
+
+        getColumnRowClass(col) {
+            let row = 1;
+            for (const sep of this.rowSeparators) { if (col > sep) row++; }
+            return row % 2 === 0 ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400';
+        },
+        getPositionInRow(col) {
+            let pos = col;
+            for (const sep of this.rowSeparators.slice().sort((a,b)=>a-b)) { if (col > sep) pos = col - sep; }
+            return pos;
+        },
+        getCellStyle(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.gridData[key];
+            if (!cfgId) return 'background: transparent;';
+            const cfg = this.configData[cfgId];
+            if (!cfg) return 'background: #6b7280;';
+            return 'background: ' + cfg.color + ';';
+        },
+        getCellNumber(blade, col) {
+            const key = blade + '_' + col;
+            const cfgId = this.gridData[key];
+            if (!cfgId) return '';
+            const cfg = this.configData[cfgId];
+            return cfg ? cfg.order : '';
+        },
+        getLocationCellStyle(blade, col) {
+            const key = blade + '_' + col;
+            const loc = this.locationData[key];
+            if (loc && locationColors[loc]) {
+                return 'background-color: ' + locationColors[loc] + '; border-color: ' + locationColors[loc] + ';';
+            }
+            const cfgId = this.gridData[key];
+            if (cfgId) {
+                const cfg = this.configData[cfgId];
+                return cfg ? 'border-color: ' + cfg.color + '20; background-color: ' + cfg.color + '10;' : '';
+            }
+            return 'border-color: #e5e7eb;';
+        },
+        getLocationCode(blade, col) {
+            return this.locationData[blade + '_' + col] || '';
+        },
+        getLocationTooltip(blade, col) {
+            const loc = this.locationData[blade + '_' + col];
+            const zone = this.locationZones.find(z => z.code === loc);
+            return zone ? 'B' + blade + 'P' + col + ' - ' + zone.name : 'B' + blade + 'P' + col;
+        },
+        getPocketSizeCode(blade, col) {
+            const cfgId = this.gridData[blade + '_' + col];
+            if (!cfgId) return '';
+            const cfg = this.configData[cfgId];
+            return cfg ? cfg.sizeCode : '';
+        },
+        getLocationCount(code) {
+            return Object.values(this.locationData).filter(v => v === code).length;
+        },
+        getEngagementCellStyle(blade, col) {
+            const cfgId = this.gridData[blade + '_' + col];
+            if (!cfgId) return 'background: #f9fafb; border-color: #e5e7eb; opacity: 0.3;';
+            const cfg = this.configData[cfgId];
+            const bgColor = cfg ? cfg.color + '20' : '#f3f4f6';
+            const borderColor = cfg ? cfg.color : '#e5e7eb';
+            return 'background: ' + bgColor + '; border-color: ' + borderColor + ';';
+        },
+        getEngagementTooltip(blade, col) {
+            const eng = this.engagementData[blade + '_' + col];
+            return eng ? 'B' + blade + 'P' + col + ' - Engagement #' + eng : 'B' + blade + 'P' + col;
+        },
+        getLocationZoneHeaderStyle(col) {
+            for (let b = 1; b <= 9; b++) {
+                const loc = this.locationData[b + '_' + col];
+                if (loc && locationColors[loc]) {
+                    return 'background-color: ' + locationColors[loc] + '30; color: ' + locationColors[loc] + ';';
+                }
+            }
+            return '';
+        },
+        getLocationZoneLabel(col) {
+            for (let b = 1; b <= 9; b++) {
+                const loc = this.locationData[b + '_' + col];
+                if (loc) return loc;
+            }
+            return '';
+        }
+    };
+}
+
+if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+</script>
+{% endblock %}

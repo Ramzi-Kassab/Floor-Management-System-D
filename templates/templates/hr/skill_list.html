@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Skills Matrix - ARDT FMS{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="flex mb-4" aria-label="Breadcrumb">
+    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+        <li class="inline-flex items-center">
+            <a href="{% url 'dashboard:index' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+                <i data-lucide="home" class="w-4 h-4"></i>
+            </a>
+        </li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li><a href="{% url 'hr:dashboard' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">HR</a></li>
+        <li><span class="mx-2 text-gray-400">/</span></li>
+        <li class="text-gray-700 dark:text-white font-medium">Skills Matrix</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Track employee skills and competencies</p>
+    </div>
+    <a href="{% url 'hr:skill-create' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-4 md:mt-0">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Skill
+    </a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+            <select name="category" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Categories</option>
+                {% for value, label in categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <select name="level" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                <option value="">All Levels</option>
+                {% for value, label in levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition">
+                <i data-lucide="search" class="w-4 h-4 inline mr-1"></i> Filter
+            </button>
+            <a href="{% url 'hr:skill-list' %}" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </a>
+        </div>
+    </form>
+</div>
+{% if skills %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50">
+                <th class="px-6 py-3 font-medium">Employee</th>
+                <th class="px-6 py-3 font-medium">Skill</th>
+                <th class="px-6 py-3 font-medium">Category</th>
+                <th class="px-6 py-3 font-medium">Level</th>
+                <th class="px-6 py-3 font-medium">Experience</th>
+                <th class="px-6 py-3 font-medium">Certified</th>
+                <th class="px-6 py-3 font-medium text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for skill in skills %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="px-6 py-4">
+                    <a href="{% url 'hr:employee-detail' skill.employee.pk %}" class="text-blue-600 hover:underline">{{ skill.employee.full_name }}</a>
+                </td>
+                <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ skill.skill_name }}</td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ skill.get_skill_category_display }}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 rounded text-xs font-medium
+                        {% if skill.proficiency_level == 'EXPERT' %}bg-purple-100 text-purple-800
+                        {% elif skill.proficiency_level == 'ADVANCED' %}bg-blue-100 text-blue-800
+                        {% elif skill.proficiency_level == 'INTERMEDIATE' %}bg-green-100 text-green-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ skill.get_proficiency_level_display }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ skill.years_of_experience }} yrs</td>
+                <td class="px-6 py-4">
+                    {% if skill.certified %}
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600"></i>
+                    {% else %}
+                    <i data-lucide="x-circle" class="w-5 h-5 text-gray-400"></i>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 text-right">
+                    <a href="{% url 'hr:skill-update' skill.pk %}" class="text-gray-400 hover:text-yellow-600"><i data-lucide="edit" class="w-4 h-4 inline"></i></a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-16 text-center">
+    <i data-lucide="award" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No skills recorded</h3>
+</div>
+{% endif %}
+{% endblock %}

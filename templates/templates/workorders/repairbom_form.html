@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Edit{% else %}New{% endif %} Repair BOM - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if object %}Edit Repair BOM{% else %}New Repair BOM{% endif %}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Define materials and parts required for drill bit repair</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.drill_bit.label }}</label>
+                    {{ form.drill_bit }}
+                    {% if form.drill_bit.errors %}<p class="mt-1 text-sm text-red-600">{{ form.drill_bit.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.repair_evaluation.label }}</label>
+                    {{ form.repair_evaluation }}
+                    {% if form.repair_evaluation.errors %}<p class="mt-1 text-sm text-red-600">{{ form.repair_evaluation.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}<p class="mt-1 text-sm text-red-600">{{ form.status.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.prepared_date.label }}</label>
+                    {{ form.prepared_date }}
+                    {% if form.prepared_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.prepared_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.prepared_by.label }}</label>
+                    {{ form.prepared_by }}
+                    {% if form.prepared_by.errors %}<p class="mt-1 text-sm text-red-600">{{ form.prepared_by.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.total_cost.label }}</label>
+                    {{ form.total_cost }}
+                    {% if form.total_cost.errors %}<p class="mt-1 text-sm text-red-600">{{ form.total_cost.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}<p class="mt-1 text-sm text-red-600">{{ form.notes.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'workorders:repairbom_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">{% if object %}Update{% else %}Create{% endif %} BOM</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -171,6 +171,11 @@ def start_work_view(request, pk):
                 entity_type="WorkOrder",
                 entity_id=work_order.pk,
             )
+            from apps.notifications.dispatch import fire_event
+            fire_event('WO_STARTED', request.user, {
+                'wo_id': work_order.pk, 'wo_number': work_order.wo_number,
+                'entity_type': 'WorkOrder', 'entity_id': work_order.pk,
+            })
         else:
             messages.error(request, f"Cannot start work order with status {work_order.get_status_display()}.")
 

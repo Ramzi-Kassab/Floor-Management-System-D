@@ -278,6 +278,12 @@ def _auto_process_single_item(item, user, batch):
                 )
             except Exception:
                 pass
+            from apps.notifications.dispatch import fire_event
+            fire_event('CEREBRO_DETECTED', user, {
+                'serial': bit.serial_number, 'bit_id': bit.pk,
+                'entity_type': 'DrillBit', 'entity_id': bit.pk,
+                'actor_name': user.get_full_name() or user.username,
+            })
 
         # Status/condition based on level:
         #   L5          → RECEIVING + FINISHED_GOOD

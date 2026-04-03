@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'drss:drss_list' %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Request Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Request Details</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="id_drss_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300">DRSS Number <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.drss_number }}</div>
+                        {% if form.drss_number.errors %}<p class="mt-1 text-sm text-red-600">{{ form.drss_number.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_external_reference" class="block text-sm font-medium text-gray-700 dark:text-gray-300">External Reference</label>
+                        <div class="mt-1">{{ form.external_reference }}</div>
+                    </div>
+                    <div>
+                        <label for="id_priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Priority <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.priority }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer & Location -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Customer & Location</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="id_customer" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.customer }}</div>
+                        {% if form.customer.errors %}<p class="mt-1 text-sm text-red-600">{{ form.customer.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_rig" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rig</label>
+                        <div class="mt-1">{{ form.rig }}</div>
+                    </div>
+                    <div>
+                        <label for="id_well" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Well</label>
+                        <div class="mt-1">{{ form.well }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dates -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Dates</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="id_requested_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Requested Date <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.requested_date }}</div>
+                        {% if form.requested_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.requested_date.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_required_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Required Date <span class="text-red-500">*</span></label>
+                        <div class="mt-1">{{ form.required_date }}</div>
+                        {% if form.required_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.required_date.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                        <div class="mt-1">{{ form.status }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notes</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_customer_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer Notes</label>
+                        <div class="mt-1">{{ form.customer_notes }}</div>
+                    </div>
+                    <div>
+                        <label for="id_internal_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Internal Notes</label>
+                        <div class="mt-1">{{ form.internal_notes }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Request Lines -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Request Lines</h3>
+                <button type="button" id="add-line-btn" class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>Add Line
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                {{ lines_formset.management_form }}
+
+                <div id="lines-container" class="space-y-4">
+                    {% for line_form in lines_formset %}
+                    <div class="line-form border border-gray-200 dark:border-gray-700 rounded-lg p-4 {% if line_form.instance.pk %}{% else %}{% endif %}">
+                        {% if line_form.instance.pk %}
+                        {{ line_form.id }}
+                        {% endif %}
+                        {{ line_form.DELETE }}
+
+                        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Line #</label>
+                                {{ line_form.line_number }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bit Type</label>
+                                {{ line_form.bit_type }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size (in)</label>
+                                {{ line_form.bit_size }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design Code</label>
+                                {{ line_form.design_code }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Quantity</label>
+                                {{ line_form.quantity }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                                {{ line_form.status }}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">IADC Code</label>
+                                {{ line_form.iadc_code }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Formation</label>
+                                {{ line_form.formation }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Depth From (ft)</label>
+                                {{ line_form.depth_from }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Depth To (ft)</label>
+                                {{ line_form.depth_to }}
+                            </div>
+                            <div class="flex items-end">
+                                <button type="button" class="remove-line-btn w-full px-3 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-600 bg-white hover:bg-red-50 dark:bg-gray-700 dark:hover:bg-red-900/20">
+                                    <i data-lucide="trash-2" class="w-4 h-4 inline"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        {% if line_form.errors %}
+                        <div class="mt-2 text-sm text-red-600">
+                            {% for field, errors in line_form.errors.items %}
+                            <p>{{ field }}: {{ errors.0 }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Empty form template for JS -->
+                <template id="line-form-template">
+                    <div class="line-form border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Line #</label>
+                                <input type="number" name="lines-__prefix__-line_number" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" min="1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bit Type</label>
+                                <input type="text" name="lines-__prefix__-bit_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="FC / RC">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Size (in)</label>
+                                <input type="number" name="lines-__prefix__-bit_size" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" step="0.001" placeholder="Size (inches)">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Design Code</label>
+                                <input type="text" name="lines-__prefix__-design_code" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Design code">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Quantity</label>
+                                <input type="number" name="lines-__prefix__-quantity" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" min="1" value="1">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
+                                <select name="lines-__prefix__-status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="PENDING">Pending</option>
+                                    <option value="EVALUATING">Evaluating</option>
+                                    <option value="CONFIRMED">Confirmed</option>
+                                    <option value="FULFILLED">Fulfilled</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">IADC Code</label>
+                                <input type="text" name="lines-__prefix__-iadc_code" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="IADC code">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Formation</label>
+                                <input type="text" name="lines-__prefix__-formation" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Formation type">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Depth From (ft)</label>
+                                <input type="number" name="lines-__prefix__-depth_from" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="From (ft)">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Depth To (ft)</label>
+                                <input type="number" name="lines-__prefix__-depth_to" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ardt-blue focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="To (ft)">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="button" class="remove-line-btn w-full px-3 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-600 bg-white hover:bg-red-50 dark:bg-gray-700 dark:hover:bg-red-900/20">
+                                    <i data-lucide="trash-2" class="w-4 h-4 inline"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Form errors -->
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="flex">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 mr-2"></i>
+                <div class="text-sm text-red-700">
+                    {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'drss:drss_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                {{ submit_text|default:"Save" }}
+            </button>
+        </div>
+    </form>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('lines-container');
+    const addBtn = document.getElementById('add-line-btn');
+    const template = document.getElementById('line-form-template');
+    const totalForms = document.querySelector('input[name="lines-TOTAL_FORMS"]');
+
+    // Add new line
+    addBtn.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        const newForm = template.content.cloneNode(true);
+
+        // Update form indices
+        newForm.querySelectorAll('[name*="__prefix__"]').forEach(function(el) {
+            el.name = el.name.replace('__prefix__', formCount);
+            if (el.id) {
+                el.id = el.id.replace('__prefix__', formCount);
+            }
+        });
+
+        container.appendChild(newForm);
+        totalForms.value = formCount + 1;
+
+        // Re-initialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+        // Add remove listener
+        attachRemoveListeners();
+    });
+
+    // Remove line handler
+    function attachRemoveListeners() {
+        document.querySelectorAll('.remove-line-btn').forEach(function(btn) {
+            btn.onclick = function() {
+                const lineForm = this.closest('.line-form');
+                const deleteInput = lineForm.querySelector('input[name$="-DELETE"]');
+
+                if (deleteInput) {
+                    // Existing form - mark for deletion
+                    deleteInput.checked = true;
+                    lineForm.style.display = 'none';
+                } else {
+                    // New form - just remove
+                    lineForm.remove();
+                    // Update total forms count
+                    totalForms.value = container.querySelectorAll('.line-form:not([style*="display: none"])').length +
+                                       container.querySelectorAll('.line-form[style*="display: none"]').length;
+                }
+            };
+        });
+    }
+
+    attachRemoveListeners();
+});
+</script>
+{% endblock %}
+{% endblock %}

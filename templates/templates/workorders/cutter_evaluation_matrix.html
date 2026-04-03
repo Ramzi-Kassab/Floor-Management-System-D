@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Evaluation grid cells */
+    .eval-cell {
+        width: 28px;
+        min-width: 28px;
+        height: 28px;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        text-transform: uppercase;
+        border: 1px solid #d1d5db;
+        background: white;
+        padding: 0;
+        outline: none;
+        transition: background 0.1s;
+    }
+    .dark .eval-cell {
+        border-color: #4b5563;
+        background: #374151;
+        color: #f9fafb;
+    }
+    .eval-cell:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 1px #3b82f6;
+        z-index: 1;
+        position: relative;
+    }
+    /* Action colors */
+    .eval-cell[data-val="O"] { background: #dcfce7; color: #166534; }
+    .eval-cell[data-val="X"] { background: #fee2e2; color: #991b1b; }
+    .eval-cell[data-val="R"] { background: #fef3c7; color: #92400e; }
+    .eval-cell[data-val="S"] { background: #dbeafe; color: #1e40af; }
+    .eval-cell[data-val="F"] { background: #e0e7ff; color: #3730a3; }
+    .eval-cell[data-val="L"] { background: #f3f4f6; color: #6b7280; }
+    .eval-cell[data-val="P"] { background: #fce7f3; color: #9d174d; }
+    .eval-cell[data-val="I"] { background: #f0fdf4; color: #15803d; }
+    .eval-cell[data-val="V"] { background: #faf5ff; color: #7e22ce; }
+    .dark .eval-cell[data-val="O"] { background: #166534; color: #dcfce7; }
+    .dark .eval-cell[data-val="X"] { background: #991b1b; color: #fee2e2; }
+    .dark .eval-cell[data-val="R"] { background: #92400e; color: #fef3c7; }
+    .dark .eval-cell[data-val="S"] { background: #1e40af; color: #dbeafe; }
+    .dark .eval-cell[data-val="F"] { background: #3730a3; color: #e0e7ff; }
+    .dark .eval-cell[data-val="L"] { background: #4b5563; color: #9ca3af; }
+    .dark .eval-cell[data-val="P"] { background: #9d174d; color: #fce7f3; }
+    .dark .eval-cell[data-val="I"] { background: #15803d; color: #f0fdf4; }
+    .dark .eval-cell[data-val="V"] { background: #7e22ce; color: #faf5ff; }
+
+    /* Blade label */
+    .blade-label {
+        width: 24px;
+        min-width: 24px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b7280;
+        padding: 2px 0;
+    }
+
+    /* Cutter position header */
+    .pos-header {
+        width: 28px;
+        min-width: 28px;
+        font-size: 9px;
+        text-align: center;
+        color: #9ca3af;
+        padding-bottom: 2px;
+    }
+
+    /* Print styles */
+    @media print {
+        .no-print { display: none !important; }
+        .eval-cell { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-size: 10px; }
+    }
+
+    /* Landscape toggle */
+    .eval-landscape .eval-cell { width: 24px; min-width: 24px; height: 24px; font-size: 10px; }
+    .eval-landscape .pos-header { width: 24px; min-width: 24px; font-size: 8px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 no-print">
+    <div>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Internal Evaluation Sheet</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Form: QAS/1001-1 &mdash; {{ work_order.wo_number }}</p>
+    </div>
+    <div class="mt-2 md:mt-0 flex flex-wrap gap-2">
+        <button type="button" id="toggleLayoutBtn" onclick="toggleLayout()"
+                class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
+            <i data-lucide="maximize-2" class="w-4 h-4 mr-1"></i>
+            <span id="layoutLabel">Landscape</span>
+        </button>
+        <button onclick="window.print()"
+                class="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 text-sm">
+            <i data-lucide="printer" class="w-4 h-4 mr-1"></i>Print
+        </button>
+        <button type="button" onclick="saveAll()"
+                class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <i data-lucide="save" class="w-4 h-4 mr-1"></i>Save
+        </button>
+        <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
+           class="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Job Card
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div id="evalContainer">
+    <!-- Company Header -->
+    <div class="text-center mb-3">
+        <p class="text-base font-bold text-gray-900 dark:text-white">ARABIAN ROCKBITS & DRILLING TOOLS CO. LTD</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Quality Form &mdash; Internal Evaluation Sheet</p>
+        <p class="text-xs text-gray-400">Date: {{ "now"|date:"m/d/Y" }} Rev: D &nbsp;&nbsp; Form: QAS/1001-1 &nbsp;&nbsp; Page 1 of 1</p>
+    </div>
+
+    <!-- Header Fields -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Work Order No:</span>
+                <span class="font-semibold text-gray-900 dark:text-white font-mono">{{ work_order.wo_number }}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-20 flex-shrink-0">Serial No:</span>
+                <span class="font-semibold text-gray-900 dark:text-white font-mono">{{ work_order.drill_bit.serial_number|default:"—" }}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">FI Report No:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">—</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-28 flex-shrink-0">Date Received:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ work_order.bit_received_date|date:"m/d/Y"|default:"—" }}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Size:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{% if work_order.drill_bit and work_order.drill_bit.bit_size_ref %}{{ work_order.drill_bit.bit_size_ref }}{% elif work_order.design and work_order.design.size %}{{ work_order.design.size }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-20 flex-shrink-0">Material No:</span>
+                <span class="font-semibold text-gray-900 dark:text-white font-mono">{{ work_order.design.mat_no|default:"—" }}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Type:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{% if work_order.design and work_order.design.hdbs_type %}{{ work_order.design.hdbs_type }}{% elif work_order.drill_bit %}{{ work_order.drill_bit.get_bit_type_display }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-20 flex-shrink-0">From:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{{ work_order.from_location_text|default:"—" }}</span>
+            </div>
+            <div class="flex">
+                <span class="text-gray-500 dark:text-gray-400 w-24 flex-shrink-0">Contract No:</span>
+                <span class="font-semibold text-gray-900 dark:text-white">{% if work_order.contract_no %}{{ work_order.contract_no }}{% elif work_order.account %}{{ work_order.account.contract_number|default:"—" }}{% else %}—{% endif %}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 mb-3 text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+        <strong>Instructions:</strong> Clearly mark the #1 blade with permanent marker or pen. Begin with the inner most cutter on the blade, mark each cutter with <strong>X</strong> if needs to be replaced, <strong>R</strong> if needs to be rotated, and <strong>O</strong> if okay. Then go for the next blade in a clockwise direction and do the same. Also: <strong>P</strong> if pocket needs build up, <strong>I</strong> if Impact Arrestor needs build up, <strong>V</strong> surrounding the fin needs build up, <strong>F</strong> fill, <strong>S</strong> spin, <strong>L</strong> lost. After checking and marking cutters through all the blades, transfer marks to the table below.
+    </div>
+
+    <!-- Evaluation Grid -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3 overflow-x-auto">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Cutter's number from ID to Gauge area &rarr;</p>
+
+        <div class="inline-block">
+            <!-- Position headers -->
+            <div class="flex items-end mb-0.5">
+                <div class="blade-label">&nbsp;</div>
+                <div class="blade-label">&nbsp;</div>
+                {% for pos in cutter_positions %}
+                <div class="pos-header">{{ pos }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Blade rows -->
+            {% for row in rows %}
+            <div class="flex items-center" style="height: 30px;">
+                {% if forloop.first %}<div class="blade-label text-[9px] text-gray-400" style="writing-mode: vertical-rl; transform: rotate(180deg); height: {{ total_grid_height }}px; position: absolute; left: 0;">Blade's number</div>{% endif %}
+                <div class="blade-label">{{ row.blade }}</div>
+                {% for cutter in row.cutters %}
+                <input type="text"
+                       class="eval-cell"
+                       maxlength="1"
+                       data-blade="{{ row.blade }}"
+                       data-pos="{{ cutter.position }}"
+                       data-val="{{ cutter.action|default:'' }}"
+                       value="{{ cutter.action|default:'' }}"
+                       onfocus="this.select()"
+                       oninput="handleCellInput(this)"
+                       onkeydown="handleCellKeydown(event, this)">
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Summary Row: Signatures & Decision -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Evaluator (Sign)</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">QC (Sign)</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6 text-xs text-gray-700 dark:text-gray-300">{{ "now"|date:"m/d/Y" }}</div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Decision</label>
+                <select id="decisionSelect" class="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white">
+                    <option value="">— None —</option>
+                    <option value="REPAIR" {% if matrix.decision == 'REPAIR' %}selected{% endif %}>For Repair</option>
+                    <option value="RERUN" {% if matrix.decision == 'RERUN' %}selected{% endif %}>For Rerun</option>
+                    <option value="SCRAP" {% if matrix.decision == 'SCRAP' %}selected{% endif %}>For Scrap</option>
+                    <option value="DEBRAZE" {% if matrix.decision == 'DEBRAZE' %}selected{% endif %}>De-braze</option>
+                    <option value="CUTTER_RETROFIT" {% if matrix.decision == 'CUTTER_RETROFIT' %}selected{% endif %}>Cutter Retrofit</option>
+                    <option value="NEW_BUILD" {% if matrix.decision == 'NEW_BUILD' %}selected{% endif %}>New Build</option>
+                    <option value="BODY_RETROFIT" {% if matrix.decision == 'BODY_RETROFIT' %}selected{% endif %}>Body Retrofit</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Legend & Totals -->
+        <div class="flex flex-wrap gap-3 items-center text-xs border-t border-gray-100 dark:border-gray-700 pt-2">
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="R" style="width:20px;height:20px;font-size:10px">R</span> Rotate</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="S" style="width:20px;height:20px;font-size:10px">S</span> Spin</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="O" style="width:20px;height:20px;font-size:10px">O</span> Ok</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="F" style="width:20px;height:20px;font-size:10px">F</span> Fill</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="X" style="width:20px;height:20px;font-size:10px">X</span> Replace</span>
+            <span class="inline-flex items-center gap-1"><span class="w-5 h-5 rounded flex items-center justify-center font-bold eval-cell" data-val="L" style="width:20px;height:20px;font-size:10px">L</span> Lost</span>
+            <span class="ml-auto font-semibold text-gray-700 dark:text-gray-300">Total: <span id="totalCount" class="text-blue-600 dark:text-blue-400">0</span> <span id="actionBreakdown" class="text-gray-400 font-normal ml-2"></span></span>
+        </div>
+    </div>
+
+    <!-- Remarks -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Remarks:</label>
+        <textarea id="remarks" rows="2" class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 dark:text-white">{{ matrix.general_remark|default:"" }}</textarea>
+    </div>
+
+    <!-- Reviewed/Approved -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{% if work_order.account %}{{ work_order.account.reviewer_label|default:"Reviewed by Eng." }}{% else %}Reviewed by Eng.{% endif %} Sign & Date:</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Final Inspector Sign & Date:</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cutters Details Table (For Plant Use Only) -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3">
+        <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">For Plant Use Only: Cutters Details</h3>
+        <table class="w-full text-xs border-collapse">
+            <thead>
+                <tr class="bg-gray-50 dark:bg-gray-700">
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-8">#</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-16">Quantity</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1 w-24">Cutter Size-mm</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1">Cutters Part No.</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1">Description</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-2 py-1">Remarks</th>
+                </tr>
+            </thead>
+            <tbody id="cutterDetailsBody">
+                {% for i in "1234567890" %}
+                {% if forloop.counter <= 10 %}
+                <tr>
+                    <td class="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">{{ forloop.counter }}</td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_qty_{{ forloop.counter }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs text-center py-1 focus:ring-0" name="cd_size_{{ forloop.counter }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_partno_{{ forloop.counter }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_desc_{{ forloop.counter }}"></td>
+                    <td class="border border-gray-300 dark:border-gray-600 px-1 py-0"><input type="text" class="w-full border-0 bg-transparent text-xs py-1 focus:ring-0" name="cd_remarks_{{ forloop.counter }}"></td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Evaluation Requested By -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Evaluation Requested by:</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Approval for Evaluation (Sign & Date):</label>
+                <div class="border-b border-gray-300 dark:border-gray-600 h-6"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const VALID_ACTIONS = new Set(['X', 'R', 'O', 'S', 'F', 'L', 'P', 'I', 'V']);
+const matrixId = {{ matrix.pk }};
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+function handleCellInput(el) {
+    let val = el.value.toUpperCase().trim();
+    if (val && !VALID_ACTIONS.has(val)) {
+        el.value = '';
+        el.setAttribute('data-val', '');
+        return;
+    }
+    el.value = val;
+    el.setAttribute('data-val', val);
+    updateTotals();
+}
+
+function handleCellKeydown(e, el) {
+    const key = e.key;
+    // Arrow key navigation
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Tab', 'Enter'].includes(key)) {
+        e.preventDefault();
+        const blade = parseInt(el.dataset.blade);
+        const pos = parseInt(el.dataset.pos);
+        let nextBlade = blade, nextPos = pos;
+
+        if (key === 'ArrowRight' || key === 'Tab') nextPos++;
+        else if (key === 'ArrowLeft') nextPos--;
+        else if (key === 'ArrowDown' || key === 'Enter') nextBlade++;
+        else if (key === 'ArrowUp') nextBlade--;
+
+        const next = document.querySelector(`input[data-blade="${nextBlade}"][data-pos="${nextPos}"]`);
+        if (next) next.focus();
+    }
+    // Delete/Backspace clears
+    if (key === 'Delete' || key === 'Backspace') {
+        el.value = '';
+        el.setAttribute('data-val', '');
+        updateTotals();
+    }
+}
+
+function updateTotals() {
+    let total = 0;
+    const counts = {};
+    VALID_ACTIONS.forEach(a => counts[a] = 0);
+    document.querySelectorAll('.eval-cell').forEach(cell => {
+        const v = cell.value.trim().toUpperCase();
+        if (v) { total++; counts[v] = (counts[v] || 0) + 1; }
+    });
+    const totalEl = document.getElementById('totalCount');
+    if (totalEl) totalEl.textContent = total;
+    // Update per-action counts
+    const breakdown = [];
+    ['X', 'R', 'O', 'S', 'L', 'F', 'P', 'I', 'V'].forEach(a => {
+        if (counts[a]) breakdown.push(a + ':' + counts[a]);
+    });
+    const bdEl = document.getElementById('actionBreakdown');
+    if (bdEl) bdEl.textContent = breakdown.join(' | ');
+}
+
+function toggleLayout() {
+    const container = document.getElementById('evalContainer');
+    const label = document.getElementById('layoutLabel');
+    container.classList.toggle('eval-landscape');
+    if (container.classList.contains('eval-landscape')) {
+        label.textContent = 'Portrait';
+    } else {
+        label.textContent = 'Landscape';
+    }
+}
+
+async function saveAll() {
+    const entries = [];
+    document.querySelectorAll('.eval-cell').forEach(cell => {
+        const val = cell.value.trim().toUpperCase();
+        if (val) {
+            entries.push({
+                blade: parseInt(cell.dataset.blade),
+                position: parseInt(cell.dataset.pos),
+                action: val
+            });
+        }
+    });
+
+    const remarks = document.getElementById('remarks')?.value || '';
+    const decision = document.getElementById('decisionSelect')?.value || '';
+
+    // Collect cutters details table
+    const cutters_details = [];
+    for (let i = 1; i <= 10; i++) {
+        const qty = document.querySelector(`[name="cd_qty_${i}"]`)?.value || '';
+        const size_mm = document.querySelector(`[name="cd_size_${i}"]`)?.value || '';
+        const part_no = document.querySelector(`[name="cd_partno_${i}"]`)?.value || '';
+        const desc = document.querySelector(`[name="cd_desc_${i}"]`)?.value || '';
+        const rem = document.querySelector(`[name="cd_remarks_${i}"]`)?.value || '';
+        if (qty || size_mm || part_no || desc || rem) {
+            cutters_details.push({ row: i, qty, size_mm, part_no, description: desc, remarks: rem });
+        }
+    }
+
+    const body = JSON.stringify({ entries, remarks, decision, cutters_details });
+
+    try {
+        const resp = await fetch(window.location.href, {
+            method: 'POST',
+            body: body,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+        if (resp.ok) {
+            // Flash success
+            const btn = document.querySelector('[onclick="saveAll()"]');
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 mr-1"></i>Saved!';
+            btn.classList.replace('bg-blue-600', 'bg-green-600');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = orig;
+                btn.classList.replace('bg-green-600', 'bg-blue-600');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, 2000);
+        } else {
+            alert('Save failed. Please try again.');
+        }
+    } catch (err) {
+        console.error('Save error:', err);
+        alert('Save failed. Please try again.');
+    }
+}
+
+// Pre-populate cutters details from saved data or BOM
+const savedDetails = {{ saved_cutters_details|safe }};
+const bomLines = {{ bom_lines_json|safe }};
+
+// Cutter state history from prior evaluations (keyed by "blade,position")
+const cutterState = {{ cutter_state_json|safe }};
+
+function populateCutterDetails(data) {
+    data.forEach((item, idx) => {
+        const row = item.row || (idx + 1);
+        const qtyEl = document.querySelector(`[name="cd_qty_${row}"]`);
+        const sizeEl = document.querySelector(`[name="cd_size_${row}"]`);
+        const partEl = document.querySelector(`[name="cd_partno_${row}"]`);
+        const descEl = document.querySelector(`[name="cd_desc_${row}"]`);
+        const remEl = document.querySelector(`[name="cd_remarks_${row}"]`);
+        if (qtyEl) qtyEl.value = item.qty || '';
+        if (sizeEl) sizeEl.value = item.size_mm || '';
+        if (partEl) partEl.value = item.part_no || '';
+        if (descEl) descEl.value = item.description || '';
+        if (remEl) remEl.value = item.remarks || '';
+    });
+}
+
+function applyCutterStateTooltips() {
+    document.querySelectorAll('.eval-cell').forEach(cell => {
+        const key = cell.dataset.blade + ',' + cell.dataset.pos;
+        const state = cutterState[key];
+        if (state && state.history && state.history.length > 0) {
+            const tips = state.history.map(h => h.eval_type + ': ' + h.action);
+            cell.title = 'Prior: ' + tips.join(' → ');
+            cell.style.borderBottomWidth = '2px';
+            cell.style.borderBottomColor = '#f59e0b';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateTotals();
+    if (savedDetails && savedDetails.length > 0) {
+        populateCutterDetails(savedDetails);
+    } else if (bomLines && bomLines.length > 0) {
+        populateCutterDetails(bomLines);
+    }
+    applyCutterStateTooltips();
+});
+</script>
+{% endblock %}

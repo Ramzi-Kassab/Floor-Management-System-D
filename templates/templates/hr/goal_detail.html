@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ goal.title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hr:goal-list' %}" class="hover:text-blue-600">Goals</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ goal.goal_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ goal.title }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hr:goal-update' goal.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Goal Details</h2>
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if goal.status == 'COMPLETED' %}bg-green-100 text-green-800
+                    {% elif goal.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                    {% elif goal.is_overdue %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ goal.get_status_display }}
+                </span>
+            </div>
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm text-gray-500">Progress</span>
+                    <span class="text-lg font-bold text-blue-600">{{ goal.progress_percentage }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div class="bg-blue-600 h-3 rounded-full transition-all" style="width: {{ goal.progress_percentage }}%"></div>
+                </div>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Employee</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        <a href="{% url 'hr:employee-detail' goal.employee.pk %}" class="text-blue-600 hover:underline">{{ goal.employee.full_name }}</a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Assigned By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ goal.assigned_by.get_full_name|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Goal Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ goal.get_goal_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Category</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ goal.get_category_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Start Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ goal.start_date|date:"M d, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Target Date</dt>
+                    <dd class="{% if goal.is_overdue %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ goal.target_date|date:"M d, Y" }}
+                        {% if goal.is_overdue %}<span class="text-xs">(Overdue)</span>{% endif %}
+                    </dd>
+                </div>
+            </dl>
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Description</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ goal.description }}</p>
+            </div>
+            {% if goal.measurement_criteria %}
+            <div class="mt-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Success Criteria</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ goal.measurement_criteria }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'hr:goal-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

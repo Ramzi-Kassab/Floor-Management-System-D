@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ rig.name }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ rig.code }}</span>
+                {% if rig.is_active %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:rig_list' %}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                Back to List
+            </a>
+            <a href="{% url 'sales:rig_update' rig.pk %}"
+               class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
+                Edit Rig
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Rig Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Rig Information</h3>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Customer</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {% if rig.customer %}
+                            <a href="{% url 'sales:customer_detail' rig.customer.pk %}" class="hover:text-ardt-blue">{{ rig.customer.name }}</a>
+                            {% else %}-{% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Contractor</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {% if rig.contractor %}
+                            <a href="{% url 'sales:customer_detail' rig.contractor.pk %}" class="hover:text-ardt-blue">{{ rig.contractor.name }}</a>
+                            {% else %}-{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Rig Type</p>
+                    <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ rig.rig_type|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Location</p>
+                    <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ rig.location|default:"-" }}</p>
+                </div>
+                {% if rig.latitude and rig.longitude %}
+                <div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Coordinates</p>
+                    <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ rig.latitude }}, {{ rig.longitude }}
+                        <a href="https://maps.google.com/?q={{ rig.latitude }},{{ rig.longitude }}" target="_blank" class="ml-2 text-ardt-blue hover:underline">
+                            <i data-lucide="map-pin" class="w-4 h-4 inline"></i> View on Map
+                        </a>
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Statistics</h3>
+            </div>
+            <div class="px-6 py-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p class="text-3xl font-bold text-ardt-blue">{{ stats.total_wells }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Total Wells</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p class="text-3xl font-bold text-green-600">{{ stats.active_wells }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Active Wells</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wells Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Wells at this Rig</h3>
+            <a href="{% url 'sales:well_create' %}?rig={{ rig.pk }}"
+               class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                Add Well
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Well</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target Depth</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for well in wells %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <a href="{% url 'sales:well_detail' well.pk %}" class="text-sm font-medium text-gray-900 hover:text-ardt-blue">
+                                {{ well.code }} - {{ well.name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ well.field_name|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if well.target_depth %}{{ well.target_depth|floatformat:0 }} ft{% else %}-{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if well.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-8 text-center text-gray-500">No wells found for this rig.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

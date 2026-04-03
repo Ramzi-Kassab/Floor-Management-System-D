@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1e40af">
+    <title>{{ item.code }} - ARDT FMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        /* Mobile-first app-like styling */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+        }
+        .safe-area-top { padding-top: env(safe-area-inset-top); }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+        /* Action button press effect */
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Bottom sheet styles */
+        .bottom-sheet {
+            transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .bottom-sheet.closed {
+            transform: translateY(100%);
+        }
+
+        /* Number input styling */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* Toast notification */
+        .toast {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen safe-area-top" x-data="pocketApp()">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white sticky top-0 z-40 safe-area-top">
+        <div class="flex items-center justify-between px-4 py-3">
+            <button onclick="history.back()" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </button>
+            <div class="flex-1 text-center">
+                <h1 class="font-bold text-lg">{{ item.code }}</h1>
+            </div>
+            <button @click="showMenu = !showMenu" class="p-2 -mr-2 rounded-full hover:bg-white/10 active:bg-white/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Menu Dropdown -->
+        <div x-show="showMenu" x-transition @click.away="showMenu = false"
+             class="absolute right-2 top-14 bg-white rounded-xl shadow-xl py-2 w-48 z-50">
+            <a href="{% url 'inventory:item_detail' item.pk %}" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-50">
+                <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                Full Details
+            </a>
+            <form method="post" action="{% url 'inventory:pocket_logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="flex items-center w-full px-4 py-3 text-red-600 hover:bg-red-50">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                    Logout
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="pb-32">
+        <!-- Item Card -->
+        <div class="bg-white mx-4 mt-4 rounded-2xl shadow-sm overflow-hidden">
+            <!-- Photo Section -->
+            {% if item.image %}
+            <div class="aspect-video bg-gray-100 relative">
+                <img src="{{ item.image.url }}" alt="{{ item.name }}" class="w-full h-full object-cover">
+            </div>
+            {% else %}
+            <div class="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center">
+                <svg class="w-20 h-20 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+            </div>
+            {% endif %}
+
+            <!-- Item Info -->
+            <div class="p-5">
+                <h2 class="text-xl font-bold text-gray-900 mb-1">{{ item.name }}</h2>
+                <p class="text-gray-500 text-sm mb-4">{{ item.category.name|default:"Uncategorized" }}</p>
+
+                <!-- Stock Display -->
+                <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4 mb-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Current Stock</p>
+                        <p class="text-3xl font-bold text-gray-900" x-text="currentStock">{{ total_stock }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Unit</p>
+                        <p class="text-lg font-medium text-gray-700">{{ item.unit }}</p>
+                    </div>
+                </div>
+
+                <!-- QR Code -->
+                <div class="flex items-center justify-center bg-white border-2 border-dashed border-gray-200 rounded-xl p-4">
+                    <img src="{{ qr_code }}" alt="QR Code" class="w-24 h-24">
+                </div>
+
+                {% if pending_grn_count %}
+                <!-- Pending GRN Notice -->
+                <div class="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        <p class="text-sm text-blue-800">
+                            <span class="font-semibold">{{ pending_grn_count }}</span> pending GRN{{ pending_grn_count|pluralize }} awaiting receipt
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Stock Locations -->
+        {% if stock_records %}
+        <div class="bg-white mx-4 mt-4 rounded-2xl shadow-sm p-5">
+            <h3 class="font-semibold text-gray-900 mb-3">Stock by Location</h3>
+            <div class="space-y-2">
+                {% for stock in stock_records %}
+                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div>
+                        <p class="font-medium text-gray-900">{{ stock.location.code }}</p>
+                        <p class="text-sm text-gray-500">{{ stock.location.warehouse.name }}</p>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900">{{ stock.quantity }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- User Info -->
+        <div class="mx-4 mt-4 text-center text-sm text-gray-500">
+            <p>Logged in as <span class="font-medium text-gray-700">{{ current_user.username }}</span></p>
+        </div>
+    </main>
+
+    <!-- Fixed Action Bar -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 safe-area-bottom z-30">
+        <div class="grid grid-cols-4 gap-2">
+            <!-- Consume -->
+            <button @click="openAction('consume')"
+                    class="action-btn flex flex-col items-center justify-center py-3 px-2 rounded-xl bg-red-50 text-red-600 active:bg-red-100 transition-all">
+                <svg class="w-7 h-7 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                </svg>
+                <span class="text-xs font-medium">Consume</span>
+            </button>
+
+            <!-- Receive Stock -->
+            <button @click="openAction('add')"
+                    class="action-btn flex flex-col items-center justify-center py-3 px-2 rounded-xl bg-green-50 text-green-600 active:bg-green-100 transition-all relative">
+                <svg class="w-7 h-7 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                <span class="text-xs font-medium">Receive</span>
+                {% if pending_grn_count %}
+                <span class="absolute -top-1 -right-1 bg-blue-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{{ pending_grn_count }}</span>
+                {% endif %}
+            </button>
+
+            <!-- Review -->
+            <button @click="openAction('review')"
+                    class="action-btn flex flex-col items-center justify-center py-3 px-2 rounded-xl bg-blue-50 text-blue-600 active:bg-blue-100 transition-all">
+                <svg class="w-7 h-7 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                </svg>
+                <span class="text-xs font-medium">Review</span>
+            </button>
+
+            <!-- Conserve -->
+            <button @click="openAction('conserve')"
+                    class="action-btn flex flex-col items-center justify-center py-3 px-2 rounded-xl bg-amber-50 text-amber-600 active:bg-amber-100 transition-all">
+                <svg class="w-7 h-7 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                </svg>
+                <span class="text-xs font-medium">Conserve</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Bottom Sheet for Actions -->
+    <div x-show="showActionSheet" class="fixed inset-0 z-50" x-cloak>
+        <!-- Backdrop -->
+        <div @click="closeAction()" class="absolute inset-0 bg-black/50 transition-opacity"
+             x-show="showActionSheet" x-transition:enter="duration-300" x-transition:leave="duration-200"></div>
+
+        <!-- Sheet -->
+        <div class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl safe-area-bottom"
+             :class="{ 'closed': !showActionSheet }"
+             x-show="showActionSheet"
+             x-transition:enter="duration-300"
+             x-transition:leave="duration-200">
+
+            <!-- Handle -->
+            <div class="flex justify-center pt-3 pb-2">
+                <div class="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+            </div>
+
+            <!-- Sheet Content -->
+            <div class="px-6 pb-6">
+                <!-- Consume Sheet -->
+                <template x-if="currentAction === 'consume'">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-1">Consume Stock</h3>
+                        <p class="text-gray-500 mb-6">Remove items from inventory</p>
+
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                            <div class="flex items-center bg-gray-100 rounded-xl">
+                                <button @click="quantity = Math.max(1, quantity - 1)"
+                                        class="p-4 text-gray-600 hover:text-gray-900">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                    </svg>
+                                </button>
+                                <input type="number" x-model.number="quantity" min="1"
+                                       class="flex-1 text-center text-2xl font-bold bg-transparent border-0 focus:ring-0">
+                                <button @click="quantity = quantity + 1"
+                                        class="p-4 text-gray-600 hover:text-gray-900">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                            <input type="text" x-model="notes" placeholder="e.g., Used for project X"
+                                   class="w-full px-4 py-3 bg-gray-100 rounded-xl border-0 focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <button @click="submitAction()"
+                                :disabled="loading"
+                                class="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+                            <span x-show="!loading">Confirm Consume</span>
+                            <span x-show="loading">Processing...</span>
+                        </button>
+                    </div>
+                </template>
+
+                <!-- Add Sheet -->
+                <template x-if="currentAction === 'add'">
+                    <div class="max-h-[70vh] overflow-y-auto">
+                        <h3 class="text-xl font-bold text-gray-900 mb-1">Receive Stock</h3>
+                        <p class="text-gray-500 mb-4">Add inventory via proper receiving workflow</p>
+
+                        {% if pending_grn_lines %}
+                        <!-- Pending GRNs for this item -->
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-sm font-semibold text-gray-700">Pending GRNs for this Item</h4>
+                                {% if pending_grn_count > 5 %}
+                                <span class="text-xs text-blue-600">+{{ pending_grn_count|add:"-5" }} more</span>
+                                {% endif %}
+                            </div>
+                            <div class="space-y-2">
+                                {% for line in pending_grn_lines %}
+                                <a href="{% url 'inventory:grn_detail' line.grn.pk %}"
+                                   class="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-3 hover:bg-blue-100 transition-colors">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-blue-800 truncate">{{ line.grn.grn_number }}</p>
+                                        <p class="text-xs text-blue-600 truncate">{{ line.grn.vendor.name|default:"No vendor" }}</p>
+                                    </div>
+                                    <div class="text-right ml-3">
+                                        <p class="text-sm font-bold text-blue-900">{{ line.quantity_ordered }} {{ item.unit }}</p>
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                                            {% if line.grn.status == 'DRAFT' %}bg-gray-100 text-gray-700
+                                            {% elif line.grn.status == 'PENDING_QC' %}bg-yellow-100 text-yellow-700
+                                            {% else %}bg-green-100 text-green-700{% endif %}">
+                                            {{ line.grn.get_status_display }}
+                                        </span>
+                                    </div>
+                                    <svg class="w-5 h-5 text-blue-400 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Create New GRN -->
+                        <div class="mb-6">
+                            <a href="{% url 'inventory:grn_create' %}"
+                               class="flex items-center justify-center w-full py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Create New GRN
+                            </a>
+                            <p class="text-xs text-gray-500 text-center mt-2">Recommended for all stock additions</p>
+                        </div>
+
+                        <!-- All GRNs Link -->
+                        <a href="{% url 'inventory:grn_list' %}"
+                           class="flex items-center justify-center w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors mb-6">
+                            <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            View All GRNs
+                        </a>
+
+                        <!-- Divider -->
+                        <div class="relative mb-6">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-200"></div>
+                            </div>
+                            <div class="relative flex justify-center text-xs">
+                                <span class="px-2 bg-white text-gray-400">Emergency Use Only</span>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Quick Add (Collapsed by default) -->
+                        <div x-data="{ showEmergency: false }">
+                            <button @click="showEmergency = !showEmergency"
+                                    class="w-full flex items-center justify-between py-3 px-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 hover:bg-amber-100 transition-colors">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                    <span class="text-sm font-medium">Emergency Quick Add</span>
+                                </div>
+                                <svg class="w-4 h-4 transition-transform" :class="showEmergency ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <div x-show="showEmergency" x-collapse class="mt-3 bg-gray-50 rounded-xl p-4">
+                                <p class="text-xs text-gray-500 mb-4">Use only for urgent situations. A GRN must be created afterwards to reconcile.</p>
+
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                                    <div class="flex items-center bg-white rounded-xl border border-gray-200">
+                                        <button @click="quantity = Math.max(1, quantity - 1)"
+                                                class="p-3 text-gray-600 hover:text-gray-900">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                            </svg>
+                                        </button>
+                                        <input type="number" x-model.number="quantity" min="1"
+                                               class="flex-1 text-center text-xl font-bold bg-transparent border-0 focus:ring-0">
+                                        <button @click="quantity = quantity + 1"
+                                                class="p-3 text-gray-600 hover:text-gray-900">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Reason (Required)</label>
+                                    <input type="text" x-model="notes" placeholder="e.g., Emergency - GRN #XXX to follow"
+                                           class="w-full px-4 py-3 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-amber-500">
+                                </div>
+
+                                <button @click="submitAction()"
+                                        :disabled="loading || !notes"
+                                        class="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+                                    <span x-show="!loading">Quick Add (Requires Reconciliation)</span>
+                                    <span x-show="loading">Processing...</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Review Sheet -->
+                <template x-if="currentAction === 'review'">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-1">Review Item</h3>
+                        <p class="text-gray-500 mb-6">View full item details</p>
+
+                        <div class="space-y-4 mb-6">
+                            <div class="flex justify-between py-3 border-b border-gray-100">
+                                <span class="text-gray-500">Code</span>
+                                <span class="font-medium text-gray-900">{{ item.code }}</span>
+                            </div>
+                            <div class="flex justify-between py-3 border-b border-gray-100">
+                                <span class="text-gray-500">Name</span>
+                                <span class="font-medium text-gray-900">{{ item.name|truncatechars:25 }}</span>
+                            </div>
+                            <div class="flex justify-between py-3 border-b border-gray-100">
+                                <span class="text-gray-500">Category</span>
+                                <span class="font-medium text-gray-900">{{ item.category.name|default:"-" }}</span>
+                            </div>
+                            <div class="flex justify-between py-3 border-b border-gray-100">
+                                <span class="text-gray-500">Unit</span>
+                                <span class="font-medium text-gray-900">{{ item.unit }}</span>
+                            </div>
+                            <div class="flex justify-between py-3">
+                                <span class="text-gray-500">Total Stock</span>
+                                <span class="font-bold text-gray-900" x-text="currentStock">{{ total_stock }}</span>
+                            </div>
+                        </div>
+
+                        <a href="{% url 'inventory:item_detail' item.pk %}"
+                           class="block w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-center">
+                            View Full Details
+                        </a>
+                    </div>
+                </template>
+
+                <!-- Conserve Sheet -->
+                <template x-if="currentAction === 'conserve'">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-1">Conserve Item</h3>
+                        <p class="text-gray-500 mb-6">Mark for conservation or storage</p>
+
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                            <textarea x-model="notes" rows="3" placeholder="Add conservation notes..."
+                                      class="w-full px-4 py-3 bg-gray-100 rounded-xl border-0 focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                        </div>
+
+                        <button @click="submitAction()"
+                                :disabled="loading"
+                                class="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+                            <span x-show="!loading">Mark for Conservation</span>
+                            <span x-show="loading">Processing...</span>
+                        </button>
+                    </div>
+                </template>
+
+                <!-- Cancel Button -->
+                <button @click="closeAction()" class="w-full py-3 mt-3 text-gray-600 font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-transition
+         class="toast fixed bottom-24 left-4 right-4 z-50 safe-area-bottom">
+        <div :class="toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'"
+             class="rounded-xl px-4 py-3 text-white text-center shadow-lg">
+            <p x-text="toast.message"></p>
+        </div>
+    </div>
+
+    <script>
+    function pocketApp() {
+        return {
+            showMenu: false,
+            showActionSheet: false,
+            currentAction: null,
+            quantity: 1,
+            notes: '',
+            loading: false,
+            currentStock: {{ total_stock }},
+            toast: {
+                show: false,
+                message: '',
+                type: 'success'
+            },
+
+            openAction(action) {
+                this.currentAction = action;
+                this.quantity = 1;
+                this.notes = '';
+                this.showActionSheet = true;
+            },
+
+            closeAction() {
+                this.showActionSheet = false;
+                setTimeout(() => {
+                    this.currentAction = null;
+                }, 300);
+            },
+
+            async submitAction() {
+                if (this.loading) return;
+
+                // For review action, just close the sheet
+                if (this.currentAction === 'review') {
+                    this.closeAction();
+                    return;
+                }
+
+                this.loading = true;
+
+                try {
+                    const response = await fetch('{% url "inventory:pocket_action" item.pk %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            action: this.currentAction,
+                            quantity: this.quantity,
+                            notes: this.notes
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update stock display
+                        if (data.new_stock !== undefined) {
+                            this.currentStock = data.new_stock;
+                        }
+
+                        this.showToast(data.message, 'success');
+                        this.closeAction();
+                    } else {
+                        this.showToast(data.error || 'Action failed', 'error');
+                    }
+                } catch (error) {
+                    this.showToast('Network error. Please try again.', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            showToast(message, type = 'success') {
+                this.toast.message = message;
+                this.toast.type = type;
+                this.toast.show = true;
+                setTimeout(() => {
+                    this.toast.show = false;
+                }, 3000);
+            }
+        }
+    }
+    </script>
+</body>
+</html>

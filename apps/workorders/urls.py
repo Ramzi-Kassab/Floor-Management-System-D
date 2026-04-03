@@ -65,6 +65,7 @@ urlpatterns = [
     path("api/assign-bit-bom/", views_jobcard.api_assign_bit_bom, name="api_assign_bit_bom"),
     path("api/transfer-bit-location/", views_jobcard.api_transfer_bit_location, name="api_transfer_bit_location"),
     path("api/confirm-release/", views_jobcard.api_confirm_release, name="api_confirm_release"),
+    path("api/<int:wo_pk>/report-quality-issue/", views_jobcard.api_report_quality_issue, name="api_report_quality_issue"),
     path("api/delete-transfer/<int:pk>/", views_jobcard.api_delete_transfer, name="api_delete_transfer"),
     path("api/edit-transfer/<int:pk>/", views_jobcard.api_edit_transfer, name="api_edit_transfer"),
     path("api/locations/", views_jobcard.api_locations_list, name="api_locations_list"),

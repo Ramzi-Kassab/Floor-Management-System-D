@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ form_title }}</h1></div>
+    <a href="{% url 'inventory:bom_list' %}" class="inline-flex items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 text-sm"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Back</a>
+</div>
+{% endblock %}
+{% block content %}
+<form method="post" class="space-y-6">{% csrf_token %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Details</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Finished Item</label>{{ form.finished_item }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Version</label>{{ form.version }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Output Qty</label>{{ form.output_qty }}</div>
+        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">UOM</label>{{ form.uom }}</div>
+        <div class="md:col-span-3"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>{{ form.description }}</div>
+        <div class="flex items-center"><label class="inline-flex items-center"><span class="mr-2 text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>{{ form.is_active }}</label></div>
+    </div>
+</div>
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">BOM Lines (Components)</h2>
+    {{ lines_formset.management_form }}
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700"><tr>
+            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Component Item</th>
+            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty Required</th>
+            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">UOM</th>
+            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Scrap %</th>
+            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Delete</th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for line_form in lines_formset %}
+        <tr><td class="px-3 py-2">{{ line_form.component_item }}</td><td class="px-3 py-2">{{ line_form.qty_required }}</td><td class="px-3 py-2">{{ line_form.uom }}</td><td class="px-3 py-2">{{ line_form.scrap_percentage }}</td><td class="px-3 py-2 text-center">{{ line_form.DELETE }}{{ line_form.id }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="flex justify-end gap-3">
+    <a href="{% url 'inventory:bom_list' %}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">Cancel</a>
+    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save</button>
+</div>
+</form>
+{% endblock %}

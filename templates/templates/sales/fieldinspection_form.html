@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Record equipment inspection</p>
+    </div>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inspection Info</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.inspection_number.label }}</label>{{ form.inspection_number }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.inspection_type.label }}</label>{{ form.inspection_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.inspection_date.label }}</label>{{ form.inspection_date }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.drill_string_run.label }}</label>{{ form.drill_string_run }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.inspector.label }}</label>{{ form.inspector }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.status.label }}</label>{{ form.status }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Equipment</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.equipment_type.label }}</label>{{ form.equipment_type }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.serial_number.label }}</label>{{ form.serial_number }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.condition_rating.label }}</label>{{ form.condition_rating }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.wear_percentage.label }}</label>{{ form.wear_percentage }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.thread_condition.label }}</label>{{ form.thread_condition }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.body_condition.label }}</label>{{ form.body_condition }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.gauge_condition.label }}</label>{{ form.gauge_condition }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.next_inspection_due.label }}</label>{{ form.next_inspection_due }}</div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Result</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="flex items-center gap-2">{{ form.passed }}<label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ form.passed.label }}</label></div>
+                <div class="flex items-center gap-2">{{ form.photos_attached }}<label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ form.photos_attached.label }}</label></div>
+            </div>
+            <div class="grid grid-cols-1 gap-6 mt-4">
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.failed_reason.label }}</label>{{ form.failed_reason }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.corrective_action.label }}</label>{{ form.corrective_action }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.findings.label }}</label>{{ form.findings }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.recommendations.label }}</label>{{ form.recommendations }}</div>
+                <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ form.notes.label }}</label>{{ form.notes }}</div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'sales:fieldinspection_list' %}" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="px-6 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">{{ submit_text|default:"Save" }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

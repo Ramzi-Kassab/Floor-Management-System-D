@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Cutters to Inventory{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-8 px-4">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Add Cutters to Inventory</h1>
+        {% if not is_done and total_cutters > 0 %}
+        <p class="text-gray-600 dark:text-gray-400 mt-1">
+            Cutter {{ current_index|add:1 }} of {{ total_cutters }}
+        </p>
+        {% endif %}
+    </div>
+
+    {% if is_done %}
+    <!-- Success State -->
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6 mb-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold text-green-800 dark:text-green-200">All Cutters Added!</h2>
+                <p class="text-green-600 dark:text-green-400">Successfully created {{ added_cutters|length }} inventory item{{ added_cutters|length|pluralize }}.</p>
+            </div>
+        </div>
+
+        {% if added_cutters %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-700 p-4 mb-4">
+            <h3 class="font-medium text-gray-900 dark:text-white mb-3">Items Created:</h3>
+            <div class="space-y-2">
+                {% for item in added_cutters %}
+                <div class="flex items-center justify-between text-sm">
+                    <a href="{% url 'inventory:item_detail' item.id %}" class="font-mono text-blue-600 hover:underline">{{ item.code }}</a>
+                    <span class="text-gray-500 dark:text-gray-400">{{ item.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Navigation Options -->
+        <div class="space-y-3">
+            <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">What would you like to do next?</p>
+
+            {% if design_id %}
+            <a href="{% url 'technology:design_pockets' design_id %}"
+               class="flex items-center gap-3 p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <div>
+                    <div class="font-medium">View Pocket Layout</div>
+                    <div class="text-sm opacity-80">See cutter positions on the design</div>
+                </div>
+            </a>
+            {% endif %}
+
+            {% if design_id %}
+            <a href="{% url 'technology:design_detail' design_id %}"
+               class="flex items-center gap-3 p-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <div>
+                    <div class="font-medium">View Design Details</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">Design specs and linked BOMs</div>
+                </div>
+            </a>
+            {% endif %}
+
+            {% if bom_id %}
+            <a href="{% url 'technology:bom_detail' bom_id %}"
+               class="flex items-center gap-3 p-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+                <div>
+                    <div class="font-medium">View BOM & Inventory</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">Check stock availability</div>
+                </div>
+            </a>
+            {% endif %}
+
+            <a href="{% url 'cutter_map:index' %}"
+               class="flex items-center gap-3 p-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <div>
+                    <div class="font-medium">Create Another BOM</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">Return to Cutter Map</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    {% elif total_cutters == 0 %}
+    <!-- No Cutters -->
+    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 text-center">
+        <p class="text-yellow-800 dark:text-yellow-200">No cutters to add. Please start from the BOM creation page.</p>
+        <a href="{% url 'cutter_map:index' %}" class="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Go to Cutter Map
+        </a>
+    </div>
+
+    {% else %}
+    <!-- Progress Bar -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+            <span>Progress</span>
+            <span>{{ current_index }} / {{ total_cutters }} completed</span>
+        </div>
+        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: {% widthratio current_index total_cutters 100 %}%"></div>
+        </div>
+    </div>
+
+    <!-- Previously Added -->
+    {% if added_cutters %}
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+        <h3 class="text-sm font-medium text-green-800 dark:text-green-200 mb-2">Already Added:</h3>
+        <div class="flex flex-wrap gap-2">
+            {% for item in added_cutters %}
+            <a href="{% url 'inventory:item_detail' item.id %}"
+               class="inline-flex items-center px-2 py-1 bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded text-xs font-mono hover:bg-green-200 dark:hover:bg-green-700">
+                {{ item.code }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Current Cutter Card -->
+    {% if current_cutter %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <h2 class="font-semibold text-gray-900 dark:text-white">Next Cutter to Add</h2>
+        </div>
+
+        <div class="p-6">
+            <!-- Cutter Info -->
+            <div class="grid grid-cols-3 gap-6 mb-6">
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">HDBS Code</div>
+                    <div class="text-lg font-mono font-bold text-gray-900 dark:text-white">{{ current_cutter.hdbs_code }}</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Size</div>
+                    <div class="text-lg font-bold text-gray-900 dark:text-white">{{ current_cutter.size }}</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Type</div>
+                    <div class="text-lg font-bold text-gray-900 dark:text-white">{{ current_cutter.type }}</div>
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <p class="text-sm text-blue-800 dark:text-blue-200">
+                            Click the button below to open the full inventory item form. The cutter details will be pre-filled.
+                            You can add category-specific attributes, set up variants, and configure other options.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-between">
+                <a href="?skip=1" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm">
+                    Skip this cutter
+                </a>
+                <div class="flex items-center gap-3">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ total_cutters|add:"-"|add:current_index }} more after this
+                    </span>
+                    <a href="?start_add=1"
+                       class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Add to Inventory
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cancel Link -->
+    <div class="mt-6 text-center">
+        <a href="{% url 'cutter_map:index' %}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm">
+            Cancel and return to Cutter Map
+        </a>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

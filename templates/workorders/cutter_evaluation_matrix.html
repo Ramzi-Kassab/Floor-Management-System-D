@@ -148,6 +148,10 @@
             <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>Save &amp; Complete
         </button>
         {% endif %}
+        <button type="button" onclick="reportIssueFromPage()"
+                class="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 text-sm">
+            <i data-lucide="flag" class="w-4 h-4 mr-1"></i>Report Issue
+        </button>
         <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
            class="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-200 text-sm">
             <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>Job Card
@@ -1219,5 +1223,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize thread inspection from saved data
     populateThreadInspection(savedThreadInspection);
 });
+
+function reportIssueFromPage() {
+    const desc = prompt('Describe the issue (the evaluation remarks will be included automatically):');
+    if (desc === null) return;
+    const remarks = document.getElementById('remarks')?.value || '';
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+    fetch('{% url "workorders:api_report_quality_issue" wo_pk=work_order.pk %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({
+            summary: remarks || 'Issue reported from {{ matrix.get_evaluation_type_display }}',
+            additional_remarks: desc,
+            source_step: '{{ matrix.get_evaluation_type_display }}',
+        })
+    }).then(r => r.json()).then(d => {
+        if (d.success) alert(d.message);
+        else alert(d.error || 'Failed');
+    }).catch(() => alert('Network error'));
+}
 </script>
 {% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'drss:drss_detail' drss.pk %}" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ drss.drss_number }} - {{ drss.customer.name }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Line Details (Read-only) -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Line Information</h3>
+                </div>
+                <div class="px-6 py-4 space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Line Number</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.line_number }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Bit Type</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.bit_type }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Bit Size</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.bit_size }}"</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Design Code</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.design_code|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Quantity</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.quantity }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">IADC Code</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.iadc_code|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Formation</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">{{ line.formation|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Depth Range</p>
+                        <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                            {% if line.depth_from and line.depth_to %}
+                            {{ line.depth_from|floatformat:0 }} - {{ line.depth_to|floatformat:0 }} ft
+                            {% else %}-{% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evaluation Form -->
+        <div class="lg:col-span-2">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Evaluation</h3>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="id_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status <span class="text-red-500">*</span></label>
+                                <div class="mt-1">{{ form.status }}</div>
+                                {% if form.status.errors %}<p class="mt-1 text-sm text-red-600">{{ form.status.errors.0 }}</p>{% endif %}
+                            </div>
+                            <div>
+                                <label for="id_fulfillment_option" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fulfillment Option</label>
+                                <div class="mt-1">{{ form.fulfillment_option }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Source Assignment</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Link to existing inventory or work order</p>
+                    </div>
+                    <div class="px-6 py-4 space-y-4">
+                        <div>
+                            <label for="id_source_bit" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Source Bit (from inventory)</label>
+                            <div class="mt-1">{{ form.source_bit }}</div>
+                            <p class="mt-1 text-xs text-gray-500">Select an existing bit from inventory to fulfill this request</p>
+                        </div>
+                        <div>
+                            <label for="id_work_order" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Work Order</label>
+                            <div class="mt-1">{{ form.work_order }}</div>
+                            <p class="mt-1 text-xs text-gray-500">Or link to a manufacturing work order</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notes</h3>
+                    </div>
+                    <div class="px-6 py-4">
+                        <div>
+                            <label for="id_fulfillment_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fulfillment Notes</label>
+                            <div class="mt-1">{{ form.fulfillment_notes }}</div>
+                            <p class="mt-1 text-xs text-gray-500">Add notes about fulfillment decisions, alternatives, etc.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {% if form.non_field_errors %}
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex">
+                        <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 mr-2"></i>
+                        <div class="text-sm text-red-700">
+                            {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="flex justify-end gap-3">
+                    <a href="{% url 'drss:drss_detail' drss.pk %}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                        Cancel
+                    </a>
+                    <button type="submit" class="px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-ardt-blue hover:bg-blue-700">
+                        Save Evaluation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

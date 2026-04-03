@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ review.review_number }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hr:review-list' %}" class="hover:text-blue-600">Reviews</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ review.review_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Performance Review</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ review.employee.full_name }} - {{ review.get_review_type_display }}</p>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hr:review-update' review.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Review Details</h2>
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if review.status == 'COMPLETED' %}bg-green-100 text-green-800
+                    {% elif review.status == 'DRAFT' %}bg-gray-100 text-gray-800
+                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                    {{ review.get_status_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Employee</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        <a href="{% url 'hr:employee-detail' review.employee.pk %}" class="text-blue-600 hover:underline">{{ review.employee.full_name }}</a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Reviewer</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ review.reviewer.get_full_name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Review Period</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ review.review_period_start|date:"M d, Y" }} - {{ review.review_period_end|date:"M d, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Review Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ review.review_date|date:"M d, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Overall Rating</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ review.get_overall_rating_display|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Goals Met</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ review.goals_met_percentage|default:"-" }}%</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ratings</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Technical Skills</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.technical_skills_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Communication</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.communication_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Teamwork</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.teamwork_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Leadership</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.leadership_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Initiative</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.initiative_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">Quality of Work</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ review.quality_of_work_rating|default:"-" }}<span class="text-sm font-normal">/5</span></p>
+                </div>
+            </div>
+        </div>
+
+        {% if review.strengths or review.areas_for_improvement %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Evaluation</h2>
+            {% if review.strengths %}
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Strengths</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ review.strengths }}</p>
+            </div>
+            {% endif %}
+            {% if review.areas_for_improvement %}
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Areas for Improvement</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ review.areas_for_improvement }}</p>
+            </div>
+            {% endif %}
+            {% if review.development_plan %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Development Plan</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ review.development_plan }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recommendations</h2>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Promotion</span>
+                    {% if review.promotion_recommended %}
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Recommended</span>
+                    {% else %}
+                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Not Recommended</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Salary Increase</span>
+                    {% if review.salary_increase_recommended %}
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">{{ review.salary_increase_percentage|default:"" }}%</span>
+                    {% else %}
+                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Not Recommended</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'hr:review-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

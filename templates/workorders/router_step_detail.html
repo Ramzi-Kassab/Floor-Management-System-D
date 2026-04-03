@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize duration_tags %}
 
 {% block title %}Step {{ step.step_number }} — {{ step.step_description }} — {{ work_order.wo_number }} — ARDT FMS{% endblock %}
 
@@ -307,19 +307,19 @@
                 <div>
                     <p class="text-xs text-gray-400 mb-0.5">Started</p>
                     <p class="text-sm font-semibold mono text-gray-800 dark:text-gray-200">
-                        {% if step.qr_scan_start %}{{ step.qr_scan_start|date:"M d, H:i" }}{% else %}&mdash;{% endif %}
+                        {% if step.qr_scan_start %}{{ step.qr_scan_start|date:"M d, H:i:s" }}{% else %}&mdash;{% endif %}
                     </p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 mb-0.5">Completed</p>
                     <p class="text-sm font-semibold mono text-gray-800 dark:text-gray-200">
-                        {% if step.qr_scan_end %}{{ step.qr_scan_end|date:"M d, H:i" }}{% else %}&mdash;{% endif %}
+                        {% if step.qr_scan_end %}{{ step.qr_scan_end|date:"M d, H:i:s" }}{% else %}&mdash;{% endif %}
                     </p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-400 mb-0.5">Duration</p>
                     <p class="text-sm font-bold mono text-emerald-600 dark:text-emerald-400">
-                        {% if step.duration_minutes %}{{ step.duration_minutes }} min{% else %}&mdash;{% endif %}
+                        {% if step.duration_gross_seconds %}{{ step.duration_gross_seconds|duration_hms }}{% elif step.duration_minutes %}{{ step.duration_minutes|duration_minutes_hms }}{% else %}&mdash;{% endif %}
                     </p>
                 </div>
             </div>
@@ -613,19 +613,46 @@
             <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="open && 'rotate-180'"></i>
         </div>
         <div x-show="open" x-collapse class="section-body">
-            <div class="space-y-3">
+            <div class="space-y-2">
                 {% for item in checklist %}
-                <label class="flex items-start gap-3 cursor-pointer group p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <input type="checkbox"
-                           class="mt-1 w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 flex-shrink-0"
-                           :checked="checklistData['{{ forloop.counter0 }}']"
-                           @change="checklistData['{{ forloop.counter0 }}'] = $el.checked; autoSave()">
-                    <span class="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white"
-                          :class="checklistData['{{ forloop.counter0 }}'] && 'line-through text-gray-400 dark:text-gray-500'">
-                        {{ item.text }}
-                        {% if item.required %}<span class="text-red-500 text-xs ml-1">(required)</span>{% endif %}
-                    </span>
-                </label>
+                <div class="p-3 rounded-lg border transition-colors"
+                     :class="{
+                        'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10': checklistData['{{ forloop.counter0 }}'] === 'OK' || checklistData['{{ forloop.counter0 }}'] === true,
+                        'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/10': checklistData['{{ forloop.counter0 }}'] === 'NOT_OK',
+                        'border-gray-200 bg-gray-50/30 dark:border-gray-700 dark:bg-gray-800/30': checklistData['{{ forloop.counter0 }}'] === 'N/A',
+                        'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10': checklistData['{{ forloop.counter0 }}'] === 'PENDING',
+                        'border-gray-200 dark:border-gray-700': !checklistData['{{ forloop.counter0 }}']
+                     }">
+                    <div class="flex items-start justify-between gap-3">
+                        <span class="text-sm text-gray-700 dark:text-gray-300 flex-1 pt-1">
+                            {{ item.text }}
+                            {% if item.required %}<span class="text-red-500 text-[10px] ml-1">*</span>{% endif %}
+                        </span>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button @click="checklistData['{{ forloop.counter0 }}'] = 'OK'; autoSave()"
+                                    :class="(checklistData['{{ forloop.counter0 }}'] === 'OK' || checklistData['{{ forloop.counter0 }}'] === true) ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-green-100 hover:text-green-700'"
+                                    class="px-2.5 py-1 rounded text-xs font-medium transition-colors">OK</button>
+                            <button @click="checklistData['{{ forloop.counter0 }}'] = 'NOT_OK'; autoSave()"
+                                    :class="checklistData['{{ forloop.counter0 }}'] === 'NOT_OK' ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-700'"
+                                    class="px-2.5 py-1 rounded text-xs font-medium transition-colors">Not OK</button>
+                            <button @click="checklistData['{{ forloop.counter0 }}'] = 'N/A'; autoSave()"
+                                    :class="checklistData['{{ forloop.counter0 }}'] === 'N/A' ? 'bg-gray-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-gray-200'"
+                                    class="px-2.5 py-1 rounded text-xs font-medium transition-colors">N/A</button>
+                            <button @click="checklistData['{{ forloop.counter0 }}'] = 'PENDING'; autoSave()"
+                                    :class="checklistData['{{ forloop.counter0 }}'] === 'PENDING' ? 'bg-amber-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-amber-100 hover:text-amber-700'"
+                                    class="px-2.5 py-1 rounded text-xs font-medium transition-colors">Pending</button>
+                        </div>
+                    </div>
+                    <!-- Remark field — shown when NOT_OK or PENDING -->
+                    <div x-show="checklistData['{{ forloop.counter0 }}'] === 'NOT_OK' || checklistData['{{ forloop.counter0 }}'] === 'PENDING'" x-collapse class="mt-2">
+                        <input type="text"
+                               :value="checklistData['{{ forloop.counter0 }}_remark'] || ''"
+                               @input="checklistData['{{ forloop.counter0 }}_remark'] = $el.value"
+                               @blur="autoSave()"
+                               placeholder="{% if 'NOT_OK' %}Describe the issue or action needed...{% endif %}"
+                               class="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2.5 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-blue-500">
+                    </div>
+                </div>
                 {% endfor %}
             </div>
         </div>
@@ -671,8 +698,9 @@
     </div>
     {% endif %}
 
+    {% if not has_dedicated_page %}
     <!-- ══════════════════════════════════════════════════════════════ -->
-    <!-- SECTION 7: Photos                                             -->
+    <!-- SECTION 7: Photos (hidden when dedicated page handles photos) -->
     <!-- ══════════════════════════════════════════════════════════════ -->
     {% if drill_bit %}
     <div class="section-card no-print" x-data="{ open: false }">
@@ -690,7 +718,7 @@
     {% endif %}
 
     <!-- ══════════════════════════════════════════════════════════════ -->
-    <!-- SECTION 8: Remarks                                            -->
+    <!-- SECTION 8: Remarks (hidden when dedicated page handles remarks) -->
     <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="section-card">
         <div class="section-header" style="cursor: default;">
@@ -708,6 +736,7 @@
                       placeholder="Enter any remarks, observations, or notes..."></textarea>
         </div>
     </div>
+    {% endif %}{# end not has_dedicated_page for photos/remarks #}
 
     <!-- ══════════════════════════════════════════════════════════════ -->
     <!-- SECTION 9: QC Result (if step has QC requirement)             -->
@@ -741,7 +770,6 @@
     </div>
     {% endif %}
 
-    <!-- ══════════════════════════════════════════════════════════════ -->
     <!-- ══════════════════════════════════════════════════════════════ -->
     <!-- SECTION 10: Linked Actions (FIXED — uses dedicated_page)     -->
     <!-- ══════════════════════════════════════════════════════════════ -->
@@ -876,16 +904,29 @@
 
                 {% endwith %}{% endwith %}
 
-                <button type="button" disabled
-                        class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 opacity-50 cursor-not-allowed">
+                <button type="button" @click="showReportIssue = !showReportIssue"
+                        class="flex items-center gap-2.5 p-3 rounded-lg border border-red-200 dark:border-red-800 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group cursor-pointer">
                     <div class="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                        <i data-lucide="alert-circle" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
+                        <i data-lucide="flag" class="w-4 h-4 text-red-600 dark:text-red-400"></i>
                     </div>
                     <div class="text-left">
-                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Report Issue (NCR)</p>
-                        <p class="text-xs text-gray-400">Coming soon</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Report Issue</p>
+                        <p class="text-xs text-gray-400">Send to Quality team for review</p>
                     </div>
                 </button>
+                <div x-show="showReportIssue" x-collapse class="col-span-full p-3 bg-red-50/30 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg" style="display:none;">
+                    <p class="text-xs text-gray-500 mb-2">Describe the issue. Quality team will review and decide (Accept / NCR / Rework / Inform Technical / Inform Customer).</p>
+                    <textarea x-model="issueDescription" rows="2" placeholder="Describe the issue found..."
+                              class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 mb-2"></textarea>
+                    <textarea x-model="issueExtraRemark" rows="1" placeholder="Additional remarks (optional)..."
+                              class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 mb-2"></textarea>
+                    <button type="button" @click="submitStepIssue()" :disabled="issueSubmitting || !issueDescription.trim()"
+                            class="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                        <span x-show="!issueSubmitting">Send to Quality Team</span>
+                        <span x-show="issueSubmitting">Sending...</span>
+                    </button>
+                    <div x-show="issueMsg" class="mt-2 text-xs" :class="issueOk ? 'text-green-600' : 'text-red-600'" x-text="issueMsg"></div>
+                </div>
 
                 <button type="button" @click="showAddStepModal = true"
                         class="flex items-center gap-2.5 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer">
@@ -1103,6 +1144,11 @@ function stepPage() {
 
         // Add step modal
         showAddStepModal: false,
+
+        // Report Issue
+        showReportIssue: false,
+        issueDescription: '', issueExtraRemark: '',
+        issueSubmitting: false, issueMsg: '', issueOk: false,
         newStepDesc: '',
         newStepReason: '',
         newStepPosition: 'after',
@@ -1134,7 +1180,12 @@ function stepPage() {
         },
 
         get checklistDone() {
-            return Object.values(this.checklistData).filter(v => v === true).length;
+            let count = 0;
+            for (const [k, v] of Object.entries(this.checklistData)) {
+                if (k.endsWith('_remark')) continue;  // skip remark fields
+                if (v === true || v === 'OK' || v === 'N/A' || v === 'NOT_OK' || v === 'PENDING') count++;
+            }
+            return count;
         },
 
         init() {
@@ -1233,6 +1284,25 @@ function stepPage() {
                 this.showToast('Network error', 'error');
             }
             this.saving = false;
+        },
+
+        async submitStepIssue() {
+            this.issueSubmitting = true; this.issueMsg = '';
+            try {
+                const res = await this._postJSON('{% url "workorders:api_report_quality_issue" wo_pk=work_order.pk %}', {
+                    summary: this.issueDescription,
+                    additional_remarks: this.issueExtraRemark,
+                    source_step: '{{ step.step_description|escapejs }}',
+                    step_number: {{ step.step_number }},
+                });
+                if (res.success) {
+                    this.issueMsg = res.message; this.issueOk = true;
+                    this.issueDescription = ''; this.issueExtraRemark = '';
+                } else {
+                    this.issueMsg = res.error; this.issueOk = false;
+                }
+            } catch (e) { this.issueMsg = 'Network error'; this.issueOk = false; }
+            this.issueSubmitting = false;
         },
 
         async confirmSkip() {
@@ -1350,5 +1420,6 @@ function stepPage() {
         },
     };
 }
+
 </script>
 {% endblock %}

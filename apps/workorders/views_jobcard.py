@@ -583,19 +583,19 @@ class WorkOrderDetailEnhancedView(LoginRequiredMixin, DetailView):
         else:
             # Fallback: Legacy hardcoded flow
             context['evaluation_route'] = None
+            # For REPAIR: Die Check (receiving) comes BEFORE PDC Evaluation
+            # For NEW: Die Check is not shown initially (evaluator can request during PDC Eval)
             eval_flow = [
                 # (type_code, type_label, show_condition, help_text)
-                ('PDC_EVAL', 'PDC Evaluation', True, 'Starting point - includes Die Check + E-Checklist'),
-                ('ARDT', 'ARDT Evaluation (Legacy)', False, 'Legacy - use PDC Evaluation'),
+                ('DIE_CHECK', 'Receiving Die Check', not is_new_bit, 'Die check before PDC evaluation (repair only)'),
+                ('PDC_EVAL', 'PDC Evaluation', True, 'Main evaluation - cutter grid, pocket eval, decision'),
                 ('QC', 'QC Evaluation', not is_new_bit, 'N/A for new bits, required for repair'),
                 ('ENGINEER', 'Technical Rep. Evaluation', not is_new_bit and not is_ur and not is_aramco, 'N/A for new bits, UR, or Aramco'),
                 ('ARAMCO_REP', 'Aramco Rep. Evaluation', is_aramco, 'Aramco inspector evaluation'),
-                ('DIE_CHECK', 'Die Check', True, 'Pre-processing die check'),
                 ('FINAL_DIE_CHECK', 'Final Die Check', True, 'Post-processing die check'),
                 ('FINAL_QC', 'Final QC Evaluation', True, 'Final quality check'),
                 ('FINAL_INSPECTION', 'Final Inspection', True, 'Final sign-off'),
                 ('REWORK', 'Rework Evaluation', False, 'Only shown when rework is needed'),
-                ('RECEIVING', 'Receiving Evaluation', False, 'Component receiving - tracked separately'),
             ]
 
             for type_code, type_label, show_by_default, help_text in eval_flow:
@@ -1127,6 +1127,16 @@ class CutterEvaluationCreateView(LoginRequiredMixin, CreateView):
     fields = ['evaluation_type', 'ardt_remark', 'eng_remark', 'general_remark',
               'ardt_matrix_buildup', 'eng_matrix_buildup', 'ncr_ref_no']
 
+    def dispatch(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=kwargs['wo_pk'])
+        allowed = (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+                   WorkOrder.Status.RELEASED, WorkOrder.Status.QC_PENDING)
+        if wo.status not in allowed:
+            from django.contrib import messages
+            messages.error(request, f'Cannot create evaluation — WO status is "{wo.get_status_display()}". WO must be Active or In Progress.')
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         wo = get_object_or_404(
@@ -1208,6 +1218,16 @@ class CutterEvaluationEditView(LoginRequiredMixin, TemplateView):
     Interactive cutter evaluation matrix editor.
     """
     template_name = "workorders/cutter_evaluation_matrix.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=kwargs['wo_pk'])
+        allowed = (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+                   WorkOrder.Status.RELEASED, WorkOrder.Status.QC_PENDING)
+        if wo.status not in allowed:
+            from django.contrib import messages
+            messages.error(request, f'Cannot edit evaluation — WO status is "{wo.get_status_display()}". WO must be Active or In Progress.')
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1521,6 +1541,12 @@ def api_evaluation_mark_complete(request, wo_pk, pk):
             entity_type="CutterEvaluationMatrix",
             entity_id=matrix.pk,
         )
+        serial = wo.drill_bit.serial_number if wo.drill_bit else '?'
+        fire_event('EVALUATION_COMPLETED', request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+            'eval_type': matrix.get_evaluation_type_display(),
+            'entity_type': 'CutterEvaluationMatrix', 'entity_id': matrix.pk,
+        })
         # Rebuild route with evaluation findings
         try:
             from apps.workorders.models import populate_router_sheet
@@ -1533,6 +1559,11 @@ def api_evaluation_mark_complete(request, wo_pk, pk):
                     priority="NORMAL",
                     action_url=f"/workorders/{wo.pk}/router-sheet/",
                 )
+                fire_event('ROUTE_UPDATED', request.user, {
+                    'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+                    'steps_added': added,
+                    'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+                })
         except Exception:
             pass  # Don't fail eval completion if route rebuild fails
 
@@ -1584,6 +1615,31 @@ class RouterSheetView(LoginRequiredMixin, TemplateView):
             entries = list(wo.router_entries.order_by('step_number'))
 
         context['entries'] = entries
+
+        # First pending step number (for UI: only this step shows Start button)
+        first_pending = next(
+            (e.step_number for e in entries if not e.is_complete and not e.qr_scan_start and e.step_status != 'SKIPPED'),
+            None
+        )
+        context['first_pending_step'] = first_pending
+
+        # Resolve dedicated page URLs for steps that have them
+        from apps.workorders.models import MasterProcess as _MP
+        dedicated_urls = {}
+        for entry in entries:
+            mp = entry.master_process
+            if not mp:
+                mp = _MP.objects.filter(name__iexact=entry.step_description, is_active=True).first()
+            if mp:
+                url_name = mp.resolved_dedicated_url_name
+                if url_name:
+                    try:
+                        ded_url = reverse(url_name, kwargs={'wo_pk': wo.pk})
+                        step_url = reverse('workorders:router_step_detail', kwargs={'wo_pk': wo.pk, 'step_number': entry.step_number})
+                        dedicated_urls[entry.step_number] = ded_url + f'?from_step={entry.step_number}&return_url={step_url}'
+                    except Exception:
+                        pass
+        context['dedicated_urls_json'] = _json.dumps(dedicated_urls) if dedicated_urls else '{}'
 
         # Generate WO QR for scanning
         base_url = getattr(settings, "SITE_URL", None)
@@ -1735,7 +1791,6 @@ def api_router_step_scan(request, wo_pk, step_number):
             'action': 'started',
             'started_at': entry.qr_scan_start.isoformat(),
             'operator': request.user.get_short_name() or request.user.username,
-            'warning': location_warning,
         })
     elif action == 'end':
         if not entry.qr_scan_start:
@@ -1747,17 +1802,32 @@ def api_router_step_scan(request, wo_pk, step_number):
         checklist_template = entry.checklist_template or []
         if checklist_template:
             checklist_data = entry.checklist_data or {}
-            required_items = [item for item in checklist_template if item.get('required', True)]
+            required_items = [(i, item) for i, item in enumerate(checklist_template) if item.get('required', True)]
             if required_items:
-                filled = 0
-                for item in required_items:
-                    key = item.get('text', item.get('pk', ''))
-                    val = checklist_data.get(str(key)) or checklist_data.get(key)
-                    if val and str(val).strip():
-                        filled += 1
-                if filled < len(required_items):
+                not_filled = []
+                not_ok_items = []
+                pending_items = []
+                for idx, item in required_items:
+                    val = checklist_data.get(str(idx))
+                    if not val:
+                        not_filled.append(item.get('text', f'Item {idx+1}'))
+                    elif val == 'NOT_OK':
+                        not_ok_items.append(item.get('text', f'Item {idx+1}'))
+                    elif val == 'PENDING':
+                        pending_items.append(item.get('text', f'Item {idx+1}'))
+                if not_filled:
                     return JsonResponse({
-                        'error': f'Checklist not complete — {filled}/{len(required_items)} required items filled. Open the step detail to complete the checklist.',
+                        'error': f'Checklist not complete — {len(not_filled)} required item(s) not answered. Open the step detail to complete.',
+                        'success': False
+                    })
+                if pending_items:
+                    return JsonResponse({
+                        'error': f'{len(pending_items)} checklist item(s) marked PENDING — resolve before completing: {", ".join(pending_items[:3])}',
+                        'success': False
+                    })
+                if not_ok_items:
+                    return JsonResponse({
+                        'error': f'{len(not_ok_items)} checklist item(s) marked NOT OK — escalate or resolve before completing: {", ".join(not_ok_items[:3])}',
                         'success': False
                     })
 
@@ -2545,6 +2615,13 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         context['accounts'] = accounts
         context['current_account'] = account_filter or ''
         context['page_title'] = 'Production Planner'
+
+        try:
+            from apps.notifications.workflow_engine import get_pending_actions_for_user
+            context['pending_actions'] = list(get_pending_actions_for_user(self.request.user)[:10])
+        except Exception:
+            context['pending_actions'] = []
+
         return context
 
 
@@ -3245,6 +3322,10 @@ def api_mark_wo_released(request, pk):
         )
     except Exception:
         pass
+    fire_event('TRANSFER_CONFIRMED', request.user, {
+        'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+        'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+    })
 
     return JsonResponse({
         'success': True,
@@ -5840,6 +5921,18 @@ class ReceivingInspectionCreateView(LoginRequiredMixin, CreateView):
                 entity_type="ReceivingInspection",
                 entity_id=self.object.pk,
             )
+            # Fire workflow event based on result
+            result = form.instance.result
+            if result == 'ACCEPTED':
+                wf_event = 'INSPECTION_ACCEPTED'
+            elif result == 'REJECTED':
+                wf_event = 'INSPECTION_REJECTED'
+            else:
+                wf_event = 'INSPECTION_CONDITIONAL'
+            fire_event(wf_event, self.request.user, {
+                'serial': bit.serial_number, 'bit_id': bit.pk,
+                'entity_type': 'ReceivingInspection', 'entity_id': self.object.pk,
+            })
         else:
             messages.success(self.request, "Receiving inspection created.")
 
@@ -6156,6 +6249,14 @@ class EvaluationAutoCreateView(LoginRequiredMixin, View):
     """
     def get(self, request, wo_pk, type_code):
         wo = get_object_or_404(WorkOrder, pk=wo_pk)
+
+        # WO status guard
+        allowed = (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+                   WorkOrder.Status.RELEASED, WorkOrder.Status.QC_PENDING)
+        if wo.status not in allowed:
+            messages.error(request, f'Cannot create evaluation — WO status is "{wo.get_status_display()}". WO must be Active or In Progress.')
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+
         # Validate type_code
         valid_codes = [c[0] for c in CutterEvaluationMatrix.EvaluationType.choices]
         if type_code not in valid_codes:
@@ -6193,6 +6294,16 @@ class PreRepairEvalEditView(LoginRequiredMixin, TemplateView):
     plus 3 icon buttons for standalone Die Check / LPT / Thread pages.
     """
     template_name = "workorders/pre_repair_evaluation.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        wo = get_object_or_404(WorkOrder, pk=kwargs['wo_pk'])
+        allowed = (WorkOrder.Status.ACTIVE, WorkOrder.Status.IN_PROGRESS,
+                   WorkOrder.Status.RELEASED, WorkOrder.Status.QC_PENDING)
+        if wo.status not in allowed:
+            from django.contrib import messages
+            messages.error(request, f'Cannot edit evaluation — WO status is "{wo.get_status_display()}". WO must be Active or In Progress.')
+            return redirect('workorders:workorder_detail_enhanced', pk=wo.pk)
+        return super().dispatch(request, *args, **kwargs)
 
     def _get_wo_and_matrix(self):
         wo = get_object_or_404(
@@ -6536,6 +6647,22 @@ class DieCheckReportView(LoginRequiredMixin, TemplateView):
                 ])
                 context.update(cutter_grid_ctx)
         context['has_bom_data'] = has_bom
+
+        # Linked router step — for start/complete controls
+        from_step = self.request.GET.get('from_step')
+        router_step = None
+        if from_step:
+            router_step = RouterSheetEntry.objects.filter(
+                work_order=wo, step_number=from_step
+            ).first()
+        if not router_step:
+            # Find any die check step for this WO
+            router_step = RouterSheetEntry.objects.filter(
+                work_order=wo, step_description__icontains='die check'
+            ).order_by('step_number').first()
+        context['router_step'] = router_step
+        context['step_started'] = bool(router_step and router_step.qr_scan_start)
+        context['step_completed'] = bool(router_step and router_step.is_complete)
 
         return context
 
@@ -6955,8 +7082,10 @@ class RouterStepDetailView(LoginRequiredMixin, DetailView):
         dedicated_icon = 'external-link'
         step_mode = 'ACTIVE'
 
-        # Match step to MasterProcess
-        mp = _MP.objects.filter(name__iexact=step.step_description, is_active=True).first()
+        # Match step to MasterProcess — prefer linked master_process, fallback to name match
+        mp = step.master_process
+        if not mp:
+            mp = _MP.objects.filter(name__iexact=step.step_description, is_active=True).first()
         if not mp:
             mp = _MP.objects.filter(name__icontains=step.step_description.split('(')[0].strip(), is_active=True).first()
 
@@ -6964,8 +7093,27 @@ class RouterStepDetailView(LoginRequiredMixin, DetailView):
             step_mode = mp.step_mode
             url_name = mp.resolved_dedicated_url_name
             if url_name:
+                # Build kwargs — some URLs need eval_pk or other params
+                url_kwargs = {'wo_pk': wo.pk}
+                # Die check needs eval_pk — find or create the linked evaluation
+                if 'die_check' in (url_name or ''):
+                    eval_obj = step.linked_evaluation
+                    if not eval_obj:
+                        eval_obj = wo.cutter_evaluations.filter(
+                            evaluation_type__in=['DIE_CHECK', 'FINAL_DIE_CHECK']
+                        ).first()
+                    if not eval_obj:
+                        # Auto-create evaluation for die check
+                        eval_obj = CutterEvaluationMatrix.objects.create(
+                            work_order=wo, evaluation_type='DIE_CHECK',
+                            evaluated_by=self.request.user,
+                        )
+                        step.linked_evaluation = eval_obj
+                        step.save(update_fields=['linked_evaluation'])
+                    url_kwargs['eval_pk'] = eval_obj.pk
+
                 try:
-                    dedicated_url = reverse(url_name, kwargs={'wo_pk': wo.pk})
+                    dedicated_url = reverse(url_name, kwargs=url_kwargs)
                 except Exception:
                     try:
                         dedicated_url = reverse(url_name, args=[wo.pk])
@@ -7406,6 +7554,12 @@ def api_step_pause(request, wo_pk, step_number):
                 )
             except Exception:
                 pass
+        fire_event('STEP_RESUMED', request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number,
+            'serial': wo.drill_bit.serial_number if wo.drill_bit else '?',
+            'step_name': entry.step_description, 'step_number': step_number,
+            'entity_type': 'RouterSheetEntry', 'entity_id': entry.pk,
+        })
 
         return JsonResponse({
             'success': True,
@@ -8248,3 +8402,70 @@ def api_kpi_step_durations(request):
         })
 
     return JsonResponse({'results': data, 'group_by': group_by, 'total_records': qs.count()})
+
+
+# =============================================================================
+# REPORT NCR / REPORT ISSUE — API endpoints for dedicated pages
+# =============================================================================
+
+@login_required
+def api_report_quality_issue(request, wo_pk):
+    """
+    Report a quality issue from a dedicated page (Die Check, Evaluation, etc.).
+    Creates a QualityIssue record, notifies Quality team with QUALITY_DECISION action.
+    POST: { summary, additional_remarks, source_step, step_number }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    wo = WorkOrder.objects.filter(pk=wo_pk).first() if wo_pk else None
+    data = _json.loads(request.body)
+    summary = data.get('summary', '').strip()
+    additional = data.get('additional_remarks', '').strip()
+    source_step = data.get('source_step', '')
+    step_number = data.get('step_number')
+
+    if not summary:
+        return JsonResponse({'error': 'Summary is required', 'success': False})
+
+    from apps.quality.models import QualityIssue
+
+    bit = wo.drill_bit if wo else None
+    issue = QualityIssue.objects.create(
+        work_order=wo,
+        drill_bit=bit,
+        source_step=source_step,
+        router_step_number=step_number,
+        summary=summary,
+        additional_remarks=additional,
+        reported_by=request.user,
+    )
+
+    # Notify Quality team
+    serial = wo.drill_bit.serial_number if wo.drill_bit else '?'
+    try:
+        notify(
+            actor=request.user,
+            title=f"Quality issue reported — {issue.issue_number}",
+            message=f"WO: {wo.wo_number} | S/N: {serial}\nStep: {source_step}\n\n{summary[:300]}",
+            priority="HIGH",
+            action_url=f'/quality/issues/{issue.pk}/',
+            entity_type="QualityIssue",
+            entity_id=issue.pk,
+            verb="",
+        )
+    except Exception:
+        pass
+
+    # Fire workflow event
+    fire_event('DIE_CHECK_DECISION', request.user, {
+        'wo_id': wo.pk, 'wo_number': wo.wo_number, 'serial': serial,
+        'entity_type': 'QualityIssue', 'entity_id': issue.pk,
+    })
+
+    return JsonResponse({
+        'success': True,
+        'issue_number': issue.issue_number,
+        'issue_pk': issue.pk,
+        'message': f'Issue {issue.issue_number} reported. Quality team notified.',
+    })

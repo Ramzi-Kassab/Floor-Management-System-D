@@ -1,0 +1,45 @@
+{% comment %}
+Reusable User Avatar Component
+Usage: {% include "components/user_avatar.html" with user=work_order.assigned_to size="md" %}
+Sizes: sm (6), md (8), lg (10), xl (12)
+{% endcomment %}
+
+{% with size_class=size|default:"md" %}
+<div class="flex items-center">
+    <div class="flex-shrink-0
+        {% if size_class == 'sm' %}w-6 h-6 text-xs
+        {% elif size_class == 'md' %}w-8 h-8 text-sm
+        {% elif size_class == 'lg' %}w-10 h-10 text-base
+        {% elif size_class == 'xl' %}w-12 h-12 text-lg
+        {% else %}w-8 h-8 text-sm{% endif %}
+        rounded-full bg-ardt-blue text-white flex items-center justify-center font-medium">
+        {% if user %}
+            {% if user.first_name and user.last_name %}
+                {{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}
+            {% elif user.username %}
+                {{ user.username|slice:":2"|upper }}
+            {% else %}
+                <i data-lucide="user" class="w-4 h-4"></i>
+            {% endif %}
+        {% else %}
+            <i data-lucide="user" class="w-4 h-4"></i>
+        {% endif %}
+    </div>
+    {% if show_name %}
+    <div class="ml-2">
+        <p class="text-sm font-medium text-gray-900 dark:text-white">
+            {% if user %}
+                {{ user.get_full_name|default:user.username }}
+            {% else %}
+                Unassigned
+            {% endif %}
+        </p>
+        {% if show_role and user %}
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ user.primary_role|default:"--" }}
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endwith %}

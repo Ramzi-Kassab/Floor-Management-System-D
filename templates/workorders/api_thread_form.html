@@ -175,6 +175,10 @@
 
     <!-- Submit -->
     <div class="flex justify-end space-x-3">
+        <button type="button" onclick="reportIssueFromPage()"
+                class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 text-sm">
+            <i data-lucide="flag" class="w-4 h-4 inline mr-1"></i>Report Issue
+        </button>
         <a href="{% url 'workorders:workorder_detail_enhanced' work_order.pk %}"
            class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
             Cancel
@@ -184,4 +188,18 @@
         </button>
     </div>
 </form>
+<script>
+function reportIssueFromPage() {
+    const desc = prompt('Describe the issue:');
+    if (desc === null) return;
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+    fetch('{% url "workorders:api_report_quality_issue" wo_pk=work_order.pk %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({ summary: desc, source_step: 'Thread Inspection' })
+    }).then(r => r.json()).then(d => {
+        if (d.success) alert(d.message); else alert(d.error || 'Failed');
+    }).catch(() => alert('Network error'));
+}
+</script>
 {% endblock %}

@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+
+{% block title %}Import Stock from Excel - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Import Stock from Excel</h1>
+        <p class="text-gray-600 dark:text-gray-400">Import cutter stock quantities from ERP Excel files</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'inventory:stock_export_excel' %}"
+           class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="download" class="w-4 h-4 mr-2"></i>Export Current Stock
+        </a>
+        <a href="{% url 'inventory:cutter_inventory_list' %}"
+           class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to Cutters
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- File Selection -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 inline mr-2 text-green-600"></i>
+                Select Excel File
+            </h2>
+
+            <!-- Upload New File -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Upload New File
+                </label>
+                <input type="file" id="excel-file-input" accept=".xlsx,.xls"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                              file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                              file:text-sm file:font-medium file:bg-green-50 file:text-green-700
+                              hover:file:bg-green-100">
+            </div>
+
+            <div class="text-center text-sm text-gray-500 my-4">- OR -</div>
+
+            <!-- Select Existing File -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select from Documents
+                </label>
+                <select id="existing-file-select"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                               bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">-- Select a file --</option>
+                    {% for file in excel_files %}
+                    <option value="{{ file }}">{{ file }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Preview Button -->
+            <button type="button" onclick="previewData()"
+                    class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+                Preview Data
+            </button>
+
+            <!-- Info -->
+            <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ERP On-hand.xlsx Format</h3>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">Auto-detects header row by finding "Item number" column</p>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <li><strong>Item number:</strong> ERP item# (matched against variant ERP item numbers)</li>
+                    <li><strong>Site:</strong> Filtered to "ARDT Site" only</li>
+                    <li><strong>Warehouse:</strong> Filtered to "Store" only</li>
+                    <li><strong>Available physical:</strong> Quantity to import</li>
+                </ul>
+                <hr class="my-2 border-gray-200 dark:border-gray-600">
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Prefix → Variant:</p>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-0.5 mt-1">
+                    <li>CT-* → NEW-PUR</li>
+                    <li>ENO-CT-* → NEW-EO</li>
+                    <li>RCLM-ARDT-* → USED-RCL</li>
+                    <li>RCLM-* → NEW-CLI</li>
+                    <li>RTRO-* → NEW-RET</li>
+                </ul>
+            </div>
+
+            {% if default_location %}
+            <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p class="text-xs text-blue-700 dark:text-blue-300">
+                    <i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>
+                    Stock will be imported to: <strong>{{ default_location.name }}</strong>
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Preview & Results -->
+    <div class="lg:col-span-2">
+        <!-- Loading State -->
+        <div id="loading-state" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                <span class="ml-3 text-gray-600 dark:text-gray-400">Processing...</span>
+            </div>
+        </div>
+
+        <!-- Initial State -->
+        <div id="initial-state" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="text-center py-12">
+                <i data-lucide="file-up" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No Data Loaded</h3>
+                <p class="text-gray-500 dark:text-gray-400">
+                    Select or upload an Excel file, then click "Preview Data"
+                </p>
+            </div>
+        </div>
+
+        <!-- Preview State -->
+        <div id="preview-state" class="hidden">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Rows Processed</p>
+                    <p id="stat-rows" class="text-2xl font-bold text-gray-900 dark:text-white">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Items Matched</p>
+                    <p id="stat-matched" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Not Found</p>
+                    <p id="stat-not-found" class="text-2xl font-bold text-red-600">0</p>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                    <p class="text-xs text-gray-500 uppercase">Total Quantity</p>
+                    <p id="stat-qty" class="text-2xl font-bold text-blue-600">0</p>
+                </div>
+            </div>
+
+            <!-- Preview Table -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Preview Data
+                        <span id="preview-file-name" class="text-sm font-normal text-gray-500 ml-2"></span>
+                    </h3>
+                    <span id="preview-count" class="text-sm text-gray-500"></span>
+                </div>
+
+                <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ERP Item#</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">MAT#</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item Code</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Variant</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Not Found Items -->
+            <div id="not-found-section" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+                <h3 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 inline mr-2"></i>
+                    Items Not Found in System
+                </h3>
+                <p class="text-sm text-gray-500 mb-3">These ERP item numbers from the Excel don't match any variant in the system.</p>
+                <div class="overflow-x-auto max-h-48 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-red-50 dark:bg-red-900/30 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">ERP Item#</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-red-700">Variant Type</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-red-700">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="not-found-table-body" class="divide-y divide-red-100 dark:divide-red-800">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Import Button -->
+            <div class="flex justify-end gap-4">
+                <button type="button" onclick="clearPreview()"
+                        class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeImport()"
+                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium">
+                    <i data-lucide="upload" class="w-5 h-5"></i>
+                    Import Stock Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="success-state" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="text-center py-8">
+                <div class="w-16 h-16 mx-auto rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                    <i data-lucide="check" class="w-8 h-8 text-green-600"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Import Successful!</h3>
+                <p id="success-message" class="text-gray-600 dark:text-gray-400 mb-6"></p>
+
+                <div id="import-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto mb-6">
+                </div>
+
+                <div class="flex justify-center gap-4">
+                    <a href="{% url 'inventory:cutter_inventory_list' %}"
+                       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        View Cutter Inventory
+                    </a>
+                    <button type="button" onclick="resetForm()"
+                            class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                        Import Another File
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPreviewData = null;
+
+function getSelectedFile() {
+    const uploadedFile = document.getElementById('excel-file-input').files[0];
+    const selectedFile = document.getElementById('existing-file-select').value;
+    return { uploadedFile, selectedFile };
+}
+
+function showState(state) {
+    ['initial-state', 'loading-state', 'preview-state', 'success-state'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    document.getElementById(state + '-state').classList.remove('hidden');
+}
+
+async function previewData() {
+    const { uploadedFile, selectedFile } = getSelectedFile();
+
+    if (!uploadedFile && !selectedFile) {
+        alert('Please select or upload a file first.');
+        return;
+    }
+
+    showState('loading');
+
+    const formData = new FormData();
+    formData.append('action', 'preview');
+
+    if (uploadedFile) {
+        formData.append('excel_file', uploadedFile);
+    } else {
+        formData.append('selected_file', selectedFile);
+    }
+
+    try {
+        const response = await fetch('', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            currentPreviewData = data;
+            renderPreview(data);
+            showState('preview');
+        } else {
+            alert('Error: ' + data.error);
+            showState('initial');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while processing the file.');
+        showState('initial');
+    }
+}
+
+function renderPreview(data) {
+    // Update stats — use new field names with fallback to old names
+    document.getElementById('stat-rows').textContent = (data.stats.rows_processed || 0).toLocaleString();
+    document.getElementById('stat-matched').textContent = (data.stats.rows_matched || data.stats.items_matched || 0).toLocaleString();
+    document.getElementById('stat-not-found').textContent = (data.stats.rows_not_found || data.stats.items_not_found || 0).toLocaleString();
+    document.getElementById('stat-qty').textContent = (data.stats.total_quantity || 0).toLocaleString();
+
+    // Show header detection info + filter info
+    const headerInfo = data.header_row ? `Headers at row ${data.header_row}` : '';
+    const filterInfo = data.filter ? ` | Filter: ${data.filter}` : '';
+    document.getElementById('preview-file-name').textContent = `(${data.file_name} - ${data.sheet_name}) ${headerInfo}${filterInfo}`;
+    const matchedCount = data.stats.rows_matched || data.stats.items_matched || 0;
+    document.getElementById('preview-count').textContent = `Showing ${Math.min(200, data.preview.length)} of ${matchedCount} items`;
+
+    // Variant color mapping
+    const variantColors = {
+        'NEW-PUR': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+        'NEW-EO': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+        'NEW-CLI': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+        'NEW-RET': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+        'USED-RCL': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+        'USED-GRD': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    };
+
+    // Render preview table
+    const tbody = document.getElementById('preview-table-body');
+    tbody.innerHTML = '';
+
+    data.preview.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+        const variantClass = variantColors[row.variant_code] || 'bg-gray-100 text-gray-800';
+        tr.innerHTML = `
+            <td class="px-3 py-2 font-mono text-gray-700 dark:text-gray-300">${row.erp_item_no || ''}</td>
+            <td class="px-3 py-2 font-mono text-gray-500 dark:text-gray-400">${row.mat_number || ''}</td>
+            <td class="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">${row.item_code}</td>
+            <td class="px-3 py-2 text-gray-900 dark:text-white truncate max-w-xs" title="${row.item_name || ''}">${row.item_name || ''}</td>
+            <td class="px-3 py-2 text-center"><span class="px-2 py-1 rounded text-xs font-medium ${variantClass}">${row.variant_code}</span></td>
+            <td class="px-3 py-2 text-right font-mono font-medium text-gray-900 dark:text-white">${row.qty.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Render not found items
+    const notFoundSection = document.getElementById('not-found-section');
+    const notFoundBody = document.getElementById('not-found-table-body');
+
+    if (data.not_found && data.not_found.length > 0) {
+        notFoundSection.classList.remove('hidden');
+        notFoundBody.innerHTML = '';
+
+        data.not_found.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="px-3 py-2 font-mono text-red-700">${item.erp_item_no || ''}</td>
+                <td class="px-3 py-2 text-red-600">${item.variant_code || '?'}</td>
+                <td class="px-3 py-2 text-right font-mono text-red-700">${item.qty ? item.qty.toLocaleString() : '-'}</td>
+            `;
+            notFoundBody.appendChild(tr);
+        });
+    } else {
+        notFoundSection.classList.add('hidden');
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function executeImport() {
+    if (!confirm('Are you sure you want to import this stock data? This will update stock quantities in the system.')) {
+        return;
+    }
+
+    showState('loading');
+
+    const { uploadedFile, selectedFile } = getSelectedFile();
+    const formData = new FormData();
+    formData.append('action', 'import');
+
+    if (uploadedFile) {
+        formData.append('excel_file', uploadedFile);
+    } else {
+        formData.append('selected_file', selectedFile);
+    }
+
+    try {
+        const response = await fetch('', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            renderSuccess(data);
+            showState('success');
+        } else {
+            alert('Error: ' + data.error);
+            showState('preview');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred during import.');
+        showState('preview');
+    }
+}
+
+function renderSuccess(data) {
+    const matchedCount = data.stats.rows_matched || data.stats.items_matched || 0;
+    document.getElementById('success-message').textContent =
+        `Successfully imported ${(data.stats.total_quantity || 0).toLocaleString()} units across ${matchedCount} variants.`;
+
+    const statsDiv = document.getElementById('import-stats');
+    statsDiv.innerHTML = `
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Rows Processed</p>
+            <p class="text-xl font-bold text-gray-700 dark:text-gray-200">${(data.stats.rows_processed || 0).toLocaleString()}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Variants Matched</p>
+            <p class="text-xl font-bold text-green-600">${matchedCount}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Stock Created</p>
+            <p class="text-xl font-bold text-green-600">${data.stats.stock_records_created || 0}</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+            <p class="text-xs text-gray-500">Stock Updated</p>
+            <p class="text-xl font-bold text-blue-600">${data.stats.stock_records_updated || 0}</p>
+        </div>
+    `;
+}
+
+function clearPreview() {
+    currentPreviewData = null;
+    showState('initial');
+}
+
+function resetForm() {
+    document.getElementById('excel-file-input').value = '';
+    document.getElementById('existing-file-select').value = '';
+    currentPreviewData = null;
+    showState('initial');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Clear other input when one is selected
+    document.getElementById('excel-file-input').addEventListener('change', function() {
+        if (this.files.length > 0) {
+            document.getElementById('existing-file-select').value = '';
+        }
+    });
+
+    document.getElementById('existing-file-select').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('excel-file-input').value = '';
+        }
+    });
+});
+</script>
+{% endblock %}

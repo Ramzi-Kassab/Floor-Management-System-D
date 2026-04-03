@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ sprint.code }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if sprint.status == 'ACTIVE' %}bg-green-100 text-green-800
+                {% elif sprint.status == 'COMPLETED' %}bg-blue-100 text-blue-800
+                {% elif sprint.status == 'CANCELLED' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ sprint.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ sprint.name }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        <a href="{% url 'planning:item_create' %}?sprint={{ sprint.pk }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Add Item
+        </a>
+        <a href="{% url 'planning:sprint_update' sprint.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        <a href="{% url 'planning:sprint_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Sprint Goal -->
+        {% if sprint.goal %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Sprint Goal</h2>
+            <p class="text-gray-600 dark:text-gray-400">{{ sprint.goal }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Sprint Items -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Items</h2>
+                <a href="{% url 'planning:item_create' %}?sprint={{ sprint.pk }}" class="text-sm text-blue-600 hover:underline">Add Item</a>
+            </div>
+            {% if items %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Code</th>
+                        <th class="px-6 py-3 font-medium">Title</th>
+                        <th class="px-6 py-3 font-medium">Type</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
+                        <th class="px-6 py-3 font-medium">Assignee</th>
+                        <th class="px-6 py-3 font-medium text-right">Points</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for item in items %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td class="px-6 py-4">
+                            <a href="{% url 'planning:item_detail' item.pk %}" class="text-blue-600 hover:underline font-mono">{{ item.code }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">{{ item.title|truncatewords:6 }}</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                {% if item.item_type == 'EPIC' %}bg-purple-100 text-purple-800
+                                {% elif item.item_type == 'STORY' %}bg-blue-100 text-blue-800
+                                {% elif item.item_type == 'BUG' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ item.get_item_type_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                            {{ item.column.name|default:"Backlog" }}
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                            {{ item.assignee.get_full_name|default:item.assignee.username|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">{{ item.story_points|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No items in this sprint</div>
+            {% endif %}
+        </div>
+
+        <!-- Linked Boards -->
+        {% if boards %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Linked Boards</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {% for board in boards %}
+                <a href="{% url 'planning:board_detail' board.pk %}" class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 transition-colors">
+                    <h3 class="font-medium text-gray-900 dark:text-white">{{ board.name }}</h3>
+                    <p class="text-sm text-gray-500">{{ board.code }}</p>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Sprint Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Details</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Start Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ sprint.start_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">End Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ sprint.end_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Owner</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ sprint.owner.get_full_name|default:sprint.owner.username|default:"-" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Progress -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progress</h2>
+            <div class="mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-500">Completed</span>
+                    <span class="text-gray-900 dark:text-white font-medium">{{ sprint.progress_percent }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                    <div class="bg-blue-600 h-3 rounded-full transition-all" style="width: {{ sprint.progress_percent }}%"></div>
+                </div>
+            </div>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Completed</dt>
+                    <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ sprint.completed_points }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Capacity</dt>
+                    <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ sprint.capacity_points }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}

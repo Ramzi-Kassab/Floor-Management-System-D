@@ -1,0 +1,384 @@
+[
+    {
+        "model": "sales.customer",
+        "pk": 1,
+        "fields": {
+            "customer_code": "CUST-001",
+            "company_name": "Shell Exploration & Production",
+            "customer_type": "MAJOR_OIL",
+            "status": "ACTIVE",
+            "credit_limit": "500000.00",
+            "payment_terms": "NET30",
+            "billing_address": "123 Energy Way, Houston, TX 77001",
+            "shipping_address": "456 Offshore Blvd, Houston, TX 77002",
+            "phone": "+1-713-555-0100",
+            "email": "procurement@shell.example.com",
+            "website": "https://shell.example.com",
+            "tax_id": "XX-XXXXXXX",
+            "notes": "Premium customer, prioritize all orders"
+        }
+    },
+    {
+        "model": "sales.customer",
+        "pk": 2,
+        "fields": {
+            "customer_code": "CUST-002",
+            "company_name": "Precision Drilling Corp",
+            "customer_type": "DRILLING_CONTRACTOR",
+            "status": "ACTIVE",
+            "credit_limit": "250000.00",
+            "payment_terms": "NET45",
+            "billing_address": "789 Drill Dr, Calgary, AB T2P 3T2",
+            "phone": "+1-403-555-0200",
+            "email": "orders@precisiondrilling.example.com"
+        }
+    },
+    {
+        "model": "sales.customer",
+        "pk": 3,
+        "fields": {
+            "customer_code": "CUST-003",
+            "company_name": "ConocoPhillips",
+            "customer_type": "MAJOR_OIL",
+            "status": "ACTIVE",
+            "credit_limit": "400000.00",
+            "payment_terms": "NET30",
+            "billing_address": "600 N Dairy Ashford, Houston, TX 77079",
+            "email": "vendor@conocophillips.example.com"
+        }
+    },
+    {
+        "model": "sales.customer",
+        "pk": 4,
+        "fields": {
+            "customer_code": "CUST-004",
+            "company_name": "Independent Oil Services",
+            "customer_type": "INDEPENDENT",
+            "status": "ACTIVE",
+            "credit_limit": "50000.00",
+            "payment_terms": "NET15",
+            "billing_address": "100 Main St, Midland, TX 79701"
+        }
+    },
+    {
+        "model": "sales.customer",
+        "pk": 5,
+        "fields": {
+            "customer_code": "CUST-005",
+            "company_name": "Offshore Drilling International",
+            "customer_type": "DRILLING_CONTRACTOR",
+            "status": "INACTIVE",
+            "credit_limit": "100000.00",
+            "payment_terms": "NET30",
+            "notes": "Account on hold pending payment review"
+        }
+    },
+    {
+        "model": "sales.customercontact",
+        "pk": 1,
+        "fields": {
+            "customer": 1,
+            "first_name": "John",
+            "last_name": "Smith",
+            "title": "Procurement Manager",
+            "email": "john.smith@shell.example.com",
+            "phone": "+1-713-555-0101",
+            "is_primary": true,
+            "is_active": true
+        }
+    },
+    {
+        "model": "sales.customercontact",
+        "pk": 2,
+        "fields": {
+            "customer": 1,
+            "first_name": "Sarah",
+            "last_name": "Johnson",
+            "title": "Technical Lead",
+            "email": "sarah.johnson@shell.example.com",
+            "phone": "+1-713-555-0102",
+            "is_primary": false,
+            "is_active": true
+        }
+    },
+    {
+        "model": "sales.customercontact",
+        "pk": 3,
+        "fields": {
+            "customer": 2,
+            "first_name": "Mike",
+            "last_name": "Brown",
+            "title": "Operations Manager",
+            "email": "mike.brown@precisiondrilling.example.com",
+            "is_primary": true,
+            "is_active": true
+        }
+    },
+    {
+        "model": "sales.rig",
+        "pk": 1,
+        "fields": {
+            "rig_name": "Deepwater Horizon II",
+            "rig_number": "RIG-001",
+            "rig_type": "DEEPWATER",
+            "customer": 1,
+            "status": "ACTIVE",
+            "location": "Gulf of Mexico - Block 252",
+            "water_depth": "5000.00",
+            "max_drilling_depth": "35000.00"
+        }
+    },
+    {
+        "model": "sales.rig",
+        "pk": 2,
+        "fields": {
+            "rig_name": "Land Rig 42",
+            "rig_number": "RIG-002",
+            "rig_type": "LAND",
+            "customer": 2,
+            "status": "ACTIVE",
+            "location": "Permian Basin, TX"
+        }
+    },
+    {
+        "model": "sales.rig",
+        "pk": 3,
+        "fields": {
+            "rig_name": "Platform Alpha",
+            "rig_number": "RIG-003",
+            "rig_type": "PLATFORM",
+            "customer": 3,
+            "status": "ACTIVE",
+            "location": "North Sea Block 14"
+        }
+    },
+    {
+        "model": "sales.well",
+        "pk": 1,
+        "fields": {
+            "well_name": "Shell GOM #1",
+            "api_number": "42-123-45678",
+            "rig": 1,
+            "customer": 1,
+            "status": "DRILLING",
+            "well_type": "EXPLORATION",
+            "total_depth": "18000.00",
+            "current_depth": "12500.00",
+            "spud_date": "2024-10-15"
+        }
+    },
+    {
+        "model": "sales.well",
+        "pk": 2,
+        "fields": {
+            "well_name": "Permian Well 101",
+            "api_number": "42-234-56789",
+            "rig": 2,
+            "customer": 2,
+            "status": "DRILLING",
+            "well_type": "DEVELOPMENT",
+            "total_depth": "12000.00",
+            "current_depth": "8500.00",
+            "spud_date": "2024-11-01"
+        }
+    },
+    {
+        "model": "sales.warehouse",
+        "pk": 1,
+        "fields": {
+            "warehouse_code": "WH-HOU",
+            "warehouse_name": "Houston Distribution Center",
+            "address": "1000 Industrial Blvd, Houston, TX 77001",
+            "is_active": true,
+            "capacity": 50000
+        }
+    },
+    {
+        "model": "sales.warehouse",
+        "pk": 2,
+        "fields": {
+            "warehouse_code": "WH-ABD",
+            "warehouse_name": "Aberdeen Facility",
+            "address": "Industrial Park, Aberdeen, UK",
+            "is_active": true,
+            "capacity": 25000
+        }
+    },
+    {
+        "model": "sales.salesorder",
+        "pk": 1,
+        "fields": {
+            "order_number": "SO-2024-001",
+            "customer": 1,
+            "status": "IN_PROGRESS",
+            "order_type": "REPAIR",
+            "priority": "HIGH",
+            "order_date": "2024-12-01",
+            "requested_date": "2024-12-15",
+            "subtotal": "15000.00",
+            "tax_amount": "0.00",
+            "total_amount": "15000.00",
+            "shipping_address": "456 Offshore Blvd, Houston, TX",
+            "notes": "Rush order - expedite processing"
+        }
+    },
+    {
+        "model": "sales.salesorder",
+        "pk": 2,
+        "fields": {
+            "order_number": "SO-2024-002",
+            "customer": 2,
+            "status": "PENDING",
+            "order_type": "NEW_PURCHASE",
+            "priority": "MEDIUM",
+            "order_date": "2024-12-03",
+            "requested_date": "2024-12-20",
+            "subtotal": "45000.00",
+            "tax_amount": "3600.00",
+            "total_amount": "48600.00"
+        }
+    },
+    {
+        "model": "sales.salesorder",
+        "pk": 3,
+        "fields": {
+            "order_number": "SO-2024-003",
+            "customer": 3,
+            "status": "COMPLETED",
+            "order_type": "REPAIR",
+            "priority": "LOW",
+            "order_date": "2024-11-15",
+            "requested_date": "2024-11-30",
+            "completed_date": "2024-11-28",
+            "subtotal": "8500.00",
+            "total_amount": "8500.00"
+        }
+    },
+    {
+        "model": "sales.salesorderline",
+        "pk": 1,
+        "fields": {
+            "sales_order": 1,
+            "line_number": 1,
+            "description": "PDC Bit Repair - 8.5 inch",
+            "quantity": "1.00",
+            "unit_price": "15000.00",
+            "line_total": "15000.00",
+            "status": "IN_PROGRESS"
+        }
+    },
+    {
+        "model": "sales.salesorderline",
+        "pk": 2,
+        "fields": {
+            "sales_order": 2,
+            "line_number": 1,
+            "description": "New PDC Bit - 12.25 inch",
+            "quantity": "1.00",
+            "unit_price": "35000.00",
+            "line_total": "35000.00",
+            "status": "PENDING"
+        }
+    },
+    {
+        "model": "sales.salesorderline",
+        "pk": 3,
+        "fields": {
+            "sales_order": 2,
+            "line_number": 2,
+            "description": "Spare Nozzles - Set of 6",
+            "quantity": "2.00",
+            "unit_price": "5000.00",
+            "line_total": "10000.00",
+            "status": "PENDING"
+        }
+    },
+    {
+        "model": "sales.servicesite",
+        "pk": 1,
+        "fields": {
+            "site_code": "SITE-001",
+            "site_name": "Shell GOM Platform",
+            "customer": 1,
+            "site_type": "OFFSHORE",
+            "status": "ACTIVE",
+            "address": "Gulf of Mexico Block 252",
+            "gps_latitude": "28.7367",
+            "gps_longitude": "-88.3657",
+            "contact_name": "Platform Supervisor",
+            "contact_phone": "+1-713-555-0150"
+        }
+    },
+    {
+        "model": "sales.servicesite",
+        "pk": 2,
+        "fields": {
+            "site_code": "SITE-002",
+            "site_name": "Permian Operations Base",
+            "customer": 2,
+            "site_type": "LAND",
+            "status": "ACTIVE",
+            "address": "Highway 349, Midland, TX 79701",
+            "contact_name": "Field Office"
+        }
+    },
+    {
+        "model": "sales.fieldtechnician",
+        "pk": 1,
+        "fields": {
+            "employee_id": "FT-001",
+            "first_name": "James",
+            "last_name": "Wilson",
+            "specialization": "PDC_SPECIALIST",
+            "status": "ACTIVE",
+            "phone": "+1-713-555-0301",
+            "email": "james.wilson@ardt.example.com",
+            "certification_level": "SENIOR",
+            "years_experience": 15
+        }
+    },
+    {
+        "model": "sales.fieldtechnician",
+        "pk": 2,
+        "fields": {
+            "employee_id": "FT-002",
+            "first_name": "Robert",
+            "last_name": "Davis",
+            "specialization": "TRICONE_SPECIALIST",
+            "status": "ACTIVE",
+            "phone": "+1-713-555-0302",
+            "email": "robert.davis@ardt.example.com",
+            "certification_level": "JOURNEYMAN",
+            "years_experience": 8
+        }
+    },
+    {
+        "model": "sales.fieldservicerequest",
+        "pk": 1,
+        "fields": {
+            "request_number": "FSR-2024-001",
+            "customer": 1,
+            "service_site": 1,
+            "status": "IN_PROGRESS",
+            "priority": "HIGH",
+            "service_type": "ONSITE_REPAIR",
+            "description": "Emergency bit evaluation and repair at platform",
+            "requested_date": "2024-12-05",
+            "notes": "Customer reports unusual vibration"
+        }
+    },
+    {
+        "model": "sales.fieldservicerequest",
+        "pk": 2,
+        "fields": {
+            "request_number": "FSR-2024-002",
+            "customer": 2,
+            "service_site": 2,
+            "status": "SCHEDULED",
+            "priority": "MEDIUM",
+            "service_type": "INSPECTION",
+            "description": "Quarterly bit inventory inspection",
+            "requested_date": "2024-12-10"
+        }
+    }
+]

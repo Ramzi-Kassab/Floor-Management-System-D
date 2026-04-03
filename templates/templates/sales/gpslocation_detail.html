@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">GPS Location #{{ location.pk }}</h1>
+            <p class="text-sm text-gray-500 mt-1">Recorded: {{ location.recorded_at|date:"M d, Y H:i"|default:"N/A" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:gpslocation_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:gpslocation_update' location.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Location Details</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Latitude</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.latitude|floatformat:6 }}</dd></div>
+                <div><dt class="text-gray-500">Longitude</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.longitude|floatformat:6 }}</dd></div>
+                <div><dt class="text-gray-500">Altitude</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.altitude|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Accuracy</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.accuracy|default:"-" }}m</dd></div>
+                <div class="col-span-2"><dt class="text-gray-500">Address</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.address|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Context</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.technician.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.service_site.site_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Source</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.get_source_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Recorded At</dt><dd class="font-medium text-gray-900 dark:text-white">{{ location.recorded_at|date:"M d, Y H:i"|default:"-" }}</dd></div>
+            </dl>
+            {% if location.notes %}<div class="mt-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Notes</h4><p class="text-gray-900 dark:text-white">{{ location.notes }}</p></div>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

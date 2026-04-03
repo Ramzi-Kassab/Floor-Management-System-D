@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - ARDT FMS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .controls {
+            background: white;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .controls label {
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .controls input[type="number"] {
+            width: 80px;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .controls select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .controls button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .labels-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        .label {
+            background: white;
+            border: 1px dashed #d1d5db;
+            padding: 8px;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+
+        .label-small {
+            width: 1.5in;
+            height: 1in;
+        }
+
+        .label-medium {
+            width: 2in;
+            height: 1in;
+        }
+
+        .label-large {
+            width: 3in;
+            height: 1.5in;
+        }
+
+        .label img {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .label-small img {
+            width: 0.6in;
+            height: 0.6in;
+        }
+
+        .label-medium img {
+            width: 0.75in;
+            height: 0.75in;
+        }
+
+        .label-large img {
+            width: 1.2in;
+            height: 1.2in;
+        }
+
+        .label .code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .label-small .code {
+            font-size: 7pt;
+        }
+
+        .label-medium .code {
+            font-size: 8pt;
+        }
+
+        .label-large .code {
+            font-size: 10pt;
+        }
+
+        .label .name {
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .label-small .name {
+            font-size: 5pt;
+        }
+
+        .label-medium .name {
+            font-size: 6pt;
+        }
+
+        .label-large .name {
+            font-size: 8pt;
+        }
+
+        .label .case-badge {
+            display: inline-block;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 5pt;
+            margin-top: 2px;
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .back-link {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            color: #374151;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .controls {
+                display: none !important;
+            }
+
+            .labels-container {
+                gap: 0;
+            }
+
+            .label {
+                border: 1px dashed #ccc;
+            }
+        }
+
+        @page {
+            margin: 0.25in;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <a href="{% url 'inventory:item_variant_detail' item.pk variant.pk %}" class="back-link">&larr; Back to Variant</a>
+
+        <label>Copies:
+            <input type="number" id="copiesInput" value="{{ copies }}" min="1" max="50">
+        </label>
+
+        <label>Size:
+            <select id="sizeSelect">
+                <option value="small">Small (1.5" x 1")</option>
+                <option value="medium" selected>Medium (2" x 1")</option>
+                <option value="large">Large (3" x 1.5")</option>
+            </select>
+        </label>
+
+        <button type="button" class="btn-secondary" onclick="updateLabels()">Update</button>
+        <button type="button" class="btn-primary" onclick="window.print()">
+            Print Labels
+        </button>
+    </div>
+
+    <div class="labels-container" id="labelsContainer">
+        {% for i in copy_range %}
+        <div class="label label-medium">
+            <img src="{{ variant_qr_code }}" alt="QR Code for {{ variant.code }}">
+            <div class="code">{{ variant.code }}</div>
+            <div class="name">{{ variant.name|truncatewords:3 }}</div>
+            {% if variant.variant_case %}
+            <span class="case-badge">{{ variant.variant_case.code }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function updateLabels() {
+            const copies = document.getElementById('copiesInput').value;
+            const size = document.getElementById('sizeSelect').value;
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('copies', copies);
+            window.location = currentUrl.toString();
+        }
+
+        document.getElementById('sizeSelect').addEventListener('change', function() {
+            const size = this.value;
+            document.querySelectorAll('.label').forEach(label => {
+                label.classList.remove('label-small', 'label-medium', 'label-large');
+                label.classList.add('label-' + size);
+            });
+        });
+
+        // Auto-print if coming from a direct print request
+        if (new URLSearchParams(window.location.search).get('auto') === '1') {
+            window.print();
+        }
+    </script>
+</body>
+</html>

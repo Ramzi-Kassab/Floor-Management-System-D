@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-start md:justify-between mb-6">
+    <div>
+        <div class="flex items-center space-x-3">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ mwo.mwo_number }}</h1>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                {% if mwo.status == 'COMPLETED' %}bg-green-100 text-green-800
+                {% elif mwo.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800
+                {% elif mwo.status == 'PENDING' %}bg-yellow-100 text-yellow-800
+                {% elif mwo.status == 'CANCELLED' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ mwo.get_status_display }}
+            </span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mt-1">{{ mwo.title }}</p>
+    </div>
+    <div class="mt-4 md:mt-0 flex flex-wrap gap-2">
+        {% if mwo.status == 'PENDING' %}
+        <a href="{% url 'maintenance:mwo_start' mwo.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="play" class="w-4 h-4 mr-2"></i>Start Work
+        </a>
+        {% endif %}
+        {% if mwo.status == 'IN_PROGRESS' %}
+        <a href="{% url 'maintenance:mwo_complete' mwo.pk %}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i data-lucide="check-circle" class="w-4 h-4 mr-2"></i>Complete
+        </a>
+        <a href="{% url 'maintenance:mwo_add_part' mwo.pk %}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <i data-lucide="package" class="w-4 h-4 mr-2"></i>Add Part
+        </a>
+        {% endif %}
+        {% if mwo.status != 'COMPLETED' and mwo.status != 'CANCELLED' %}
+        <a href="{% url 'maintenance:mwo_update' mwo.pk %}" class="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+        {% endif %}
+        <a href="{% url 'maintenance:mwo_list' %}" class="inline-flex items-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Work Order Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Work Description</h2>
+            <div class="prose dark:prose-invert max-w-none">
+                <p>{{ mwo.description|linebreaks }}</p>
+            </div>
+        </div>
+
+        <!-- Equipment Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Equipment</h2>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500">Code</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">
+                        <a href="{% url 'maintenance:equipment_detail' mwo.equipment.pk %}" class="text-blue-600 hover:underline">
+                            {{ mwo.equipment.code }}
+                        </a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Name</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.equipment.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Location</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.equipment.location|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Status</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if mwo.equipment.status == 'OPERATIONAL' %}bg-green-100 text-green-800
+                            {% elif mwo.equipment.status == 'BREAKDOWN' %}bg-red-100 text-red-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ mwo.equipment.get_status_display }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Parts Used -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Parts Used</h2>
+                {% if mwo.status == 'IN_PROGRESS' %}
+                <a href="{% url 'maintenance:mwo_add_part' mwo.pk %}" class="text-sm text-blue-600 hover:underline">Add Part</a>
+                {% endif %}
+            </div>
+            {% if parts_used %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+                        <th class="px-6 py-3 font-medium">Part</th>
+                        <th class="px-6 py-3 font-medium text-right">Quantity</th>
+                        <th class="px-6 py-3 font-medium text-right">Unit Cost</th>
+                        <th class="px-6 py-3 font-medium text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for part in parts_used %}
+                    <tr>
+                        <td class="px-6 py-4 text-gray-900 dark:text-white">
+                            {% if part.item %}{{ part.item.name }}{% else %}{{ part.description }}{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">{{ part.quantity }}</td>
+                        <td class="px-6 py-4 text-right font-mono">${{ part.unit_cost|floatformat:2 }}</td>
+                        <td class="px-6 py-4 text-right font-mono font-medium">${{ part.total_cost|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-50 dark:bg-gray-700/50">
+                        <td colspan="3" class="px-6 py-3 text-right font-medium">Total Parts Cost:</td>
+                        <td class="px-6 py-3 text-right font-mono font-bold">${{ total_parts_cost|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No parts recorded</div>
+            {% endif %}
+        </div>
+
+        <!-- Completion Notes -->
+        {% if mwo.status == 'COMPLETED' and mwo.completion_notes %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Completion Notes</h2>
+            <div class="prose dark:prose-invert max-w-none">
+                <p>{{ mwo.completion_notes|linebreaks }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <!-- Work Order Info -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Information</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Work Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.get_work_type_display }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Priority</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {% if mwo.priority == 'CRITICAL' %}bg-red-100 text-red-800
+                            {% elif mwo.priority == 'HIGH' %}bg-orange-100 text-orange-800
+                            {% elif mwo.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ mwo.get_priority_display }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Assigned To</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.assigned_to.get_full_name|default:mwo.assigned_to.username|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Created By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.created_by.get_full_name|default:mwo.created_by.username }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Schedule -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Schedule</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Scheduled Start</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.scheduled_start|date:"M d, Y H:i"|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Scheduled End</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.scheduled_end|date:"M d, Y H:i"|default:"-" }}</dd>
+                </div>
+                {% if mwo.actual_start %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Actual Start</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.actual_start|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                {% if mwo.actual_end %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Actual End</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.actual_end|date:"M d, Y H:i" }}</dd>
+                </div>
+                {% endif %}
+                {% if mwo.estimated_hours %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Estimated Hours</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.estimated_hours }}</dd>
+                </div>
+                {% endif %}
+                {% if mwo.actual_hours %}
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Actual Hours</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ mwo.actual_hours }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- Related Request -->
+        {% if mwo.request %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Related Request</h2>
+            <a href="{% url 'maintenance:request_detail' mwo.request.pk %}" class="text-blue-600 hover:underline font-mono">
+                {{ mwo.request.request_number }}
+            </a>
+            <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">{{ mwo.request.title }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

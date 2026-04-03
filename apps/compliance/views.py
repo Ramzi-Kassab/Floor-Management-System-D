@@ -589,7 +589,7 @@ class TrainingRecordListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
 
-        return queryset.order_by('-training_date')
+        return queryset.order_by('-scheduled_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

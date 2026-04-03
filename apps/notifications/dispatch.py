@@ -23,14 +23,24 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def fire_event(event: str, actor, context: dict):
+def fire_event(event: str, actor, context: dict) -> list:
     """
-    Fire a workflow event through the new engine.
-    Safe to call even if the engine is disabled — silently returns.
-    The old notify() calls remain in the views until Phase 4.
+    Safe wrapper around dispatch_event().
+    Catches all exceptions to prevent workflow failures from breaking
+    user-facing views — but ALWAYS logs the full traceback so failures
+    are visible in the Django log.
+    Never returns None — returns empty list on failure.
     """
     try:
         from .workflow_engine import dispatch_event
-        dispatch_event(event=event, actor=actor, context=context)
+        return dispatch_event(event=event, actor=actor, context=context)
     except Exception as e:
-        logger.warning(f'dispatch_event({event}) failed: {e}')
+        logger.error(
+            "fire_event() failed for event=%s actor=%s context_keys=%s error=%s",
+            event,
+            getattr(actor, 'username', str(actor)),
+            list(context.keys()),
+            str(e),
+            exc_info=True   # includes full traceback in log
+        )
+        return []

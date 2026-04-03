@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ order.order_number }}</h1>
+            <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-1 text-xs font-medium rounded-full {% if order.status == 'APPROVED' %}bg-green-100 text-green-800{% elif order.status == 'PENDING' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ order.get_status_display|default:order.status }}</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:salesorder_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2 inline"></i>Back
+            </a>
+            <a href="{% url 'sales:salesorder_update' order.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">
+                <i data-lucide="edit" class="w-4 h-4 mr-2 inline"></i>Edit
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Order Information</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Order Number</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.order_number }}</dd></div>
+                <div><dt class="text-gray-500">Order Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.order_date|date:"M d, Y" }}</dd></div>
+                <div><dt class="text-gray-500">Expected Delivery</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.expected_delivery_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Priority</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.priority|default:"-" }}</dd></div>
+            </dl>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer Information</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Customer</dt><dd class="font-medium text-gray-900 dark:text-white">{% if order.customer %}<a href="{% url 'sales:customer_detail' order.customer.pk %}" class="text-ardt-blue hover:underline">{{ order.customer.name }}</a>{% else %}-{% endif %}</dd></div>
+                <div><dt class="text-gray-500">Contact Person</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.contact_person|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Sales Rep</dt><dd class="font-medium text-gray-900 dark:text-white">{{ order.sales_rep.get_full_name|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Order Lines</h3>
+        {% if lines %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead>
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Line #</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Drill Bit</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for line in lines %}
+                <tr>
+                    <td class="px-4 py-2 text-sm">{{ line.line_number }}</td>
+                    <td class="px-4 py-2 text-sm">{{ line.drill_bit.serial_number|default:"-" }}</td>
+                    <td class="px-4 py-2 text-sm text-right">{{ line.quantity }}</td>
+                    <td class="px-4 py-2 text-sm text-right">${{ line.unit_price|default:"0" }}</td>
+                    <td class="px-4 py-2 text-sm">{{ line.get_line_status_display|default:line.line_status|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-gray-500 text-center py-4">No order lines added yet.</p>
+        {% endif %}
+    </div>
+
+    {% if order.special_instructions or order.internal_notes %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
+        {% if order.special_instructions %}<div class="mb-4"><p class="text-sm text-gray-500">Special Instructions</p><p class="text-gray-900 dark:text-white">{{ order.special_instructions }}</p></div>{% endif %}
+        {% if order.internal_notes %}<div><p class="text-sm text-gray-500">Internal Notes</p><p class="text-gray-900 dark:text-white">{{ order.internal_notes }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

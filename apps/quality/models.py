@@ -216,3 +216,121 @@ class NCRPhoto(models.Model):
 
     def __str__(self):
         return f"{self.ncr.ncr_number} - Photo {self.pk}"
+
+
+class QualityIssue(models.Model):
+    """
+    Issue reported from a process step (Die Check, Evaluation, etc.).
+    The operator reports → Quality team reviews → decides action.
+    Decision reflects back to the source page and WO.
+    """
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open — Pending Review"
+        IN_REVIEW = "IN_REVIEW", "In Review"
+        ACCEPTED = "ACCEPTED", "Accepted — No Action Needed"
+        NCR_CREATED = "NCR_CREATED", "NCR Created"
+        REWORK = "REWORK", "Rework Required"
+        CLOSED = "CLOSED", "Closed"
+
+    # Identity
+    issue_number = models.CharField(max_length=30, unique=True, blank=True)
+
+    # Source
+    work_order = models.ForeignKey(
+        'workorders.WorkOrder', on_delete=models.CASCADE, null=True, blank=True, related_name='quality_issues')
+    drill_bit = models.ForeignKey(
+        'workorders.DrillBit', on_delete=models.SET_NULL, null=True, blank=True, related_name='quality_issues')
+    source_step = models.CharField(max_length=100, blank=True,
+        help_text='e.g. "Die Check (Receiving)", "PDC Evaluation"')
+    router_step_number = models.IntegerField(null=True, blank=True)
+
+    # Content — the auto-generated summary from the dedicated page
+    summary = models.TextField(help_text='Auto-generated summary from the process page')
+    additional_remarks = models.TextField(blank=True)
+
+    # Status & Decision
+    status = models.CharField(max_length=25, choices=Status.choices, default=Status.OPEN)
+    decision_notes = models.TextField(blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='quality_decisions')
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    # Links created by quality decision
+    ncr = models.ForeignKey(
+        NCR, on_delete=models.SET_NULL, null=True, blank=True, related_name='source_issues')
+
+    # Audit
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='reported_quality_issues')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'quality_issues'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['work_order', 'status']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.issue_number} — {self.source_step} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.issue_number:
+            self.issue_number = self._generate_number()
+        super().save(*args, **kwargs)
+
+    def _generate_number(self):
+        from django.utils import timezone
+        year = timezone.now().year
+        last = QualityIssue.objects.filter(
+            issue_number__startswith=f'QI-{year}-'
+        ).order_by('-issue_number').first()
+        if last:
+            try:
+                num = int(last.issue_number.split('-')[-1]) + 1
+            except ValueError:
+                num = 1
+        else:
+            num = 1
+        return f"QI-{year}-{num:04d}"
+
+
+class QualityIssueAction(models.Model):
+    """
+    One action taken on a QualityIssue. Multiple actions can be chained.
+    E.g.: Inform Technical → Technical accepts → Quality creates NCR + Rework.
+    """
+    class ActionType(models.TextChoices):
+        ACCEPT = "ACCEPT", "Accepted — No Action Needed"
+        CREATE_NCR = "CREATE_NCR", "Create NCR"
+        CREATE_NCR_CAPA = "CREATE_NCR_CAPA", "Create NCR with CAPA"
+        REWORK = "REWORK", "Rework Required"
+        INFORM_TECHNICAL = "INFORM_TECHNICAL", "Inform Technical Team"
+        INFORM_CUSTOMER = "INFORM_CUSTOMER", "Inform Customer"
+        TECHNICAL_ACCEPT = "TECHNICAL_ACCEPT", "Technical: Accept As-Is"
+        TECHNICAL_REWORK = "TECHNICAL_REWORK", "Technical: Rework Needed"
+        CLOSE = "CLOSE", "Close Issue"
+        NOTE = "NOTE", "Add Note"
+
+    issue = models.ForeignKey(QualityIssue, on_delete=models.CASCADE, related_name='actions')
+    action_type = models.CharField(max_length=25, choices=ActionType.choices)
+    notes = models.TextField(blank=True)
+
+    # Who and when
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='quality_issue_actions')
+    performed_at = models.DateTimeField(auto_now_add=True)
+
+    # Links created by this action
+    ncr = models.ForeignKey(NCR, on_delete=models.SET_NULL, null=True, blank=True,
+        help_text='NCR created by this action')
+
+    class Meta:
+        db_table = 'quality_issue_actions'
+        ordering = ['performed_at']
+
+    def __str__(self):
+        return f"{self.issue.issue_number}: {self.get_action_type_display()} by {self.performed_by}"

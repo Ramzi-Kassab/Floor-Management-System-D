@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Audit Entry #{{ entry.pk }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-start">
+        <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">Audit Entry #{{ entry.pk }}</h1><span class="px-2 py-1 text-sm rounded-full {% if entry.action == 'CREATE' %}bg-green-100 text-green-800{% elif entry.action == 'DELETE' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ entry.action }}</span></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <h3 class="text-lg font-medium mb-4">Details</h3>
+            <dl class="space-y-2">
+                <div><dt class="text-sm text-gray-500">Timestamp</dt><dd>{{ entry.timestamp|date:"M d, Y H:i:s" }}</dd></div>
+                <div><dt class="text-sm text-gray-500">User</dt><dd>{{ entry.user.get_full_name|default:entry.user.username|default:"-" }}</dd></div>
+                <div><dt class="text-sm text-gray-500">Model</dt><dd>{{ entry.model_name }}</dd></div>
+                <div><dt class="text-sm text-gray-500">Object</dt><dd>{{ entry.object_repr|default:"-" }}</dd></div>
+                <div><dt class="text-sm text-gray-500">IP Address</dt><dd>{{ entry.ip_address|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <h3 class="text-lg font-medium mb-4">Description</h3>
+            <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ entry.description|default:"No description" }}</p>
+        </div>
+        {% if entry.changes %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm lg:col-span-2">
+            <h3 class="text-lg font-medium mb-4">Changes</h3>
+            <pre class="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm">{{ entry.changes }}</pre>
+        </div>
+        {% endif %}
+    </div>
+    <a href="{% url 'compliance:audittrail_list' %}" class="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg"><i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back</a>
+</div>
+{% endblock %}

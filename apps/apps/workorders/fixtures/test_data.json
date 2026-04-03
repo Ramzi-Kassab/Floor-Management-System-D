@@ -1,0 +1,375 @@
+[
+    {
+        "model": "workorders.drillbit",
+        "pk": 1,
+        "fields": {
+            "serial_number": "DB-2024-001",
+            "manufacturer": "Baker Hughes",
+            "model": "Kymera XTreme",
+            "bit_type": "PDC",
+            "size": "8.500",
+            "status": "IN_SERVICE",
+            "total_footage": "15000.00",
+            "total_hours": "250.00",
+            "condition_rating": 85,
+            "notes": "Excellent condition, recently refurbished"
+        }
+    },
+    {
+        "model": "workorders.drillbit",
+        "pk": 2,
+        "fields": {
+            "serial_number": "DB-2024-002",
+            "manufacturer": "Halliburton",
+            "model": "GeoTech",
+            "bit_type": "TRICONE",
+            "size": "12.250",
+            "status": "IN_REPAIR",
+            "total_footage": "8500.00",
+            "total_hours": "180.00",
+            "condition_rating": 60,
+            "notes": "Awaiting cutter replacement"
+        }
+    },
+    {
+        "model": "workorders.drillbit",
+        "pk": 3,
+        "fields": {
+            "serial_number": "DB-2024-003",
+            "manufacturer": "NOV",
+            "model": "ReedHycalog",
+            "bit_type": "PDC",
+            "size": "6.000",
+            "status": "AVAILABLE",
+            "total_footage": "0.00",
+            "total_hours": "0.00",
+            "condition_rating": 100,
+            "notes": "New bit, ready for deployment"
+        }
+    },
+    {
+        "model": "workorders.drillbit",
+        "pk": 4,
+        "fields": {
+            "serial_number": "DB-2024-004",
+            "manufacturer": "Smith Bits",
+            "model": "SHARC",
+            "bit_type": "HYBRID",
+            "size": "8.750",
+            "status": "EVALUATION",
+            "total_footage": "22000.00",
+            "total_hours": "380.00",
+            "condition_rating": 45,
+            "notes": "Returned from field, needs evaluation"
+        }
+    },
+    {
+        "model": "workorders.drillbit",
+        "pk": 5,
+        "fields": {
+            "serial_number": "DB-2024-005",
+            "manufacturer": "Baker Hughes",
+            "model": "TerrAdapt",
+            "bit_type": "PDC",
+            "size": "9.500",
+            "status": "RETIRED",
+            "total_footage": "45000.00",
+            "total_hours": "820.00",
+            "condition_rating": 15,
+            "notes": "End of service life"
+        }
+    },
+    {
+        "model": "workorders.workorder",
+        "pk": 1,
+        "fields": {
+            "work_order_number": "WO-2024-001",
+            "status": "IN_PROGRESS",
+            "priority": "HIGH",
+            "work_type": "REPAIR",
+            "description": "Full rebuild of PDC bit - replace cutters and reface",
+            "drill_bit": 2,
+            "estimated_hours": "40.00",
+            "actual_hours": "28.00",
+            "estimated_cost": "15000.00",
+            "actual_cost": "10500.00",
+            "due_date": "2024-12-15",
+            "notes": "Customer needs ASAP"
+        }
+    },
+    {
+        "model": "workorders.workorder",
+        "pk": 2,
+        "fields": {
+            "work_order_number": "WO-2024-002",
+            "status": "PENDING",
+            "priority": "MEDIUM",
+            "work_type": "INSPECTION",
+            "description": "Incoming inspection and evaluation",
+            "drill_bit": 4,
+            "estimated_hours": "8.00",
+            "due_date": "2024-12-10",
+            "notes": "Standard evaluation per customer request"
+        }
+    },
+    {
+        "model": "workorders.workorder",
+        "pk": 3,
+        "fields": {
+            "work_order_number": "WO-2024-003",
+            "status": "COMPLETED",
+            "priority": "LOW",
+            "work_type": "MAINTENANCE",
+            "description": "Preventive maintenance and cleaning",
+            "drill_bit": 1,
+            "estimated_hours": "4.00",
+            "actual_hours": "3.50",
+            "estimated_cost": "500.00",
+            "actual_cost": "450.00",
+            "completed_date": "2024-12-01",
+            "notes": "Completed ahead of schedule"
+        }
+    },
+    {
+        "model": "workorders.workorder",
+        "pk": 4,
+        "fields": {
+            "work_order_number": "WO-2024-004",
+            "status": "ON_HOLD",
+            "priority": "HIGH",
+            "work_type": "REFURBISHMENT",
+            "description": "Complete refurbishment - hardfacing and rebalancing",
+            "estimated_hours": "60.00",
+            "estimated_cost": "25000.00",
+            "notes": "Awaiting parts from supplier"
+        }
+    },
+    {
+        "model": "workorders.workorder",
+        "pk": 5,
+        "fields": {
+            "work_order_number": "WO-2024-005",
+            "status": "CANCELLED",
+            "priority": "LOW",
+            "work_type": "REPAIR",
+            "description": "Minor repair - cancelled by customer",
+            "drill_bit": 5,
+            "notes": "Customer decided to retire the bit"
+        }
+    },
+    {
+        "model": "workorders.bitevaluation",
+        "pk": 1,
+        "fields": {
+            "evaluation_number": "EVAL-2024-001",
+            "drill_bit": 4,
+            "work_order": 2,
+            "evaluation_type": "INCOMING",
+            "status": "COMPLETED",
+            "overall_condition": "FAIR",
+            "body_condition": "GOOD",
+            "cutter_condition": "FAIR",
+            "gauge_condition": "GOOD",
+            "nozzle_condition": "GOOD",
+            "recommendation": "REPAIR",
+            "estimated_repair_cost": "12000.00",
+            "notes": "Cutters show wear, body in good condition",
+            "evaluation_date": "2024-12-02"
+        }
+    },
+    {
+        "model": "workorders.bitevaluation",
+        "pk": 2,
+        "fields": {
+            "evaluation_number": "EVAL-2024-002",
+            "drill_bit": 2,
+            "work_order": 1,
+            "evaluation_type": "PRE_REPAIR",
+            "status": "COMPLETED",
+            "overall_condition": "POOR",
+            "body_condition": "GOOD",
+            "cutter_condition": "POOR",
+            "gauge_condition": "FAIR",
+            "nozzle_condition": "GOOD",
+            "recommendation": "REPAIR",
+            "estimated_repair_cost": "15000.00",
+            "notes": "Multiple cutters damaged, needs rebuild",
+            "evaluation_date": "2024-11-28"
+        }
+    },
+    {
+        "model": "workorders.salvageitem",
+        "pk": 1,
+        "fields": {
+            "item_number": "SALV-2024-001",
+            "description": "Recovered PDC cutters from retired bit",
+            "source_bit": 5,
+            "item_type": "CUTTERS",
+            "quantity": 24,
+            "status": "AVAILABLE",
+            "condition": "GOOD",
+            "estimated_value": "2400.00",
+            "notes": "Cutters in good condition, suitable for reuse"
+        }
+    },
+    {
+        "model": "workorders.salvageitem",
+        "pk": 2,
+        "fields": {
+            "item_number": "SALV-2024-002",
+            "description": "Steel body from scrapped tricone",
+            "item_type": "BODY",
+            "quantity": 1,
+            "status": "SCRAPPED",
+            "condition": "POOR",
+            "estimated_value": "150.00",
+            "notes": "Sent to scrap metal recycling"
+        }
+    },
+    {
+        "model": "workorders.repairapprovalauthority",
+        "pk": 1,
+        "fields": {
+            "authority_name": "Standard Repairs",
+            "max_approval_amount": "10000.00",
+            "description": "Authority for standard repair approvals",
+            "is_active": true
+        }
+    },
+    {
+        "model": "workorders.repairapprovalauthority",
+        "pk": 2,
+        "fields": {
+            "authority_name": "Major Repairs",
+            "max_approval_amount": "50000.00",
+            "description": "Authority for major repair and rebuild approvals",
+            "is_active": true
+        }
+    },
+    {
+        "model": "workorders.repairevaluation",
+        "pk": 1,
+        "fields": {
+            "evaluation_number": "RE-2024-001",
+            "work_order": 1,
+            "evaluation_type": "STANDARD",
+            "status": "APPROVED",
+            "scope_of_work": "Replace 12 cutters, reface crown, balance",
+            "estimated_cost": "15000.00",
+            "estimated_hours": "40.00",
+            "recommended_repairs": "Full cutter replacement and hardfacing",
+            "approval_status": "APPROVED",
+            "approval_date": "2024-11-29"
+        }
+    },
+    {
+        "model": "workorders.repairbom",
+        "pk": 1,
+        "fields": {
+            "bom_number": "BOM-2024-001",
+            "work_order": 1,
+            "repair_evaluation": 1,
+            "status": "ACTIVE",
+            "total_material_cost": "8500.00",
+            "total_labor_cost": "6000.00",
+            "notes": "Parts ordered and received"
+        }
+    },
+    {
+        "model": "workorders.processroute",
+        "pk": 1,
+        "fields": {
+            "route_number": "PR-001",
+            "route_name": "Standard PDC Repair",
+            "description": "Standard process route for PDC bit repairs",
+            "is_active": true,
+            "estimated_total_hours": "40.00"
+        }
+    },
+    {
+        "model": "workorders.processroute",
+        "pk": 2,
+        "fields": {
+            "route_number": "PR-002",
+            "route_name": "Tricone Rebuild",
+            "description": "Complete rebuild process for tricone bits",
+            "is_active": true,
+            "estimated_total_hours": "80.00"
+        }
+    },
+    {
+        "model": "workorders.processrouteoperation",
+        "pk": 1,
+        "fields": {
+            "process_route": 1,
+            "operation_number": 10,
+            "operation_name": "Initial Inspection",
+            "work_center": "Inspection Bay 1",
+            "estimated_hours": "2.00",
+            "instructions": "Complete visual and dimensional inspection"
+        }
+    },
+    {
+        "model": "workorders.processrouteoperation",
+        "pk": 2,
+        "fields": {
+            "process_route": 1,
+            "operation_number": 20,
+            "operation_name": "Cutter Removal",
+            "work_center": "Machine Shop",
+            "estimated_hours": "4.00",
+            "instructions": "Remove damaged cutters using EDM process"
+        }
+    },
+    {
+        "model": "workorders.processrouteoperation",
+        "pk": 3,
+        "fields": {
+            "process_route": 1,
+            "operation_number": 30,
+            "operation_name": "Cutter Installation",
+            "work_center": "Assembly Area",
+            "estimated_hours": "8.00",
+            "instructions": "Install new cutters per engineering spec"
+        }
+    },
+    {
+        "model": "workorders.workordercost",
+        "pk": 1,
+        "fields": {
+            "work_order": 1,
+            "cost_type": "MATERIAL",
+            "description": "PDC Cutters - Grade A",
+            "quantity": "12.00",
+            "unit_cost": "500.00",
+            "total_cost": "6000.00",
+            "date_incurred": "2024-12-01"
+        }
+    },
+    {
+        "model": "workorders.workordercost",
+        "pk": 2,
+        "fields": {
+            "work_order": 1,
+            "cost_type": "LABOR",
+            "description": "Machine Shop Labor",
+            "quantity": "20.00",
+            "unit_cost": "85.00",
+            "total_cost": "1700.00",
+            "date_incurred": "2024-12-03"
+        }
+    },
+    {
+        "model": "workorders.workordercost",
+        "pk": 3,
+        "fields": {
+            "work_order": 1,
+            "cost_type": "MATERIAL",
+            "description": "Hardfacing Material",
+            "quantity": "5.00",
+            "unit_cost": "200.00",
+            "total_cost": "1000.00",
+            "date_incurred": "2024-12-02"
+        }
+    }
+]

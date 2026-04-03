@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize duration_tags %}
 
 {% block title %}Router Sheet — {{ work_order.wo_number }} — ARDT FMS{% endblock %}
 
@@ -383,6 +383,7 @@
 {% endblock %}
 
 {% block content %}
+{% csrf_token %}
 
 <!-- ── Print Header Block (hidden on screen, shown on print) ──────── -->
 <div class="print-header-block" style="display: none;">
@@ -501,7 +502,7 @@
                         <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{{ entry.step_number }}</span>
                         {% comment %} Look up the operation to show badges {% endcomment %}
                         {% if entry.is_complete and entry.duration_minutes %}
-                        <span class="text-[10px] text-green-600 dark:text-green-400">{{ entry.duration_minutes }}min</span>
+                        <span class="text-[10px] text-green-600 dark:text-green-400">{{ entry.duration_gross_seconds|duration_hms }}</span>
                         {% endif %}
                     </div>
                 </div>
@@ -610,7 +611,7 @@
                             <p class="text-xs text-gray-400 mb-0.5">Started</p>
                             <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">
                                 {% if entry.qr_scan_start %}
-                                {{ entry.qr_scan_start|date:"M d" }}, {{ entry.qr_scan_start|time:"H:i" }}
+                                {{ entry.qr_scan_start|date:"M d, H:i:s" }}
                                 {% else %}
                                 <span class="text-gray-400">—</span>
                                 {% endif %}
@@ -620,7 +621,7 @@
                             <p class="text-xs text-gray-400 mb-0.5">Completed</p>
                             <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">
                                 {% if entry.qr_scan_end %}
-                                {{ entry.qr_scan_end|date:"M d" }}, {{ entry.qr_scan_end|time:"H:i" }}
+                                {{ entry.qr_scan_end|date:"M d, H:i:s" }}
                                 {% else %}
                                 <span class="text-gray-400">—</span>
                                 {% endif %}
@@ -628,17 +629,8 @@
                         </div>
                         <div>
                             <p class="text-xs text-gray-400 mb-0.5">Duration</p>
-                            <p class="text-sm font-bold {% if entry.duration_minutes %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
-                                {% if entry.duration_minutes %}
-                                {% if entry.duration_minutes >= 60 %}
-                                {{ entry.duration_minutes|floatformat:0|add:"0"|divisibleby:60 }}
-                                {% with h=entry.duration_minutes|divisibleby:60 m=entry.duration_minutes|add:"0" %}
-                                {{ entry.duration_minutes }} min
-                                {% endwith %}
-                                {% else %}
-                                {{ entry.duration_minutes }} min
-                                {% endif %}
-                                {% else %}—{% endif %}
+                            <p class="text-sm font-bold {% if entry.duration_gross_seconds %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400{% endif %}">
+                                {% if entry.duration_gross_seconds %}{{ entry.duration_gross_seconds|duration_hms }}{% else %}—{% endif %}
                             </p>
                         </div>
                     </div>
@@ -660,52 +652,59 @@
 
                     <!-- Action buttons -->
                     <div class="flex flex-wrap items-center gap-3 no-print">
-                        {% if not entry.is_complete %}
-                            {% if not entry.qr_scan_start %}
-                            <!-- START -->
-                            <form method="post"
-                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
-                                  class="inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="start">
-                                <button type="submit" class="btn-action btn-start">
-                                    <i data-lucide="play" class="w-5 h-5"></i>
-                                    Start Step
-                                </button>
-                            </form>
-                            {% else %}
-                            <!-- COMPLETE -->
-                            <form method="post"
-                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
-                                  class="inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="end">
-                                <button type="submit" class="btn-action btn-complete">
-                                    <i data-lucide="check-circle" class="w-5 h-5"></i>
-                                    Mark Complete
-                                </button>
-                            </form>
-                            {% endif %}
+                        {% if entry.step_status == 'SKIPPED' %}
+                        <!-- SKIPPED STATE -->
+                        <div class="flex items-center gap-2 text-gray-500">
+                            <i data-lucide="skip-forward" class="w-5 h-5"></i>
+                            <span class="font-medium">Skipped{% if entry.skip_reason %}: {{ entry.get_skip_reason_display }}{% endif %}</span>
+                        </div>
+                        {% if request.user.is_staff %}
+                        <button onclick="unskipStep({{ entry.step_number }})" class="btn-action btn-skip text-xs">
+                            <i data-lucide="undo-2" class="w-3.5 h-3.5"></i> Unskip
+                        </button>
+                        {% endif %}
 
-                            <!-- SKIP (for conditional steps) -->
-                            <form method="post"
-                                  action="{% url 'workorders:router_step_scan' work_order.pk entry.step_number %}"
-                                  class="inline"
-                                  onsubmit="return confirm('Skip step {{ entry.step_number }}?')">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="skip">
-                                <button type="submit" class="btn-action btn-skip">
-                                    <i data-lucide="skip-forward" class="w-4 h-4"></i>
-                                    Skip
-                                </button>
-                            </form>
-
-                        {% else %}
+                        {% elif entry.is_complete %}
                         <!-- COMPLETED STATE -->
                         <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                             <i data-lucide="check-circle-2" class="w-6 h-6"></i>
                             <span class="font-semibold">Step completed</span>
                         </div>
+
+                        {% elif not entry.qr_scan_start %}
+                        <!-- NOT STARTED — check if startable -->
+                        {% if work_order.status != 'ACTIVE' and work_order.status != 'IN_PROGRESS' %}
+                        <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                            <span>WO must be approved (Active) before starting steps. Current: {{ work_order.get_status_display }}</span>
+                        </div>
+                        {% elif entry.step_number != first_pending_step %}
+                        <div class="flex items-center gap-2 text-gray-400 text-sm">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                            <span>Complete prior steps first</span>
+                        </div>
+                        {% else %}
+                        <!-- CAN START -->
+                        <button onclick="stepAction({{ entry.step_number }}, 'start')" class="btn-action btn-start">
+                            <i data-lucide="play" class="w-5 h-5"></i>
+                            Start Step
+                        </button>
+                        <button onclick="stepAction({{ entry.step_number }}, 'skip')" class="btn-action btn-skip">
+                            <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                            Skip
+                        </button>
+                        {% endif %}
+
+                        {% else %}
+                        <!-- IN PROGRESS -->
+                        <button onclick="stepAction({{ entry.step_number }}, 'end')" class="btn-action btn-complete">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            Mark Complete
+                        </button>
+                        <button onclick="stepAction({{ entry.step_number }}, 'skip')" class="btn-action btn-skip">
+                            <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                            Skip
+                        </button>
                         {% endif %}
                     </div>
                 </div>
@@ -1057,7 +1056,7 @@
                 <td style="padding:3px 6px; font-size:8pt;">{{ entry.operator.get_short_name|default:"—" }}</td>
                 <td style="padding:3px 6px; font-size:8pt;">{{ entry.qr_scan_start|date:"d/m H:i"|default:"—" }}</td>
                 <td style="padding:3px 6px; font-size:8pt;">{{ entry.qr_scan_end|date:"d/m H:i"|default:"—" }}</td>
-                <td style="padding:3px 6px; font-size:8pt;">{{ entry.duration_minutes|default:"—" }}{% if entry.duration_minutes %}m{% endif %}</td>
+                <td style="padding:3px 6px; font-size:8pt;">{% if entry.duration_gross_seconds %}{{ entry.duration_gross_seconds|duration_hms }}{% else %}—{% endif %}</td>
                 <td style="padding:3px 6px; text-align:center; font-size:8pt;">____________</td>
             </tr>
             {% endfor %}
@@ -1182,6 +1181,40 @@ function selectStep(num) {
     });
     const sidebarItem = document.getElementById('sidebar-step-' + num);
     if (sidebarItem) sidebarItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Dedicated page URLs for steps that have them (Die Check, Evaluation, LPT, etc.)
+const DEDICATED_URLS = {{ dedicated_urls_json|safe }};
+
+async function stepAction(stepNum, action) {
+    if (action === 'skip' && !confirm('Skip step ' + stepNum + '?')) return;
+    if (action === 'end' && !confirm('Mark step ' + stepNum + ' as complete?')) return;
+    const token = _csrf();
+    if (!token) { alert('Session expired — please refresh the page.'); return; }
+    try {
+        const r = await fetch('/work-orders/{{ work_order.pk }}/router-sheet/' + stepNum + '/api-scan/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': token},
+            body: 'action=' + action
+        });
+        if (!r.ok && r.status === 403) { alert('Permission denied or session expired. Please refresh.'); return; }
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('json')) { alert('Session expired — please refresh the page and log in.'); return; }
+        const d = await r.json();
+        if (d.success) {
+            if (action === 'start') {
+                // Redirect to dedicated page if one exists, otherwise step detail
+                const dedUrl = DEDICATED_URLS[stepNum];
+                window.location.href = dedUrl || '/work-orders/{{ work_order.pk }}/router/' + stepNum + '/';
+            } else {
+                location.reload();
+            }
+        } else {
+            alert(d.error || 'Action failed');
+        }
+    } catch (e) {
+        alert('Error: ' + e.message + '. Try refreshing the page.');
+    }
 }
 
 function _csrf() {

@@ -19,4 +19,7 @@ urlpatterns = [
     path("ncrs/<int:pk>/disposition/", views.NCRDispositionView.as_view(), name="ncr_disposition"),
     path("ncrs/<int:pk>/photos/upload/", views.NCRPhotoUploadView.as_view(), name="ncr_photo_upload"),
     path("ncrs/<int:pk>/photos/<int:photo_pk>/delete/", views.NCRPhotoDeleteView.as_view(), name="ncr_photo_delete"),
+    # Quality Issues
+    path("issues/", views.QualityIssueListView.as_view(), name="quality_issue_list"),
+    path("issues/<int:pk>/", views.QualityIssueDetailView.as_view(), name="quality_issue_detail"),
 ]

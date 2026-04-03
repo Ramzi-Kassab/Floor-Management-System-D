@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ document.title }} - ARDT FMS{% endblock %}
+{% block page_header %}
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <a href="{% url 'hr:document-list' %}" class="hover:text-blue-600">Documents</a>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            <span>{{ document.document_number }}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ document.title }}</h1>
+    </div>
+    <div class="flex gap-2 mt-4 md:mt-0">
+        <a href="{% url 'hr:document-update' document.pk %}" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+            <i data-lucide="edit" class="w-4 h-4 mr-2"></i>Edit
+        </a>
+    </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Document Details</h2>
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if document.status == 'ACTIVE' %}bg-green-100 text-green-800
+                    {% elif document.status == 'EXPIRED' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ document.get_status_display }}
+                </span>
+            </div>
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Document Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-medium">{{ document.document_number }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Document Type</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ document.get_document_type_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Employee</dt>
+                    <dd class="text-gray-900 dark:text-white">
+                        <a href="{% url 'hr:employee-detail' document.employee.pk %}" class="text-blue-600 hover:underline">{{ document.employee.full_name }}</a>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">File Name</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ document.file_name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Issue Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ document.issue_date|date:"M d, Y"|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Expiry Date</dt>
+                    <dd class="{% if document.is_expired %}text-red-600{% else %}text-gray-900 dark:text-white{% endif %}">
+                        {{ document.expiry_date|date:"M d, Y"|default:"-" }}
+                        {% if document.is_expired %}<span class="text-xs">(Expired)</span>{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Uploaded By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ document.uploaded_by.get_full_name|default:"-" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Uploaded At</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ document.uploaded_at|date:"M d, Y H:i" }}</dd>
+                </div>
+            </dl>
+            {% if document.description %}
+            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Description</h3>
+                <p class="text-gray-600 dark:text-gray-400">{{ document.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+            <div class="space-y-2">
+                <a href="{% url 'hr:document-list' %}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

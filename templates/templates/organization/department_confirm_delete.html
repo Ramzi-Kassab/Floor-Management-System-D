@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Delete Department - ARDT FMS{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                <i data-lucide="trash-2" class="w-8 h-8 text-red-600 dark:text-red-400"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Delete Department</h2>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Are you sure you want to delete "{{ object.name }}"?</p>
+        </div>
+        <form method="post" class="flex space-x-4">
+            {% csrf_token %}
+            <a href="{% url 'organization:department-list' %}" class="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-center">Cancel</a>
+            <button type="submit" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

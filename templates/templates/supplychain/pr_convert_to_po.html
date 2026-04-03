@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Select vendor and convert this requisition to a purchase order</p>
+    </div>
+    <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-800">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>Back to PR
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Conversion Form -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <form method="post">
+                {% csrf_token %}
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Vendor/Supplier *</label>
+                        <select name="supplier" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <option value="">-- Select a Vendor/Supplier --</option>
+                            {% if suppliers %}
+                            <optgroup label="Suppliers (Active)">
+                                {% for supplier in suppliers %}
+                                <option value="{{ supplier.pk }}">{{ supplier.code }} - {{ supplier.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                            {% if vendors %}
+                            <optgroup label="Vendors">
+                                {% for vendor in vendors %}
+                                <option value="vendor_{{ vendor.pk }}">{{ vendor.vendor_code }} - {{ vendor.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endif %}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Only active suppliers and eligible vendors are shown</p>
+                    </div>
+                </div>
+
+                <!-- Lines Preview -->
+                <div class="mt-8">
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Lines to be Converted</h3>
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700/50 text-left text-gray-500">
+                                    <th class="px-4 py-2 font-medium">#</th>
+                                    <th class="px-4 py-2 font-medium">Item</th>
+                                    <th class="px-4 py-2 font-medium text-right">Qty</th>
+                                    <th class="px-4 py-2 font-medium">UoM</th>
+                                    <th class="px-4 py-2 font-medium text-right">Est. Price</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for line in pr.lines.all %}
+                                <tr>
+                                    <td class="px-4 py-2 text-gray-500">{{ line.line_number }}</td>
+                                    <td class="px-4 py-2">
+                                        {% if line.inventory_item %}
+                                        <span class="font-mono text-blue-600 text-xs">{{ line.inventory_item.code }}</span>
+                                        <span class="ml-2 text-gray-900 dark:text-white">{{ line.inventory_item.name }}</span>
+                                        {% else %}
+                                        <span class="text-gray-900 dark:text-white">{{ line.item_description }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-2 text-right font-mono">{{ line.quantity_requested }}</td>
+                                    <td class="px-4 py-2 text-gray-500">{{ line.unit_of_measure }}</td>
+                                    <td class="px-4 py-2 text-right font-mono">
+                                        {% if line.estimated_unit_price %}{{ line.estimated_unit_price }}{% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="px-4 py-4 text-center text-gray-500">No lines in this requisition</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <a href="{% url 'supplychain:pr_detail' pr.pk %}" class="px-4 py-2 text-gray-700 hover:text-gray-900">Cancel</a>
+                    <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <i data-lucide="arrow-right-circle" class="w-4 h-4 inline mr-2"></i>Convert to PO
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PR Summary -->
+    <div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Requisition Summary</h2>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">PR Number</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono">{{ pr.requisition_number }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Title</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.title|truncatechars:30 }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Requested By</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.requested_by.get_full_name|default:pr.requested_by.username }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Department</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.department }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Required Date</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.required_date|date:"M d, Y" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-gray-500">Lines</dt>
+                    <dd class="text-gray-900 dark:text-white">{{ pr.lines.count }}</dd>
+                </div>
+                {% if pr.estimated_total_amount %}
+                <div class="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                    <dt class="text-gray-500">Est. Total</dt>
+                    <dd class="text-gray-900 dark:text-white font-mono font-bold">SAR {{ pr.estimated_total_amount }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mt-4">
+            <div class="flex">
+                <i data-lucide="info" class="w-5 h-5 text-blue-600 mr-3 flex-shrink-0"></i>
+                <div class="text-sm text-blue-800 dark:text-blue-200">
+                    <p class="font-medium mb-1">What happens next?</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li>A new PO will be created in DRAFT status</li>
+                        <li>All PR lines will be copied to the PO</li>
+                        <li>This PR will be marked as "Converted to PO"</li>
+                        <li>You can then edit and send the PO to the vendor</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

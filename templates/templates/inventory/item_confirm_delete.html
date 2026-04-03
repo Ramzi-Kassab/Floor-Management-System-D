@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-4 mb-6">
+    <a href="{% url 'inventory:item_detail' object.pk %}" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+    </a>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1>
+        <p class="text-gray-600 dark:text-gray-400">Confirm deletion of this inventory item</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <!-- Warning Icon -->
+        <div class="flex items-center justify-center mb-6">
+            <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-8 h-8 text-red-600 dark:text-red-400"></i>
+            </div>
+        </div>
+
+        <!-- Item Info -->
+        <div class="text-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Delete "{{ object.code }}"?</h2>
+            <p class="text-gray-600 dark:text-gray-400">{{ object.name }}</p>
+        </div>
+
+        <!-- Related Data Warning -->
+        {% if related_bom_lines > 0 or related_stock > 0 or related_variants > 0 %}
+        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
+            <h3 class="font-medium text-amber-800 dark:text-amber-200 mb-2">This item has related data:</h3>
+            <ul class="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                {% if related_bom_lines > 0 %}
+                <li>{{ related_bom_lines }} BOM line{{ related_bom_lines|pluralize }}</li>
+                {% endif %}
+                {% if related_stock > 0 %}
+                <li>{{ related_stock }} stock record{{ related_stock|pluralize }}</li>
+                {% endif %}
+                {% if related_variants > 0 %}
+                <li>{{ related_variants }} variant{{ related_variants|pluralize }}</li>
+                {% endif %}
+            </ul>
+            <p class="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                Deleting this item may affect these related records.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Confirmation Message -->
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+            <p class="text-sm text-red-700 dark:text-red-300">
+                <strong>Warning:</strong> This action cannot be undone. The item and all its specifications (cutter specs, bit specs) will be permanently deleted.
+            </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex items-center justify-end gap-3">
+                <a href="{% url 'inventory:item_detail' object.pk %}"
+                   class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                    Delete Item
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

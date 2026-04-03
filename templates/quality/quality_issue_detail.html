@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ issue.issue_number }} — Quality Issue{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center gap-3">
+    {% include "components/back_nav.html" with parent_url="/quality/issues/" parent_label="Quality Issues" %}
+    <div>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ issue.issue_number }}</h1>
+        <p class="text-sm text-gray-500">{{ issue.source_step }}{% if issue.work_order %} — WO {{ issue.work_order.wo_number }}{% endif %}</p>
+    </div>
+    <span class="ml-2 text-xs font-medium px-2.5 py-1 rounded-full
+        {% if issue.status == 'OPEN' %}bg-red-100 text-red-700
+        {% elif issue.status == 'IN_REVIEW' %}bg-amber-100 text-amber-700
+        {% elif issue.status == 'ACCEPTED' %}bg-green-100 text-green-700
+        {% elif issue.status == 'NCR_CREATED' %}bg-amber-100 text-amber-700
+        {% elif issue.status == 'REWORK' %}bg-blue-100 text-blue-700
+        {% else %}bg-gray-100 text-gray-600{% endif %}">{{ issue.get_status_display }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-4">
+
+    <!-- Issue Info -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+            <div>
+                <p class="text-xs text-gray-400 mb-0.5">Reported By</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ issue.reported_by.get_full_name|default:issue.reported_by.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 mb-0.5">Date</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ issue.created_at|date:"M d, Y H:i:s" }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 mb-0.5">Serial Number</p>
+                <p class="font-mono font-medium text-gray-900 dark:text-white">{% if issue.drill_bit %}{{ issue.drill_bit.serial_number }}{% else %}—{% endif %}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 mb-0.5">Source Step</p>
+                <p class="font-medium text-gray-900 dark:text-white">{{ issue.source_step|default:"—" }}</p>
+            </div>
+        </div>
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">Issue Summary</h3>
+        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line font-mono">{{ issue.summary }}</div>
+        {% if issue.additional_remarks %}
+        <p class="text-sm text-gray-600 dark:text-gray-400 mt-3 italic">{{ issue.additional_remarks }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Action History -->
+    {% if actions %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4 text-blue-500"></i> Action History
+        </h3>
+        <div class="space-y-3">
+            {% for a in actions %}
+            <div class="flex gap-3 text-sm"
+                 style="border-left: 3px solid {% if 'ACCEPT' in a.action_type %}#10b981{% elif 'NCR' in a.action_type %}#f59e0b{% elif 'REWORK' in a.action_type %}#3b82f6{% elif 'INFORM' in a.action_type %}#8b5cf6{% else %}#6b7280{% endif %};">
+                <div class="pl-3 py-1">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-gray-900 dark:text-white">{{ a.get_action_type_display }}</span>
+                        <span class="text-xs text-gray-400">{{ a.performed_at|timesince }} ago</span>
+                    </div>
+                    <p class="text-xs text-gray-500">by {{ a.performed_by.get_full_name|default:a.performed_by.username }}</p>
+                    {% if a.notes %}<p class="text-sm text-gray-700 dark:text-gray-300 mt-1">{{ a.notes }}</p>{% endif %}
+                    {% if a.ncr %}<p class="text-xs mt-1"><a href="{% url 'quality:ncr_detail' a.ncr.pk %}" class="text-blue-600 hover:underline">NCR {{ a.ncr.ncr_number }}</a></p>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Take Action (available when issue not CLOSED) -->
+    {% if issue.status != 'CLOSED' and issue.status != 'ACCEPTED' %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl border-2 border-amber-200 dark:border-amber-700 p-5">
+        <h3 class="text-sm font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-4 flex items-center gap-2">
+            <i data-lucide="scale" class="w-4 h-4"></i> Take Action
+        </h3>
+        <form method="post">
+            {% csrf_token %}
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-green-50 has-[:checked]:border-green-500 has-[:checked]:bg-green-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="ACCEPT" class="text-green-600">
+                    <div><p class="text-sm font-medium">Accept</p><p class="text-[10px] text-gray-400">No action needed</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-amber-50 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="CREATE_NCR" class="text-amber-600">
+                    <div><p class="text-sm font-medium">Create NCR</p><p class="text-[10px] text-gray-400">Without CAPA</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-red-50 has-[:checked]:border-red-500 has-[:checked]:bg-red-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="CREATE_NCR_CAPA" class="text-red-600">
+                    <div><p class="text-sm font-medium">NCR + CAPA</p><p class="text-[10px] text-gray-400">With corrective action</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-blue-50 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="REWORK" class="text-blue-600">
+                    <div><p class="text-sm font-medium">Rework</p><p class="text-[10px] text-gray-400">Must also create NCR</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-cyan-50 has-[:checked]:border-cyan-500 has-[:checked]:bg-cyan-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="INFORM_TECHNICAL" class="text-cyan-600">
+                    <div><p class="text-sm font-medium">Inform Technical</p><p class="text-[10px] text-gray-400">Request technical review</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-purple-50 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="INFORM_CUSTOMER" class="text-purple-600">
+                    <div><p class="text-sm font-medium">Inform Customer</p><p class="text-[10px] text-gray-400">Notify account rep</p></div>
+                </label>
+                {% if 'INFORM' in issue.status or issue.status == 'IN_REVIEW' %}
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-green-50 has-[:checked]:border-green-500 has-[:checked]:bg-green-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="TECHNICAL_ACCEPT" class="text-green-600">
+                    <div><p class="text-sm font-medium">Technical: Accept</p><p class="text-[10px] text-gray-400">Technical team accepts</p></div>
+                </label>
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-blue-50 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="TECHNICAL_REWORK" class="text-blue-600">
+                    <div><p class="text-sm font-medium">Technical: Rework</p><p class="text-[10px] text-gray-400">Technical says rework</p></div>
+                </label>
+                {% endif %}
+                <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-100 has-[:checked]:border-gray-500 has-[:checked]:bg-gray-100 border-gray-200 dark:border-gray-600">
+                    <input type="radio" name="action_type" value="NOTE" class="text-gray-600">
+                    <div><p class="text-sm font-medium">Add Note</p><p class="text-[10px] text-gray-400">Comment only</p></div>
+                </label>
+            </div>
+            <textarea name="notes" rows="2" placeholder="Notes (optional)..."
+                      class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 mb-3"></textarea>
+            <button type="submit" class="px-5 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium text-sm">Submit Action</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Links -->
+    <div class="flex flex-wrap gap-2 text-sm">
+        {% if issue.work_order %}
+        <a href="{% url 'workorders:workorder_detail_enhanced' issue.work_order.pk %}" class="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 flex items-center gap-1.5">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> WO {{ issue.work_order.wo_number }}
+        </a>
+        {% endif %}
+        {% if issue.drill_bit %}
+        <a href="{% url 'workorders:drillbit_detail_enhanced' issue.drill_bit.pk %}" class="px-3 py-1.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center gap-1.5">
+            <i data-lucide="disc" class="w-3.5 h-3.5"></i> S/N {{ issue.drill_bit.serial_number }}
+        </a>
+        {% endif %}
+        {% if issue.ncr %}
+        <a href="{% url 'quality:ncr_detail' issue.ncr.pk %}" class="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center gap-1.5">
+            <i data-lucide="alert-octagon" class="w-3.5 h-3.5"></i> NCR {{ issue.ncr.ncr_number }}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

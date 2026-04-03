@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div><h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ page_title }}</h1><p class="text-gray-500">System audit trail and activity log</p></div>
+        <a href="{% url 'compliance:audittrail_create' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>New Entry</a>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search..." class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <select name="action" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <option value="">All Actions</option>
+                <option value="CREATE" {% if request.GET.action == 'CREATE' %}selected{% endif %}>Create</option>
+                <option value="UPDATE" {% if request.GET.action == 'UPDATE' %}selected{% endif %}>Update</option>
+                <option value="DELETE" {% if request.GET.action == 'DELETE' %}selected{% endif %}>Delete</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-gray-600 text-white rounded-md">Filter</button>
+        </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        {% if entries %}
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700"><tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for entry in entries %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 text-sm">{{ entry.timestamp|date:"M d, Y H:i" }}</td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 text-xs rounded-full {% if entry.action == 'CREATE' %}bg-green-100 text-green-800{% elif entry.action == 'DELETE' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ entry.action }}</span></td>
+                    <td class="px-6 py-4 text-sm">{{ entry.model_name }}</td>
+                    <td class="px-6 py-4 text-sm">{{ entry.user.get_full_name|default:entry.user.username|default:"-" }}</td>
+                    <td class="px-6 py-4 text-sm truncate max-w-xs">{{ entry.description|truncatewords:8 }}</td>
+                    <td class="px-6 py-4 text-right"><a href="{% url 'compliance:audittrail_detail' entry.pk %}" class="text-blue-600"><i data-lucide="eye" class="w-4 h-4 inline"></i></a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if is_paginated %}{% include "components/pagination.html" %}{% endif %}
+        {% else %}
+        <div class="text-center py-12"><i data-lucide="history" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i><h3 class="text-lg font-medium text-gray-900 dark:text-white">No audit entries found</h3></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

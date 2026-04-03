@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} - ARDT FMS{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ work_order.work_order_number }}</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ work_order.get_work_order_type_display|default:"Work Order" }} - {{ work_order.scheduled_date|date:"M d, Y"|default:"Not scheduled" }}</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'sales:fieldworkorder_list' %}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200">Back</a>
+            <a href="{% url 'sales:fieldworkorder_update' work_order.pk %}" class="px-4 py-2 bg-ardt-blue text-white rounded-lg hover:bg-blue-700">Edit</a>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Work Order Details</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Type</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.get_work_order_type_display|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Status</dt><dd><span class="px-2 py-1 text-xs rounded-full {% if work_order.status == 'COMPLETED' %}bg-green-100 text-green-800{% elif work_order.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">{{ work_order.get_status_display|default:"-" }}</span></dd></div>
+                <div><dt class="text-gray-500">Priority</dt><dd><span class="px-2 py-1 text-xs rounded-full {% if work_order.priority == 'URGENT' %}bg-red-100 text-red-800{% elif work_order.priority == 'HIGH' %}bg-orange-100 text-orange-800{% elif work_order.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800{% else %}bg-green-100 text-green-800{% endif %}">{{ work_order.get_priority_display|default:"-" }}</span></dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Assignment</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Technician</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.assigned_technician.tech_id|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Site</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.service_site.site_name|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Service Request</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.service_request.request_number|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Schedule</h3>
+            <dl class="space-y-3 text-sm">
+                <div><dt class="text-gray-500">Scheduled Date</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.scheduled_date|date:"M d, Y"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Start Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.scheduled_start_time|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">End Time</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.scheduled_end_time|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    {% if work_order.description %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Description</h3>
+        <p class="text-gray-700 dark:text-gray-300">{{ work_order.description }}</p>
+    </div>
+    {% endif %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Actual Times</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Actual Start</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.actual_start_time|date:"M d, Y H:i"|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Actual End</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.actual_end_time|date:"M d, Y H:i"|default:"-" }}</dd></div>
+            </dl>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Costs</h3>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div><dt class="text-gray-500">Labor Hours</dt><dd class="font-medium text-gray-900 dark:text-white">{{ work_order.labor_hours|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Labor Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ work_order.labor_cost|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Material Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ work_order.material_cost|default:"-" }}</dd></div>
+                <div><dt class="text-gray-500">Total Cost</dt><dd class="font-medium text-gray-900 dark:text-white">${{ work_order.total_cost|default:"-" }}</dd></div>
+            </dl>
+        </div>
+    </div>
+    {% if work_order.work_performed or work_order.completion_notes %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Work Details</h3>
+        {% if work_order.work_performed %}<div class="mb-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Work Performed</h4><p class="text-gray-900 dark:text-white">{{ work_order.work_performed }}</p></div>{% endif %}
+        {% if work_order.materials_used %}<div class="mb-4"><h4 class="text-sm font-medium text-gray-500 mb-1">Materials Used</h4><p class="text-gray-900 dark:text-white">{{ work_order.materials_used }}</p></div>{% endif %}
+        {% if work_order.completion_notes %}<div><h4 class="text-sm font-medium text-gray-500 mb-1">Completion Notes</h4><p class="text-gray-900 dark:text-white">{{ work_order.completion_notes }}</p></div>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
