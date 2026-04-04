@@ -43,4 +43,9 @@ urlpatterns = [
     path("api/workflow/capabilities/grant/", views.api_capability_grant, name="api_capability_grant"),
     path("api/workflow/capabilities/<int:pk>/revoke/", views.api_capability_revoke, name="api_capability_revoke"),
     path("api/workflow/capabilities/<int:pk>/toggle/", views.api_capability_toggle_available, name="api_capability_toggle"),
+    # Workflow Rules CRUD
+    path("settings/workflow/rules/", views.WorkflowRuleListView.as_view(), name="workflow_rules"),
+    path("api/workflow/rules/<int:pk>/toggle/", views.api_workflow_rule_toggle, name="api_rule_toggle"),
+    path("api/workflow/rules/<int:pk>/save/", views.api_workflow_rule_save, name="api_rule_save"),
+    path("api/workflow/rules/create/", views.api_workflow_rule_create, name="api_rule_create"),
 ]

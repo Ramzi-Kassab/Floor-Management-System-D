@@ -122,10 +122,7 @@ class NotificationLog(models.Model):
 
 
 class Task(models.Model):
-    # NOTE: Superseded by WorkflowAction. Keep for migration history. Remove in Phase 5.
-    """
-    🟢 P1: Lightweight task/reminder system.
-    """
+    """Superseded by WorkflowAction. Keep for migration history."""
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
@@ -141,39 +138,103 @@ class Task(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-
-    # Assignment
     assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assigned_tasks")
-    assigned_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_tasks"
-    )
-
-    # Dates
+    assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_tasks")
     due_date = models.DateTimeField(null=True, blank=True)
     reminder_date = models.DateTimeField(null=True, blank=True)
-
-    # Status
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
-
-    # Link to entity
     entity_type = models.CharField(max_length=50, blank=True)
     entity_id = models.BigIntegerField(null=True, blank=True)
-
-    # Completion
     completed_at = models.DateTimeField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "tasks"
         ordering = ["due_date", "-priority"]
-        verbose_name = "Task"
-        verbose_name_plural = "Tasks"
 
     def __str__(self):
         return self.title
+
+
+# =============================================================================
+# TRIGGER POINT — Every action in the system that can trigger notifications
+# =============================================================================
+
+
+class TriggerPoint(models.Model):
+    """
+    Represents a clickable action/endpoint in the system.
+    Auto-discovered from URL resolver + manually enriched with descriptions.
+    WorkflowRules link to TriggerPoints via trigger_event or directly.
+    """
+    class Category(models.TextChoices):
+        RECEIVING = 'RECEIVING', 'Receiving Dock'
+        PLANNING = 'PLANNING', 'Production Planning'
+        WORKORDER = 'WORKORDER', 'Work Order Management'
+        PRODUCTION = 'PRODUCTION', 'Router Sheet / Steps'
+        EVALUATION = 'EVALUATION', 'Evaluations'
+        QUALITY = 'QUALITY', 'Quality & NCR'
+        INVENTORY = 'INVENTORY', 'Inventory'
+        DISPATCH = 'DISPATCH', 'Dispatch & Field'
+        SALES = 'SALES', 'Sales'
+        HR = 'HR', 'HR & Admin'
+        TECHNOLOGY = 'TECHNOLOGY', 'Technology'
+        ERP = 'ERP', 'ERP Automation'
+        COMPLIANCE = 'COMPLIANCE', 'Compliance'
+        MAINTENANCE = 'MAINTENANCE', 'Maintenance'
+        SYSTEM = 'SYSTEM', 'System / Settings'
+
+    # Identity
+    code = models.CharField(max_length=80, unique=True,
+        help_text='URL name or unique code, e.g. workorders:api_router_step_scan')
+    name = models.CharField(max_length=200,
+        help_text='Human-readable action name, e.g. "Start Router Step"')
+    description = models.TextField(blank=True,
+        help_text='What this action does')
+
+    # Categorization
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.SYSTEM)
+    app_name = models.CharField(max_length=50, blank=True,
+        help_text='Django app name, e.g. workorders')
+    page_name = models.CharField(max_length=100, blank=True,
+        help_text='Page where this action is performed, e.g. "Router Sheet"')
+
+    # Visual
+    icon = models.CharField(max_length=50, default='zap',
+        help_text='Lucide icon name')
+    url_pattern = models.CharField(max_length=300, blank=True,
+        help_text='URL pattern, e.g. /work-orders/<wo_pk>/router-sheet/<step>/api-scan/')
+
+    # Link to workflow
+    workflow_event = models.CharField(max_length=50, blank=True,
+        help_text='WorkflowEvent code if this trigger fires dispatch_event()')
+    has_workflow_rules = models.BooleanField(default=False,
+        help_text='Computed: does any WorkflowRule exist for this event?')
+
+    # Who typically triggers this
+    typical_role = models.CharField(max_length=100, blank=True,
+        help_text='e.g. "Operator", "Manager", "System"')
+
+    # View info (auto-discovered)
+    view_name = models.CharField(max_length=100, blank=True)
+    http_methods = models.CharField(max_length=20, default='POST',
+        help_text='GET, POST, or both')
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'trigger_points'
+        ordering = ['category', 'name']
+        indexes = [
+            models.Index(fields=['category', 'is_active']),
+            models.Index(fields=['workflow_event']),
+        ]
+
+    def __str__(self):
+        return f'[{self.category}] {self.name}'
 
 
 class AuditLog(models.Model):

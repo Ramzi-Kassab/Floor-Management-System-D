@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Workflow Rules — ARDT FMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .trigger-card { transition: all 0.2s; }
+    .trigger-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .reaction-row:hover { background: rgba(59,130,246,0.04); }
+    .reaction-row td { padding: 6px 8px; }
+    .inline-select { border: 1px solid transparent; background: transparent; padding: 2px 4px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .inline-select:hover, .inline-select:focus { border-color: #d1d5db; background: white; }
+    .dark .inline-select:hover, .dark .inline-select:focus { border-color: #4b5563; background: #374151; }
+    .type-badge { font-size: 10px; padding: 2px 8px; border-radius: 9999px; font-weight: 600; display: inline-block; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        {% include "components/back_nav.html" with parent_url="/notifications/settings/workflow/" parent_label="Workflow Settings" %}
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Workflow Rules</h1>
+            <p class="text-sm text-gray-500">{{ rules|length }} reactions across {{ triggers|length }} trigger points</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div x-data="rulesPage()">
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-3 mb-4 text-xs">
+        <span class="flex items-center gap-1"><span class="type-badge bg-blue-100 text-blue-700">Action Required</span> Must be completed</span>
+        <span class="flex items-center gap-1"><span class="type-badge bg-amber-100 text-amber-700">Notification Only</span> Inform — no action needed</span>
+        <span class="flex items-center gap-1"><span class="type-badge bg-purple-100 text-purple-700">Both</span> Action + Notification</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"></span> Active</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block"></span> Disabled</span>
+    </div>
+
+    <!-- Trigger Points -->
+    {% for trigger in triggers %}
+    <div class="trigger-card bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 mb-3 overflow-hidden">
+        <!-- Trigger Header -->
+        <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between cursor-pointer"
+             @click="toggleTrigger('{{ trigger.event }}')">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="{{ trigger.icon }}" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <div>
+                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ trigger.label }}</span>
+                    <span class="text-[10px] text-gray-400 ml-2 font-mono">{{ trigger.event }}</span>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">{{ trigger.rules|length }} reaction{{ trigger.rules|length|pluralize }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-400">{{ trigger.category }}</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 transition-transform" :class="openTriggers['{{ trigger.event }}'] && 'rotate-180'"></i>
+            </div>
+        </div>
+
+        <!-- Reaction Rules Table -->
+        <div x-show="openTriggers['{{ trigger.event }}']" x-collapse style="display:none;">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/50">
+                        <th class="px-2 py-2 w-6"></th>
+                        <th class="px-2 py-2 text-left">Type</th>
+                        <th class="px-2 py-2 text-left">Action Type</th>
+                        <th class="px-2 py-2 text-left">Action → Role</th>
+                        <th class="px-2 py-2 text-left">Notify → Role</th>
+                        <th class="px-2 py-2 text-left">Priority</th>
+                        <th class="px-2 py-2 text-left">Deadline</th>
+                        <th class="px-2 py-2 w-16"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in trigger.rules %}
+                    <tr class="reaction-row border-b border-gray-50 dark:border-gray-700/30 {% if not rule.is_active %}opacity-40{% endif %}">
+                        <td class="px-2 py-1.5">
+                            <button onclick="toggleRule({{ rule.pk }})" title="Toggle">
+                                <span class="w-2.5 h-2.5 rounded-full inline-block {% if rule.is_active %}bg-green-400{% else %}bg-gray-300{% endif %}"></span>
+                            </button>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <select onchange="quickSave({{ rule.pk }}, 'rule_type', this.value)" class="inline-select">
+                                <option value="ACTION" {% if rule.rule_type == 'ACTION' %}selected{% endif %}>Action</option>
+                                <option value="NOTIFICATION" {% if rule.rule_type == 'NOTIFICATION' %}selected{% endif %}>Notify</option>
+                                <option value="BOTH" {% if rule.rule_type == 'BOTH' %}selected{% endif %}>Both</option>
+                            </select>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <select onchange="quickSave({{ rule.pk }}, 'action_type', this.value)" class="inline-select">
+                                <option value="">—</option>
+                                {% for val, label in action_types %}<option value="{{ val }}" {% if rule.action_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <select onchange="quickSave({{ rule.pk }}, 'assign_to_role_id', this.value)" class="inline-select text-indigo-600 dark:text-indigo-400">
+                                <option value="">—</option>
+                                {% for r in roles %}<option value="{{ r.pk }}" {% if rule.assign_to_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <select onchange="quickSave({{ rule.pk }}, 'notif_recipients_role_id', this.value)" class="inline-select text-teal-600 dark:text-teal-400">
+                                <option value="">—</option>
+                                {% for r in roles %}<option value="{{ r.pk }}" {% if rule.notif_recipients_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                            </select>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <select onchange="quickSave({{ rule.pk }}, 'notif_priority', this.value)" class="inline-select">
+                                <option value="LOW" {% if rule.notif_priority == 'LOW' %}selected{% endif %}>Low</option>
+                                <option value="NORMAL" {% if rule.notif_priority == 'NORMAL' %}selected{% endif %}>Normal</option>
+                                <option value="HIGH" {% if rule.notif_priority == 'HIGH' %}selected{% endif %}>High</option>
+                                <option value="URGENT" {% if rule.notif_priority == 'URGENT' %}selected{% endif %}>Urgent</option>
+                            </select>
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <input type="number" value="{{ rule.deadline_hours|default:'' }}" placeholder="—"
+                                   onchange="quickSave({{ rule.pk }}, 'deadline_hours', this.value || null)"
+                                   class="inline-select w-14 text-center">
+                        </td>
+                        <td class="px-2 py-1.5">
+                            <button onclick="editRule({{ rule.pk }})" class="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-blue-600" title="Full edit">
+                                <i data-lucide="settings-2" class="w-3 h-3"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Add Reaction Row -->
+                    <tr class="border-t border-gray-100 dark:border-gray-700/50">
+                        <td colspan="8" class="px-2 py-2">
+                            <button onclick="addReaction('{{ trigger.event }}')"
+                                    class="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Add reaction for this trigger
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Triggers with no rules yet -->
+    {% if unused_events %}
+    <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-4 mt-4">
+        <h3 class="text-sm font-semibold text-gray-500 mb-2">Trigger points with no rules configured:</h3>
+        <div class="flex flex-wrap gap-2">
+            {% for event_val, event_label, event_icon in unused_events %}
+            <button onclick="addReaction('{{ event_val }}')"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                <i data-lucide="{{ event_icon }}" class="w-3 h-3"></i> {{ event_label }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Save indicator -->
+    <div x-show="saveMsg" x-transition class="fixed bottom-6 right-6 px-4 py-2 rounded-lg shadow-lg text-sm font-medium"
+         :class="saveOk ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" x-text="saveMsg" style="display:none;"></div>
+
+    <!-- Full Edit Modal -->
+    <div x-show="editModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="editModal=false" style="display:none;">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between">
+                <h3 class="font-bold text-gray-900 dark:text-white">Edit Rule Details</h3>
+                <button @click="editModal=false" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-gray-600 mb-1 block">Rule Name</label>
+                        <input type="text" x-model="ed.name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-gray-600 mb-1 block">Queue Action (any role member can claim)</label>
+                        <select x-model="ed.is_queue_action" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                            <option value="false">No — assign to all role members</option>
+                            <option value="true">Yes — queue, anyone can claim</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Notification Title Template</label>
+                    <input type="text" x-model="ed.notif_title_template" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="e.g. WO {wo_number} needs approval">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Notification Message Template</label>
+                    <textarea x-model="ed.notif_message_template" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="{wo_number}, {serial}, {actor_name}..."></textarea>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Action URL Pattern</label>
+                    <input type="text" x-model="ed.action_url_pattern" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="/work-orders/{wo_id}/">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-gray-600 mb-1 block">Escalate to Role (after deadline)</label>
+                        <select x-model="ed.escalate_to_role_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                            <option value="">— None —</option>
+                            {% for r in roles %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-gray-600 mb-1 block">Escalate After (hours)</label>
+                        <input type="number" x-model="ed.escalate_after_hours" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400">Variables: {wo_number} {wo_id} {serial} {bit_id} {actor_name} {step_name} {hold_reason} {from_loc} {to_loc} {eval_type} {grn_number}</p>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+                <button @click="editModal=false" class="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100">Cancel</button>
+                <button @click="saveFullEdit()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function _csrf() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1]; }
+
+const RULES_DATA = { {% for rule in rules %}{{ rule.pk }}: { name:"{{ rule.name|escapejs }}", notif_title_template:"{{ rule.notif_title_template|escapejs }}", notif_message_template:"{{ rule.notif_message_template|escapejs }}", action_url_pattern:"{{ rule.action_url_pattern|escapejs }}", is_queue_action:{{ rule.is_queue_action|yesno:"true,false" }}, escalate_to_role_id:"{{ rule.escalate_to_role_id|default:'' }}", escalate_after_hours:{{ rule.escalate_after_hours|default:"null" }} },{% endfor %} };
+
+function rulesPage() {
+    return {
+        openTriggers: {},
+        saveMsg: '', saveOk: false,
+        editModal: false, editPk: null, ed: {},
+
+        toggleTrigger(event) { this.openTriggers[event] = !this.openTriggers[event]; },
+    };
+}
+
+async function quickSave(pk, field, value) {
+    const body = {}; body[field] = value;
+    const r = await fetch('/notifications/api/workflow/rules/' + pk + '/save/', {
+        method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    const comp = Alpine.$data(document.querySelector('[x-data]'));
+    comp.saveMsg = d.success ? 'Saved' : (d.error || 'Error');
+    comp.saveOk = d.success;
+    setTimeout(() => comp.saveMsg = '', 2000);
+}
+
+async function toggleRule(pk) {
+    await fetch('/notifications/api/workflow/rules/' + pk + '/toggle/', { method:'POST', headers:{'X-CSRFToken':_csrf()} });
+    location.reload();
+}
+
+function editRule(pk) {
+    const comp = Alpine.$data(document.querySelector('[x-data]'));
+    comp.editPk = pk;
+    comp.ed = {...RULES_DATA[pk]};
+    comp.editModal = true;
+}
+
+async function addReaction(event) {
+    const name = prompt('Reaction name (e.g. "Notify GM about new WO"):');
+    if (!name) return;
+    const r = await fetch('{% url "notifications:api_rule_create" %}', {
+        method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()},
+        body: JSON.stringify({ name, trigger_event: event, rule_type: 'NOTIFICATION', notif_priority: 'NORMAL' })
+    });
+    const d = await r.json();
+    if (d.success) location.reload();
+    else alert(d.error);
+}
+
+function rulesPage() {
+    return {
+        openTriggers: {},
+        saveMsg: '', saveOk: false,
+        editModal: false, editPk: null, ed: {},
+        toggleTrigger(event) { this.openTriggers[event] = !this.openTriggers[event]; },
+        async saveFullEdit() {
+            const r = await fetch('/notifications/api/workflow/rules/' + this.editPk + '/save/', {
+                method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':_csrf()}, body: JSON.stringify(this.ed)
+            });
+            const d = await r.json();
+            if (d.success) location.reload();
+            else alert(d.error);
+        },
+    };
+}
+</script>
+{% endblock %}

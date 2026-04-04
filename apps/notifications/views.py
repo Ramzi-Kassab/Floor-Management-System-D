@@ -626,37 +626,35 @@ class ActionCenterView(LoginRequiredMixin, ListView):
                 status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
             ).select_related('assigned_to', 'claimed_by', 'source_rule').order_by('is_blocked', 'due_date', '-priority')
 
-        else:  # 'my'
+        else:  # 'my' — actions assigned directly to me OR actions for my roles (oversight)
             return WorkflowAction.objects.filter(
                 Q(assigned_to=user) |
-                Q(assigned_role_id__in=user_role_ids, is_queue_action=True,
-                  claimed_by__isnull=True, assigned_to__isnull=True)
+                Q(assigned_role_id__in=user_role_ids)
             ).filter(
                 status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
                 is_blocked=False,
-            ).select_related('assigned_to', 'claimed_by', 'source_rule').order_by('due_date', '-priority')
+            ).select_related('assigned_to', 'claimed_by', 'source_rule', 'assigned_role').order_by('due_date', '-priority')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         from .models import WorkflowAction, ActionType
         from apps.accounts.models import UserRole
+        from django.db.models import Q
+        from django.utils import timezone as _tz
 
         user = self.request.user
         user_role_ids = list(
             UserRole.objects.filter(
                 user=user, is_available=True,
             ).filter(
-                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+                Q(expires_at__isnull=True) | Q(expires_at__gt=_tz.now())
             ).values_list('role_id', flat=True)
         )
 
         ctx['current_tab'] = self.request.GET.get('tab', 'my')
         ctx['page_title'] = 'Action Center'
 
-        my_q = Q(assigned_to=user) | Q(
-            assigned_role_id__in=user_role_ids, is_queue_action=True,
-            claimed_by__isnull=True, assigned_to__isnull=True
-        )
+        my_q = Q(assigned_to=user) | Q(assigned_role_id__in=user_role_ids)
         ctx['my_count'] = WorkflowAction.objects.filter(my_q).filter(
             status__in=['PENDING', 'CLAIMED', 'IN_PROGRESS', 'ESCALATED'],
             is_blocked=False,
@@ -667,6 +665,124 @@ class ActionCenterView(LoginRequiredMixin, ListView):
         ).count() if user_role_ids else 0
 
         ctx['action_types'] = ActionType.choices
+        # Trigger catalog for "All Triggers" tab — from TriggerPoint model
+        if self.request.user.is_staff:
+            from .models import WorkflowRule, WorkflowEvent
+            from collections import OrderedDict
+
+            # Load from TriggerPoint model (auto-discovered from URL resolver)
+            from .models import TriggerPoint
+            from collections import OrderedDict
+
+            trigger_catalog = OrderedDict()
+            for tp in TriggerPoint.objects.filter(is_active=True).order_by('category', 'name'):
+                cat_label = tp.get_category_display()
+                if cat_label not in trigger_catalog:
+                    trigger_catalog[cat_label] = []
+                trigger_catalog[cat_label].append({
+                    'event': tp.workflow_event,
+                    'icon': tp.icon,
+                    'label': tp.name,
+                    'description': tp.description or tp.url_pattern,
+                    'page': tp.page_name or tp.app_name,
+                    'who_triggers': tp.typical_role or '—',
+                    'has_rules': tp.has_workflow_rules,
+                    'rule_count': WorkflowRule.objects.filter(trigger_event=tp.workflow_event, is_active=True).count() if tp.workflow_event else 0,
+                })
+            ctx['trigger_catalog'] = trigger_catalog
+
+            # Skip the old hardcoded catalog
+            CATALOG_SKIP = True
+            CATALOG = [
+                ('Receiving Dock', [
+                    ('BIT_RECEIVED', 'package-plus', 'Create Backload Batch', 'Register new bits arriving at the factory', '/work-orders/receiving/batches/create/', 'Receiving Staff'),
+                    ('BIT_RECEIVED', 'user-plus', 'Register New Drill Bit', 'Register a single new drill bit', '/work-orders/drill-bits/new/', 'Receiving Staff'),
+                    ('BIT_RECEIVED', 'check-circle', 'Confirm Batch Item', 'Confirm individual bit in a backload batch', 'Batch Detail page', 'Receiving Staff'),
+                    ('INSPECTION_ACCEPTED', 'clipboard-check', 'Complete Inspection (Accept)', 'Mark receiving inspection as complete with ACCEPTED result', 'Inspection Form', 'Inspector'),
+                    ('INSPECTION_REJECTED', 'clipboard-x', 'Complete Inspection (Reject)', 'Mark receiving inspection as complete with REJECTED result', 'Inspection Form', 'Inspector'),
+                    ('INSPECTION_CONDITIONAL', 'clipboard-list', 'Complete Inspection (Conditional)', 'Mark inspection as conditional acceptance', 'Inspection Form', 'Inspector'),
+                    ('CEREBRO_DETECTED', 'alert-triangle', 'Cerebro Device Detected', 'Auto-detected when bit with Cerebro is backloaded', 'Auto', 'System'),
+                ]),
+                ('Drill Bit Management', [
+                    ('ADDED_TO_PLAN', 'bookmark', 'Assign Business Unit', 'Assign account/BU to a drill bit', 'Drill Bit List / Detail', 'Planner'),
+                    ('ADDED_TO_PLAN', 'calendar-plus', 'Add to Production Planner', 'Queue bit for production planning', 'Drill Bit List / Detail', 'Planner'),
+                    ('', 'arrow-right-left', 'Transfer Bit Location', 'Move bit between physical locations', '/work-orders/location-transfers/', 'Operator'),
+                    ('', 'printer', 'Print QR Labels', 'Print QR code labels for drill bits', 'QR Labels page', 'Any user'),
+                    ('', 'trash-2', 'Scrap Bit', 'Mark a drill bit as scrapped', 'Drill Bit Detail', 'Supervisor'),
+                ]),
+                ('Production Planning', [
+                    ('WO_RELEASED', 'rocket', 'Release from Planner', 'Release bit from planner — creates WO, requests transfer', '/work-orders/production-planner/', 'Planner'),
+                    ('', 'x-circle', 'Remove from Planner', 'Remove bit from production plan', 'Production Planner', 'Planner'),
+                    ('', 'refresh-cw', 'Change Priority', 'Change production priority of a planned bit', 'Production Planner', 'Planner'),
+                    ('TRANSFER_CONFIRMED', 'arrow-right-left', 'Confirm Bit Transfer', 'Confirm physical bit movement to production area', '/work-orders/location-transfers/', 'Operator'),
+                    ('TRANSFER_CONFIRMED', 'check-circle', 'Confirm Release (at destination)', 'Confirm release when bit already at correct location', 'Location Transfers', 'Operator'),
+                ]),
+                ('Work Order Management', [
+                    ('WO_APPROVED', 'shield-check', 'Approve Work Order', 'Manager approves WO to start production', 'WO Detail', 'Manager'),
+                    ('WO_REJECTED', 'x-circle', 'Reject Work Order', 'Manager rejects WO — returns to planner', 'WO Detail', 'Manager'),
+                    ('', 'package-check', 'Mark WO as Released', 'Mark pending WO as released (skip transfer)', 'WO Detail', 'Manager'),
+                    ('WO_DELETED', 'trash-2', 'Delete Work Order', 'Delete WO with optional reversal', 'WO Detail', 'Manager'),
+                    ('', 'file-text', 'Print Release Paper', 'Print the release paper for production', 'Release Paper', 'Production Lead'),
+                    ('WO_SENT_TO_QC', 'send', 'Send WO to QC', 'Change WO status to QC Pending', 'WO Detail', 'Production Lead'),
+                    ('QC_PASSED', 'check-circle', 'QC Pass', 'QC inspector passes the work order', 'WO Detail', 'QC Inspector'),
+                    ('QC_FAILED', 'x-circle', 'QC Fail', 'QC inspector fails — rework needed', 'WO Detail', 'QC Inspector'),
+                    ('WO_COMPLETED', 'check-circle-2', 'Complete Work Order', 'Mark WO as fully completed', 'WO Detail', 'Production Lead'),
+                    ('', 'activity', 'Change WO Status', 'Any WO status transition (hold, cancel, etc.)', 'WO Detail', 'Manager'),
+                ]),
+                ('Router Sheet / Steps', [
+                    ('WO_STARTED', 'play', 'Start First Step', 'Begin the first router step — starts production', 'Router Sheet', 'Operator'),
+                    ('STEP_COMPLETED', 'check-circle', 'Complete Step', 'Mark a router step as done', 'Step Detail', 'Operator'),
+                    ('', 'skip-forward', 'Skip Step', 'Skip a step with structured reason', 'Step Detail', 'Operator/Supervisor'),
+                    ('', 'undo-2', 'Unskip Step', 'Return a skipped step to pending (supervisor)', 'Router Sheet', 'Supervisor'),
+                    ('STEP_ON_HOLD', 'pause-circle', 'Put Step on Hold', 'Hold step with reason (equipment, material, etc.)', 'Step Detail', 'Operator'),
+                    ('STEP_RESUMED', 'play', 'Resume Step', 'Resume a held or paused step', 'Step Detail', 'Supervisor'),
+                    ('STEP_WAITING_QC', 'shield-check', 'Request QC Review', 'Send step to QC inspector for review', 'Step Detail', 'Operator'),
+                    ('STEP_WAITING_APPROVAL', 'check-circle', 'Request Approval', 'Send step to manager for approval', 'Step Detail', 'Operator'),
+                    ('STEP_WAITING_TECH', 'cpu', 'Request Tech Review', 'Send step to technical team for input', 'Step Detail', 'Operator'),
+                    ('ALL_STEPS_DONE', 'check-circle-2', 'All Steps Complete', 'All router steps finished — auto-triggered', 'Router Sheet', 'System'),
+                    ('', 'list-ordered', 'Reorder Steps', 'Supervisor reorders pending steps', 'Router Sheet', 'Supervisor'),
+                    ('', 'plus', 'Add Custom Step', 'Add a step not in the original route', 'Step Detail', 'Supervisor'),
+                ]),
+                ('Evaluations', [
+                    ('EVALUATION_COMPLETED', 'check-circle', 'Complete Evaluation', 'Mark cutter evaluation as complete', 'Evaluation Matrix', 'Evaluator'),
+                    ('', 'plus', 'Create Evaluation', 'Start a new evaluation (DC, PDC, QC, etc.)', 'WO Detail', 'Evaluator'),
+                    ('', 'trash-2', 'Delete Evaluation', 'Delete an incomplete evaluation', 'WO Detail', 'Supervisor'),
+                    ('ROUTE_UPDATED', 'git-branch', 'Route Auto-Updated', 'Route rebuilt after evaluation findings', 'Auto', 'System'),
+                ]),
+                ('Die Check & Quality', [
+                    ('DIE_CHECK_DECISION', 'flag', 'Report Issue (Die Check)', 'Report quality issue from die check page', 'Die Check Page', 'Operator/QC'),
+                    ('DIE_CHECK_DECISION', 'flag', 'Report Issue (Evaluation)', 'Report quality issue from evaluation page', 'PDC Evaluation', 'Evaluator'),
+                    ('DIE_CHECK_DECISION', 'flag', 'Report Issue (Any Step)', 'Report quality issue from any router step', 'Step Detail', 'Any user'),
+                    ('', 'scale', 'Quality Decision: Accept', 'Quality team accepts reported issue', 'Quality Issue Detail', 'QC Manager'),
+                    ('', 'alert-octagon', 'Quality Decision: Create NCR', 'Quality team creates NCR from issue', 'Quality Issue Detail', 'QC Manager'),
+                    ('', 'refresh-cw', 'Quality Decision: Rework', 'Quality team requests rework', 'Quality Issue Detail', 'QC Manager'),
+                    ('', 'cpu', 'Quality Decision: Inform Technical', 'Escalate to technical team', 'Quality Issue Detail', 'QC Manager'),
+                    ('', 'users', 'Quality Decision: Inform Customer', 'Notify customer about issue', 'Quality Issue Detail', 'QC Manager'),
+                    ('SPECIAL_INSTRUCTION', 'alert-octagon', 'Critical Special Instruction', 'Critical instruction blocks step start', 'Step Detail', 'System'),
+                ]),
+                ('Inventory & Receiving', [
+                    ('GRN_POSTED', 'check-circle', 'Post GRN', 'Post Goods Receipt Note to stock ledger', 'GRN Detail', 'Warehouse Staff'),
+                    ('', 'package', 'Create GRN', 'Create new Goods Receipt Note', '/inventory/grn/create/', 'Warehouse Staff'),
+                    ('', 'file-minus', 'Post Stock Issue', 'Issue stock from inventory', 'Stock Issue', 'Warehouse Staff'),
+                    ('', 'repeat', 'Post Stock Transfer', 'Transfer stock between locations', 'Stock Transfer', 'Warehouse Staff'),
+                ]),
+                ('Dispatch & Field', [
+                    ('', 'truck', 'Create Dispatch', 'Create dispatch record for shipping', '/dispatch/dispatches/create/', 'Dispatch Staff'),
+                    ('', 'navigation', 'Mark Dispatch In Transit', 'Driver departs with bits', 'Dispatch Detail', 'Driver'),
+                    ('', 'map-pin', 'Mark Dispatch Delivered', 'Bits delivered to rig/customer', 'Dispatch Detail', 'Driver'),
+                    ('', 'package-check', 'Confirm Bit Used (at rig)', 'Mark consignment bit as used/consumed', 'Not built yet', 'Field Engineer'),
+                    ('', 'undo-2', 'Return Bit from Field', 'Bit returns from rig unused', 'Not built yet', 'Field Engineer'),
+                ]),
+                ('NCR & Compliance', [
+                    ('', 'alert-octagon', 'Create NCR', 'Create non-conformance report', '/quality/ncrs/create/', 'QC Manager'),
+                    ('', 'check-circle', 'Close NCR', 'Close NCR after resolution', 'NCR Detail', 'QC Manager'),
+                    ('', 'file-check', 'NCR Disposition', 'Set NCR disposition (rework, scrap, etc.)', 'NCR Detail', 'QC Manager'),
+                ]),
+            ]
+
+            # Old catalog processing removed — using TriggerPoint model above
+            pass
+
         return ctx
 
 
@@ -836,3 +952,175 @@ def api_workflow_action_claim(request, pk):
     action.save(update_fields=['claimed_by', 'claimed_at', 'status', 'updated_at'])
 
     return JsonResponse({'success': True, 'message': 'Action claimed'})
+
+
+# =============================================================================
+# WORKFLOW RULES EDITOR
+# =============================================================================
+
+class WorkflowRuleListView(LoginRequiredMixin, ListView):
+    """Workflow rules editor — view, create, edit, toggle rules."""
+    template_name = "notifications/workflow_rules_editor.html"
+    context_object_name = "rules"
+
+    def get_queryset(self):
+        from .models import WorkflowRule
+        return WorkflowRule.objects.select_related(
+            'assign_to_role', 'notif_recipients_role', 'escalate_to_role',
+            'assign_to_user', 'escalate_to_user',
+        ).order_by('trigger_event', 'order')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from .models import WorkflowEvent, ActionType, WorkflowRule
+        from apps.accounts.models import Role
+
+        ctx['page_title'] = 'Workflow Rules'
+        ctx['action_types'] = ActionType.choices
+        ctx['roles'] = Role.objects.filter(is_active=True).order_by('-level', 'name')
+
+        # Trigger point catalog with icons and categories
+        TRIGGER_META = {
+            'BIT_RECEIVED': ('package-plus', 'Receiving'),
+            'INSPECTION_ACCEPTED': ('clipboard-check', 'Receiving'),
+            'INSPECTION_REJECTED': ('clipboard-x', 'Receiving'),
+            'INSPECTION_CONDITIONAL': ('clipboard-list', 'Receiving'),
+            'CEREBRO_DETECTED': ('alert-triangle', 'Receiving'),
+            'ADDED_TO_PLAN': ('calendar-plus', 'Planning'),
+            'WO_RELEASED': ('rocket', 'Planning'),
+            'TRANSFER_CONFIRMED': ('arrow-right-left', 'Planning'),
+            'WO_APPROVED': ('shield-check', 'Approval'),
+            'WO_REJECTED': ('x-circle', 'Approval'),
+            'WO_DELETED': ('trash-2', 'Approval'),
+            'WO_STARTED': ('play', 'Production'),
+            'STEP_COMPLETED': ('check-circle', 'Production'),
+            'STEP_ON_HOLD': ('pause-circle', 'Production'),
+            'STEP_WAITING_QC': ('shield-check', 'Production'),
+            'STEP_WAITING_APPROVAL': ('check-circle', 'Production'),
+            'STEP_WAITING_TECH': ('cpu', 'Production'),
+            'STEP_RESUMED': ('play', 'Production'),
+            'ALL_STEPS_DONE': ('check-circle-2', 'Production'),
+            'DIE_CHECK_DECISION': ('flag', 'Quality'),
+            'SPECIAL_INSTRUCTION': ('alert-octagon', 'Special'),
+            'WO_SENT_TO_QC': ('send', 'QC'),
+            'QC_PASSED': ('check-circle', 'QC'),
+            'QC_FAILED': ('x-circle', 'QC'),
+            'WO_COMPLETED': ('check-circle-2', 'Completion'),
+            'GRN_POSTED': ('check-circle', 'Inventory'),
+            'EVALUATION_COMPLETED': ('check-circle', 'Evaluation'),
+            'ROUTE_UPDATED': ('git-branch', 'Route'),
+        }
+
+        # Build trigger-centric structure
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for rule in ctx['rules']:
+            grouped[rule.trigger_event].append(rule)
+
+        triggers = []
+        used_events = set()
+        for event_val, event_label in WorkflowEvent.choices:
+            icon, category = TRIGGER_META.get(event_val, ('zap', 'Other'))
+            rules_for_event = grouped.get(event_val, [])
+            if rules_for_event:
+                triggers.append({
+                    'event': event_val,
+                    'label': event_label,
+                    'icon': icon,
+                    'category': category,
+                    'rules': rules_for_event,
+                })
+                used_events.add(event_val)
+
+        ctx['triggers'] = triggers
+
+        # Unused events (no rules configured)
+        unused = []
+        for event_val, event_label in WorkflowEvent.choices:
+            if event_val not in used_events:
+                icon, _ = TRIGGER_META.get(event_val, ('zap', 'Other'))
+                unused.append((event_val, event_label, icon))
+        ctx['unused_events'] = unused
+        ctx['events'] = WorkflowEvent.choices
+
+        return ctx
+
+
+@login_required
+@require_POST
+def api_workflow_rule_toggle(request, pk):
+    """Toggle a rule's is_active status."""
+    from .models import WorkflowRule
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+    rule = get_object_or_404(WorkflowRule, pk=pk)
+    rule.is_active = not rule.is_active
+    rule.save(update_fields=['is_active'])
+    return JsonResponse({'success': True, 'is_active': rule.is_active})
+
+
+@login_required
+@require_POST
+def api_workflow_rule_save(request, pk):
+    """Update a workflow rule."""
+    from .models import WorkflowRule, WorkflowEvent, ActionType
+    from apps.accounts.models import Role
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+
+    rule = get_object_or_404(WorkflowRule, pk=pk)
+    data = _json.loads(request.body)
+
+    if 'name' in data: rule.name = data['name']
+    if 'rule_type' in data: rule.rule_type = data['rule_type']
+    if 'action_type' in data: rule.action_type = data['action_type']
+    if 'notif_priority' in data: rule.notif_priority = data['notif_priority']
+    if 'notif_title_template' in data: rule.notif_title_template = data['notif_title_template']
+    if 'notif_message_template' in data: rule.notif_message_template = data['notif_message_template']
+    if 'action_url_pattern' in data: rule.action_url_pattern = data['action_url_pattern']
+    if 'action_description_template' in data: rule.action_description_template = data['action_description_template']
+    if 'deadline_hours' in data: rule.deadline_hours = data['deadline_hours'] or None
+    if 'escalate_after_hours' in data: rule.escalate_after_hours = data['escalate_after_hours'] or None
+    if 'is_queue_action' in data: rule.is_queue_action = data['is_queue_action']
+    if 'order' in data: rule.order = data['order']
+
+    if 'assign_to_role_id' in data:
+        rule.assign_to_role = Role.objects.filter(pk=data['assign_to_role_id']).first() if data['assign_to_role_id'] else None
+    if 'notif_recipients_role_id' in data:
+        rule.notif_recipients_role = Role.objects.filter(pk=data['notif_recipients_role_id']).first() if data['notif_recipients_role_id'] else None
+    if 'escalate_to_role_id' in data:
+        rule.escalate_to_role = Role.objects.filter(pk=data['escalate_to_role_id']).first() if data['escalate_to_role_id'] else None
+
+    rule.save()
+    return JsonResponse({'success': True, 'message': f'Rule "{rule.name}" saved'})
+
+
+@login_required
+@require_POST
+def api_workflow_rule_create(request):
+    """Create a new workflow rule."""
+    from .models import WorkflowRule
+    from apps.accounts.models import Role
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+
+    data = _json.loads(request.body)
+    if not data.get('name') or not data.get('trigger_event'):
+        return JsonResponse({'error': 'Name and trigger event required', 'success': False})
+
+    rule = WorkflowRule.objects.create(
+        name=data['name'],
+        trigger_event=data['trigger_event'],
+        rule_type=data.get('rule_type', 'BOTH'),
+        action_type=data.get('action_type', ''),
+        notif_priority=data.get('notif_priority', 'NORMAL'),
+        notif_title_template=data.get('notif_title_template', ''),
+        notif_message_template=data.get('notif_message_template', ''),
+        action_url_pattern=data.get('action_url_pattern', ''),
+        deadline_hours=data.get('deadline_hours') or None,
+        is_queue_action=data.get('is_queue_action', False),
+        order=data.get('order', 0),
+        assign_to_role=Role.objects.filter(pk=data.get('assign_to_role_id')).first() if data.get('assign_to_role_id') else None,
+        notif_recipients_role=Role.objects.filter(pk=data.get('notif_recipients_role_id')).first() if data.get('notif_recipients_role_id') else None,
+    )
+    return JsonResponse({'success': True, 'pk': rule.pk, 'message': f'Rule "{rule.name}" created'})

@@ -2616,11 +2616,7 @@ class ProductionPlannerView(LoginRequiredMixin, TemplateView):
         context['current_account'] = account_filter or ''
         context['page_title'] = 'Production Planner'
 
-        try:
-            from apps.notifications.workflow_engine import get_pending_actions_for_user
-            context['pending_actions'] = list(get_pending_actions_for_user(self.request.user)[:10])
-        except Exception:
-            context['pending_actions'] = []
+        context['pending_actions'] = []
 
         return context
 
@@ -3100,6 +3096,11 @@ def api_release_plan_entry(request):
             )
         except Exception:
             pass
+
+        fire_event('WO_RELEASED', request.user, {
+            'wo_id': wo.pk, 'wo_number': wo.wo_number,
+            'serial': bit.serial_number, 'entity_type': 'WorkOrder', 'entity_id': wo.pk,
+        })
 
         return JsonResponse({
             'success': True,
