@@ -93,6 +93,25 @@
         </template>
     </div>
 
+    <!-- Available Variables -->
+    {% if trigger.context_variables %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+            <i data-lucide="braces" class="w-3.5 h-3.5 text-violet-500"></i> Available Variables
+        </h3>
+        <p class="text-xs text-gray-400 mb-2">Use these in notification title, message, and URL templates:</p>
+        <div class="flex flex-wrap gap-1.5">
+            {% for var in trigger.context_variables %}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 text-xs font-mono text-violet-700 dark:text-violet-300 cursor-pointer hover:bg-violet-100"
+                  onclick="navigator.clipboard.writeText('{'+this.dataset.v+'}')" data-v="{{ var }}" title="Click to copy {% templatetag openvariable %}{{ var }}{% templatetag closevariable %}">
+                {% templatetag openbrace %}{{ var }}{% templatetag closebrace %}
+            </span>
+            {% endfor %}
+        </div>
+        <p class="text-[10px] text-gray-400 mt-2">Click any variable to copy. Paste into Title, Message, or URL fields when editing rules.</p>
+    </div>
+    {% endif %}
+
     <!-- Rules for this trigger -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="px-5 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -109,79 +128,90 @@
         </div>
 
         {% if rules %}
-        <table class="w-full text-xs">
-            <thead>
-                <tr class="text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/50">
-                    <th class="px-3 py-2 w-6"></th>
-                    <th class="px-3 py-2 text-left">Name</th>
-                    <th class="px-3 py-2 text-left">Type</th>
-                    <th class="px-3 py-2 text-left">Action Type</th>
-                    <th class="px-3 py-2 text-left">Action → Role</th>
-                    <th class="px-3 py-2 text-left">Notify → Role</th>
-                    <th class="px-3 py-2 text-left">Priority</th>
-                    <th class="px-3 py-2 text-left">Deadline</th>
-                    <th class="px-3 py-2 w-20">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/30">
-                {% for rule in rules %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/20 {% if not rule.is_active %}opacity-40{% endif %}">
-                    <td class="px-3 py-2">
-                        <button onclick="toggleRule({{ rule.pk }})" title="Toggle">
-                            <span class="w-2.5 h-2.5 rounded-full inline-block {% if rule.is_active %}bg-green-400{% else %}bg-gray-300{% endif %}"></span>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
+            {% for rule in rules %}
+            <div class="p-4 {% if not rule.is_active %}opacity-40{% endif %} hover:bg-gray-50/50 dark:hover:bg-gray-700/10">
+                <!-- Rule Header -->
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleRule({{ rule.pk }})">
+                            <span class="w-3 h-3 rounded-full inline-block {% if rule.is_active %}bg-green-400{% else %}bg-gray-300{% endif %}"></span>
                         </button>
-                    </td>
-                    <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ rule.name }}</td>
-                    <td class="px-3 py-2">
-                        <select onchange="quickSave({{ rule.pk }}, 'rule_type', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                            <option value="ACTION" {% if rule.rule_type == 'ACTION' %}selected{% endif %}>Action</option>
-                            <option value="NOTIFICATION" {% if rule.rule_type == 'NOTIFICATION' %}selected{% endif %}>Notify</option>
-                            <option value="BOTH" {% if rule.rule_type == 'BOTH' %}selected{% endif %}>Both</option>
-                        </select>
-                    </td>
-                    <td class="px-3 py-2">
-                        <select onchange="quickSave({{ rule.pk }}, 'action_type', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                            <option value="">—</option>
-                            {% for val, label in action_types %}<option value="{{ val }}" {% if rule.action_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
-                        </select>
-                    </td>
-                    <td class="px-3 py-2">
-                        <select onchange="quickSave({{ rule.pk }}, 'assign_to_role_id', this.value)" class="border-0 bg-transparent text-xs text-indigo-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                            <option value="">—</option>
-                            {% for r in roles %}<option value="{{ r.pk }}" {% if rule.assign_to_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-                        </select>
-                    </td>
-                    <td class="px-3 py-2">
-                        <select onchange="quickSave({{ rule.pk }}, 'notif_recipients_role_id', this.value)" class="border-0 bg-transparent text-xs text-teal-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                            <option value="">—</option>
-                            {% for r in roles %}<option value="{{ r.pk }}" {% if rule.notif_recipients_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-                        </select>
-                    </td>
-                    <td class="px-3 py-2">
-                        <select onchange="quickSave({{ rule.pk }}, 'notif_priority', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                            <option value="LOW" {% if rule.notif_priority == 'LOW' %}selected{% endif %}>Low</option>
-                            <option value="NORMAL" {% if rule.notif_priority == 'NORMAL' %}selected{% endif %}>Normal</option>
-                            <option value="HIGH" {% if rule.notif_priority == 'HIGH' %}selected{% endif %}>High</option>
-                            <option value="URGENT" {% if rule.notif_priority == 'URGENT' %}selected{% endif %}>Urgent</option>
-                        </select>
-                    </td>
-                    <td class="px-3 py-2">
-                        <input type="number" value="{{ rule.deadline_hours|default:'' }}" placeholder="—"
-                               onchange="quickSave({{ rule.pk }}, 'deadline_hours', this.value || null)"
-                               class="border-0 bg-transparent text-xs w-12 text-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
-                    </td>
-                    <td class="px-3 py-2 flex gap-1">
-                        <button onclick="editRuleFull({{ rule.pk }})" class="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-blue-600" title="Full Edit">
-                            <i data-lucide="settings-2" class="w-3 h-3"></i>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ rule.name }}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full font-medium
+                            {% if rule.rule_type == 'ACTION' %}bg-blue-100 text-blue-700
+                            {% elif rule.rule_type == 'NOTIFICATION' %}bg-amber-100 text-amber-700
+                            {% else %}bg-purple-100 text-purple-700{% endif %}">{{ rule.get_rule_type_display }}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full
+                            {% if rule.notif_priority == 'URGENT' %}bg-red-100 text-red-700
+                            {% elif rule.notif_priority == 'HIGH' %}bg-amber-100 text-amber-700
+                            {% else %}bg-gray-100 text-gray-500{% endif %}">{{ rule.notif_priority }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="editRuleFull({{ rule.pk }})" class="p-1.5 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600" title="Edit">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                         </button>
-                        <button onclick="deleteRule({{ rule.pk }}, '{{ rule.name|escapejs }}')" class="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-red-600" title="Delete">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                        <button onclick="deleteRule({{ rule.pk }}, '{{ rule.name|escapejs }}')" class="p-1.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600" title="Delete">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                </div>
+
+                <!-- Rule Details Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    {% if rule.action_type %}
+                    <div class="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-2.5 border border-blue-200 dark:border-blue-800">
+                        <p class="text-[10px] text-blue-500 uppercase font-semibold mb-0.5">Action Type</p>
+                        <p class="text-blue-700 dark:text-blue-300 font-medium">{{ rule.get_action_type_display }}</p>
+                    </div>
+                    {% endif %}
+                    {% if rule.assign_to_role %}
+                    <div class="bg-indigo-50 dark:bg-indigo-900/10 rounded-lg p-2.5 border border-indigo-200 dark:border-indigo-800">
+                        <p class="text-[10px] text-indigo-500 uppercase font-semibold mb-0.5">Action → Role</p>
+                        <p class="text-indigo-700 dark:text-indigo-300 font-medium">{{ rule.assign_to_role.name }}</p>
+                    </div>
+                    {% endif %}
+                    {% if rule.notif_recipients_role %}
+                    <div class="bg-teal-50 dark:bg-teal-900/10 rounded-lg p-2.5 border border-teal-200 dark:border-teal-800">
+                        <p class="text-[10px] text-teal-500 uppercase font-semibold mb-0.5">Notify → Role</p>
+                        <p class="text-teal-700 dark:text-teal-300 font-medium">{{ rule.notif_recipients_role.name }}</p>
+                    </div>
+                    {% endif %}
+                    {% if rule.deadline_hours %}
+                    <div class="bg-amber-50 dark:bg-amber-900/10 rounded-lg p-2.5 border border-amber-200 dark:border-amber-800">
+                        <p class="text-[10px] text-amber-500 uppercase font-semibold mb-0.5">Deadline</p>
+                        <p class="text-amber-700 dark:text-amber-300 font-medium">{{ rule.deadline_hours }} hours</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Notification Text -->
+                {% if rule.notif_title_template or rule.notif_message_template %}
+                <div class="mt-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3">
+                    {% if rule.notif_title_template %}
+                    <p class="text-xs"><span class="text-gray-400">Title:</span> <span class="text-gray-700 dark:text-gray-300 font-mono">{{ rule.notif_title_template }}</span></p>
+                    {% endif %}
+                    {% if rule.notif_message_template %}
+                    <p class="text-xs mt-1"><span class="text-gray-400">Message:</span> <span class="text-gray-700 dark:text-gray-300 font-mono">{{ rule.notif_message_template }}</span></p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Action URL -->
+                {% if rule.action_url_pattern %}
+                <p class="mt-2 text-xs"><span class="text-gray-400">Opens page:</span> <span class="font-mono text-blue-600">{{ rule.action_url_pattern }}</span></p>
+                {% endif %}
+
+                <!-- Escalation -->
+                {% if rule.escalate_to_role or rule.escalate_after_hours %}
+                <p class="mt-1 text-xs text-amber-600">
+                    <i data-lucide="alert-circle" class="w-3 h-3 inline"></i>
+                    Escalates to {{ rule.escalate_to_role.name|default:"—" }} after {{ rule.escalate_after_hours|default:"?" }} hours
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
         {% else %}
         <div class="px-5 py-8 text-center text-gray-400">
             <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2"></i>

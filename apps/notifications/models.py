@@ -222,6 +222,10 @@ class TriggerPoint(models.Model):
     http_methods = models.CharField(max_length=20, default='POST',
         help_text='GET, POST, or both')
 
+    # Available context variables for rule templates (auto-detected from code)
+    context_variables = models.JSONField(default=list, blank=True,
+        help_text='List of {variable} names available in this trigger context')
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
