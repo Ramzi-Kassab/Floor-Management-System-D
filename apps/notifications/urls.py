@@ -48,4 +48,6 @@ urlpatterns = [
     path("api/workflow/rules/<int:pk>/toggle/", views.api_workflow_rule_toggle, name="api_rule_toggle"),
     path("api/workflow/rules/<int:pk>/save/", views.api_workflow_rule_save, name="api_rule_save"),
     path("api/workflow/rules/create/", views.api_workflow_rule_create, name="api_rule_create"),
+    path("api/workflow/rules/<int:pk>/delete/", views.api_workflow_rule_delete, name="api_rule_delete"),
+    path("settings/workflow/triggers/<int:pk>/", views.TriggerDetailView.as_view(), name="trigger_detail"),
 ]

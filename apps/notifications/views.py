@@ -680,6 +680,7 @@ class ActionCenterView(LoginRequiredMixin, ListView):
                 if cat_label not in trigger_catalog:
                     trigger_catalog[cat_label] = []
                 trigger_catalog[cat_label].append({
+                    'pk': tp.pk,
                     'event': tp.workflow_event,
                     'icon': tp.icon,
                     'label': tp.name,
@@ -1124,3 +1125,68 @@ def api_workflow_rule_create(request):
         notif_recipients_role=Role.objects.filter(pk=data.get('notif_recipients_role_id')).first() if data.get('notif_recipients_role_id') else None,
     )
     return JsonResponse({'success': True, 'pk': rule.pk, 'message': f'Rule "{rule.name}" created'})
+
+
+@login_required
+@require_POST
+def api_workflow_rule_delete(request, pk):
+    """Delete a workflow rule."""
+    from .models import WorkflowRule
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Staff access required'}, status=403)
+    rule = get_object_or_404(WorkflowRule, pk=pk)
+    name = rule.name
+    rule.delete()
+    return JsonResponse({'success': True, 'message': f'Rule "{name}" deleted'})
+
+
+class TriggerDetailView(LoginRequiredMixin, DetailView):
+    """Trigger point detail page — edit trigger metadata + manage all linked rules."""
+    template_name = "notifications/trigger_detail.html"
+    context_object_name = "trigger"
+
+    def get_queryset(self):
+        from .models import TriggerPoint
+        return TriggerPoint.objects.all()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from .models import WorkflowRule, ActionType, WorkflowEvent
+        from apps.accounts.models import Role
+
+        tp = self.object
+        ctx['page_title'] = f'Trigger: {tp.name}'
+
+        # Get all rules for this trigger's workflow_event
+        if tp.workflow_event:
+            ctx['rules'] = WorkflowRule.objects.filter(
+                trigger_event=tp.workflow_event
+            ).select_related('assign_to_role', 'notif_recipients_role', 'escalate_to_role').order_by('order')
+        else:
+            ctx['rules'] = WorkflowRule.objects.none()
+
+        ctx['action_types'] = ActionType.choices
+        ctx['events'] = WorkflowEvent.choices
+        ctx['roles'] = Role.objects.filter(is_active=True).order_by('-level', 'name')
+        ctx['all_events'] = WorkflowEvent.choices
+
+        return ctx
+
+    def post(self, request, pk):
+        """Update trigger metadata."""
+        from .models import TriggerPoint
+        tp = get_object_or_404(TriggerPoint, pk=pk)
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'Staff access required'}, status=403)
+
+        data = _json.loads(request.body)
+        if 'name' in data: tp.name = data['name']
+        if 'description' in data: tp.description = data['description']
+        if 'icon' in data: tp.icon = data['icon']
+        if 'category' in data: tp.category = data['category']
+        if 'typical_role' in data: tp.typical_role = data['typical_role']
+        if 'page_name' in data: tp.page_name = data['page_name']
+        if 'workflow_event' in data: tp.workflow_event = data['workflow_event']
+        tp.save()
+
+        return JsonResponse({'success': True, 'message': 'Trigger updated'})

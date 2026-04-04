@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ trigger.name }} — Trigger Detail{% endblock %}
+
+{% block page_header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+        {% include "components/back_nav.html" with parent_url="/notifications/settings/workflow/rules/" parent_label="Workflow Rules" %}
+        <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <i data-lucide="{{ trigger.icon }}" class="w-5 h-5 text-blue-600"></i>
+        </div>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ trigger.name }}</h1>
+            <p class="text-xs text-gray-400 font-mono">{{ trigger.code }} · {{ trigger.get_category_display }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div x-data="triggerPage()" class="max-w-4xl space-y-4">
+
+    <!-- Trigger Info (editable) -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Trigger Info</h3>
+            <button @click="editingTrigger = !editingTrigger" class="text-xs text-blue-600 hover:underline" x-text="editingTrigger ? 'Cancel' : 'Edit'"></button>
+        </div>
+
+        <template x-if="!editingTrigger">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div><p class="text-xs text-gray-400">Name</p><p class="font-medium text-gray-900 dark:text-white">{{ trigger.name }}</p></div>
+                <div><p class="text-xs text-gray-400">Icon</p><p><i data-lucide="{{ trigger.icon }}" class="w-4 h-4 inline text-blue-500"></i> {{ trigger.icon }}</p></div>
+                <div><p class="text-xs text-gray-400">Category</p><p>{{ trigger.get_category_display }}</p></div>
+                <div><p class="text-xs text-gray-400">Page</p><p>{{ trigger.page_name|default:"—" }}</p></div>
+                <div><p class="text-xs text-gray-400">Who Triggers</p><p>{{ trigger.typical_role|default:"—" }}</p></div>
+                <div><p class="text-xs text-gray-400">Workflow Event</p><p class="font-mono text-xs">{{ trigger.workflow_event|default:"— (no event linked)" }}</p></div>
+                <div class="col-span-2"><p class="text-xs text-gray-400">URL Pattern</p><p class="font-mono text-xs text-gray-500">{{ trigger.url_pattern }}</p></div>
+                {% if trigger.description %}
+                <div class="col-span-4"><p class="text-xs text-gray-400">Description</p><p class="text-sm">{{ trigger.description }}</p></div>
+                {% endif %}
+            </div>
+        </template>
+
+        <template x-if="editingTrigger">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Name</label>
+                    <input type="text" x-model="triggerData.name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Icon (Lucide name)</label>
+                    <input type="text" x-model="triggerData.icon" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Category</label>
+                    <select x-model="triggerData.category" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="RECEIVING">Receiving Dock</option><option value="PLANNING">Planning</option>
+                        <option value="WORKORDER">Work Order</option><option value="PRODUCTION">Production</option>
+                        <option value="EVALUATION">Evaluations</option><option value="QUALITY">Quality</option>
+                        <option value="INVENTORY">Inventory</option><option value="DISPATCH">Dispatch</option>
+                        <option value="SALES">Sales</option><option value="HR">HR</option>
+                        <option value="TECHNOLOGY">Technology</option><option value="ERP">ERP</option>
+                        <option value="COMPLIANCE">Compliance</option><option value="MAINTENANCE">Maintenance</option>
+                        <option value="SYSTEM">System</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Typical Role</label>
+                    <input type="text" x-model="triggerData.typical_role" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="Operator, Manager...">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Page Name</label>
+                    <input type="text" x-model="triggerData.page_name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Workflow Event</label>
+                    <select x-model="triggerData.workflow_event" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                        <option value="">— None —</option>
+                        {% for val, label in all_events %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-span-3">
+                    <label class="text-xs font-medium text-gray-600 mb-1 block">Description</label>
+                    <textarea x-model="triggerData.description" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700"></textarea>
+                </div>
+                <div>
+                    <button @click="saveTrigger()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Save Trigger</button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Rules for this trigger -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="px-5 py-3 bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                Notification / Action Rules ({{ rules|length }})
+            </h3>
+            {% if trigger.workflow_event %}
+            <button @click="addRule()" class="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1">
+                <i data-lucide="plus" class="w-3 h-3"></i> Add Rule
+            </button>
+            {% else %}
+            <span class="text-xs text-amber-500">Assign a Workflow Event above first</span>
+            {% endif %}
+        </div>
+
+        {% if rules %}
+        <table class="w-full text-xs">
+            <thead>
+                <tr class="text-[10px] text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/50">
+                    <th class="px-3 py-2 w-6"></th>
+                    <th class="px-3 py-2 text-left">Name</th>
+                    <th class="px-3 py-2 text-left">Type</th>
+                    <th class="px-3 py-2 text-left">Action Type</th>
+                    <th class="px-3 py-2 text-left">Action → Role</th>
+                    <th class="px-3 py-2 text-left">Notify → Role</th>
+                    <th class="px-3 py-2 text-left">Priority</th>
+                    <th class="px-3 py-2 text-left">Deadline</th>
+                    <th class="px-3 py-2 w-20">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50 dark:divide-gray-700/30">
+                {% for rule in rules %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/20 {% if not rule.is_active %}opacity-40{% endif %}">
+                    <td class="px-3 py-2">
+                        <button onclick="toggleRule({{ rule.pk }})" title="Toggle">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block {% if rule.is_active %}bg-green-400{% else %}bg-gray-300{% endif %}"></span>
+                        </button>
+                    </td>
+                    <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ rule.name }}</td>
+                    <td class="px-3 py-2">
+                        <select onchange="quickSave({{ rule.pk }}, 'rule_type', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                            <option value="ACTION" {% if rule.rule_type == 'ACTION' %}selected{% endif %}>Action</option>
+                            <option value="NOTIFICATION" {% if rule.rule_type == 'NOTIFICATION' %}selected{% endif %}>Notify</option>
+                            <option value="BOTH" {% if rule.rule_type == 'BOTH' %}selected{% endif %}>Both</option>
+                        </select>
+                    </td>
+                    <td class="px-3 py-2">
+                        <select onchange="quickSave({{ rule.pk }}, 'action_type', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                            <option value="">—</option>
+                            {% for val, label in action_types %}<option value="{{ val }}" {% if rule.action_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        </select>
+                    </td>
+                    <td class="px-3 py-2">
+                        <select onchange="quickSave({{ rule.pk }}, 'assign_to_role_id', this.value)" class="border-0 bg-transparent text-xs text-indigo-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                            <option value="">—</option>
+                            {% for r in roles %}<option value="{{ r.pk }}" {% if rule.assign_to_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                        </select>
+                    </td>
+                    <td class="px-3 py-2">
+                        <select onchange="quickSave({{ rule.pk }}, 'notif_recipients_role_id', this.value)" class="border-0 bg-transparent text-xs text-teal-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                            <option value="">—</option>
+                            {% for r in roles %}<option value="{{ r.pk }}" {% if rule.notif_recipients_role_id == r.pk %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+                        </select>
+                    </td>
+                    <td class="px-3 py-2">
+                        <select onchange="quickSave({{ rule.pk }}, 'notif_priority', this.value)" class="border-0 bg-transparent text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                            <option value="LOW" {% if rule.notif_priority == 'LOW' %}selected{% endif %}>Low</option>
+                            <option value="NORMAL" {% if rule.notif_priority == 'NORMAL' %}selected{% endif %}>Normal</option>
+                            <option value="HIGH" {% if rule.notif_priority == 'HIGH' %}selected{% endif %}>High</option>
+                            <option value="URGENT" {% if rule.notif_priority == 'URGENT' %}selected{% endif %}>Urgent</option>
+                        </select>
+                    </td>
+                    <td class="px-3 py-2">
+                        <input type="number" value="{{ rule.deadline_hours|default:'' }}" placeholder="—"
+                               onchange="quickSave({{ rule.pk }}, 'deadline_hours', this.value || null)"
+                               class="border-0 bg-transparent text-xs w-12 text-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5">
+                    </td>
+                    <td class="px-3 py-2 flex gap-1">
+                        <button onclick="editRuleFull({{ rule.pk }})" class="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-blue-600" title="Full Edit">
+                            <i data-lucide="settings-2" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="deleteRule({{ rule.pk }}, '{{ rule.name|escapejs }}')" class="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-red-600" title="Delete">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-5 py-8 text-center text-gray-400">
+            <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2"></i>
+            <p class="text-sm">No rules configured for this trigger</p>
+            {% if trigger.workflow_event %}
+            <button @click="addRule()" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Add First Rule</button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Full Edit Modal -->
+    <div x-show="editModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="editModal=false" style="display:none;">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between">
+                <h3 class="font-bold text-gray-900 dark:text-white">Edit Rule Details</h3>
+                <button @click="editModal=false" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs font-medium text-gray-600 mb-1 block">Name</label>
+                        <input type="text" x-model="ed.name" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700"></div>
+                    <div><label class="text-xs font-medium text-gray-600 mb-1 block">Queue (any member can claim)</label>
+                        <select x-model="ed.is_queue_action" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                            <option value="false">No</option><option value="true">Yes</option></select></div>
+                </div>
+                <div><label class="text-xs font-medium text-gray-600 mb-1 block">Notification Title Template</label>
+                    <input type="text" x-model="ed.notif_title_template" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="WO {wo_number} needs approval"></div>
+                <div><label class="text-xs font-medium text-gray-600 mb-1 block">Notification Message Template</label>
+                    <textarea x-model="ed.notif_message_template" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700"></textarea></div>
+                <div><label class="text-xs font-medium text-gray-600 mb-1 block">Action URL Pattern</label>
+                    <input type="text" x-model="ed.action_url_pattern" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" placeholder="/work-orders/{wo_id}/"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs font-medium text-gray-600 mb-1 block">Escalate to Role</label>
+                        <select x-model="ed.escalate_to_role_id" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
+                            <option value="">—</option>{% for r in roles %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}</select></div>
+                    <div><label class="text-xs font-medium text-gray-600 mb-1 block">Escalate After (hours)</label>
+                        <input type="number" x-model="ed.escalate_after_hours" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700"></div>
+                </div>
+                <p class="text-[10px] text-gray-400">Variables: {wo_number} {wo_id} {serial} {bit_id} {actor_name} {step_name} {hold_reason}</p>
+            </div>
+            <div class="px-5 py-3 border-t flex justify-end gap-2">
+                <button @click="editModal=false" class="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100">Cancel</button>
+                <button @click="saveFullEdit()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="msg" x-transition class="fixed bottom-6 right-6 px-4 py-2 rounded-lg shadow-lg text-sm font-medium"
+         :class="msgOk ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" x-text="msg" style="display:none;"></div>
+</div>
+
+<script>
+function _csrf() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || document.cookie.match(/csrftoken=([^;]+)/)?.[1]; }
+
+const RULES_DATA = { {% for rule in rules %}{{ rule.pk }}: { name:"{{ rule.name|escapejs }}", notif_title_template:"{{ rule.notif_title_template|escapejs }}", notif_message_template:"{{ rule.notif_message_template|escapejs }}", action_url_pattern:"{{ rule.action_url_pattern|escapejs }}", is_queue_action:{{ rule.is_queue_action|yesno:"true,false" }}, escalate_to_role_id:"{{ rule.escalate_to_role_id|default:'' }}", escalate_after_hours:{{ rule.escalate_after_hours|default:"null" }} },{% endfor %} };
+
+function triggerPage() {
+    return {
+        editingTrigger: false,
+        triggerData: {
+            name: "{{ trigger.name|escapejs }}",
+            icon: "{{ trigger.icon }}",
+            category: "{{ trigger.category }}",
+            typical_role: "{{ trigger.typical_role|escapejs }}",
+            page_name: "{{ trigger.page_name|escapejs }}",
+            workflow_event: "{{ trigger.workflow_event }}",
+            description: "{{ trigger.description|escapejs }}",
+        },
+        editModal: false, editPk: null, ed: {},
+        msg: '', msgOk: false,
+
+        async saveTrigger() {
+            const r = await fetch(window.location.href, {
+                method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()},
+                body: JSON.stringify(this.triggerData)
+            });
+            const d = await r.json();
+            if (d.success) { this.flash('Trigger updated'); setTimeout(() => location.reload(), 800); }
+            else { this.flash(d.error, false); }
+        },
+
+        async addRule() {
+            const name = prompt('Rule name (e.g. "Notify GM"):');
+            if (!name) return;
+            const r = await fetch('{% url "notifications:api_rule_create" %}', {
+                method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()},
+                body: JSON.stringify({ name, trigger_event: '{{ trigger.workflow_event }}', rule_type: 'NOTIFICATION', notif_priority: 'NORMAL' })
+            });
+            const d = await r.json();
+            if (d.success) location.reload();
+            else alert(d.error);
+        },
+
+        async saveFullEdit() {
+            const r = await fetch('/notifications/api/workflow/rules/' + this.editPk + '/save/', {
+                method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()},
+                body: JSON.stringify(this.ed)
+            });
+            const d = await r.json();
+            if (d.success) location.reload();
+            else alert(d.error);
+        },
+
+        flash(m, ok=true) { this.msg = m; this.msgOk = ok; setTimeout(() => this.msg = '', 2500); },
+    };
+}
+
+async function quickSave(pk, field, value) {
+    const body = {}; body[field] = value;
+    await fetch('/notifications/api/workflow/rules/' + pk + '/save/', {
+        method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':_csrf()}, body: JSON.stringify(body)
+    });
+    const comp = Alpine.$data(document.querySelector('[x-data]'));
+    comp.flash('Saved');
+}
+
+async function toggleRule(pk) {
+    await fetch('/notifications/api/workflow/rules/' + pk + '/toggle/', { method:'POST', headers:{'X-CSRFToken':_csrf()} });
+    location.reload();
+}
+
+function editRuleFull(pk) {
+    const comp = Alpine.$data(document.querySelector('[x-data]'));
+    comp.editPk = pk;
+    comp.ed = {...RULES_DATA[pk]};
+    comp.editModal = true;
+}
+
+async function deleteRule(pk, name) {
+    if (!confirm('Delete rule "' + name + '"? This cannot be undone.')) return;
+    const r = await fetch('/notifications/api/workflow/rules/' + pk + '/delete/', {
+        method: 'POST', headers: {'X-CSRFToken': _csrf()}
+    });
+    const d = await r.json();
+    if (d.success) location.reload();
+    else alert(d.error);
+}
+</script>
+{% endblock %}
