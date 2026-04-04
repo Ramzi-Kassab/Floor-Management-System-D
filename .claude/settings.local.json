@@ -198,7 +198,8 @@
       "Bash(\"D:/PycharmProjects/floor_management_system-D3/venv/Scripts/python.exe\" -c \"import pptx; print\\(pptx.__version__\\)\")",
       "Bash(\"D:/PycharmProjects/floor_management_system-D3/venv/Scripts/python.exe\" \"D:/PycharmProjects/floor_management_system-D3/DOCS/generate_presentation.py\")",
       "Bash(PYTHONIOENCODING=utf-8 \"D:/PycharmProjects/floor_management_system-D3/venv/Scripts/python.exe\" \"D:/PycharmProjects/floor_management_system-D3/DOCS/generate_presentation.py\")",
-      "Bash(PYTHONIOENCODING=utf-8 venv/Scripts/python.exe manage.py sync_trigger_points)"
+      "Bash(PYTHONIOENCODING=utf-8 venv/Scripts/python.exe manage.py sync_trigger_points)",
+      "Bash(PYTHONIOENCODING=utf-8 venv/Scripts/python.exe manage.py detect_trigger_variables)"
     ],
     "deny": [],
     "ask": []
